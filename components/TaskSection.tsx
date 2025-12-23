@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, Calendar, CheckCircle2, Edit2, X, Clock, SlidersHorizontal, ChevronDown, Trash, CheckSquare, Square, ChevronRight, ListChecks } from 'lucide-react';
+import { Plus, Trash2, CheckCircle2, Edit2, X, SlidersHorizontal, ChevronDown, Trash, CheckSquare, Square, ChevronRight, ListChecks } from 'lucide-react';
 import { Task, Priority, Subtask } from '../types';
 
 interface TaskSectionProps {
@@ -123,7 +123,6 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks }) => {
     const date = new Date(dateStr);
     const utcDate = new Date(date.getTime() + date.getTimezoneOffset() * 60000);
     return utcDate.toLocaleDateString('en-US', { 
-      weekday: 'short', 
       month: 'short', 
       day: 'numeric', 
       year: 'numeric' 
@@ -139,7 +138,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks }) => {
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Tomorrow';
     if (diffDays === -1) return 'Yesterday';
-    return diffDays > 0 ? `${diffDays} days left` : `${Math.abs(diffDays)} days ago`;
+    return diffDays > 0 ? `${diffDays}d left` : `${Math.abs(diffDays)}d ago`;
   };
 
   const getPriorityStyle = (p: Priority) => {
@@ -178,8 +177,8 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks }) => {
       {groups.map((group, gIdx) => (
         <div key={group.title + gIdx} className="space-y-1">
           {grouping !== 'none' && group.title && (
-            <div className="flex items-center gap-3 px-1 py-2">
-              <span className="text-[11px] font-bold text-[#605e5c] uppercase tracking-wider">{group.title}</span>
+            <div className="flex items-center gap-3 px-1 py-3">
+              <span className="text-[11px] font-semibold text-[#a19f9d] uppercase tracking-[0.15em]">{group.title}</span>
               <div className="h-px bg-[#edebe9] flex-1"></div>
             </div>
           )}
@@ -191,72 +190,79 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks }) => {
 
               return (
                 <div key={task.id} className="flex flex-col group/item">
-                  <div className={`fluent-card p-2.5 flex items-center justify-between gap-4 ${task.completed ? 'bg-[#faf9f8]' : ''}`}>
-                    {/* LEFT SECTION */}
-                    <div className="flex items-center gap-3 flex-1 overflow-hidden">
+                  <div className={`fluent-card px-4 py-2.5 flex items-center gap-4 ${task.completed ? 'bg-[#faf9f8] opacity-80' : ''}`}>
+                    {/* FIXED: Checkbox + Priority (width controlled) */}
+                    <div className="flex items-center gap-4 w-[120px] shrink-0">
                       <button 
                         onClick={() => toggleTask(task.id)}
-                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all flex-shrink-0 ${
-                          task.completed ? 'bg-[#107c10] border-[#107c10] text-white' : 'border-[#8a8886] hover:border-[#0078d4]'
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all flex-shrink-0 ${
+                          task.completed ? 'bg-[#107c10] border-[#107c10] text-white' : 'border-[#d1d1d1] hover:border-[#0078d4]'
                         }`}
                       >
-                        {task.completed && <CheckCircle2 className="w-2.5 h-2.5" />}
+                        {task.completed && <CheckCircle2 className="w-3 h-3" />}
                       </button>
 
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight ${getPriorityStyle(task.priority)}`}>
-                        {task.priority}
-                      </span>
+                      <div className="w-[64px] text-center">
+                        <span className={`inline-block w-full py-0.5 rounded text-[10px] font-bold uppercase tracking-tighter border ${getPriorityStyle(task.priority)}`}>
+                          {task.priority}
+                        </span>
+                      </div>
+                    </div>
 
-                      <h4 className={`text-sm font-semibold truncate flex-1 ${task.completed ? 'text-[#a19f9d] line-through' : 'text-[#323130]'}`}>
+                    {/* FLEX: Title (Always starts at same position) */}
+                    <div className="flex-1 flex items-center gap-3 min-w-0">
+                      <h4 className={`text-sm font-semibold truncate ${task.completed ? 'text-[#a19f9d] line-through' : 'text-[#323130]'}`}>
                         {task.title}
                       </h4>
-
                       {hasSubtasks && (
                         <button 
                           onClick={(e) => toggleExpand(task.id, e)}
-                          className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold transition-all ${
+                          className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
                             isExpanded ? 'bg-[#eff6fc] text-[#0078d4]' : 'bg-[#f3f2f1] text-[#605e5c] hover:bg-[#edebe9]'
                           }`}
                         >
-                          <ListChecks className="w-3 h-3" />
+                          <ListChecks className="w-3.5 h-3.5" />
                           <span>{completedSubCount}/{task.subtasks.length}</span>
                           <ChevronRight className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                         </button>
                       )}
                     </div>
 
-                    {/* RIGHT SECTION */}
-                    <div className="flex items-center gap-5 flex-shrink-0">
-                      <div className="flex items-center gap-3 text-[11px] font-medium text-[#605e5c]">
-                        <span className={`px-1.5 py-0.5 rounded ${!task.completed ? 'bg-[#eff6fc] text-[#0078d4]' : ''}`}>
+                    {/* FIXED: Relative Time + Absolute Date + Actions (Right aligned columns) */}
+                    <div className="flex items-center gap-8 shrink-0">
+                      <div className="w-[70px] text-right">
+                        <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${!task.completed ? 'bg-[#eff6fc] text-[#0078d4]' : 'text-[#a19f9d]'}`}>
                           {getRelativeTime(task.dueDate)}
                         </span>
-                        <span className="opacity-60 hidden sm:block">
+                      </div>
+                      
+                      <div className="w-[85px] text-right hidden md:block">
+                        <span className="text-[11px] font-medium text-[#a19f9d]">
                           {formatDisplayDate(task.dueDate)}
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-1 border-l pl-3 border-[#edebe9]">
-                        <button onClick={() => openEditModal(task)} className="p-1.5 text-[#605e5c] hover:text-[#0078d4] hover:bg-[#f3f2f1] rounded transition-all">
+                      <div className="flex items-center gap-0.5 border-l pl-3 border-[#edebe9]">
+                        <button onClick={() => openEditModal(task)} className="p-1.5 text-[#605e5c] hover:text-[#0078d4] hover:bg-[#eff6fc] rounded transition-all">
                           <Edit2 className="w-4 h-4" />
                         </button>
-                        <button onClick={() => deleteTask(task.id)} className="p-1.5 text-[#605e5c] hover:text-[#a4262c] hover:bg-[#fde7e9] rounded transition-all">
+                        <button onClick={() => deleteTask(task.id)} className="p-1.5 text-[#605e5c] hover:text-[#a4262c] hover:bg-red-50 rounded transition-all">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
                   </div>
 
-                  {/* REVEAL AREA */}
+                  {/* SUBTASKS */}
                   {isExpanded && hasSubtasks && (
-                    <div className="ml-10 mt-[-1px] mb-2 p-3 bg-white border border-[#edebe9] rounded-b-lg space-y-2 animate-in slide-in-from-top-1 duration-150">
+                    <div className="ml-[120px] mt-[-1px] mb-2 p-3 bg-white border border-[#edebe9] rounded-b-lg border-t-0 space-y-2 animate-in slide-in-from-top-1 duration-150 shadow-inner">
                       {task.subtasks.map(st => (
                         <button 
                           key={st.id} 
                           onClick={() => toggleSubtaskMain(task.id, st.id)}
                           className="flex items-center text-left w-full group/sub py-0.5"
                         >
-                          <div className={`mr-2.5 ${st.completed ? 'text-[#107c10]' : 'text-[#8a8886] group-hover/sub:text-[#0078d4]'}`}>
+                          <div className={`mr-3 ${st.completed ? 'text-[#107c10]' : 'text-[#a19f9d] group-hover/sub:text-[#0078d4]'}`}>
                             {st.completed ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                           </div>
                           <span className={`text-[12px] font-medium ${st.completed ? 'line-through opacity-50 text-[#605e5c]' : 'text-[#323130]'}`}>
@@ -279,8 +285,8 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks }) => {
     <div className="space-y-10 animate-in fade-in duration-300 pb-20">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-bold text-[#323130]">Your Agenda</h3>
-          <p className="text-xs text-[#605e5c] font-medium">Organize and execute your priorities.</p>
+          <h3 className="text-xl font-bold text-[#323130]">Your Agenda</h3>
+          <p className="text-xs text-[#605e5c] font-medium mt-0.5">Focus on what matters today.</p>
         </div>
         <div className="flex items-center space-x-2">
           <div className="relative">
@@ -289,22 +295,22 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks }) => {
               className="flex items-center space-x-2 px-3 py-2 bg-white border border-[#edebe9] text-[#323130] rounded shadow-sm font-semibold text-xs hover:bg-[#f3f2f1]"
             >
               <SlidersHorizontal className="w-3.5 h-3.5" />
-              <span>View Options</span>
+              <span>View</span>
               <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isViewMenuOpen ? 'rotate-180' : ''}`} />
             </button>
             {isViewMenuOpen && (
               <div className="absolute right-0 mt-2 w-56 bg-white border border-[#edebe9] rounded-lg shadow-xl z-20 p-2 animate-in zoom-in-95 duration-100">
-                <div className="px-3 py-2 text-[10px] font-bold text-[#a19f9d] uppercase">Group By</div>
+                <div className="px-3 py-2 text-[10px] font-bold text-[#a19f9d] uppercase tracking-wider">Group By</div>
                 {(['none', 'date', 'priority'] as Grouping[]).map(g => (
-                  <button key={g} onClick={() => { setGrouping(g); setIsViewMenuOpen(false); }} className={`w-full text-left px-3 py-1.5 text-xs rounded transition-colors flex items-center justify-between ${grouping === g ? 'bg-[#eff6fc] text-[#0078d4] font-bold' : 'hover:bg-[#faf9f8]'}`}>
+                  <button key={g} onClick={() => { setGrouping(g); setIsViewMenuOpen(false); }} className={`w-full text-left px-3 py-2 text-xs rounded transition-colors flex items-center justify-between ${grouping === g ? 'bg-[#eff6fc] text-[#0078d4] font-bold' : 'hover:bg-[#faf9f8]'}`}>
                     <span className="capitalize">{g}</span>
                     {grouping === g && <CheckCircle2 className="w-3 h-3" />}
                   </button>
                 ))}
                 <div className="h-px bg-[#edebe9] my-2" />
-                <div className="px-3 py-2 text-[10px] font-bold text-[#a19f9d] uppercase">Sort By</div>
+                <div className="px-3 py-2 text-[10px] font-bold text-[#a19f9d] uppercase tracking-wider">Sort By</div>
                 {(['date', 'priority', 'title'] as Sorting[]).map(s => (
-                  <button key={s} onClick={() => { setSorting(s); setIsViewMenuOpen(false); }} className={`w-full text-left px-3 py-1.5 text-xs rounded transition-colors flex items-center justify-between ${sorting === s ? 'bg-[#eff6fc] text-[#0078d4] font-bold' : 'hover:bg-[#faf9f8]'}`}>
+                  <button key={s} onClick={() => { setSorting(s); setIsViewMenuOpen(false); }} className={`w-full text-left px-3 py-2 text-xs rounded transition-colors flex items-center justify-between ${sorting === s ? 'bg-[#eff6fc] text-[#0078d4] font-bold' : 'hover:bg-[#faf9f8]'}`}>
                     <span className="capitalize">{s}</span>
                     {sorting === s && <CheckCircle2 className="w-3 h-3" />}
                   </button>
@@ -312,76 +318,76 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks }) => {
               </div>
             )}
           </div>
-          <button onClick={openCreateModal} className="flex items-center space-x-2 px-4 py-2 fluent-btn-primary rounded-md shadow-sm">
+          <button onClick={openCreateModal} className="flex items-center space-x-2 px-4 py-2 fluent-btn-primary rounded shadow-sm">
             <Plus className="w-4 h-4" />
             <span className="text-sm">New Task</span>
           </button>
         </div>
       </div>
 
-      <div className="space-y-8">
-        <div>
+      <div className="space-y-12">
+        <section>
           {tasks.filter(t => !t.completed).length === 0 ? (
-            <div className="text-center py-16 border-2 border-dashed border-[#edebe9] rounded-lg">
-              <CheckCircle2 className="w-10 h-10 text-[#c8c6c4] mx-auto mb-3 opacity-50" />
-              <p className="text-[#605e5c] text-sm font-medium">All caught up! No active tasks.</p>
+            <div className="text-center py-16 bg-white border border-[#edebe9] rounded-lg">
+              <CheckCircle2 className="w-10 h-10 text-[#c8c6c4] mx-auto mb-3 opacity-40" />
+              <p className="text-[#605e5c] text-sm font-medium">All tasks completed. You're doing great!</p>
             </div>
           ) : (
             renderTaskList(activeTasksGroups)
           )}
-        </div>
+        </section>
 
         {tasks.filter(t => t.completed).length > 0 && (
-          <div className="space-y-4">
+          <section className="space-y-4">
             <div className="flex items-center gap-3">
               <span className="text-xs font-bold text-[#107c10] uppercase tracking-wider">Completed</span>
               <div className="h-px bg-[#dff6dd] flex-1"></div>
             </div>
             {renderTaskList(completedTasksGroups)}
-          </div>
+          </section>
         )}
       </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[1px] p-4">
-          <div className="bg-white w-full max-w-lg rounded-lg shadow-2xl animate-in zoom-in duration-150 flex flex-col max-h-[90vh]">
+          <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl animate-in zoom-in duration-150 flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#edebe9]">
-              <h3 className="text-base font-bold">{editingTask ? 'Edit Task' : 'New Task'}</h3>
-              <button onClick={closeModal} className="p-1 text-[#605e5c] hover:bg-[#edebe9] rounded transition-colors">
+              <h3 className="text-base font-bold text-[#323130]">{editingTask ? 'Edit Task' : 'Create Task'}</h3>
+              <button onClick={closeModal} className="p-1.5 text-[#605e5c] hover:bg-[#edebe9] rounded transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-5">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#605e5c] uppercase">Task Name</label>
-                <input autoFocus required type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Enter task title..." className="w-full text-sm font-medium" />
+            <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-8 space-y-6 no-scrollbar">
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-[#605e5c] uppercase tracking-wide">Task Name</label>
+                <input autoFocus required type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What needs to be done?" className="w-full text-sm font-medium" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-[#605e5c] uppercase">Deadline</label>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-[#605e5c] uppercase tracking-wide">Deadline</label>
                   <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full text-sm font-medium" />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-[#605e5c] uppercase">Priority</label>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-[#605e5c] uppercase tracking-wide">Priority</label>
                   <select value={priority} onChange={(e) => setPriority(e.target.value as Priority)} className="w-full text-sm font-medium">
                     {priorities.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
               </div>
               <div className="space-y-3 pt-2">
-                <label className="text-xs font-bold text-[#605e5c] uppercase">Subtasks</label>
+                <label className="text-[11px] font-bold text-[#605e5c] uppercase tracking-wide">Steps / Subtasks</label>
                 <div className="flex gap-2">
-                  <input type="text" placeholder="Add a step..." value={newSubtaskTitle} onChange={(e) => setNewSubtaskTitle(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSubtask())} className="flex-1 text-sm font-medium" />
-                  <button type="button" onClick={addSubtask} className="px-4 py-1 bg-[#f3f2f1] text-[#0078d4] font-bold text-xs rounded border border-[#edebe9] hover:bg-[#edebe9]">Add</button>
+                  <input type="text" placeholder="Add a subtask..." value={newSubtaskTitle} onChange={(e) => setNewSubtaskTitle(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSubtask())} className="flex-1 text-sm font-medium" />
+                  <button type="button" onClick={addSubtask} className="px-4 py-2 bg-[#f3f2f1] text-[#0078d4] font-bold text-xs rounded border border-[#edebe9] hover:bg-[#edebe9] transition-colors">Add</button>
                 </div>
                 <div className="space-y-1.5">
                   {subtasks.map(st => (
-                    <div key={st.id} className="flex items-center justify-between p-2.5 bg-[#faf9f8] border border-[#edebe9] rounded group">
+                    <div key={st.id} className="flex items-center justify-between p-3 bg-[#faf9f8] border border-[#edebe9] rounded-lg group">
                       <div className="flex items-center gap-3">
-                        <input type="checkbox" checked={st.completed} onChange={() => toggleSubtaskInModal(st.id)} className="w-4 h-4" />
+                        <input type="checkbox" checked={st.completed} onChange={() => toggleSubtaskInModal(st.id)} className="w-4 h-4 rounded-full border-2" />
                         <span className={`text-sm font-medium ${st.completed ? 'line-through text-[#a19f9d]' : ''}`}>{st.title}</span>
                       </div>
-                      <button type="button" onClick={() => removeSubtask(st.id)} className="text-[#a4262c] opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 rounded transition-all">
+                      <button type="button" onClick={() => removeSubtask(st.id)} className="text-[#a4262c] opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-50 rounded transition-all">
                         <Trash className="w-4 h-4" />
                       </button>
                     </div>
@@ -389,10 +395,10 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks }) => {
                 </div>
               </div>
             </form>
-            <div className="p-4 border-t border-[#edebe9] flex justify-end gap-3 bg-[#faf9f8]">
-              <button type="button" onClick={closeModal} className="px-5 py-2 text-sm font-semibold text-[#605e5c] hover:bg-[#f3f2f1] rounded transition-colors">Cancel</button>
-              <button onClick={handleSave} className="px-6 py-2 text-sm fluent-btn-primary rounded shadow-md">
-                {editingTask ? 'Save Changes' : 'Create Task'}
+            <div className="p-6 border-t border-[#edebe9] flex justify-end gap-3 bg-[#faf9f8]">
+              <button type="button" onClick={closeModal} className="px-6 py-2.5 text-sm font-semibold text-[#605e5c] hover:bg-[#f3f2f1] rounded transition-colors">Cancel</button>
+              <button onClick={handleSave} className="px-8 py-2.5 text-sm fluent-btn-primary rounded shadow-md active:scale-95 transition-transform">
+                {editingTask ? 'Update Task' : 'Save Task'}
               </button>
             </div>
           </div>
