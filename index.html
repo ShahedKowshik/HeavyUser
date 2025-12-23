@@ -58,6 +58,12 @@
     .no-scrollbar::-webkit-scrollbar {
       display: none;
     }
+    /* Simple markdown styles */
+    .prose p { margin-bottom: 0.5em; }
+    .prose ul { list-style-type: disc; padding-left: 1.2em; margin-bottom: 0.5em; }
+    .prose ol { list-style-type: decimal; padding-left: 1.2em; margin-bottom: 0.5em; }
+    .prose h1, .prose h2, .prose h3 { font-weight: bold; margin-top: 1em; margin-bottom: 0.5em; }
+    .prose code { background: #f3f2f1; padding: 2px 4px; rounded: 4px; font-size: 0.9em; }
   </style>
 <script type="importmap">
 {
@@ -66,7 +72,8 @@
     "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
     "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react-markdown": "https://esm.sh/react-markdown@9.0.1?bundle"
   }
 }
 </script>

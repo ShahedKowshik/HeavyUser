@@ -3,6 +3,12 @@ export type AppTab = 'tasks' | 'journal' | 'settings';
 
 export type Priority = 'Urgent' | 'High' | 'Normal' | 'Low';
 
+export interface Tag {
+  id: string;
+  label: string;
+  color: string;
+}
+
 export interface Subtask {
   id: string;
   title: string;
@@ -13,9 +19,12 @@ export interface Task {
   id: string;
   title: string;
   dueDate: string;
+  time?: string; // HH:mm 24h format
   completed: boolean;
   priority: Priority;
   subtasks: Subtask[];
+  tags?: string[];
+  notes?: string;
 }
 
 export type EntryType = 'Log' | 'Gratitude';

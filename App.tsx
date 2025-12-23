@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { LayoutGrid, CheckCircle2, Settings, BookOpen } from 'lucide-react';
-import { AppTab, Task, UserSettings, JournalEntry } from './types';
+import { AppTab, Task, UserSettings, JournalEntry, Tag } from './types';
 import TaskSection from './components/TaskSection';
 import SettingsSection from './components/SettingsSection';
 import JournalSection from './components/JournalSection';
@@ -21,17 +21,23 @@ const getDateOffset = (days: number) => {
   return d.toISOString().split('T')[0];
 };
 
+const DUMMY_TAGS: Tag[] = [
+  { id: 't1', label: 'Work', color: '#0078d4' },
+  { id: 't2', label: 'Personal', color: '#107c10' },
+  { id: 't3', label: 'Learning', color: '#5c2d91' },
+];
+
 const DUMMY_TASKS: Task[] = [
-  { id: '1', title: 'Urgent: Fix production login bug', dueDate: getDateOffset(-1), completed: false, priority: 'Urgent', subtasks: [] },
-  { id: '2', title: 'Prepare for Q3 Strategy Meet', dueDate: getDateOffset(0), completed: false, priority: 'High', subtasks: [] },
-  { id: '3', title: 'Morning Workout & Stretch', dueDate: getDateOffset(0), completed: true, priority: 'Normal', subtasks: [] },
-  { id: '4', title: 'Lunch with Design Team', dueDate: getDateOffset(1), completed: false, priority: 'Normal', subtasks: [] },
-  { id: '5', title: 'Client Proposal Final Review', dueDate: getDateOffset(1), completed: false, priority: 'Urgent', subtasks: [] },
-  { id: '6', title: 'Grocery Run - Weekly Prep', dueDate: getDateOffset(2), completed: false, priority: 'High', subtasks: [] },
-  { id: '7', title: 'Refactor Auth Middleware', dueDate: getDateOffset(3), completed: false, priority: 'Normal', subtasks: [] },
-  { id: '8', title: 'Schedule Dental Checkup', dueDate: getDateOffset(6), completed: false, priority: 'Low', subtasks: [] },
-  { id: '9', title: 'Long-term Growth Research', dueDate: getDateOffset(10), completed: false, priority: 'Low', subtasks: [] },
-  { id: '10', title: 'Update system dependencies', dueDate: getDateOffset(-5), completed: true, priority: 'Normal', subtasks: [] },
+  { id: '1', title: 'Urgent: Fix production login bug', dueDate: getDateOffset(-1), completed: false, priority: 'Urgent', subtasks: [], tags: ['t1'] },
+  { id: '2', title: 'Prepare for Q3 Strategy Meet', dueDate: getDateOffset(0), completed: false, priority: 'High', subtasks: [], tags: ['t1'] },
+  { id: '3', title: 'Morning Workout & Stretch', dueDate: getDateOffset(0), completed: true, priority: 'Normal', subtasks: [], tags: ['t2'] },
+  { id: '4', title: 'Lunch with Design Team', dueDate: getDateOffset(1), completed: false, priority: 'Normal', subtasks: [], tags: ['t1'] },
+  { id: '5', title: 'Client Proposal Final Review', dueDate: getDateOffset(1), completed: false, priority: 'Urgent', subtasks: [], tags: ['t1'] },
+  { id: '6', title: 'Grocery Run - Weekly Prep', dueDate: getDateOffset(2), completed: false, priority: 'High', subtasks: [], tags: ['t2'] },
+  { id: '7', title: 'Refactor Auth Middleware', dueDate: getDateOffset(3), completed: false, priority: 'Normal', subtasks: [], tags: ['t1', 't3'] },
+  { id: '8', title: 'Schedule Dental Checkup', dueDate: getDateOffset(6), completed: false, priority: 'Low', subtasks: [], tags: ['t2'] },
+  { id: '9', title: 'Long-term Growth Research', dueDate: getDateOffset(10), completed: false, priority: 'Low', subtasks: [], tags: ['t1', 't3'] },
+  { id: '10', title: 'Update system dependencies', dueDate: getDateOffset(-5), completed: true, priority: 'Normal', subtasks: [], tags: ['t1'] },
 ];
 
 const DUMMY_JOURNALS: JournalEntry[] = [
@@ -45,6 +51,11 @@ const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>(() => {
     const saved = localStorage.getItem('heavyuser_tasks');
     return saved ? JSON.parse(saved) : DUMMY_TASKS;
+  });
+
+  const [tags, setTags] = useState<Tag[]>(() => {
+    const saved = localStorage.getItem('heavyuser_tags');
+    return saved ? JSON.parse(saved) : DUMMY_TAGS;
   });
 
   const [journals, setJournals] = useState<JournalEntry[]>(() => {
@@ -65,9 +76,15 @@ const App: React.FC = () => {
     };
   });
 
+  const [currentTime, setCurrentTime] = useState(new Date());
+
   useEffect(() => {
     localStorage.setItem('heavyuser_tasks', JSON.stringify(tasks));
   }, [tasks]);
+
+  useEffect(() => {
+    localStorage.setItem('heavyuser_tags', JSON.stringify(tags));
+  }, [tags]);
 
   useEffect(() => {
     localStorage.setItem('heavyuser_journals', JSON.stringify(journals));
@@ -77,18 +94,26 @@ const App: React.FC = () => {
     localStorage.setItem('heavyuser_settings', JSON.stringify(userSettings));
   }, [userSettings]);
 
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const renderContent = () => {
     switch (activeTab) {
       case 'tasks':
-        return <TaskSection tasks={tasks} setTasks={setTasks} />;
+        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} />;
       case 'journal':
         return <JournalSection journals={journals} setJournals={setJournals} />;
       case 'settings':
         return <SettingsSection settings={userSettings} onUpdate={setUserSettings} />;
       default:
-        return <TaskSection tasks={tasks} setTasks={setTasks} />;
+        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} />;
     }
   };
+
+  const formattedDate = currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const formattedTime = currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
 
   return (
     <div className="flex h-screen bg-[#f3f3f3] text-[#323130] overflow-hidden font-sans">
@@ -157,8 +182,8 @@ const App: React.FC = () => {
         <header className="sticky top-0 z-10 flex items-center justify-between px-8 py-4 bg-white/80 backdrop-blur-md border-b border-[#edebe9]">
           <h2 className="text-xl font-bold capitalize text-[#323130]">{activeTab}</h2>
           <div className="flex items-center space-x-4">
-            <div className="text-xs text-[#605e5c] font-bold px-3 py-1 bg-[#f3f2f1] rounded-full border border-[#edebe9]">
-              {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            <div className="text-xs text-[#605e5c] font-bold px-3 py-1 bg-[#f3f2f1] rounded-full border border-[#edebe9] tabular-nums">
+              {formattedDate}, {formattedTime}
             </div>
           </div>
         </header>
