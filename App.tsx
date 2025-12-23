@@ -15,32 +15,29 @@ const generateUserId = () => {
   return result;
 };
 
+const getDateOffset = (days: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+};
+
 const DUMMY_TASKS: Task[] = [
-  { id: '1', title: 'Complete quarterly report', dueDate: new Date().toISOString().split('T')[0], completed: false, priority: 'Urgent', subtasks: [] },
-  { id: '2', title: 'Gym session - Leg day', dueDate: new Date().toISOString().split('T')[0], completed: true, priority: 'Normal', subtasks: [] },
-  { id: '3', title: 'Buy groceries for the week', dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], completed: false, priority: 'High', subtasks: [{ id: 's1', title: 'Milk', completed: false }, { id: 's2', title: 'Eggs', completed: true }] },
-  { id: '4', title: 'Call parents', dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], completed: false, priority: 'Normal', subtasks: [] },
-  { id: '5', title: 'Review PR for landing page', dueDate: new Date(Date.now() - 86400000).toISOString().split('T')[0], completed: false, priority: 'Urgent', subtasks: [] },
-  { id: '6', title: 'Update system dependencies', dueDate: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0], completed: false, priority: 'Low', subtasks: [] },
-  { id: '7', title: 'Dentist appointment', dueDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0], completed: false, priority: 'High', subtasks: [] },
-  { id: '8', title: 'Plan summer vacation', dueDate: new Date(Date.now() + 86400000 * 10).toISOString().split('T')[0], completed: false, priority: 'Low', subtasks: [] },
-  { id: '9', title: 'Fix CSS bugs in dashboard', dueDate: new Date().toISOString().split('T')[0], completed: false, priority: 'High', subtasks: [] },
-  { id: '10', title: 'Research new AI models', dueDate: new Date(Date.now() + 86400000 * 4).toISOString().split('T')[0], completed: true, priority: 'Normal', subtasks: [] },
+  { id: '1', title: 'Urgent: Fix production login bug', dueDate: getDateOffset(-1), completed: false, priority: 'Urgent', subtasks: [] },
+  { id: '2', title: 'Prepare for Q3 Strategy Meet', dueDate: getDateOffset(0), completed: false, priority: 'High', subtasks: [] },
+  { id: '3', title: 'Morning Workout & Stretch', dueDate: getDateOffset(0), completed: true, priority: 'Normal', subtasks: [] },
+  { id: '4', title: 'Lunch with Design Team', dueDate: getDateOffset(1), completed: false, priority: 'Normal', subtasks: [] },
+  { id: '5', title: 'Client Proposal Final Review', dueDate: getDateOffset(1), completed: false, priority: 'Urgent', subtasks: [] },
+  { id: '6', title: 'Grocery Run - Weekly Prep', dueDate: getDateOffset(2), completed: false, priority: 'High', subtasks: [] },
+  { id: '7', title: 'Refactor Auth Middleware', dueDate: getDateOffset(3), completed: false, priority: 'Normal', subtasks: [] },
+  { id: '8', title: 'Schedule Dental Checkup', dueDate: getDateOffset(6), completed: false, priority: 'Low', subtasks: [] },
+  { id: '9', title: 'Long-term Growth Research', dueDate: getDateOffset(10), completed: false, priority: 'Low', subtasks: [] },
+  { id: '10', title: 'Update system dependencies', dueDate: getDateOffset(-5), completed: true, priority: 'Normal', subtasks: [] },
 ];
 
 const DUMMY_JOURNALS: JournalEntry[] = [
   { id: 'j1', title: 'A Refreshing Morning Walk', content: 'The crisp air this morning was exactly what I needed. Everything felt so still and peaceful.', timestamp: new Date(Date.now() - 3600000).toISOString(), rating: 8, entryType: 'Log', coverImage: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&q=80&w=800' },
   { id: 'j2', title: 'Grateful for Team Collaboration', content: 'Huge thanks to the dev team for helping debug that nasty memory leak today.', timestamp: new Date(Date.now() - 86400000).toISOString(), rating: 9, entryType: 'Gratitude' },
   { id: 'j3', title: 'Lunch at the New Bistro', content: 'Tried the truffle pasta. It was 10/10. Definitely going back.', timestamp: new Date(Date.now() - 172800000).toISOString(), rating: 10, entryType: 'Log', coverImage: 'https://images.unsplash.com/photo-1473093226795-af9932fe5856?auto=format&fit=crop&q=80&w=800' },
-  { id: 'j4', title: 'Hard Day at Work', content: 'Feeling a bit burnt out. Too many meetings and not enough focus time.', timestamp: new Date(Date.now() - 259200000).toISOString(), rating: 3, entryType: 'Log' },
-  { id: 'j5', title: 'Small Wins', content: 'Finally finished that difficult book. It was challenging but rewarding.', timestamp: new Date(Date.now() - 345600000).toISOString(), rating: 7, entryType: 'Gratitude' },
-  { id: 'j6', title: 'Beach Sunset', content: 'Spent the evening watching the waves. Nature is the best therapy.', timestamp: new Date(Date.now() - 432000000).toISOString(), rating: 9, entryType: 'Log', coverImage: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=800' },
-  { id: 'j7', title: 'Grateful for Health', content: 'Recovered from the cold. Really makes you appreciate feeling normal.', timestamp: new Date(Date.now() - 518400000).toISOString(), rating: 8, entryType: 'Gratitude' },
-  { id: 'j8', title: 'Productivity Peak', content: 'Cleared my whole task list today! Feeling like a machine.', timestamp: new Date(Date.now() - 604800000).toISOString(), rating: 10, entryType: 'Log' },
-  { id: 'j9', title: 'Rainy Day Reflection', content: 'Listening to the rain and thinking about future goals. Cozy vibes.', timestamp: new Date(Date.now() - 691200000).toISOString(), rating: 6, entryType: 'Log', coverImage: 'https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?auto=format&fit=crop&q=80&w=800' },
-  { id: 'j10', title: 'Coffee with an Old Friend', content: 'Caught up with Mark after 3 years. Time flies but friendships stay.', timestamp: new Date(Date.now() - 777600000).toISOString(), rating: 9, entryType: 'Gratitude' },
-  { id: 'j11', title: 'Learning New Piano Piece', content: 'Practicing Satie. It is difficult to get the tempo right but sounds lovely.', timestamp: new Date(Date.now() - 864000000).toISOString(), rating: 7, entryType: 'Log' },
-  { id: 'j12', title: 'Grateful for Quiet Evenings', content: 'Just me, a lamp, and my notebook. Simplicity is key.', timestamp: new Date(Date.now() - 950400000).toISOString(), rating: 8, entryType: 'Gratitude', coverImage: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&q=80&w=800' },
 ];
 
 const App: React.FC = () => {
@@ -141,9 +138,13 @@ const App: React.FC = () => {
             <span className="text-sm font-semibold">Settings</span>
           </button>
           <div className="mt-4 p-3 rounded-lg border border-[#edebe9] flex items-center space-x-3 bg-[#faf9f8]">
-            <div className="w-8 h-8 rounded-full bg-[#0078d4] text-white flex items-center justify-center text-[10px] font-bold shadow-sm">
-              {userSettings.userName.split(' ').map(n => n[0]).join('').toUpperCase()}
-            </div>
+            {userSettings.profilePicture ? (
+              <img src={userSettings.profilePicture} alt="Profile" className="w-8 h-8 rounded-full object-cover shadow-sm bg-[#edebe9]" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-[#0078d4] text-white flex items-center justify-center text-[10px] font-bold shadow-sm">
+                {userSettings.userName.split(' ').map(n => n[0]).join('').toUpperCase()}
+              </div>
+            )}
             <div className="overflow-hidden">
               <p className="text-xs font-bold truncate text-[#323130]">{userSettings.userName}</p>
               <p className="text-[9px] text-[#0078d4] font-mono font-bold">{userSettings.userId}</p>

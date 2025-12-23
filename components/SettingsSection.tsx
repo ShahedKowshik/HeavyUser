@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check } from 'lucide-react';
+import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check, Camera } from 'lucide-react';
 import { UserSettings } from '../types';
 
 interface SettingsSectionProps {
@@ -10,12 +10,13 @@ interface SettingsSectionProps {
 
 const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate }) => {
   const [localName, setLocalName] = useState(settings.userName);
+  const [localProfilePic, setLocalProfilePic] = useState(settings.profilePicture || '');
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [deleteKeyword, setDeleteKeyword] = useState('');
   const [isCopied, setIsCopied] = useState(false);
 
-  const handleSaveName = () => {
-    onUpdate({ ...settings, userName: localName });
+  const handleSaveProfile = () => {
+    onUpdate({ ...settings, userName: localName, profilePicture: localProfilePic.trim() || undefined });
   };
 
   const handleFinalDelete = () => {
@@ -44,28 +45,43 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate })
           <h3 className="text-sm font-semibold text-[#323130]">Account Profile</h3>
         </div>
         <div className="p-6 space-y-6">
-          <div className="space-y-1.5 max-w-md">
-            <label className="text-xs font-semibold text-[#605e5c]">Display Name</label>
-            <div className="flex space-x-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-[#605e5c]">Display Name</label>
               <input
                 type="text"
                 value={localName}
                 onChange={(e) => setLocalName(e.target.value)}
-                className="flex-1 px-3 py-2 text-sm focus:border-[#0078d4]"
+                className="w-full px-3 py-2 text-sm focus:border-[#0078d4]"
               />
-              <button
-                onClick={handleSaveName}
-                className="px-4 py-2 bg-[#0078d4] text-white text-xs font-medium rounded hover:bg-[#106ebe] transition-colors"
-              >
-                Save
-              </button>
+            </div>
+             <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-[#605e5c] flex items-center gap-1">
+                <Camera className="w-3 h-3" /> Profile Picture URL
+              </label>
+              <input
+                type="text"
+                value={localProfilePic}
+                onChange={(e) => setLocalProfilePic(e.target.value)}
+                placeholder="https://..."
+                className="w-full px-3 py-2 text-sm focus:border-[#0078d4]"
+              />
             </div>
           </div>
+          
+          <div className="flex justify-end">
+             <button
+                onClick={handleSaveProfile}
+                className="px-6 py-2 bg-[#0078d4] text-white text-xs font-medium rounded hover:bg-[#106ebe] transition-colors shadow-sm"
+              >
+                Save Changes
+              </button>
+          </div>
 
-          <div className="space-y-1.5 max-w-md pt-2">
+          <div className="space-y-1.5 max-w-md pt-2 border-t border-[#f3f2f1]">
             <label className="text-xs font-semibold text-[#605e5c] flex items-center">
               <Fingerprint className="w-3 h-3 mr-1" />
-              Unique Identifier
+              User ID
             </label>
             <div className="flex items-stretch space-x-2">
               <div className="flex-1 bg-[#f3f2f1] border border-[#edebe9] px-3 py-2 rounded text-sm font-mono tracking-wider text-[#0078d4] truncate">
@@ -83,7 +99,6 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate })
                 {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               </button>
             </div>
-            <p className="text-[10px] text-[#a19f9d]">This is your unique 10-digit account ID for local identification.</p>
           </div>
         </div>
       </div>
@@ -95,65 +110,76 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate })
           <h3 className="text-sm font-semibold text-[#a4262c]">Data Management</h3>
         </div>
         <div className="p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold text-[#323130]">Reset Workspace</p>
-              <p className="text-xs text-[#605e5c] mt-1 leading-relaxed">
-                Clearing your data will permanently delete all your tasks and settings. This action cannot be undone.
-              </p>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-[#323130]">Danger Zone</p>
+                <p className="text-xs text-[#605e5c] mt-1 leading-relaxed">
+                  Permanently remove all local data or delete your account reference.
+                </p>
+              </div>
+              
+              {!isConfirmingDelete ? (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setIsConfirmingDelete(true)}
+                    className="px-4 py-2 border border-[#a4262c] text-[#a4262c] text-xs font-medium rounded hover:bg-[#fde7e9] transition-colors whitespace-nowrap"
+                  >
+                    Reset Workspace
+                  </button>
+                   <button
+                    onClick={() => setIsConfirmingDelete(true)}
+                    className="px-4 py-2 bg-[#a4262c] text-white text-xs font-medium rounded hover:bg-[#8e1f24] transition-colors whitespace-nowrap shadow-sm"
+                  >
+                    Delete Account
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setIsConfirmingDelete(false);
+                    setDeleteKeyword('');
+                  }}
+                  className="p-2 text-[#605e5c] hover:bg-[#f3f2f1] rounded-full"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
-            {!isConfirmingDelete ? (
-              <button
-                onClick={() => setIsConfirmingDelete(true)}
-                className="px-4 py-2 border border-[#a4262c] text-[#a4262c] text-xs font-medium rounded hover:bg-[#fde7e9] transition-colors whitespace-nowrap"
-              >
-                Clear All Data
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  setIsConfirmingDelete(false);
-                  setDeleteKeyword('');
-                }}
-                className="p-2 text-[#605e5c] hover:bg-[#f3f2f1] rounded-full"
-              >
-                <X className="w-4 h-4" />
-              </button>
+
+            {isConfirmingDelete && (
+              <div className="p-4 bg-[#fff8f8] border border-red-200 rounded-lg animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="flex items-center space-x-2 text-[#a4262c] mb-3">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span className="text-xs font-bold uppercase tracking-wider">Warning</span>
+                </div>
+                <p className="text-xs text-[#323130] mb-4">
+                  Please type <span className="font-bold italic">delete</span> in the field below to confirm the permanent reset of your account.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder='Type "delete" to confirm'
+                    value={deleteKeyword}
+                    onChange={(e) => setDeleteKeyword(e.target.value)}
+                    className="flex-1 px-3 py-2 text-sm border-red-200 focus:border-[#a4262c] placeholder:text-[#a19f9d]"
+                  />
+                  <button
+                    onClick={handleFinalDelete}
+                    disabled={deleteKeyword.toLowerCase() !== 'delete'}
+                    className={`px-6 py-2 text-xs font-bold rounded transition-all shadow-sm ${
+                      deleteKeyword.toLowerCase() === 'delete'
+                        ? 'bg-[#a4262c] text-white hover:bg-[#821d23]'
+                        : 'bg-[#edebe9] text-[#a19f9d] cursor-not-allowed'
+                    }`}
+                  >
+                    Confirm Delete
+                  </button>
+                </div>
+              </div>
             )}
           </div>
-
-          {isConfirmingDelete && (
-            <div className="mt-6 p-4 bg-[#fff8f8] border border-red-200 rounded-lg animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="flex items-center space-x-2 text-[#a4262c] mb-3">
-                <AlertTriangle className="w-4 h-4" />
-                <span className="text-xs font-bold uppercase tracking-wider">Warning</span>
-              </div>
-              <p className="text-xs text-[#323130] mb-4">
-                Please type <span className="font-bold italic">delete</span> in the field below to confirm the permanent reset of your account.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <input
-                  autoFocus
-                  type="text"
-                  placeholder='Type "delete" to confirm'
-                  value={deleteKeyword}
-                  onChange={(e) => setDeleteKeyword(e.target.value)}
-                  className="flex-1 px-3 py-2 text-sm border-red-200 focus:border-[#a4262c] placeholder:text-[#a19f9d]"
-                />
-                <button
-                  onClick={handleFinalDelete}
-                  disabled={deleteKeyword.toLowerCase() !== 'delete'}
-                  className={`px-6 py-2 text-xs font-bold rounded transition-all shadow-sm ${
-                    deleteKeyword.toLowerCase() === 'delete'
-                      ? 'bg-[#a4262c] text-white hover:bg-[#821d23]'
-                      : 'bg-[#edebe9] text-[#a19f9d] cursor-not-allowed'
-                  }`}
-                >
-                  Confirm Delete
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

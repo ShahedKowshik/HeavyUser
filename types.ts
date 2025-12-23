@@ -33,4 +33,5 @@ export interface JournalEntry {
 export interface UserSettings {
   userName: string;
   userId: string;
+  profilePicture?: string;
 }
