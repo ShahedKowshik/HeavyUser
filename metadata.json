@@ -1,0 +1,7 @@
+{
+  "name": "HeavyUser",
+  "description": "An all-in-one productivity suite for high-performers to manage tasks, habits, and journals in one unified space.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
