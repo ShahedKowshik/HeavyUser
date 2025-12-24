@@ -50,14 +50,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         // Explicitly map and cast types to satisfy TypeScript strictness
         const mappedTasks: Task[] = tasksData.map((t: any) => ({
           id: t.id,
-          title: t.title,
+          title: decryptData(t.title), // Decrypt Title
           dueDate: t.due_date || '', // Handle null
           time: t.time,
           completed: t.completed,
           priority: t.priority as Priority, // Cast string to Priority
-          subtasks: t.subtasks || [], // Handle null jsonb
+          // Decrypt Subtask Titles
+          subtasks: (t.subtasks || []).map((s: any) => ({
+            ...s,
+            title: decryptData(s.title)
+          })), 
           tags: t.tags || [],
-          notes: t.notes
+          notes: decryptData(t.notes) // Decrypt Notes
         }));
         setTasks(mappedTasks);
       }
@@ -69,7 +73,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         .eq('user_id', userId);
       
       if (tagsData) {
-        setTags(tagsData);
+        const mappedTags: Tag[] = tagsData.map((t: any) => ({
+          id: t.id,
+          label: decryptData(t.label), // Decrypt Tag Label
+          color: t.color
+        }));
+        setTags(mappedTags);
       }
 
       // 3. Fetch Habits
@@ -96,7 +105,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
           return {
             id: h.id,
-            title: h.title,
+            title: decryptData(h.title), // Decrypt Habit Title
             icon: h.icon,
             target: target,
             progress: progressMap,

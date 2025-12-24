@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { X, Flame, Check, ChevronLeft, ChevronRight, Activity, Plus, Trash2, Smile, Ban, Target, Minus, Edit2, RotateCcw, ArrowLeft, Trophy, TrendingUp, Calendar } from 'lucide-react';
 import { Habit } from '../types';
 import { supabase } from '../lib/supabase';
+import { encryptData } from '../lib/crypto';
 
 interface HabitSectionProps {
   habits: Habit[];
@@ -233,7 +234,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
        } : h));
 
        await supabase.from('habits').update({
-         title: formTitle,
+         title: encryptData(formTitle), // Encrypt Title
          icon: formIcon,
          target: finalTarget,
          start_date: formStartDate,
@@ -257,7 +258,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
       await supabase.from('habits').insert({
         id: newHabit.id,
         user_id: userId,
-        title: newHabit.title,
+        title: encryptData(newHabit.title), // Encrypt Title
         icon: newHabit.icon,
         target: newHabit.target,
         start_date: newHabit.startDate,

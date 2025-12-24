@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import { Plus, Trash2, CheckCircle2, X, SlidersHorizontal, ChevronRight, ListChecks, History, Tag as TagIcon, ArrowLeft, CheckSquare, Square, Clock, Calendar, AlertCircle, FileText, ChevronDown, Eye, PenLine, Check } from 'lucide-react';
 import { Task, Priority, Subtask, Tag } from '../types';
 import { supabase } from '../lib/supabase';
+import { encryptData } from '../lib/crypto';
 
 interface TaskSectionProps {
   tasks: Task[];
@@ -58,19 +59,22 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   // Derived State for Details Panel
   const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId), [tasks, selectedTaskId]);
 
+  // Helper to encrypt subtasks array
+  const encryptSubtasks = (subtasks: Subtask[]) => subtasks.map(s => ({ ...s, title: encryptData(s.title) }));
+
   // Debounced Save for Selected Task Editing
   useEffect(() => {
     if (!selectedTask) return;
     
     const timer = setTimeout(async () => {
-      // Map back to DB structure
+      // Map back to DB structure with ENCRYPTION
       await supabase.from('tasks').update({
-        title: selectedTask.title,
+        title: encryptData(selectedTask.title),
         due_date: selectedTask.dueDate,
         time: selectedTask.time,
         priority: selectedTask.priority,
-        notes: selectedTask.notes,
-        subtasks: selectedTask.subtasks,
+        notes: encryptData(selectedTask.notes || ''),
+        subtasks: encryptSubtasks(selectedTask.subtasks),
         tags: selectedTask.tags,
         completed: selectedTask.completed
       }).eq('id', selectedTask.id);
@@ -127,21 +131,21 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
       notes: createNotes
     };
 
-    // Update Local
+    // Update Local (Plain Text)
     setTasks(prev => [newTask, ...prev]);
     closeModal();
 
-    // Sync to Supabase
+    // Sync to Supabase (Encrypted)
     await supabase.from('tasks').insert({
       id: newTask.id,
       user_id: userId,
-      title: newTask.title,
+      title: encryptData(newTask.title),
       due_date: newTask.dueDate,
       time: newTask.time,
       priority: newTask.priority,
-      subtasks: newTask.subtasks,
+      subtasks: encryptSubtasks(newTask.subtasks),
       tags: newTask.tags,
-      notes: newTask.notes,
+      notes: encryptData(newTask.notes || ''),
       completed: false
     });
   };
@@ -162,11 +166,11 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
     setTags([...tags, newTag]);
     setNewTagLabel('');
 
-    // Sync to Supabase
+    // Sync to Supabase (Encrypted Label)
     await supabase.from('tags').insert({
       id: newTag.id,
       user_id: userId,
-      label: newTag.label,
+      label: encryptData(newTag.label),
       color: newTag.color
     });
   };
@@ -194,11 +198,11 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
     setInlineTagColor(PRESET_COLORS[0]);
     setIsCreatingTagInline(false);
 
-    // Sync to Supabase
+    // Sync to Supabase (Encrypted Label)
     await supabase.from('tags').insert({
       id: newTag.id,
       user_id: userId,
-      label: newTag.label,
+      label: encryptData(newTag.label),
       color: newTag.color
     });
   };
@@ -243,7 +247,11 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
         // If not selected, we need to sync manually
         if (taskId !== selectedTaskId) {
             const t = newTasks.find(t => t.id === taskId);
-            if (t) supabase.from('tasks').update({ subtasks: t.subtasks }).eq('id', taskId).then();
+            if (t) {
+               // Encrypt subtasks before sending
+               const encryptedSubtasks = encryptSubtasks(t.subtasks);
+               supabase.from('tasks').update({ subtasks: encryptedSubtasks }).eq('id', taskId).then();
+            }
         }
         return newTasks;
     });
@@ -254,7 +262,11 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
         const newTasks = prev.map(t => t.id === taskId ? { ...t, subtasks: t.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s) } : t);
         if (taskId !== selectedTaskId) {
             const t = newTasks.find(t => t.id === taskId);
-            if (t) supabase.from('tasks').update({ subtasks: t.subtasks }).eq('id', taskId).then();
+            if (t) {
+               // Encrypt subtasks before sending
+               const encryptedSubtasks = encryptSubtasks(t.subtasks);
+               supabase.from('tasks').update({ subtasks: encryptedSubtasks }).eq('id', taskId).then();
+            }
         }
         return newTasks;
     });
@@ -265,7 +277,11 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
         const newTasks = prev.map(t => t.id === taskId ? { ...t, subtasks: t.subtasks.filter(s => s.id !== subtaskId) } : t);
         if (taskId !== selectedTaskId) {
             const t = newTasks.find(t => t.id === taskId);
-            if (t) supabase.from('tasks').update({ subtasks: t.subtasks }).eq('id', taskId).then();
+            if (t) {
+               // Encrypt subtasks before sending
+               const encryptedSubtasks = encryptSubtasks(t.subtasks);
+               supabase.from('tasks').update({ subtasks: encryptedSubtasks }).eq('id', taskId).then();
+            }
         }
         return newTasks;
     });
