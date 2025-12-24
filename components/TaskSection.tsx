@@ -37,6 +37,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
   const [grouping, setGrouping] = useState<Grouping>('date');
   const [sorting, setSorting] = useState<Sorting>('date');
+  const [filterTags, setFilterTags] = useState<Set<string>>(new Set());
 
   // New Task Form State
   const [title, setTitle] = useState('');
@@ -93,7 +94,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
   const openCreateModal = () => {
     setTitle('');
-    setDueDate(new Date().toISOString().split('T')[0]);
+    setDueDate(''); // Default to empty (No Date)
     setDueTime('');
     setPriority('Normal');
     setSelectedTags([]);
@@ -107,6 +108,13 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
   const closeModal = () => {
     setIsModalOpen(false);
+  };
+
+  const toggleFilterTag = (tagId: string) => {
+    const next = new Set(filterTags);
+    if (next.has(tagId)) next.delete(tagId);
+    else next.add(tagId);
+    setFilterTags(next);
   };
 
   const handleCreateTask = async (e: React.FormEvent) => {
@@ -140,7 +148,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
       id: newTask.id,
       user_id: userId,
       title: encryptData(newTask.title),
-      due_date: newTask.dueDate,
+      due_date: newTask.dueDate || null, // Handle empty string
       time: newTask.time,
       priority: newTask.priority,
       subtasks: encryptSubtasks(newTask.subtasks),
@@ -213,6 +221,13 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
       ...t,
       tags: t.tags?.filter(tagId => tagId !== id)
     })));
+    
+    // Also remove from filters if deleted
+    if (filterTags.has(id)) {
+        const next = new Set(filterTags);
+        next.delete(id);
+        setFilterTags(next);
+    }
 
     // Sync to Supabase
     await supabase.from('tags').delete().eq('id', id);
@@ -295,12 +310,14 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
   // Formatting helpers
   const formatDisplayDate = (dateStr: string) => {
+    if (!dateStr) return 'No Date';
     const date = new Date(dateStr);
     const utcDate = new Date(date.getTime() + date.getTimezoneOffset() * 60000);
     return utcDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   };
 
   const getDayDiff = (dateStr: string) => {
+    if (!dateStr) return 9999;
     const target = new Date(dateStr);
     target.setHours(0,0,0,0);
     const today = new Date();
@@ -309,6 +326,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   };
 
   const getRelativeTimeColor = (dateStr: string) => {
+    if (!dateStr) return 'text-[#605e5c]'; // Neutral for no date
     const diffDays = getDayDiff(dateStr);
     if (diffDays <= 0) return 'text-red-600';
     if (diffDays === 1) return 'text-amber-500';
@@ -316,6 +334,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   };
 
   const getGroupingKey = (dateStr: string) => {
+    if (!dateStr) return 'No Date';
     const diffDays = getDayDiff(dateStr);
     if (diffDays === -1) return 'Yesterday';
     if (diffDays === 0) return 'Today';
@@ -336,15 +355,28 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   };
 
   const processList = (list: Task[]) => {
-    const base = [...list].sort((a, b) => {
-      if (sorting === 'date') return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    // 1. Filter by Tags
+    let filtered = list;
+    if (filterTags.size > 0) {
+      filtered = list.filter(t => t.tags?.some(tagId => filterTags.has(tagId)));
+    }
+
+    // 2. Sort
+    const base = [...filtered].sort((a, b) => {
+      if (sorting === 'date') {
+        // Empty dates go last
+        if (!a.dueDate && !b.dueDate) return a.title.localeCompare(b.title);
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      }
       if (sorting === 'priority') return priorityOrder[a.priority] - priorityOrder[b.priority];
       return a.title.localeCompare(b.title);
     });
 
     if (grouping === 'none') return [{ title: '', tasks: base }];
 
-    const groupOrder = ['Overdue', 'Yesterday', 'Today', 'Tomorrow', 'Upcoming'];
+    const groupOrder = ['Overdue', 'Yesterday', 'Today', 'Tomorrow', 'Upcoming', 'No Date'];
     const groups: Record<string, Task[]> = {};
     
     base.forEach(t => {
@@ -365,8 +397,8 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
     return entries.map(([title, tasks]) => ({ title, tasks }));
   };
 
-  const activeTasksGroups = useMemo(() => processList(tasks.filter(t => !t.completed)), [tasks, grouping, sorting, tags]);
-  const completedTasksGroups = useMemo(() => processList(tasks.filter(t => t.completed)), [tasks, grouping, sorting, tags]);
+  const activeTasksGroups = useMemo(() => processList(tasks.filter(t => !t.completed)), [tasks, grouping, sorting, tags, filterTags]);
+  const completedTasksGroups = useMemo(() => processList(tasks.filter(t => t.completed)), [tasks, grouping, sorting, tags, filterTags]);
 
   const renderTaskList = (groups: { title: string; tasks: Task[] }[]) => (
     <div className="space-y-4 pb-20">
@@ -470,9 +502,9 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                           <div className={`sm:hidden w-2 h-2 rounded ${pStyle.bar}`}></div>
 
                          {/* Date - Fixed width wrapper for Left Alignment */}
-                         <div className={`flex items-center gap-1.5 text-xs font-medium w-auto sm:w-auto justify-end sm:justify-start ${relativeColor}`}>
-                             <Calendar className="w-3.5 h-3.5" />
-                             <span className="truncate max-w-[120px]">{formatDisplayDate(task.dueDate)}</span>
+                         <div className={`flex items-center gap-1.5 text-xs font-medium w-auto sm:w-[135px] justify-end sm:justify-start ${relativeColor}`}>
+                             <Calendar className="w-3.5 h-3.5 shrink-0" />
+                             <span className="truncate">{formatDisplayDate(task.dueDate)}</span>
                          </div>
                       </div>
                     </div>
@@ -545,18 +577,51 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
             <>
               <button
                 onClick={() => setIsViewMenuOpen(!isViewMenuOpen)}
-                className="p-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded shadow-sm hover:bg-[#faf9f8] transition-all relative shrink-0"
+                className={`p-2.5 rounded shadow-sm transition-all relative shrink-0 ${
+                  isViewMenuOpen || filterTags.size > 0 
+                    ? 'bg-[#eff6fc] border border-[#0078d4] text-[#0078d4]' 
+                    : 'bg-white border border-[#edebe9] text-[#605e5c] hover:bg-[#faf9f8]'
+                }`}
               >
                 <SlidersHorizontal className="w-4 h-4" />
+                {filterTags.size > 0 && (
+                   <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#0078d4] rounded-full" />
+                )}
                 {isViewMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-[#edebe9] rounded shadow-xl z-30 p-1.5 animate-in zoom-in-95 duration-100">
-                    <div className="px-3 py-2 text-[9px] font-black text-[#a19f9d] uppercase tracking-widest border-b border-[#f3f2f1] mb-1">Display</div>
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-[#edebe9] rounded shadow-xl z-30 p-1.5 animate-in zoom-in-95 duration-100">
+                    <div className="px-3 py-2 text-[9px] font-black text-[#a19f9d] uppercase tracking-widest border-b border-[#f3f2f1] mb-1">Display Grouping</div>
                     {(['date', 'priority'] as Grouping[]).map(g => (
                       <button key={g} onClick={() => { setGrouping(g); setIsViewMenuOpen(false); }} className={`w-full text-left px-3 py-2 text-xs rounded transition-colors flex items-center justify-between ${grouping === g ? 'bg-[#eff6fc] text-[#0078d4] font-bold' : 'hover:bg-[#faf9f8]'}`}>
                         <span className="capitalize">{g}</span>
                         {grouping === g && <CheckCircle2 className="w-3 h-3" />}
                       </button>
                     ))}
+
+                    <div className="flex items-center justify-between px-3 py-2 text-[9px] font-black text-[#a19f9d] uppercase tracking-widest border-b border-[#f3f2f1] mb-1 mt-2">
+                        <span>Filter Tags</span>
+                        {filterTags.size > 0 && (
+                            <button onClick={(e) => { e.stopPropagation(); setFilterTags(new Set()); }} className="text-[#0078d4] hover:underline normal-case">Clear</button>
+                        )}
+                    </div>
+                    {tags.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-[#a19f9d] italic">No tags available</div>
+                    ) : (
+                        tags.map(tag => (
+                            <button
+                                key={tag.id}
+                                onClick={() => toggleFilterTag(tag.id)}
+                                className={`w-full text-left px-3 py-2 text-xs rounded transition-colors flex items-center justify-between ${
+                                    filterTags.has(tag.id) ? 'bg-[#eff6fc] text-[#0078d4] font-bold' : 'hover:bg-[#faf9f8]'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }}></div>
+                                    <span>{tag.label}</span>
+                                </div>
+                                {filterTags.has(tag.id) && <CheckCircle2 className="w-3 h-3" />}
+                            </button>
+                        ))
+                    )}
                   </div>
                 )}
               </button>
@@ -647,7 +712,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                     </label>
                     <input 
                       type="date" 
-                      value={selectedTask.dueDate} 
+                      value={selectedTask.dueDate || ''} 
                       onChange={(e) => updateSelectedTask({ dueDate: e.target.value })}
                       className="w-full text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
                     />
