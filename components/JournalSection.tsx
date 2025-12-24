@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, Search, Edit2, X, BookOpen, Image as ImageIcon, Sparkles } from 'lucide-react';
 import { JournalEntry, EntryType } from '../types';
 import { supabase } from '../lib/supabase';
+import { encryptData } from '../lib/crypto';
 
 interface JournalSectionProps {
   journals: JournalEntry[];
@@ -39,13 +40,13 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
     if (!title.trim() || !content.trim()) return;
 
     if (editingEntry) {
-      // Optimistic Update
+      // Optimistic Update (Update local state with PLAIN TEXT for UI)
       setJournals(prev => prev.map(j => j.id === editingEntry.id ? { ...j, title, content, entryType } : j));
       
-      // Sync to Supabase
+      // Sync to Supabase (Send ENCRYPTED text)
       await supabase.from('journals').update({
-        title,
-        content,
+        title: encryptData(title),
+        content: encryptData(content),
         entry_type: entryType
       }).eq('id', editingEntry.id);
       
@@ -54,15 +55,15 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
       const timestamp = new Date().toISOString();
       const newEntry: JournalEntry = { id: newId, title, content, timestamp, rating: null, entryType };
       
-      // Optimistic Update
+      // Optimistic Update (Add to local state with PLAIN TEXT)
       setJournals([newEntry, ...journals]);
 
-      // Sync to Supabase
+      // Sync to Supabase (Send ENCRYPTED text)
       await supabase.from('journals').insert({
         id: newId,
         user_id: userId,
-        title,
-        content,
+        title: encryptData(title),
+        content: encryptData(content),
         timestamp,
         entry_type: entryType,
         rating: null
@@ -86,6 +87,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
   // Grouping Logic
   const groupedJournals = useMemo(() => {
     const filtered = journals.filter(j => {
+      // Search works because 'journals' props are already decrypted in Dashboard.tsx
       const matchesSearch = j.title.toLowerCase().includes(searchQuery.toLowerCase()) || j.content.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesFilter = filter === 'All' || j.entryType === filter;
       return matchesSearch && matchesFilter;

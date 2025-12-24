@@ -7,6 +7,7 @@ import SettingsSection from './SettingsSection';
 import JournalSection from './JournalSection';
 import HabitSection from './HabitSection';
 import { supabase } from '../lib/supabase';
+import { decryptData } from '../lib/crypto';
 
 const getDateOffset = (days: number) => {
   const d = new Date();
@@ -108,7 +109,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         setHabits(mappedHabits);
       }
 
-      // 4. Fetch Journals
+      // 4. Fetch Journals (AND DECRYPT)
       const { data: journalsData } = await supabase
         .from('journals')
         .select('*')
@@ -118,11 +119,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       if (journalsData) {
         const mappedJournals: JournalEntry[] = journalsData.map((j: any) => ({
           id: j.id,
-          title: j.title,
-          content: j.content,
+          title: decryptData(j.title),     // Decrypt Title
+          content: decryptData(j.content), // Decrypt Content
           timestamp: j.timestamp,
           rating: j.rating,
-          entryType: j.entry_type as EntryType, // Cast string to EntryType
+          entryType: j.entry_type as EntryType,
           coverImage: j.cover_image
         }));
         setJournals(mappedJournals);
