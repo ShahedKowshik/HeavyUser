@@ -68,7 +68,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
           className="flex items-center gap-2 px-4 py-2 bg-white border border-[#edebe9] text-[#605e5c] rounded-xl hover:bg-[#f3f2f1] hover:text-[#a4262c] transition-all font-bold text-xs shadow-sm"
          >
            <LogOut className="w-4 h-4" />
-           Sign Out
+           <span className="hidden sm:inline">Sign Out</span>
          </button>
       </div>
 
@@ -107,7 +107,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
             <div className="flex justify-end pt-2">
                <button
                   onClick={handleSaveProfile}
-                  className="px-6 py-2.5 bg-[#0078d4] text-white text-xs font-bold rounded-lg hover:bg-[#106ebe] transition-colors shadow-sm"
+                  className="w-full sm:w-auto px-6 py-2.5 bg-[#0078d4] text-white text-xs font-bold rounded-lg hover:bg-[#106ebe] transition-colors shadow-sm"
                 >
                   Save Changes
                 </button>
@@ -155,16 +155,16 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                 </div>
                 
                 {!isConfirmingDelete ? (
-                  <div className="flex gap-2 mt-2">
+                  <div className="flex flex-col sm:flex-row gap-2 mt-2">
                     <button
                       onClick={() => setIsConfirmingDelete(true)}
-                      className="px-4 py-2 border border-[#a4262c] text-[#a4262c] text-xs font-bold rounded-lg hover:bg-[#fde7e9] transition-colors whitespace-nowrap"
+                      className="px-4 py-2 border border-[#a4262c] text-[#a4262c] text-xs font-bold rounded-lg hover:bg-[#fde7e9] transition-colors whitespace-nowrap text-center"
                     >
                       Reset Workspace
                     </button>
                      <button
                       onClick={() => setIsConfirmingDelete(true)}
-                      className="px-4 py-2 bg-[#a4262c] text-white text-xs font-bold rounded-lg hover:bg-[#8e1f24] transition-colors whitespace-nowrap shadow-sm"
+                      className="px-4 py-2 bg-[#a4262c] text-white text-xs font-bold rounded-lg hover:bg-[#8e1f24] transition-colors whitespace-nowrap shadow-sm text-center"
                     >
                       Delete Account
                     </button>

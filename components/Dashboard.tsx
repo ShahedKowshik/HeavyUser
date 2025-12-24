@@ -145,9 +145,38 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const formattedDate = currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const formattedTime = currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
 
+  const NavItem = ({ id, label, icon: Icon }: { id: AppTab; label: string; icon: any }) => (
+    <button
+      onClick={() => setActiveTab(id)}
+      className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${
+        activeTab === id 
+        ? 'bg-[#f3f3f3] text-[#0078d4] font-bold shadow-sm ring-1 ring-[#edebe9]' 
+        : 'text-[#605e5c] hover:bg-[#f3f3f3] hover:text-[#323130] font-medium'
+      }`}
+    >
+      <Icon className={`w-4 h-4 transition-colors ${activeTab === id ? 'text-[#0078d4]' : 'text-[#a19f9d] group-hover:text-[#605e5c]'}`} />
+      <span className="text-sm">{label}</span>
+    </button>
+  );
+
+  const MobileNavItem = ({ id, label, icon: Icon }: { id: AppTab; label: string; icon: any }) => (
+    <button
+      onClick={() => setActiveTab(id)}
+      className={`flex flex-col items-center justify-center p-2 rounded-lg transition-all duration-200 ${
+        activeTab === id 
+        ? 'text-[#0078d4]' 
+        : 'text-[#a19f9d]'
+      }`}
+    >
+      <Icon className={`w-5 h-5 mb-1 ${activeTab === id ? 'fill-current' : ''}`} />
+      <span className="text-[10px] font-bold">{label}</span>
+    </button>
+  );
+
   return (
     <div className="flex h-screen bg-[#f3f3f3] text-[#323130] overflow-hidden font-sans selection:bg-[#0078d4]/20 selection:text-[#0078d4]">
-      <aside className="w-64 flex flex-col p-4 space-y-4 bg-white border-r border-[#edebe9] shrink-0 z-20">
+      {/* Sidebar - Desktop */}
+      <aside className="hidden md:flex w-64 flex-col p-4 space-y-4 bg-white border-r border-[#edebe9] shrink-0 z-20">
         <div className="flex items-center space-x-3 px-3 py-6">
           <div className="w-8 h-8 bg-[#0078d4] rounded flex items-center justify-center shadow-sm">
             <LayoutGrid className="w-5 h-5 text-white" />
@@ -156,53 +185,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         </div>
 
         <nav className="flex-1 space-y-1">
-          <button
-            onClick={() => setActiveTab('tasks')}
-            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${
-              activeTab === 'tasks' 
-              ? 'bg-[#f3f3f3] text-[#0078d4] font-bold shadow-sm ring-1 ring-[#edebe9]' 
-              : 'text-[#605e5c] hover:bg-[#f3f3f3] hover:text-[#323130] font-medium'
-            }`}
-          >
-            <CheckCircle2 className={`w-4 h-4 transition-colors ${activeTab === 'tasks' ? 'text-[#0078d4]' : 'text-[#a19f9d] group-hover:text-[#605e5c]'}`} />
-            <span className="text-sm">Tasks</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('habit')}
-            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${
-              activeTab === 'habit' 
-              ? 'bg-[#f3f3f3] text-[#0078d4] font-bold shadow-sm ring-1 ring-[#edebe9]' 
-              : 'text-[#605e5c] hover:bg-[#f3f3f3] hover:text-[#323130] font-medium'
-            }`}
-          >
-            <Zap className={`w-4 h-4 transition-colors ${activeTab === 'habit' ? 'text-[#0078d4]' : 'text-[#a19f9d] group-hover:text-[#605e5c]'}`} />
-            <span className="text-sm">Habit</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('journal')}
-            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${
-              activeTab === 'journal' 
-              ? 'bg-[#f3f3f3] text-[#0078d4] font-bold shadow-sm ring-1 ring-[#edebe9]' 
-              : 'text-[#605e5c] hover:bg-[#f3f3f3] hover:text-[#323130] font-medium'
-            }`}
-          >
-            <BookOpen className={`w-4 h-4 transition-colors ${activeTab === 'journal' ? 'text-[#0078d4]' : 'text-[#a19f9d] group-hover:text-[#605e5c]'}`} />
-            <span className="text-sm">Journal</span>
-          </button>
+          <NavItem id="tasks" label="Tasks" icon={CheckCircle2} />
+          <NavItem id="habit" label="Habit" icon={Zap} />
+          <NavItem id="journal" label="Journal" icon={BookOpen} />
         </nav>
 
         <div className="pt-4 border-t border-[#edebe9]">
-          <button 
-            onClick={() => setActiveTab('settings')}
-            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${
-              activeTab === 'settings' 
-              ? 'bg-[#f3f3f3] text-[#0078d4] font-bold shadow-sm ring-1 ring-[#edebe9]' 
-              : 'text-[#605e5c] hover:bg-[#f3f3f3] hover:text-[#323130] font-medium'
-            }`}
-          >
-            <Settings className={`w-4 h-4 transition-colors ${activeTab === 'settings' ? 'text-[#0078d4]' : 'text-[#a19f9d] group-hover:text-[#605e5c]'}`} />
-            <span className="text-sm">Settings</span>
-          </button>
+          <NavItem id="settings" label="Settings" icon={Settings} />
           <div className="mt-4 p-3 rounded-xl border border-[#edebe9] flex items-center space-x-3 bg-white shadow-sm">
             {userSettings.profilePicture ? (
               <img src={userSettings.profilePicture} alt="Profile" className="w-9 h-9 rounded-full object-cover shadow-inner bg-[#edebe9]" />
@@ -219,20 +208,32 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         </div>
       </aside>
 
-      <main className="flex-1 relative flex flex-col overflow-y-auto bg-[#faf9f8]">
-        <header className="sticky top-0 z-30 flex items-center justify-between px-8 py-4 bg-white/80 backdrop-blur-md border-b border-[#edebe9]">
+      {/* Main Content */}
+      <main className="flex-1 relative flex flex-col overflow-y-auto bg-[#faf9f8] pb-20 md:pb-0">
+        <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-8 py-4 bg-white/80 backdrop-blur-md border-b border-[#edebe9]">
           <h2 className="text-xl font-black capitalize text-[#323130] tracking-tight">{activeTab}</h2>
           <div className="flex items-center space-x-4">
-            <div className="text-xs text-[#605e5c] font-bold px-3 py-1.5 bg-[#f3f2f1] rounded-full border border-[#edebe9] tabular-nums">
+            <div className="text-xs text-[#605e5c] font-bold px-3 py-1.5 bg-[#f3f2f1] rounded-full border border-[#edebe9] tabular-nums hidden sm:block">
               {formattedDate} • {formattedTime}
+            </div>
+            <div className="text-xs text-[#605e5c] font-bold px-3 py-1.5 bg-[#f3f2f1] rounded-full border border-[#edebe9] tabular-nums sm:hidden">
+              {formattedTime}
             </div>
           </div>
         </header>
 
-        <div className="p-8 mx-auto w-full h-full max-w-7xl">
+        <div className="p-4 md:p-8 mx-auto w-full h-full max-w-7xl">
           {renderContent()}
         </div>
       </main>
+
+      {/* Bottom Navigation - Mobile */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[#edebe9] z-40 flex justify-around py-2 px-2 pb-safe">
+        <MobileNavItem id="tasks" label="Tasks" icon={CheckCircle2} />
+        <MobileNavItem id="habit" label="Habit" icon={Zap} />
+        <MobileNavItem id="journal" label="Journal" icon={BookOpen} />
+        <MobileNavItem id="settings" label="Settings" icon={Settings} />
+      </nav>
     </div>
   );
 };

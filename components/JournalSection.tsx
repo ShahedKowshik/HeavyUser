@@ -109,23 +109,23 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
           <h3 className="text-2xl font-black text-[#323130] tracking-tight">Memories</h3>
           <p className="text-[11px] font-bold text-[#a19f9d] uppercase tracking-widest">Chronicle your journey</p>
         </div>
-        <div className="flex items-center gap-3 self-start md:self-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 self-stretch md:self-auto">
           <div className="flex bg-[#f3f2f1] p-1 rounded-lg border border-[#edebe9]">
             {(['All', 'Log', 'Gratitude'] as JournalFilter[]).map((f) => (
               <button 
                 key={f} 
                 onClick={() => setFilter(f)} 
-                className={`px-3 py-1.5 text-[10px] font-black uppercase rounded-md transition-all ${filter === f ? 'bg-white text-[#0078d4] shadow-sm' : 'text-[#605e5c] hover:bg-[#edebe9]'}`}
+                className={`flex-1 sm:flex-none px-3 py-1.5 text-[10px] font-black uppercase rounded-md transition-all ${filter === f ? 'bg-white text-[#0078d4] shadow-sm' : 'text-[#605e5c] hover:bg-[#edebe9]'}`}
               >
                 {f}
               </button>
             ))}
           </div>
-          <div className="relative">
+          <div className="relative flex-1 sm:flex-none">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#a19f9d]" />
-            <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 pr-3 py-2 text-xs w-32 font-bold bg-white border border-[#edebe9] rounded-lg focus:w-48 transition-all" />
+            <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 pr-3 py-2 text-xs w-full sm:w-32 md:focus:w-48 font-bold bg-white border border-[#edebe9] rounded-lg transition-all" />
           </div>
-          <button onClick={openCreateModal} className="flex items-center gap-2 px-6 py-2.5 fluent-btn-primary rounded-xl shadow-md active:scale-95 transition-transform">
+          <button onClick={openCreateModal} className="flex items-center justify-center gap-2 px-6 py-2.5 fluent-btn-primary rounded-xl shadow-md active:scale-95 transition-transform">
             <Plus className="w-4 h-4" />
             <span className="text-sm font-bold">New</span>
           </button>
@@ -149,7 +149,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
                        <span className={`text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded ${entry.entryType === 'Gratitude' ? 'bg-orange-50 text-[#d83b01]' : 'bg-blue-50 text-[#0078d4]'}`}>
                           {entry.entryType}
                        </span>
-                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                       <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                           <button onClick={() => openEditModal(entry)} className="p-1.5 text-[#0078d4] hover:bg-blue-50 rounded-md transition-colors" title="Edit">
                              <Edit2 className="w-3.5 h-3.5" />
                           </button>
@@ -179,7 +179,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl animate-in zoom-in duration-200 overflow-hidden flex flex-col max-h-[95vh]">
+          <div className="bg-white w-[95%] md:w-full max-w-2xl rounded-2xl shadow-2xl animate-in zoom-in duration-200 overflow-hidden flex flex-col max-h-[95vh]">
             <div className="flex items-center justify-between px-8 py-6 border-b border-[#f3f2f1]">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-[#eff6fc] rounded-lg text-[#0078d4]">

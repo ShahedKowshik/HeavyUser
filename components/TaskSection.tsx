@@ -228,15 +228,6 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
     return utcDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const formatDisplayTime = (timeStr?: string) => {
-    if (!timeStr) return '';
-    const [hours, minutes] = timeStr.split(':');
-    const h = parseInt(hours, 10);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const h12 = h % 12 || 12;
-    return `${h12}:${minutes} ${ampm}`;
-  };
-
   const getDayDiff = (dateStr: string) => {
     const target = new Date(dateStr);
     target.setHours(0,0,0,0);
@@ -374,16 +365,18 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                       </div>
 
                       {/* Metadata Row */}
-                      <div className="flex items-center gap-3 shrink-0">
+                      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                          {/* Urgency - Fixed width wrapper for Left Alignment */}
-                         <div className="w-[70px] flex justify-start">
+                         <div className="hidden sm:flex w-[70px] justify-start">
                            <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border ${pStyle.text}`}>
                               {task.priority}
                            </span>
                          </div>
+                          {/* Mobile Urgency Dot */}
+                          <div className={`sm:hidden w-2 h-2 rounded-full ${pStyle.bar}`}></div>
 
                          {/* Date - Fixed width wrapper for Left Alignment */}
-                         <div className={`flex items-center gap-1.5 text-xs font-medium w-24 justify-start ${relativeColor}`}>
+                         <div className={`flex items-center gap-1.5 text-xs font-medium w-auto sm:w-24 justify-end sm:justify-start ${relativeColor}`}>
                              <Calendar className="w-3.5 h-3.5" />
                              <span>{formatDisplayDate(task.dueDate)}</span>
                          </div>
@@ -445,18 +438,18 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
   return (
     <div className="animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 shrink-0">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 mb-8 shrink-0">
         <div>
           <h3 className="text-2xl font-black text-[#323130] tracking-tight">
             {viewMode === 'completed' ? 'Archive' : 'Work'}
           </h3>
           <p className="text-[11px] font-bold text-[#a19f9d] uppercase tracking-widest">Master your timeline</p>
         </div>
-        <div className="flex items-center gap-3 self-start md:self-auto flex-wrap">
+        <div className="flex items-center gap-2 md:gap-3 self-start md:self-auto flex-wrap w-full md:w-auto overflow-x-auto pb-2 md:pb-0 no-scrollbar">
           {viewMode === 'completed' ? (
             <button 
               onClick={() => setViewMode('active')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded-xl shadow-sm hover:bg-[#faf9f8] transition-all"
+              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded-xl shadow-sm hover:bg-[#faf9f8] transition-all whitespace-nowrap"
             >
               <ArrowLeft className="w-4 h-4" />
               <span className="text-sm font-bold">Go Back</span>
@@ -465,7 +458,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
             <>
               <button
                 onClick={() => setIsViewMenuOpen(!isViewMenuOpen)}
-                className="p-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded-lg shadow-sm hover:bg-[#faf9f8] transition-all relative"
+                className="p-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded-lg shadow-sm hover:bg-[#faf9f8] transition-all relative shrink-0"
               >
                 <SlidersHorizontal className="w-4 h-4" />
                 {isViewMenuOpen && (
@@ -483,7 +476,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
               <button 
                 onClick={() => setIsTagManagerOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded-xl shadow-sm hover:bg-[#faf9f8] transition-all"
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded-xl shadow-sm hover:bg-[#faf9f8] transition-all whitespace-nowrap"
               >
                 <TagIcon className="w-4 h-4" />
                 <span className="text-sm font-bold">Tags</span>
@@ -491,13 +484,13 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
               
               <button 
                 onClick={() => setViewMode('completed')}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded-xl shadow-sm hover:bg-[#faf9f8] transition-all"
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded-xl shadow-sm hover:bg-[#faf9f8] transition-all whitespace-nowrap"
               >
                 <History className="w-4 h-4" />
                 <span className="text-sm font-bold">Done</span>
               </button>
 
-              <button onClick={openCreateModal} className="flex items-center gap-2 px-6 py-2.5 fluent-btn-primary rounded-xl shadow-md active:scale-95 transition-transform">
+              <button onClick={openCreateModal} className="flex items-center gap-2 px-6 py-2.5 fluent-btn-primary rounded-xl shadow-md active:scale-95 transition-transform whitespace-nowrap">
                 <Plus className="w-4 h-4" />
                 <span className="text-sm font-bold">New</span>
               </button>
@@ -526,7 +519,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
       {/* Task Details Modal */}
       {selectedTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+           <div className="bg-white w-[95%] md:w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[85vh] md:max-h-[90vh]">
             <div className="px-5 py-4 border-b border-[#f3f2f1] flex items-center justify-between bg-[#faf9f8]">
               <div className="flex items-center gap-2">
                  <button 
@@ -560,7 +553,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
               {/* Properties Grid */}
               <div className="space-y-5">
-                <div className="grid grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-1.5">
                     <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">
                       <Calendar className="w-3 h-3" /> Due Date
@@ -652,7 +645,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                       <span className={`text-sm font-medium flex-1 ${st.completed ? 'line-through text-[#a19f9d]' : 'text-[#323130]'}`}>
                         {st.title}
                       </span>
-                      <button onClick={() => deleteSubtaskInTask(selectedTask.id, st.id)} className="opacity-0 group-hover:opacity-100 text-[#a4262c] p-1.5 hover:bg-red-50 rounded-md transition-all">
+                      <button onClick={() => deleteSubtaskInTask(selectedTask.id, st.id)} className="opacity-100 md:opacity-0 group-hover:opacity-100 text-[#a4262c] p-1.5 hover:bg-red-50 rounded-md transition-all">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -721,7 +714,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
             {/* Footer */}
             <div className="p-4 border-t border-[#f3f2f1] bg-[#faf9f8] flex justify-between items-center">
-              <span className="text-[10px] text-[#a19f9d] font-mono">ID: {selectedTask.id}</span>
+              <span className="text-[10px] text-[#a19f9d] font-mono">ID: {selectedTask.id.substring(0,8)}...</span>
               <button 
                 onClick={() => deleteTask(selectedTask.id)}
                 className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-[#a4262c] hover:bg-red-50 rounded-xl transition-colors"
@@ -736,7 +729,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
       {/* Create Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden">
+          <div className="bg-white w-[95%] md:w-full max-w-md rounded-2xl shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-6 py-5 border-b border-[#f3f2f1]">
               <h3 className="text-lg font-black text-[#323130] tracking-tight">New Task</h3>
               <button onClick={closeModal} className="p-1.5 text-[#a19f9d] hover:bg-[#f3f2f1] rounded-full transition-colors">
@@ -800,7 +793,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
       {/* Tag Manager Modal */}
       {isTagManagerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh]">
+          <div className="bg-white w-[95%] md:w-full max-w-md rounded-2xl shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh]">
             <div className="flex items-center justify-between px-6 py-5 border-b border-[#f3f2f1]">
               <div className="flex items-center gap-2">
                 <TagIcon className="w-5 h-5 text-[#0078d4]" />
@@ -826,7 +819,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                         </div>
                         <button 
                           onClick={() => handleDeleteTag(tag.id)} 
-                          className="p-1.5 text-[#a19f9d] hover:text-[#a4262c] hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                          className="p-1.5 text-[#a19f9d] hover:text-[#a4262c] hover:bg-red-50 rounded-lg md:opacity-0 group-hover:opacity-100 transition-all"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

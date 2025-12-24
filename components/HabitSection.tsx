@@ -151,7 +151,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
         </div>
         <button 
           onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center gap-2 px-6 py-2.5 fluent-btn-primary rounded-xl shadow-md active:scale-95 transition-transform"
+          className="flex items-center gap-2 px-6 py-2.5 fluent-btn-primary rounded-xl shadow-md active:scale-95 transition-transform w-full md:w-auto justify-center"
         >
           <Plus className="w-4 h-4" />
           <span className="text-sm font-bold">New Habit</span>
@@ -238,7 +238,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
       {/* Detail Modal */}
       {selectedHabit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+          <div className="bg-white w-[95%] md:w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
             <div className="px-6 py-5 border-b border-[#f3f2f1] flex items-center justify-between bg-[#faf9f8]">
               <div className="flex items-center gap-3">
                 <div className="text-2xl">{selectedHabit.icon}</div>
@@ -252,7 +252,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8 space-y-8">
+            <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8">
               {/* Stats Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
@@ -340,7 +340,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
 
             {/* Footer */}
             <div className="p-4 border-t border-[#f3f2f1] bg-[#faf9f8] flex justify-between items-center">
-              <span className="text-[10px] text-[#a19f9d] font-mono">ID: {selectedHabit.id}</span>
+              <span className="text-[10px] text-[#a19f9d] font-mono">ID: {selectedHabit.id.substring(0,8)}...</span>
               <button 
                 onClick={() => handleDeleteHabit(selectedHabit.id)}
                 className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-[#a4262c] hover:bg-red-50 rounded-xl transition-colors"
@@ -355,7 +355,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
       {/* Create Modal */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden">
+           <div className="bg-white w-[95%] md:w-full max-w-md rounded-2xl shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden">
              <div className="flex items-center justify-between px-6 py-5 border-b border-[#f3f2f1]">
               <h3 className="text-lg font-black text-[#323130] tracking-tight">New Habit</h3>
               <button onClick={() => setIsCreateModalOpen(false)} className="p-1.5 text-[#a19f9d] hover:bg-[#f3f2f1] rounded-full transition-colors">
