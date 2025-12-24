@@ -2,7 +2,15 @@
 import { GoogleGenAI } from "@google/genai";
 import { Task, JournalEntry } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Safe access to API key to prevent browser crash if process is undefined
+const getApiKey = () => {
+  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+    return process.env.API_KEY;
+  }
+  return '';
+};
+
+const ai = new GoogleGenAI({ apiKey: getApiKey() });
 
 export const getTaskAnalysis = async (tasks: Task[]): Promise<string> => {
   if (tasks.length === 0) return "Add some tasks to get an AI summary of your day!";
