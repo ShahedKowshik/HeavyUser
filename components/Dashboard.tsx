@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap } from 'lucide-react';
-import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User } from '../types';
+import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType } from '../types';
 import TaskSection from './TaskSection';
 import SettingsSection from './SettingsSection';
 import JournalSection from './JournalSection';
@@ -46,9 +46,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         .eq('user_id', userId);
       
       if (tasksData) {
-        const mappedTasks: Task[] = tasksData.map(t => ({
-          ...t,
-          dueDate: t.due_date,
+        // Explicitly map and cast types to satisfy TypeScript strictness
+        const mappedTasks: Task[] = tasksData.map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          dueDate: t.due_date || '', // Handle null
+          time: t.time,
+          completed: t.completed,
+          priority: t.priority as Priority, // Cast string to Priority
+          subtasks: t.subtasks || [], // Handle null jsonb
+          tags: t.tags || [],
+          notes: t.notes
         }));
         setTasks(mappedTasks);
       }
@@ -71,11 +79,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         .order('created_at', { ascending: true });
 
       if (habitsData) {
-        const mappedHabits: Habit[] = habitsData.map(h => ({
+        const mappedHabits: Habit[] = habitsData.map((h: any) => ({
           id: h.id,
           title: h.title,
           icon: h.icon,
-          completedDates: h.completed_dates || []
+          completedDates: h.completed_dates || [] // Handle null jsonb
         }));
         setHabits(mappedHabits);
       }
@@ -88,13 +96,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         .order('timestamp', { ascending: false });
 
       if (journalsData) {
-        const mappedJournals: JournalEntry[] = journalsData.map(j => ({
+        const mappedJournals: JournalEntry[] = journalsData.map((j: any) => ({
           id: j.id,
           title: j.title,
           content: j.content,
           timestamp: j.timestamp,
           rating: j.rating,
-          entryType: j.entry_type, // Map snake_case from DB to camelCase
+          entryType: j.entry_type as EntryType, // Cast string to EntryType
           coverImage: j.cover_image
         }));
         setJournals(mappedJournals);
