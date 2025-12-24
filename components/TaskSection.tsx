@@ -225,7 +225,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   const formatDisplayDate = (dateStr: string) => {
     const date = new Date(dateStr);
     const utcDate = new Date(date.getTime() + date.getTimezoneOffset() * 60000);
-    return utcDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return utcDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   };
 
   const getDayDiff = (dateStr: string) => {
@@ -312,11 +312,15 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
               const isExpanded = expandedTasks.has(task.id);
               const pStyle = getPriorityStyle(task.priority);
               const relativeColor = getRelativeTimeColor(task.dueDate);
+              const completedSubtasks = task.subtasks.filter(s => s.completed).length;
+              const totalSubtasks = task.subtasks.length;
+              const hasSubtasks = totalSubtasks > 0;
 
               return (
                 <div 
-                  key={task.id} 
-                  className={`bg-white rounded-lg border border-[#edebe9] px-4 py-3 transition-all hover:shadow-md hover:border-[#d1d1d1] group ${task.completed ? 'opacity-70 bg-[#faf9f8]' : ''}`}
+                  key={task.id}
+                  onClick={() => { setSelectedTaskId(task.id); setIsPreviewMode(false); }}
+                  className={`bg-white rounded-lg border border-[#edebe9] px-4 py-3 transition-all hover:shadow-md hover:border-[#d1d1d1] group cursor-pointer ${task.completed ? 'opacity-70 bg-[#faf9f8]' : ''}`}
                 >
                   <div className="flex items-center gap-3">
                     {/* Checklist (Checkmark) */}
@@ -338,8 +342,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                       {/* Title & Tags */}
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         <div 
-                          onClick={() => { setSelectedTaskId(task.id); setIsPreviewMode(false); }}
-                          className={`text-sm font-semibold cursor-pointer transition-colors truncate ${task.completed ? 'text-[#a19f9d] line-through' : 'text-[#323130] hover:text-[#0078d4]'}`}
+                          className={`text-sm font-semibold transition-colors truncate ${task.completed ? 'text-[#a19f9d] line-through' : 'text-[#323130] hover:text-[#0078d4]'}`}
                         >
                           {task.title}
                         </div>
@@ -362,6 +365,21 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                             })}
                           </div>
                          )}
+
+                         {/* Subtask Indicator */}
+                         {hasSubtasks && (
+                           <span className="text-[10px] font-bold text-[#a19f9d] bg-[#f3f2f1] px-1.5 py-0.5 rounded border border-[#edebe9]">
+                              {completedSubtasks}/{totalSubtasks}
+                           </span>
+                         )}
+
+                         {/* Expand Arrow - Moved Here */}
+                         <button 
+                            onClick={(e) => toggleExpand(task.id, e)}
+                            className={`p-1 rounded transition-all shrink-0 ${isExpanded ? 'bg-[#edebe9] text-[#0078d4]' : 'text-[#d1d1d1] hover:text-[#0078d4]'}`}
+                          >
+                             <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+                          </button>
                       </div>
 
                       {/* Metadata Row */}
@@ -376,20 +394,12 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                           <div className={`sm:hidden w-2 h-2 rounded-full ${pStyle.bar}`}></div>
 
                          {/* Date - Fixed width wrapper for Left Alignment */}
-                         <div className={`flex items-center gap-1.5 text-xs font-medium w-auto sm:w-24 justify-end sm:justify-start ${relativeColor}`}>
+                         <div className={`flex items-center gap-1.5 text-xs font-medium w-auto sm:w-auto justify-end sm:justify-start ${relativeColor}`}>
                              <Calendar className="w-3.5 h-3.5" />
-                             <span>{formatDisplayDate(task.dueDate)}</span>
+                             <span className="truncate max-w-[120px]">{formatDisplayDate(task.dueDate)}</span>
                          </div>
                       </div>
                     </div>
-
-                    {/* Expand Arrow */}
-                    <button 
-                      onClick={(e) => toggleExpand(task.id, e)}
-                      className={`p-1 rounded transition-all shrink-0 ${isExpanded ? 'bg-[#edebe9] text-[#0078d4]' : 'text-[#d1d1d1] hover:text-[#0078d4]'}`}
-                    >
-                       <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
-                    </button>
                   </div>
 
                   {/* Subtasks Inline List (Expanded) */}
@@ -400,7 +410,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                         {task.subtasks?.map(st => (
                           <div key={st.id} className="flex items-center gap-3 relative group/sub py-1">
                             <div className="absolute left-[-18px] top-1/2 w-3 h-px bg-[#edebe9]" />
-                            <button onClick={() => toggleSubtaskInTask(task.id, st.id)} className="text-[#a19f9d] hover:text-[#0078d4] transition-colors z-10 bg-white">
+                            <button onClick={(e) => { e.stopPropagation(); toggleSubtaskInTask(task.id, st.id); }} className="text-[#a19f9d] hover:text-[#0078d4] transition-colors z-10 bg-white">
                               {st.completed ? <CheckSquare className="w-3.5 h-3.5 text-[#107c10]" /> : <Square className="w-3.5 h-3.5 rounded-sm" />}
                             </button>
                             <span className={`text-xs font-medium transition-colors ${st.completed ? 'line-through opacity-50 text-[#605e5c]' : 'text-[#323130]'}`}>
@@ -416,6 +426,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                             type="text"
                             placeholder="Add another subtask..."
                             className="flex-1 bg-transparent border-none p-0 text-xs font-medium focus:ring-0 focus:outline-none placeholder:text-[#a19f9d]"
+                            onClick={(e) => e.stopPropagation()}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 const val = e.currentTarget.value.trim();
@@ -445,7 +456,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
           </h3>
           <p className="text-[11px] font-bold text-[#a19f9d] uppercase tracking-widest">Master your timeline</p>
         </div>
-        <div className="flex items-center gap-2 md:gap-3 self-start md:self-auto flex-wrap w-full md:w-auto overflow-x-auto pb-2 md:pb-0 no-scrollbar">
+        <div className="flex items-center gap-2 md:gap-3 self-start md:self-auto flex-wrap w-full md:w-auto">
           {viewMode === 'completed' ? (
             <button 
               onClick={() => setViewMode('active')}

@@ -4,6 +4,7 @@ import AuthPage from './components/AuthPage';
 import Dashboard from './components/Dashboard';
 import { User } from './types';
 import { supabase } from './lib/supabase';
+import { Analytics } from '@vercel/analytics/react';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -58,6 +59,7 @@ const App: React.FC = () => {
       ) : (
         <AuthPage />
       )}
+      <Analytics />
     </>
   );
 };

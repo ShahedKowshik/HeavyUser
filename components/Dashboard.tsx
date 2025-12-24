@@ -79,12 +79,32 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         .order('created_at', { ascending: true });
 
       if (habitsData) {
-        const mappedHabits: Habit[] = habitsData.map((h: any) => ({
-          id: h.id,
-          title: h.title,
-          icon: h.icon,
-          completedDates: h.completed_dates || [] // Handle null jsonb
-        }));
+        const mappedHabits: Habit[] = habitsData.map((h: any) => {
+          // Handle Legacy Data Migration (convert completed_dates array to progress object if progress is missing)
+          let progressMap: Record<string, number> = h.progress || {};
+          const target = h.target || 1;
+          
+          if (Object.keys(progressMap).length === 0 && h.completed_dates && Array.isArray(h.completed_dates)) {
+            h.completed_dates.forEach((date: string) => {
+              progressMap[date] = target; // Assume legacy completions met the target
+            });
+          }
+
+          // Safe Date Parsing
+          const createdDate = h.created_at ? h.created_at.split('T')[0] : new Date().toISOString().split('T')[0];
+
+          return {
+            id: h.id,
+            title: h.title,
+            icon: h.icon,
+            target: target,
+            progress: progressMap,
+            skippedDates: h.skipped_dates || [],
+            startDate: h.start_date || createdDate,
+            useCounter: h.use_counter !== false, // Default to true if undefined (legacy compatibility)
+            completedDates: [] 
+          };
+        });
         setHabits(mappedHabits);
       }
 
@@ -142,8 +162,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     }
   };
 
-  const formattedDate = currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  const formattedTime = currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+  const formattedDate = currentTime.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const formattedTime = currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
   const NavItem = ({ id, label, icon: Icon }: { id: AppTab; label: string; icon: any }) => (
     <button

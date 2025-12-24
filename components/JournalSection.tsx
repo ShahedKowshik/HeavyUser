@@ -80,7 +80,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
 
   const formatTimestamp = (isoStr: string) => {
     const date = new Date(isoStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   };
 
   // Grouping Logic

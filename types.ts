@@ -50,7 +50,13 @@ export interface Habit {
   id: string;
   title: string;
   icon: string; // Emoji
-  completedDates: string[]; // Array of ISO Date strings (YYYY-MM-DD)
+  target: number; // Daily target count (e.g., 10 times)
+  startDate: string; // ISO Date string (YYYY-MM-DD)
+  useCounter: boolean; // Whether to track count or just simple completion
+  progress: Record<string, number>; // Date (ISO) -> Count
+  skippedDates: string[]; // Array of ISO Date strings that are exempted
+  /** @deprecated kept for backward compatibility if needed during migration, prefer progress */
+  completedDates?: string[]; 
 }
 
 export interface UserSettings {
