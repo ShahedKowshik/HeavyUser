@@ -1,14 +1,16 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Plus, Trash2, CheckCircle2, X, SlidersHorizontal, ChevronRight, ListChecks, History, Tag as TagIcon, ArrowLeft, CheckSquare, Square, Clock, Calendar, AlertCircle, FileText, ChevronDown, Eye, PenLine } from 'lucide-react';
 import { Task, Priority, Subtask, Tag } from '../types';
+import { supabase } from '../lib/supabase';
 
 interface TaskSectionProps {
   tasks: Task[];
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   tags: Tag[];
   setTags: React.Dispatch<React.SetStateAction<Tag[]>>;
+  userId: string;
 }
 
 type Grouping = 'none' | 'date' | 'priority';
@@ -21,7 +23,7 @@ const PRESET_COLORS = [
   '#0078d4', '#107c10', '#a4262c', '#d83b01', '#5c2d91', '#008272', '#e3008c', '#605e5c'
 ];
 
-const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags }) => {
+const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [isViewMenuOpen, setIsViewMenuOpen] = useState(false);
@@ -32,8 +34,8 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   const [viewMode, setViewMode] = useState<'active' | 'completed'>('active');
   const [isPreviewMode, setIsPreviewMode] = useState(false);
 
-  const [grouping, setGrouping] = useState<Grouping>('none');
-  const [sorting, setSorting] = useState<Sorting>('priority');
+  const [grouping, setGrouping] = useState<Grouping>('date');
+  const [sorting, setSorting] = useState<Sorting>('date');
 
   // New Task Form State
   const [title, setTitle] = useState('');
@@ -48,6 +50,27 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
   // Derived State for Details Panel
   const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId), [tasks, selectedTaskId]);
+
+  // Debounced Save for Selected Task Editing
+  useEffect(() => {
+    if (!selectedTask) return;
+    
+    const timer = setTimeout(async () => {
+      // Map back to DB structure
+      await supabase.from('tasks').update({
+        title: selectedTask.title,
+        due_date: selectedTask.dueDate,
+        time: selectedTask.time,
+        priority: selectedTask.priority,
+        notes: selectedTask.notes,
+        subtasks: selectedTask.subtasks,
+        tags: selectedTask.tags,
+        completed: selectedTask.completed
+      }).eq('id', selectedTask.id);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [selectedTask]);
 
   const toggleExpand = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -70,12 +93,12 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
     setIsModalOpen(false);
   };
 
-  const handleCreateTask = (e: React.FormEvent) => {
+  const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
     const newTask: Task = {
-      id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11),
+      id: crypto.randomUUID(),
       title,
       dueDate,
       time: dueTime || undefined,
@@ -85,17 +108,33 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
       tags: selectedTags,
       notes: ''
     };
+
+    // Update Local
     setTasks(prev => [newTask, ...prev]);
     closeModal();
+
+    // Sync to Supabase
+    await supabase.from('tasks').insert({
+      id: newTask.id,
+      user_id: userId,
+      title: newTask.title,
+      due_date: newTask.dueDate,
+      time: newTask.time,
+      priority: newTask.priority,
+      subtasks: newTask.subtasks,
+      tags: newTask.tags,
+      notes: newTask.notes,
+      completed: false
+    });
   };
 
-  // Helper to update specific fields of the selected task
+  // Helper to update specific fields of the selected task locally (DB sync handled by useEffect)
   const updateSelectedTask = (updates: Partial<Task>) => {
     if (!selectedTaskId) return;
     setTasks(prev => prev.map(t => t.id === selectedTaskId ? { ...t, ...updates } : t));
   };
 
-  const handleAddTag = () => {
+  const handleAddTag = async () => {
     if (!newTagLabel.trim()) return;
     const newTag: Tag = {
       id: crypto.randomUUID(),
@@ -104,38 +143,82 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
     };
     setTags([...tags, newTag]);
     setNewTagLabel('');
+
+    // Sync to Supabase
+    await supabase.from('tags').insert({
+      id: newTag.id,
+      user_id: userId,
+      label: newTag.label,
+      color: newTag.color
+    });
   };
 
-  const handleDeleteTag = (id: string) => {
+  const handleDeleteTag = async (id: string) => {
     setTags(tags.filter(t => t.id !== id));
     setTasks(prev => prev.map(t => ({
       ...t,
       tags: t.tags?.filter(tagId => tagId !== id)
     })));
+
+    // Sync to Supabase
+    await supabase.from('tags').delete().eq('id', id);
   };
 
-  const toggleTask = (id: string) => {
+  const toggleTask = async (id: string) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+
     setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+
+    // Sync to Supabase
+    await supabase.from('tasks').update({ completed: !task.completed }).eq('id', id);
   };
 
-  const deleteTask = (id: string) => {
+  const deleteTask = async (id: string) => {
     setTasks(tasks.filter(t => t.id !== id));
     if (selectedTaskId === id) setSelectedTaskId(null);
+
+    // Sync to Supabase
+    await supabase.from('tasks').delete().eq('id', id);
   };
 
   // Subtask handlers
   const addSubtaskToTask = (taskId: string, subtaskTitle: string) => {
     if (!subtaskTitle.trim()) return;
     const newSubtask: Subtask = { id: crypto.randomUUID(), title: subtaskTitle, completed: false };
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, subtasks: [...t.subtasks, newSubtask] } : t));
+    
+    // Update local immediately, let useEffect in selectedTask handle sync or update specifically here
+    setTasks(prev => {
+        const newTasks = prev.map(t => t.id === taskId ? { ...t, subtasks: [...t.subtasks, newSubtask] } : t);
+        // If not selected, we need to sync manually
+        if (taskId !== selectedTaskId) {
+            const t = newTasks.find(t => t.id === taskId);
+            if (t) supabase.from('tasks').update({ subtasks: t.subtasks }).eq('id', taskId).then();
+        }
+        return newTasks;
+    });
   };
 
   const toggleSubtaskInTask = (taskId: string, subtaskId: string) => {
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, subtasks: t.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s) } : t));
+    setTasks(prev => {
+        const newTasks = prev.map(t => t.id === taskId ? { ...t, subtasks: t.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s) } : t);
+        if (taskId !== selectedTaskId) {
+            const t = newTasks.find(t => t.id === taskId);
+            if (t) supabase.from('tasks').update({ subtasks: t.subtasks }).eq('id', taskId).then();
+        }
+        return newTasks;
+    });
   };
 
   const deleteSubtaskInTask = (taskId: string, subtaskId: string) => {
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, subtasks: t.subtasks.filter(s => s.id !== subtaskId) } : t));
+    setTasks(prev => {
+        const newTasks = prev.map(t => t.id === taskId ? { ...t, subtasks: t.subtasks.filter(s => s.id !== subtaskId) } : t);
+        if (taskId !== selectedTaskId) {
+            const t = newTasks.find(t => t.id === taskId);
+            if (t) supabase.from('tasks').update({ subtasks: t.subtasks }).eq('id', taskId).then();
+        }
+        return newTasks;
+    });
   };
 
   // Formatting helpers
@@ -162,19 +245,6 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
     return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   };
 
-  const getRelativeTime = (dateStr: string) => {
-    const diffDays = getDayDiff(dateStr);
-    if (diffDays === -1) return 'Yesterday';
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Tomorrow';
-    if (diffDays === 2) return 'Two days';
-    if (diffDays === 3) return 'Three days';
-    if (diffDays === 6) return 'Six days';
-    if (diffDays > 1) return 'Upcoming';
-    if (diffDays < -1) return 'Overdue';
-    return '';
-  };
-
   const getRelativeTimeColor = (dateStr: string) => {
     const diffDays = getDayDiff(dateStr);
     if (diffDays <= 0) return 'text-red-600';
@@ -194,11 +264,11 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
   const getPriorityStyle = (p: Priority) => {
     switch (p) {
-      case 'Urgent': return { bar: 'bg-[#a4262c]', text: 'text-[#a4262c] bg-red-50' };
-      case 'High': return { bar: 'bg-[#d83b01]', text: 'text-[#d83b01] bg-orange-50' };
-      case 'Normal': return { bar: 'bg-[#107c10]', text: 'text-[#107c10] bg-green-50' };
-      case 'Low': return { bar: 'bg-[#605e5c]', text: 'text-[#605e5c] bg-gray-50' };
-      default: return { bar: 'bg-[#605e5c]', text: 'text-[#605e5c] bg-gray-50' };
+      case 'Urgent': return { bar: 'bg-[#a4262c]', text: 'text-[#a4262c] bg-red-50 border-red-100' };
+      case 'High': return { bar: 'bg-[#d83b01]', text: 'text-[#d83b01] bg-orange-50 border-orange-100' };
+      case 'Normal': return { bar: 'bg-[#107c10]', text: 'text-[#107c10] bg-green-50 border-green-100' };
+      case 'Low': return { bar: 'bg-[#605e5c]', text: 'text-[#605e5c] bg-gray-50 border-gray-100' };
+      default: return { bar: 'bg-[#605e5c]', text: 'text-[#605e5c] bg-gray-50 border-gray-100' };
     }
   };
 
@@ -225,6 +295,10 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
       return entries.sort((a, b) => groupOrder.indexOf(a[0]) - groupOrder.indexOf(b[0]))
         .map(([title, tasks]) => ({ title, tasks }));
     }
+    if (grouping === 'priority') {
+      return entries.sort((a, b) => (priorityOrder[a[0] as Priority] ?? 99) - (priorityOrder[b[0] as Priority] ?? 99))
+        .map(([title, tasks]) => ({ title, tasks }));
+    }
     return entries.map(([title, tasks]) => ({ title, tasks }));
   };
 
@@ -234,37 +308,28 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   const renderTaskList = (groups: { title: string; tasks: Task[] }[]) => (
     <div className="space-y-4 pb-20">
       {groups.map((group, gIdx) => (
-        <div key={group.title + gIdx} className="space-y-px">
+        <div key={group.title + gIdx} className="space-y-2">
           {group.title && (
-            <div className="px-2 py-3">
+            <div className="px-1 py-2">
               <span className={`text-[10px] font-black uppercase tracking-[0.1em] ${group.title === 'Overdue' ? 'text-red-600' : 'text-[#a19f9d]'}`}>
                 {group.title}
               </span>
             </div>
           )}
-          <div className="bg-white rounded-lg border border-[#edebe9] overflow-hidden">
-            {group.tasks.map((task, idx) => {
+          <div className="grid grid-cols-1 gap-2">
+            {group.tasks.map((task) => {
               const isExpanded = expandedTasks.has(task.id);
-              const completedSubCount = task.subtasks?.filter(s => s.completed).length || 0;
-              const subtaskCount = task.subtasks?.length || 0;
               const pStyle = getPriorityStyle(task.priority);
-              const relativeLabel = getRelativeTime(task.dueDate);
               const relativeColor = getRelativeTimeColor(task.dueDate);
-              
-              return (
-                <div key={task.id} className={`${idx !== 0 ? 'border-t border-[#f3f2f1]' : ''}`}>
-                  <div 
-                    onClick={() => { setSelectedTaskId(task.id); setIsPreviewMode(false); }}
-                    className="relative cursor-pointer transition-all hover:bg-[#faf9f8]"
-                  >
-                    <div className={`group flex items-center gap-4 px-4 py-3 ${task.completed ? 'opacity-70' : ''}`}>
-                      <div className="flex items-center gap-2 shrink-0 min-w-[100px]">
-                        <div className={`w-1 h-6 rounded-full ${pStyle.bar} opacity-80`} />
-                        <span className={`text-[9px] font-bold uppercase tracking-tighter px-2 py-0.5 rounded ${pStyle.text}`}>
-                          {task.priority}
-                        </span>
-                      </div>
 
+              return (
+                <div 
+                  key={task.id} 
+                  className={`bg-white rounded-lg border border-[#edebe9] px-4 py-3 transition-all hover:shadow-md hover:border-[#d1d1d1] group ${task.completed ? 'opacity-70 bg-[#faf9f8]' : ''}`}
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Checklist (Checkmark) */}
+                    <div className="shrink-0 pt-0.5">
                       <button 
                         onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }}
                         className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
@@ -275,20 +340,29 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                       >
                         {task.completed && <CheckCircle2 className="w-3 h-3" />}
                       </button>
+                    </div>
 
-                      <div className="flex-1 min-w-0 flex items-center gap-3">
-                        <h4 className={`text-[13px] font-semibold truncate ${task.completed ? 'text-[#a19f9d] line-through' : 'text-[#323130]'}`}>
+                    {/* Main Row Content (Horizontal Table-like) */}
+                    <div className="flex-1 flex items-center gap-4 min-w-0 overflow-hidden">
+                      {/* Title & Tags */}
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div 
+                          onClick={() => { setSelectedTaskId(task.id); setIsPreviewMode(false); }}
+                          className={`text-sm font-semibold cursor-pointer transition-colors truncate ${task.completed ? 'text-[#a19f9d] line-through' : 'text-[#323130] hover:text-[#0078d4]'}`}
+                        >
                           {task.title}
-                        </h4>
-                        {task.tags && task.tags.length > 0 && (
-                          <div className="flex items-center gap-1.5 shrink-0">
+                        </div>
+
+                         {/* Tags - Moved beside title */}
+                         {task.tags && task.tags.length > 0 && (
+                          <div className="flex items-center gap-1 hidden sm:flex shrink-0">
                             {task.tags.map(tagId => {
                               const tag = tags.find(t => t.id === tagId);
                               if (!tag) return null;
                               return (
                                 <span 
                                   key={tagId} 
-                                  className="text-[9px] font-bold px-1.5 py-0.5 rounded-md tracking-wide"
+                                  className="text-[10px] font-bold px-2 py-0.5 rounded border border-transparent"
                                   style={{ backgroundColor: `${tag.color}15`, color: tag.color }}
                                 >
                                   {tag.label}
@@ -296,62 +370,67 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                               );
                             })}
                           </div>
-                        )}
-                        {subtaskCount > 0 && (
-                          <span className="flex items-center gap-1 text-[9px] font-bold text-[#a19f9d] bg-[#f3f2f1] px-1.5 py-0.5 rounded">
-                            <ListChecks className="w-3 h-3" />
-                            {completedSubCount}/{subtaskCount}
-                          </span>
-                        )}
+                         )}
                       </div>
 
-                      <div className="flex items-center gap-4 shrink-0">
-                        <div className="flex flex-col items-end">
-                          <span className={`text-[10px] font-bold ${task.completed ? 'text-[#a19f9d]' : relativeColor}`}>
-                            {relativeLabel}
-                          </span>
-                          <div className="flex items-center gap-1 text-[#a19f9d]">
-                            <span className="text-[9px] font-medium uppercase">{formatDisplayDate(task.dueDate)}</span>
-                            {task.time && <span className="text-[9px] font-medium lowercase">@ {formatDisplayTime(task.time)}</span>}
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => toggleExpand(task.id, e)}
-                          className={`p-1 rounded hover:bg-[#edebe9] transition-all ${isExpanded ? 'bg-[#edebe9] text-[#0078d4]' : 'text-[#d1d1d1]'}`}
-                        >
-                           <ChevronRight className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                        </button>
+                      {/* Metadata Row */}
+                      <div className="flex items-center gap-3 shrink-0">
+                         {/* Urgency - Fixed width wrapper for Left Alignment */}
+                         <div className="w-[70px] flex justify-start">
+                           <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border ${pStyle.text}`}>
+                              {task.priority}
+                           </span>
+                         </div>
+
+                         {/* Date - Fixed width wrapper for Left Alignment */}
+                         <div className={`flex items-center gap-1.5 text-xs font-medium w-24 justify-start ${relativeColor}`}>
+                             <Calendar className="w-3.5 h-3.5" />
+                             <span>{formatDisplayDate(task.dueDate)}</span>
+                         </div>
                       </div>
                     </div>
+
+                    {/* Expand Arrow */}
+                    <button 
+                      onClick={(e) => toggleExpand(task.id, e)}
+                      className={`p-1 rounded transition-all shrink-0 ${isExpanded ? 'bg-[#edebe9] text-[#0078d4]' : 'text-[#d1d1d1] hover:text-[#0078d4]'}`}
+                    >
+                       <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+                    </button>
                   </div>
 
+                  {/* Subtasks Inline List (Expanded) */}
                   {isExpanded && (
-                    <div className="bg-[#faf9f8] px-14 py-3 space-y-2 border-t border-[#f3f2f1] relative">
-                      <div className="absolute left-[130px] top-0 bottom-4 w-px bg-[#edebe9]" />
-                      {task.subtasks?.map(st => (
-                        <div key={st.id} className="flex items-center gap-3 relative ml-4 group/sub">
-                          <button onClick={() => toggleSubtaskInTask(task.id, st.id)} className="text-[#a19f9d] hover:text-[#0078d4] transition-colors z-10">
-                            {st.completed ? <CheckSquare className="w-4 h-4 text-[#107c10]" /> : <Square className="w-4 h-4 bg-white rounded-sm" />}
-                          </button>
-                          <span className={`text-[12px] font-medium transition-colors ${st.completed ? 'line-through opacity-50 text-[#605e5c]' : 'text-[#323130]'}`}>
-                            {st.title}
-                          </span>
+                    <div className="mt-4 pl-9 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <div className="space-y-1 relative">
+                        <div className="absolute left-[-18px] top-0 bottom-2 w-px bg-[#edebe9]" />
+                        {task.subtasks?.map(st => (
+                          <div key={st.id} className="flex items-center gap-3 relative group/sub py-1">
+                            <div className="absolute left-[-18px] top-1/2 w-3 h-px bg-[#edebe9]" />
+                            <button onClick={() => toggleSubtaskInTask(task.id, st.id)} className="text-[#a19f9d] hover:text-[#0078d4] transition-colors z-10 bg-white">
+                              {st.completed ? <CheckSquare className="w-3.5 h-3.5 text-[#107c10]" /> : <Square className="w-3.5 h-3.5 rounded-sm" />}
+                            </button>
+                            <span className={`text-xs font-medium transition-colors ${st.completed ? 'line-through opacity-50 text-[#605e5c]' : 'text-[#323130]'}`}>
+                              {st.title}
+                            </span>
+                          </div>
+                        ))}
+                        
+                        <div className="flex items-center gap-3 pt-1 group/input relative">
+                           <div className="absolute left-[-18px] top-1/2 w-3 h-px bg-[#edebe9]" />
+                          <Plus className="w-3.5 h-3.5 text-[#0078d4] shrink-0" />
+                          <input 
+                            type="text"
+                            placeholder="Add another subtask..."
+                            className="flex-1 bg-transparent border-none p-0 text-xs font-medium focus:ring-0 focus:outline-none placeholder:text-[#a19f9d]"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const val = e.currentTarget.value.trim();
+                                if (val) { addSubtaskToTask(task.id, val); e.currentTarget.value = ''; }
+                              }
+                            }}
+                          />
                         </div>
-                      ))}
-                      
-                      <div className="flex items-center gap-3 pt-2 group/input ml-4">
-                        <Plus className="w-3.5 h-3.5 text-[#0078d4] shrink-0" />
-                        <input 
-                          type="text"
-                          placeholder="Quick add step..."
-                          className="flex-1 bg-transparent border-none p-0 text-[12px] font-medium focus:ring-0 focus:outline-none placeholder:text-[#a19f9d]"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              const val = e.currentTarget.value.trim();
-                              if (val) { addSubtaskToTask(task.id, val); e.currentTarget.value = ''; }
-                            }
-                          }}
-                        />
                       </div>
                     </div>
                   )}
@@ -366,13 +445,14 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
   return (
     <div className="animate-in fade-in duration-500">
-      <div className="flex items-center justify-between px-2 mb-8 shrink-0">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 shrink-0">
         <div>
           <h3 className="text-2xl font-black text-[#323130] tracking-tight">
-            {viewMode === 'completed' ? 'Archive' : 'Tasks'}
+            {viewMode === 'completed' ? 'Archive' : 'Work'}
           </h3>
+          <p className="text-[11px] font-bold text-[#a19f9d] uppercase tracking-widest">Master your timeline</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 self-start md:self-auto flex-wrap">
           {viewMode === 'completed' ? (
             <button 
               onClick={() => setViewMode('active')}
@@ -391,9 +471,9 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                 {isViewMenuOpen && (
                   <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-[#edebe9] rounded-xl shadow-xl z-30 p-1.5 animate-in zoom-in-95 duration-100">
                     <div className="px-3 py-2 text-[9px] font-black text-[#a19f9d] uppercase tracking-widest border-b border-[#f3f2f1] mb-1">Display</div>
-                    {(['none', 'date', 'priority'] as Grouping[]).map(g => (
+                    {(['date', 'priority'] as Grouping[]).map(g => (
                       <button key={g} onClick={() => { setGrouping(g); setIsViewMenuOpen(false); }} className={`w-full text-left px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-between ${grouping === g ? 'bg-[#eff6fc] text-[#0078d4] font-bold' : 'hover:bg-[#faf9f8]'}`}>
-                        <span className="capitalize">{g === 'none' ? 'Default' : g}</span>
+                        <span className="capitalize">{g}</span>
                         {grouping === g && <CheckCircle2 className="w-3 h-3" />}
                       </button>
                     ))}
@@ -414,12 +494,12 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                 className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded-xl shadow-sm hover:bg-[#faf9f8] transition-all"
               >
                 <History className="w-4 h-4" />
-                <span className="text-sm font-bold">Completed</span>
+                <span className="text-sm font-bold">Done</span>
               </button>
 
               <button onClick={openCreateModal} className="flex items-center gap-2 px-6 py-2.5 fluent-btn-primary rounded-xl shadow-md active:scale-95 transition-transform">
                 <Plus className="w-4 h-4" />
-                <span className="text-sm font-bold">New Task</span>
+                <span className="text-sm font-bold">New</span>
               </button>
             </>
           )}
@@ -446,7 +526,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
       {/* Task Details Modal */}
       {selectedTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-           <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
             <div className="px-5 py-4 border-b border-[#f3f2f1] flex items-center justify-between bg-[#faf9f8]">
               <div className="flex items-center gap-2">
                  <button 
@@ -625,7 +705,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                          {selectedTask.notes}
                        </ReactMarkdown>
                      ) : (
-                       <p className="text-xs text-[#a19f9d] italic">Nothing to preview.</p>
+                       <p className="text-xs text-[#a19f9d] italic">Preview will appear here.</p>
                      )}
                   </div>
                 ) : (

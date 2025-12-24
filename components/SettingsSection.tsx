@@ -1,14 +1,15 @@
 
 import React, { useState } from 'react';
-import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check, Camera } from 'lucide-react';
+import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check, Camera, LogOut } from 'lucide-react';
 import { UserSettings } from '../types';
 
 interface SettingsSectionProps {
   settings: UserSettings;
   onUpdate: (settings: UserSettings) => void;
+  onLogout: () => void;
 }
 
-const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate }) => {
+const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, onLogout }) => {
   const [localName, setLocalName] = useState(settings.userName);
   const [localProfilePic, setLocalProfilePic] = useState(settings.profilePicture || '');
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
@@ -21,8 +22,27 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate })
 
   const handleFinalDelete = () => {
     if (deleteKeyword.toLowerCase() === 'delete') {
-      localStorage.clear();
-      window.location.reload();
+      // Logic to delete specific keys handled by parent or by clearing specific local storage
+      // Here we just trigger the logout/delete flow
+      // In a real app, you'd call an API. Here we assume the parent handles the heavy lifting
+      // or we manually clear user data here.
+      
+      // Clear user specific data
+      const userId = settings.userId;
+      localStorage.removeItem(`heavyuser_tasks_${userId}`);
+      localStorage.removeItem(`heavyuser_tags_${userId}`);
+      localStorage.removeItem(`heavyuser_journals_${userId}`);
+      localStorage.removeItem(`heavyuser_habits_${userId}`);
+      
+      // Remove from users list
+      const usersStr = localStorage.getItem('heavyuser_users');
+      if (usersStr) {
+        const users = JSON.parse(usersStr);
+        const newUsers = users.filter((u: any) => u.id !== userId);
+        localStorage.setItem('heavyuser_users', JSON.stringify(newUsers));
+      }
+
+      onLogout();
     }
   };
 
@@ -37,148 +57,166 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate })
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      {/* Account Profile Section */}
-      <div className="fluent-card overflow-hidden">
-        <div className="px-6 py-4 border-b border-[#edebe9] bg-[#faf9f8] flex items-center space-x-2">
-          <User className="w-4 h-4 text-[#0078d4]" />
-          <h3 className="text-sm font-semibold text-[#323130]">Account Profile</h3>
-        </div>
-        <div className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-[#605e5c]">Display Name</label>
-              <input
-                type="text"
-                value={localName}
-                onChange={(e) => setLocalName(e.target.value)}
-                className="w-full px-3 py-2 text-sm focus:border-[#0078d4]"
-              />
-            </div>
-             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-[#605e5c] flex items-center gap-1">
-                <Camera className="w-3 h-3" /> Profile Picture URL
-              </label>
-              <input
-                type="text"
-                value={localProfilePic}
-                onChange={(e) => setLocalProfilePic(e.target.value)}
-                placeholder="https://..."
-                className="w-full px-3 py-2 text-sm focus:border-[#0078d4]"
-              />
-            </div>
-          </div>
-          
-          <div className="flex justify-end">
-             <button
-                onClick={handleSaveProfile}
-                className="px-6 py-2 bg-[#0078d4] text-white text-xs font-medium rounded hover:bg-[#106ebe] transition-colors shadow-sm"
-              >
-                Save Changes
-              </button>
-          </div>
-
-          <div className="space-y-1.5 max-w-md pt-2 border-t border-[#f3f2f1]">
-            <label className="text-xs font-semibold text-[#605e5c] flex items-center">
-              <Fingerprint className="w-3 h-3 mr-1" />
-              User ID
-            </label>
-            <div className="flex items-stretch space-x-2">
-              <div className="flex-1 bg-[#f3f2f1] border border-[#edebe9] px-3 py-2 rounded text-sm font-mono tracking-wider text-[#0078d4] truncate">
-                {settings.userId}
-              </div>
-              <button
-                onClick={copyToClipboard}
-                title="Copy to clipboard"
-                className={`px-3 rounded border transition-all flex items-center justify-center ${
-                  isCopied 
-                  ? 'bg-[#dff6dd] border-[#107c10] text-[#107c10]' 
-                  : 'bg-white border-[#edebe9] text-[#605e5c] hover:bg-[#f3f2f1]'
-                }`}
-              >
-                {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-        </div>
+    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="mb-8 flex items-center justify-between">
+         <div>
+            <h3 className="text-2xl font-black text-[#323130] tracking-tight">Configuration</h3>
+            <p className="text-[11px] font-bold text-[#a19f9d] uppercase tracking-widest">Manage your workspace</p>
+         </div>
+         <button 
+          onClick={onLogout}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-[#edebe9] text-[#605e5c] rounded-xl hover:bg-[#f3f2f1] hover:text-[#a4262c] transition-all font-bold text-xs shadow-sm"
+         >
+           <LogOut className="w-4 h-4" />
+           Sign Out
+         </button>
       </div>
 
-      {/* Data Management Section */}
-      <div className="fluent-card overflow-hidden border-red-100">
-        <div className="px-6 py-4 border-b border-red-100 bg-[#fff8f8] flex items-center space-x-2">
-          <Trash2 className="w-4 h-4 text-[#a4262c]" />
-          <h3 className="text-sm font-semibold text-[#a4262c]">Data Management</h3>
-        </div>
-        <div className="p-6">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold text-[#323130]">Danger Zone</p>
-                <p className="text-xs text-[#605e5c] mt-1 leading-relaxed">
-                  Permanently remove all local data or delete your account reference.
-                </p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Account Profile Section */}
+        <div className="bg-white border border-[#edebe9] rounded-xl overflow-hidden hover:shadow-md transition-shadow">
+          <div className="px-6 py-4 border-b border-[#edebe9] bg-[#faf9f8] flex items-center space-x-2">
+            <User className="w-4 h-4 text-[#0078d4]" />
+            <h3 className="text-sm font-bold text-[#323130]">Account Profile</h3>
+          </div>
+          <div className="p-6 space-y-6">
+            <div className="space-y-4">
+               <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#605e5c]">Display Name</label>
+                <input
+                  type="text"
+                  value={localName}
+                  onChange={(e) => setLocalName(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm bg-[#faf9f8] border-none rounded-lg focus:ring-1 focus:ring-[#0078d4]"
+                />
               </div>
-              
-              {!isConfirmingDelete ? (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setIsConfirmingDelete(true)}
-                    className="px-4 py-2 border border-[#a4262c] text-[#a4262c] text-xs font-medium rounded hover:bg-[#fde7e9] transition-colors whitespace-nowrap"
-                  >
-                    Reset Workspace
-                  </button>
-                   <button
-                    onClick={() => setIsConfirmingDelete(true)}
-                    className="px-4 py-2 bg-[#a4262c] text-white text-xs font-medium rounded hover:bg-[#8e1f24] transition-colors whitespace-nowrap shadow-sm"
-                  >
-                    Delete Account
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => {
-                    setIsConfirmingDelete(false);
-                    setDeleteKeyword('');
-                  }}
-                  className="p-2 text-[#605e5c] hover:bg-[#f3f2f1] rounded-full"
+               <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#605e5c] flex items-center gap-1">
+                  <Camera className="w-3 h-3" /> Profile Picture URL
+                </label>
+                <input
+                  type="text"
+                  value={localProfilePic}
+                  onChange={(e) => setLocalProfilePic(e.target.value)}
+                  placeholder="https://..."
+                  className="w-full px-3 py-2.5 text-sm bg-[#faf9f8] border-none rounded-lg focus:ring-1 focus:ring-[#0078d4]"
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end pt-2">
+               <button
+                  onClick={handleSaveProfile}
+                  className="px-6 py-2.5 bg-[#0078d4] text-white text-xs font-bold rounded-lg hover:bg-[#106ebe] transition-colors shadow-sm"
                 >
-                  <X className="w-4 h-4" />
+                  Save Changes
                 </button>
-              )}
             </div>
 
-            {isConfirmingDelete && (
-              <div className="p-4 bg-[#fff8f8] border border-red-200 rounded-lg animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="flex items-center space-x-2 text-[#a4262c] mb-3">
-                  <AlertTriangle className="w-4 h-4" />
-                  <span className="text-xs font-bold uppercase tracking-wider">Warning</span>
+            <div className="space-y-1.5 pt-4 border-t border-[#f3f2f1]">
+              <label className="text-xs font-bold text-[#605e5c] flex items-center">
+                <Fingerprint className="w-3 h-3 mr-1" />
+                User ID
+              </label>
+              <div className="flex items-stretch space-x-2">
+                <div className="flex-1 bg-[#f3f2f1] border border-[#edebe9] px-3 py-2 rounded-lg text-sm font-mono tracking-wider text-[#0078d4] truncate">
+                  {settings.userId}
                 </div>
-                <p className="text-xs text-[#323130] mb-4">
-                  Please type <span className="font-bold italic">delete</span> in the field below to confirm the permanent reset of your account.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input
-                    autoFocus
-                    type="text"
-                    placeholder='Type "delete" to confirm'
-                    value={deleteKeyword}
-                    onChange={(e) => setDeleteKeyword(e.target.value)}
-                    className="flex-1 px-3 py-2 text-sm border-red-200 focus:border-[#a4262c] placeholder:text-[#a19f9d]"
-                  />
-                  <button
-                    onClick={handleFinalDelete}
-                    disabled={deleteKeyword.toLowerCase() !== 'delete'}
-                    className={`px-6 py-2 text-xs font-bold rounded transition-all shadow-sm ${
-                      deleteKeyword.toLowerCase() === 'delete'
-                        ? 'bg-[#a4262c] text-white hover:bg-[#821d23]'
-                        : 'bg-[#edebe9] text-[#a19f9d] cursor-not-allowed'
-                    }`}
-                  >
-                    Confirm Delete
-                  </button>
-                </div>
+                <button
+                  onClick={copyToClipboard}
+                  title="Copy to clipboard"
+                  className={`px-3 rounded-lg border transition-all flex items-center justify-center ${
+                    isCopied 
+                    ? 'bg-[#dff6dd] border-[#107c10] text-[#107c10]' 
+                    : 'bg-white border-[#edebe9] text-[#605e5c] hover:bg-[#f3f2f1]'
+                  }`}
+                >
+                  {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </button>
               </div>
-            )}
+            </div>
+          </div>
+        </div>
+
+        {/* Data Management Section */}
+        <div className="bg-white border border-red-100 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
+          <div className="px-6 py-4 border-b border-red-100 bg-[#fff8f8] flex items-center space-x-2">
+            <Trash2 className="w-4 h-4 text-[#a4262c]" />
+            <h3 className="text-sm font-bold text-[#a4262c]">Data Management</h3>
+          </div>
+          <div className="p-6">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <div>
+                  <p className="text-sm font-bold text-[#323130]">Danger Zone</p>
+                  <p className="text-xs text-[#605e5c] mt-1 leading-relaxed">
+                    Permanently remove all local data or delete your account reference.
+                  </p>
+                </div>
+                
+                {!isConfirmingDelete ? (
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => setIsConfirmingDelete(true)}
+                      className="px-4 py-2 border border-[#a4262c] text-[#a4262c] text-xs font-bold rounded-lg hover:bg-[#fde7e9] transition-colors whitespace-nowrap"
+                    >
+                      Reset Workspace
+                    </button>
+                     <button
+                      onClick={() => setIsConfirmingDelete(true)}
+                      className="px-4 py-2 bg-[#a4262c] text-white text-xs font-bold rounded-lg hover:bg-[#8e1f24] transition-colors whitespace-nowrap shadow-sm"
+                    >
+                      Delete Account
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex justify-start">
+                    <button
+                      onClick={() => {
+                        setIsConfirmingDelete(false);
+                        setDeleteKeyword('');
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-[#605e5c] hover:bg-[#f3f2f1] rounded-lg transition-colors"
+                    >
+                      <X className="w-3 h-3" /> Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {isConfirmingDelete && (
+                <div className="p-4 bg-[#fff8f8] border border-red-200 rounded-xl animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center space-x-2 text-[#a4262c] mb-3">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Warning</span>
+                  </div>
+                  <p className="text-xs text-[#323130] mb-4 font-medium">
+                    Please type <span className="font-bold italic text-[#a4262c]">delete</span> below to confirm.
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    <input
+                      autoFocus
+                      type="text"
+                      placeholder='Type "delete"'
+                      value={deleteKeyword}
+                      onChange={(e) => setDeleteKeyword(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm bg-white border border-red-200 rounded-lg focus:border-[#a4262c] focus:ring-1 focus:ring-[#a4262c]"
+                    />
+                    <button
+                      onClick={handleFinalDelete}
+                      disabled={deleteKeyword.toLowerCase() !== 'delete'}
+                      className={`w-full py-2.5 text-xs font-bold rounded-lg transition-all shadow-sm ${
+                        deleteKeyword.toLowerCase() === 'delete'
+                          ? 'bg-[#a4262c] text-white hover:bg-[#821d23]'
+                          : 'bg-[#edebe9] text-[#a19f9d] cursor-not-allowed'
+                      }`}
+                    >
+                      Confirm Permanent Delete
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
