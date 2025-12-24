@@ -28,10 +28,13 @@ export interface Task {
   dueDate: string;
   time?: string; // HH:mm 24h format
   completed: boolean;
+  completedAt?: string | null; // ISO string for streak calculation
   priority: Priority;
   subtasks: Subtask[];
   tags?: string[];
   notes?: string;
+  createdAt?: string; // ISO string
+  updatedAt?: string; // ISO string
 }
 
 export type EntryType = 'Log' | 'Gratitude';

@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
-import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check, Camera, LogOut } from 'lucide-react';
+import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2 } from 'lucide-react';
 import { UserSettings } from '../types';
+import { supabase } from '../lib/supabase';
 
 interface SettingsSectionProps {
   settings: UserSettings;
@@ -15,34 +16,46 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [deleteKeyword, setDeleteKeyword] = useState('');
   const [isCopied, setIsCopied] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleSaveProfile = () => {
     onUpdate({ ...settings, userName: localName, profilePicture: localProfilePic.trim() || undefined });
   };
 
-  const handleFinalDelete = () => {
+  const handleFinalDelete = async () => {
     if (deleteKeyword.toLowerCase() === 'delete') {
-      // Logic to delete specific keys handled by parent or by clearing specific local storage
-      // Here we just trigger the logout/delete flow
-      // In a real app, you'd call an API. Here we assume the parent handles the heavy lifting
-      // or we manually clear user data here.
-      
-      // Clear user specific data
+      setIsDeleting(true);
       const userId = settings.userId;
-      localStorage.removeItem(`heavyuser_tasks_${userId}`);
-      localStorage.removeItem(`heavyuser_tags_${userId}`);
-      localStorage.removeItem(`heavyuser_journals_${userId}`);
-      localStorage.removeItem(`heavyuser_habits_${userId}`);
-      
-      // Remove from users list
-      const usersStr = localStorage.getItem('heavyuser_users');
-      if (usersStr) {
-        const users = JSON.parse(usersStr);
-        const newUsers = users.filter((u: any) => u.id !== userId);
-        localStorage.setItem('heavyuser_users', JSON.stringify(newUsers));
-      }
 
-      onLogout();
+      try {
+        // Delete all user data from Supabase
+        await Promise.all([
+          supabase.from('tasks').delete().eq('user_id', userId),
+          supabase.from('habits').delete().eq('user_id', userId),
+          supabase.from('journals').delete().eq('user_id', userId),
+          supabase.from('tags').delete().eq('user_id', userId),
+        ]);
+
+        // Clear legacy local storage if present
+        localStorage.removeItem(`heavyuser_tasks_${userId}`);
+        localStorage.removeItem(`heavyuser_tags_${userId}`);
+        localStorage.removeItem(`heavyuser_journals_${userId}`);
+        localStorage.removeItem(`heavyuser_habits_${userId}`);
+        
+        // Remove from users list if present locally
+        const usersStr = localStorage.getItem('heavyuser_users');
+        if (usersStr) {
+          const users = JSON.parse(usersStr);
+          const newUsers = users.filter((u: any) => u.id !== userId);
+          localStorage.setItem('heavyuser_users', JSON.stringify(newUsers));
+        }
+
+        onLogout();
+      } catch (error) {
+        console.error("Error resetting workspace:", error);
+        alert("Failed to reset workspace completely. Please check your connection.");
+        setIsDeleting(false);
+      }
     }
   };
 
@@ -201,17 +214,25 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                       value={deleteKeyword}
                       onChange={(e) => setDeleteKeyword(e.target.value)}
                       className="w-full px-3 py-2.5 text-sm bg-white border border-red-200 rounded-lg focus:border-[#a4262c] focus:ring-1 focus:ring-[#a4262c]"
+                      disabled={isDeleting}
                     />
                     <button
                       onClick={handleFinalDelete}
-                      disabled={deleteKeyword.toLowerCase() !== 'delete'}
-                      className={`w-full py-2.5 text-xs font-bold rounded-lg transition-all shadow-sm ${
-                        deleteKeyword.toLowerCase() === 'delete'
+                      disabled={deleteKeyword.toLowerCase() !== 'delete' || isDeleting}
+                      className={`w-full py-2.5 text-xs font-bold rounded-lg transition-all shadow-sm flex items-center justify-center gap-2 ${
+                        deleteKeyword.toLowerCase() === 'delete' && !isDeleting
                           ? 'bg-[#a4262c] text-white hover:bg-[#821d23]'
                           : 'bg-[#edebe9] text-[#a19f9d] cursor-not-allowed'
                       }`}
                     >
-                      Confirm Permanent Delete
+                      {isDeleting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        'Confirm Permanent Delete'
+                      )}
                     </button>
                   </div>
                 </div>

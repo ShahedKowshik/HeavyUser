@@ -222,10 +222,16 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
     const task = tasks.find(t => t.id === id);
     if (!task) return;
 
-    setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+    const newCompleted = !task.completed;
+    const newCompletedAt = newCompleted ? new Date().toISOString() : null;
+
+    setTasks(tasks.map(t => t.id === id ? { ...t, completed: newCompleted, completedAt: newCompletedAt } : t));
 
     // Sync to Supabase
-    await supabase.from('tasks').update({ completed: !task.completed }).eq('id', id);
+    await supabase.from('tasks').update({ 
+      completed: newCompleted,
+      completed_at: newCompletedAt
+    }).eq('id', id);
   };
 
   const deleteTask = async (id: string) => {
