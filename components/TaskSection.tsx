@@ -396,14 +396,14 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                     setIsPreviewMode(false); 
                     setIsCreatingTagInline(false);
                   }}
-                  className={`bg-white rounded-lg border border-[#edebe9] px-4 py-3 transition-all hover:shadow-md hover:border-[#d1d1d1] group cursor-pointer ${task.completed ? 'opacity-70 bg-[#faf9f8]' : ''}`}
+                  className={`bg-white rounded border border-[#edebe9] px-4 py-3 transition-all hover:shadow-md hover:border-[#d1d1d1] group cursor-pointer ${task.completed ? 'opacity-70 bg-[#faf9f8]' : ''}`}
                 >
                   <div className="flex items-center gap-3">
                     {/* Checklist (Checkmark) */}
                     <div className="shrink-0 pt-0.5">
                       <button 
                         onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }}
-                        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
+                        className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
                           task.completed 
                             ? 'bg-[#107c10] border-[#107c10] text-white shadow-sm' 
                             : 'border-[#d1d1d1] hover:border-[#0078d4] bg-white'
@@ -467,7 +467,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                            </span>
                          </div>
                           {/* Mobile Urgency Dot */}
-                          <div className={`sm:hidden w-2 h-2 rounded-full ${pStyle.bar}`}></div>
+                          <div className={`sm:hidden w-2 h-2 rounded ${pStyle.bar}`}></div>
 
                          {/* Date - Fixed width wrapper for Left Alignment */}
                          <div className={`flex items-center gap-1.5 text-xs font-medium w-auto sm:w-auto justify-end sm:justify-start ${relativeColor}`}>
@@ -487,7 +487,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                           <div key={st.id} className="flex items-center gap-3 relative group/sub py-1">
                             <div className="absolute left-[-18px] top-1/2 w-3 h-px bg-[#edebe9]" />
                             <button onClick={(e) => { e.stopPropagation(); toggleSubtaskInTask(task.id, st.id); }} className="text-[#a19f9d] hover:text-[#0078d4] transition-colors z-10 bg-white">
-                              {st.completed ? <CheckSquare className="w-3.5 h-3.5 text-[#107c10]" /> : <Square className="w-3.5 h-3.5 rounded-sm" />}
+                              {st.completed ? <CheckSquare className="w-3.5 h-3.5 text-[#107c10]" /> : <Square className="w-3.5 h-3.5 rounded" />}
                             </button>
                             <span className={`text-xs font-medium transition-colors ${st.completed ? 'line-through opacity-50 text-[#605e5c]' : 'text-[#323130]'}`}>
                               {st.title}
@@ -536,7 +536,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
           {viewMode === 'completed' ? (
             <button 
               onClick={() => setViewMode('active')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded-xl shadow-sm hover:bg-[#faf9f8] transition-all whitespace-nowrap"
+              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded shadow-sm hover:bg-[#faf9f8] transition-all whitespace-nowrap"
             >
               <ArrowLeft className="w-4 h-4" />
               <span className="text-sm font-bold">Go Back</span>
@@ -545,14 +545,14 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
             <>
               <button
                 onClick={() => setIsViewMenuOpen(!isViewMenuOpen)}
-                className="p-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded-lg shadow-sm hover:bg-[#faf9f8] transition-all relative shrink-0"
+                className="p-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded shadow-sm hover:bg-[#faf9f8] transition-all relative shrink-0"
               >
                 <SlidersHorizontal className="w-4 h-4" />
                 {isViewMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-[#edebe9] rounded-xl shadow-xl z-30 p-1.5 animate-in zoom-in-95 duration-100">
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-[#edebe9] rounded shadow-xl z-30 p-1.5 animate-in zoom-in-95 duration-100">
                     <div className="px-3 py-2 text-[9px] font-black text-[#a19f9d] uppercase tracking-widest border-b border-[#f3f2f1] mb-1">Display</div>
                     {(['date', 'priority'] as Grouping[]).map(g => (
-                      <button key={g} onClick={() => { setGrouping(g); setIsViewMenuOpen(false); }} className={`w-full text-left px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-between ${grouping === g ? 'bg-[#eff6fc] text-[#0078d4] font-bold' : 'hover:bg-[#faf9f8]'}`}>
+                      <button key={g} onClick={() => { setGrouping(g); setIsViewMenuOpen(false); }} className={`w-full text-left px-3 py-2 text-xs rounded transition-colors flex items-center justify-between ${grouping === g ? 'bg-[#eff6fc] text-[#0078d4] font-bold' : 'hover:bg-[#faf9f8]'}`}>
                         <span className="capitalize">{g}</span>
                         {grouping === g && <CheckCircle2 className="w-3 h-3" />}
                       </button>
@@ -563,7 +563,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
               <button 
                 onClick={() => setIsTagManagerOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded-xl shadow-sm hover:bg-[#faf9f8] transition-all whitespace-nowrap"
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded shadow-sm hover:bg-[#faf9f8] transition-all whitespace-nowrap"
               >
                 <TagIcon className="w-4 h-4" />
                 <span className="text-sm font-bold">Tags</span>
@@ -571,13 +571,13 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
               
               <button 
                 onClick={() => setViewMode('completed')}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded-xl shadow-sm hover:bg-[#faf9f8] transition-all whitespace-nowrap"
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded shadow-sm hover:bg-[#faf9f8] transition-all whitespace-nowrap"
               >
                 <History className="w-4 h-4" />
                 <span className="text-sm font-bold">Done</span>
               </button>
 
-              <button onClick={openCreateModal} className="flex items-center gap-2 px-6 py-2.5 fluent-btn-primary rounded-xl shadow-md active:scale-95 transition-transform whitespace-nowrap">
+              <button onClick={openCreateModal} className="flex items-center gap-2 px-6 py-2.5 fluent-btn-primary rounded shadow-md active:scale-95 transition-transform whitespace-nowrap">
                 <Plus className="w-4 h-4" />
                 <span className="text-sm font-bold">New</span>
               </button>
@@ -589,7 +589,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
       <div className="overflow-y-auto no-scrollbar">
         {viewMode === 'active' ? (
           tasks.filter(t => !t.completed).length === 0 ? (
-            <div className="text-center py-20 bg-white border border-[#edebe9] border-dashed rounded-2xl">
+            <div className="text-center py-20 bg-white border border-[#edebe9] border-dashed rounded">
               <ListChecks className="w-10 h-10 text-[#edebe9] mx-auto mb-4" />
               <p className="text-[#a19f9d] text-sm font-bold uppercase tracking-widest">Clear Horizons</p>
             </div>
@@ -606,12 +606,12 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
       {/* Task Details Modal (EDIT MODE) */}
       {selectedTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-           <div className="bg-white w-[95%] md:w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[85vh] md:max-h-[90vh]">
+           <div className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl flex flex-col overflow-hidden max-h-[85vh] md:max-h-[90vh]">
             <div className="px-5 py-4 border-b border-[#f3f2f1] flex items-center justify-between bg-[#faf9f8]">
               <div className="flex items-center gap-2">
                  <button 
                   onClick={() => toggleTask(selectedTask.id)}
-                  className={`w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
+                  className={`w-6 h-6 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
                     selectedTask.completed 
                       ? 'bg-[#107c10] border-[#107c10] text-white' 
                       : 'border-[#d1d1d1] hover:border-[#0078d4] bg-white'
@@ -621,7 +621,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                 </button>
                 <span className="text-xs font-bold text-[#605e5c] uppercase tracking-wider">Task Details</span>
               </div>
-              <button onClick={() => setSelectedTaskId(null)} className="p-1.5 text-[#a19f9d] hover:bg-[#edebe9] rounded-md transition-colors">
+              <button onClick={() => setSelectedTaskId(null)} className="p-1.5 text-[#a19f9d] hover:bg-[#edebe9] rounded transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -649,7 +649,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                       type="date" 
                       value={selectedTask.dueDate} 
                       onChange={(e) => updateSelectedTask({ dueDate: e.target.value })}
-                      className="w-full text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded-xl p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                      className="w-full text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -660,7 +660,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                       type="time" 
                       value={selectedTask.time || ''} 
                       onChange={(e) => updateSelectedTask({ time: e.target.value })}
-                      className="w-full text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded-xl p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                      className="w-full text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
                     />
                   </div>
                 </div>
@@ -669,12 +669,12 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                   <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">
                     <AlertCircle className="w-3 h-3" /> Urgency
                   </label>
-                  <div className="flex gap-1 p-1 bg-[#f3f2f1] rounded-xl border border-[#edebe9]">
+                  <div className="flex gap-1 p-1 bg-[#f3f2f1] rounded border border-[#edebe9]">
                     {priorities.map(p => (
                       <button
                         key={p}
                         onClick={() => updateSelectedTask({ priority: p })}
-                        className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all ${
+                        className={`flex-1 py-2 text-[10px] font-bold rounded transition-all ${
                           selectedTask.priority === p 
                             ? 'bg-white text-[#0078d4] shadow-sm' 
                             : 'text-[#605e5c] hover:bg-[#edebe9]'
@@ -699,14 +699,14 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                   </div>
                   
                   {isCreatingTagInline ? (
-                      <div className="bg-[#faf9f8] p-3 rounded-xl border border-[#edebe9] space-y-3 animate-in fade-in zoom-in-95">
+                      <div className="bg-[#faf9f8] p-3 rounded border border-[#edebe9] space-y-3 animate-in fade-in zoom-in-95">
                         <div className="space-y-1">
                           <input 
                             type="text" 
                             value={inlineTagLabel} 
                             onChange={(e) => setInlineTagLabel(e.target.value)} 
                             placeholder="Tag name..." 
-                            className="w-full text-xs font-semibold bg-white border border-[#edebe9] rounded-lg p-2 focus:ring-1 focus:ring-[#0078d4]" 
+                            className="w-full text-xs font-semibold bg-white border border-[#edebe9] rounded p-2 focus:ring-1 focus:ring-[#0078d4]" 
                             autoFocus
                           />
                         </div>
@@ -716,7 +716,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                               key={color} 
                               type="button"
                               onClick={() => setInlineTagColor(color)}
-                              className={`w-5 h-5 rounded-full transition-transform hover:scale-110 flex items-center justify-center ${inlineTagColor === color ? 'ring-2 ring-offset-1 ring-[#605e5c]' : ''}`}
+                              className={`w-5 h-5 rounded flex items-center justify-center ${inlineTagColor === color ? 'ring-2 ring-offset-1 ring-[#605e5c]' : ''}`}
                               style={{ backgroundColor: color }}
                             >
                               {inlineTagColor === color && <Check className="w-3 h-3 text-white" />}
@@ -724,12 +724,12 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                           ))}
                         </div>
                         <div className="flex justify-end gap-2 pt-1">
-                          <button type="button" onClick={() => setIsCreatingTagInline(false)} className="px-3 py-1 text-xs font-bold text-[#605e5c] hover:bg-[#edebe9] rounded-lg">Cancel</button>
-                          <button type="button" onClick={handleAddInlineTag} disabled={!inlineTagLabel.trim()} className="px-3 py-1 text-xs font-bold bg-[#0078d4] text-white rounded-lg hover:bg-[#106ebe] disabled:opacity-50">Add Tag</button>
+                          <button type="button" onClick={() => setIsCreatingTagInline(false)} className="px-3 py-1 text-xs font-bold text-[#605e5c] hover:bg-[#edebe9] rounded">Cancel</button>
+                          <button type="button" onClick={handleAddInlineTag} disabled={!inlineTagLabel.trim()} className="px-3 py-1 text-xs font-bold bg-[#0078d4] text-white rounded hover:bg-[#106ebe] disabled:opacity-50">Add Tag</button>
                         </div>
                       </div>
                   ) : (
-                    <div className="flex flex-wrap gap-2 p-2 bg-[#faf9f8] rounded-xl border border-[#edebe9] min-h-[44px]">
+                    <div className="flex flex-wrap gap-2 p-2 bg-[#faf9f8] rounded border border-[#edebe9] min-h-[44px]">
                       {tags.length > 0 ? tags.map(tag => {
                         const isActive = selectedTask.tags?.includes(tag.id);
                         return (
@@ -740,7 +740,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                               const newTags = isActive ? currentTags.filter(id => id !== tag.id) : [...currentTags, tag.id];
                               updateSelectedTask({ tags: newTags });
                             }}
-                            className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all ${
+                            className={`text-[10px] font-bold px-3 py-1.5 rounded border transition-all ${
                               isActive 
                               ? 'border-transparent ring-1 ring-offset-1 ring-[#0078d4]' 
                               : 'border-[#edebe9] text-[#605e5c] bg-white hover:bg-[#f3f2f1]'
@@ -765,14 +765,14 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                 </label>
                 <div className="space-y-2">
                   {selectedTask.subtasks.map(st => (
-                    <div key={st.id} className="flex items-center gap-3 group p-2 rounded-lg hover:bg-[#faf9f8]">
+                    <div key={st.id} className="flex items-center gap-3 group p-2 rounded hover:bg-[#faf9f8]">
                       <button onClick={() => toggleSubtaskInTask(selectedTask.id, st.id)} className="text-[#a19f9d] hover:text-[#0078d4] transition-colors">
-                        {st.completed ? <CheckSquare className="w-4 h-4 text-[#107c10]" /> : <Square className="w-4 h-4" />}
+                        {st.completed ? <CheckSquare className="w-4 h-4 text-[#107c10]" /> : <Square className="w-4 h-4 rounded" />}
                       </button>
                       <span className={`text-sm font-medium flex-1 ${st.completed ? 'line-through text-[#a19f9d]' : 'text-[#323130]'}`}>
                         {st.title}
                       </span>
-                      <button onClick={() => deleteSubtaskInTask(selectedTask.id, st.id)} className="opacity-100 md:opacity-0 group-hover:opacity-100 text-[#a4262c] p-1.5 hover:bg-red-50 rounded-md transition-all">
+                      <button onClick={() => deleteSubtaskInTask(selectedTask.id, st.id)} className="opacity-100 md:opacity-0 group-hover:opacity-100 text-[#a4262c] p-1.5 hover:bg-red-50 rounded transition-all">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -802,16 +802,16 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                   <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">
                     <FileText className="w-3 h-3" /> Notes
                   </label>
-                  <div className="flex bg-[#f3f2f1] p-0.5 rounded-lg">
+                  <div className="flex bg-[#f3f2f1] p-0.5 rounded">
                     <button 
                       onClick={() => setIsPreviewMode(false)}
-                      className={`px-2 py-0.5 text-[10px] font-bold rounded-md flex items-center gap-1 transition-all ${!isPreviewMode ? 'bg-white text-[#0078d4] shadow-sm' : 'text-[#605e5c] hover:bg-[#edebe9]'}`}
+                      className={`px-2 py-0.5 text-[10px] font-bold rounded flex items-center gap-1 transition-all ${!isPreviewMode ? 'bg-white text-[#0078d4] shadow-sm' : 'text-[#605e5c] hover:bg-[#edebe9]'}`}
                     >
                       <PenLine className="w-3 h-3" /> Write
                     </button>
                     <button 
                       onClick={() => setIsPreviewMode(true)}
-                      className={`px-2 py-0.5 text-[10px] font-bold rounded-md flex items-center gap-1 transition-all ${isPreviewMode ? 'bg-white text-[#0078d4] shadow-sm' : 'text-[#605e5c] hover:bg-[#edebe9]'}`}
+                      className={`px-2 py-0.5 text-[10px] font-bold rounded flex items-center gap-1 transition-all ${isPreviewMode ? 'bg-white text-[#0078d4] shadow-sm' : 'text-[#605e5c] hover:bg-[#edebe9]'}`}
                     >
                       <Eye className="w-3 h-3" /> Preview
                     </button>
@@ -819,7 +819,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                 </div>
                 
                 {isPreviewMode ? (
-                  <div className="w-full h-40 overflow-y-auto bg-white border border-[#edebe9] rounded-xl p-4">
+                  <div className="w-full h-40 overflow-y-auto bg-white border border-[#edebe9] rounded p-4">
                      {selectedTask.notes ? (
                        <ReactMarkdown className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 text-xs text-[#323130]">
                          {selectedTask.notes}
@@ -833,7 +833,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                     value={selectedTask.notes || ''}
                     onChange={(e) => updateSelectedTask({ notes: e.target.value })}
                     placeholder="Add details, links, or thoughts..."
-                    className="w-full h-40 text-xs leading-relaxed bg-[#faf9f8] border border-[#edebe9] rounded-xl p-4 resize-none focus:ring-1 focus:ring-[#0078d4] font-mono"
+                    className="w-full h-40 text-xs leading-relaxed bg-[#faf9f8] border border-[#edebe9] rounded p-4 resize-none focus:ring-1 focus:ring-[#0078d4] font-mono"
                   />
                 )}
               </div>
@@ -844,7 +844,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
               <span className="text-[10px] text-[#a19f9d] font-mono">ID: {selectedTask.id.substring(0,8)}...</span>
               <button 
                 onClick={() => deleteTask(selectedTask.id)}
-                className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-[#a4262c] hover:bg-red-50 rounded-xl transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-[#a4262c] hover:bg-red-50 rounded transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5" /> Delete Task
               </button>
@@ -856,15 +856,15 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
       {/* Create Modal (NEW TASK MODE) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="bg-white w-[95%] md:w-full max-w-2xl rounded-2xl shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh] md:max-h-[90vh]">
+          <div className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh] md:max-h-[90vh]">
             <div className="flex items-center justify-between px-5 py-4 border-b border-[#f3f2f1]">
               <div className="flex items-center gap-2">
-                 <div className="w-6 h-6 rounded-md border-2 border-dashed border-[#d1d1d1] flex items-center justify-center shrink-0">
+                 <div className="w-6 h-6 rounded border-2 border-dashed border-[#d1d1d1] flex items-center justify-center shrink-0">
                     <Plus className="w-3 h-3 text-[#d1d1d1]" />
                  </div>
                  <h3 className="text-xs font-bold text-[#605e5c] uppercase tracking-wider">New Task</h3>
               </div>
-              <button onClick={closeModal} className="p-1.5 text-[#a19f9d] hover:bg-[#f3f2f1] rounded-full transition-colors">
+              <button onClick={closeModal} className="p-1.5 text-[#a19f9d] hover:bg-[#f3f2f1] rounded transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -890,13 +890,13 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                       <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">
                         <Calendar className="w-3 h-3" /> Due Date
                       </label>
-                      <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded-xl p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]" />
+                      <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]" />
                     </div>
                     <div className="space-y-1.5">
                       <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">
                         <Clock className="w-3 h-3" /> Time (Opt)
                       </label>
-                      <input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} className="w-full text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded-xl p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]" />
+                      <input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} className="w-full text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]" />
                     </div>
                   </div>
 
@@ -904,13 +904,13 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                      <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">
                        <AlertCircle className="w-3 h-3" /> Urgency
                      </label>
-                     <div className="flex gap-1 p-1 bg-[#f3f2f1] rounded-xl border border-[#edebe9]">
+                     <div className="flex gap-1 p-1 bg-[#f3f2f1] rounded border border-[#edebe9]">
                        {priorities.map(p => (
                          <button
                            key={p}
                            type="button"
                            onClick={() => setPriority(p)}
-                           className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all ${
+                           className={`flex-1 py-2 text-[10px] font-bold rounded transition-all ${
                              priority === p 
                                ? 'bg-white text-[#0078d4] shadow-sm' 
                                : 'text-[#605e5c] hover:bg-[#edebe9]'
@@ -936,14 +936,14 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                     </div>
 
                     {isCreatingTagInline ? (
-                      <div className="bg-[#faf9f8] p-3 rounded-xl border border-[#edebe9] space-y-3 animate-in fade-in zoom-in-95">
+                      <div className="bg-[#faf9f8] p-3 rounded border border-[#edebe9] space-y-3 animate-in fade-in zoom-in-95">
                         <div className="space-y-1">
                           <input 
                             type="text" 
                             value={inlineTagLabel} 
                             onChange={(e) => setInlineTagLabel(e.target.value)} 
                             placeholder="Tag name..." 
-                            className="w-full text-xs font-semibold bg-white border border-[#edebe9] rounded-lg p-2 focus:ring-1 focus:ring-[#0078d4]" 
+                            className="w-full text-xs font-semibold bg-white border border-[#edebe9] rounded p-2 focus:ring-1 focus:ring-[#0078d4]" 
                             autoFocus
                           />
                         </div>
@@ -953,7 +953,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                               key={color} 
                               type="button"
                               onClick={() => setInlineTagColor(color)}
-                              className={`w-5 h-5 rounded-full transition-transform hover:scale-110 flex items-center justify-center ${inlineTagColor === color ? 'ring-2 ring-offset-1 ring-[#605e5c]' : ''}`}
+                              className={`w-5 h-5 rounded flex items-center justify-center ${inlineTagColor === color ? 'ring-2 ring-offset-1 ring-[#605e5c]' : ''}`}
                               style={{ backgroundColor: color }}
                             >
                                {inlineTagColor === color && <Check className="w-3 h-3 text-white" />}
@@ -961,12 +961,12 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                           ))}
                         </div>
                         <div className="flex justify-end gap-2 pt-1">
-                          <button type="button" onClick={() => setIsCreatingTagInline(false)} className="px-3 py-1 text-xs font-bold text-[#605e5c] hover:bg-[#edebe9] rounded-lg">Cancel</button>
-                          <button type="button" onClick={handleAddInlineTag} disabled={!inlineTagLabel.trim()} className="px-3 py-1 text-xs font-bold bg-[#0078d4] text-white rounded-lg hover:bg-[#106ebe] disabled:opacity-50">Add Tag</button>
+                          <button type="button" onClick={() => setIsCreatingTagInline(false)} className="px-3 py-1 text-xs font-bold text-[#605e5c] hover:bg-[#edebe9] rounded">Cancel</button>
+                          <button type="button" onClick={handleAddInlineTag} disabled={!inlineTagLabel.trim()} className="px-3 py-1 text-xs font-bold bg-[#0078d4] text-white rounded hover:bg-[#106ebe] disabled:opacity-50">Add Tag</button>
                         </div>
                       </div>
                     ) : (
-                      <div className="flex flex-wrap gap-2 p-2 bg-[#faf9f8] rounded-xl border border-[#edebe9] min-h-[44px]">
+                      <div className="flex flex-wrap gap-2 p-2 bg-[#faf9f8] rounded border border-[#edebe9] min-h-[44px]">
                          {tags.length > 0 ? tags.map(tag => {
                             const isSelected = selectedTags.includes(tag.id);
                             return (
@@ -974,7 +974,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                                 key={tag.id}
                                 type="button"
                                 onClick={() => setSelectedTags(prev => isSelected ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
-                                className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all ${
+                                className={`text-[10px] font-bold px-3 py-1.5 rounded border transition-all ${
                                   isSelected 
                                     ? 'border-transparent ring-1 ring-offset-1 ring-[#0078d4]' 
                                     : 'border-[#edebe9] text-[#605e5c] bg-white hover:bg-[#f3f2f1]'
@@ -999,7 +999,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                 </label>
                 <div className="space-y-2">
                    {createSubtasks.map((st, i) => (
-                      <div key={i} className="flex items-center gap-3 group p-2 rounded-lg bg-[#faf9f8] border border-[#edebe9]">
+                      <div key={i} className="flex items-center gap-3 group p-2 rounded bg-[#faf9f8] border border-[#edebe9]">
                         <Square className="w-4 h-4 text-[#d1d1d1]" />
                         <span className="text-sm font-medium text-[#323130] flex-1 truncate">{st.title}</span>
                         <button type="button" onClick={() => setCreateSubtasks(prev => prev.filter((_, idx) => idx !== i))} className="text-[#a19f9d] hover:text-[#a4262c]">
@@ -1039,13 +1039,13 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                   value={createNotes} 
                   onChange={(e) => setCreateNotes(e.target.value)} 
                   placeholder="Add details..." 
-                  className="w-full h-40 text-xs leading-relaxed bg-[#faf9f8] border border-[#edebe9] rounded-xl p-4 resize-none focus:ring-1 focus:ring-[#0078d4] font-mono" 
+                  className="w-full h-40 text-xs leading-relaxed bg-[#faf9f8] border border-[#edebe9] rounded p-4 resize-none focus:ring-1 focus:ring-[#0078d4] font-mono" 
                 />
               </div>
 
               <div className="pt-4 border-t border-[#f3f2f1] flex justify-end gap-3 sticky bottom-0 bg-white">
-                <button type="button" onClick={closeModal} className="px-5 py-2 text-sm font-bold text-[#605e5c] hover:bg-[#f3f2f1] rounded-xl transition-colors">Cancel</button>
-                <button type="submit" className="px-8 py-2 text-sm font-bold fluent-btn-primary rounded-xl shadow-lg">Confirm</button>
+                <button type="button" onClick={closeModal} className="px-5 py-2 text-sm font-bold text-[#605e5c] hover:bg-[#f3f2f1] rounded transition-colors">Cancel</button>
+                <button type="submit" className="px-8 py-2 text-sm font-bold fluent-btn-primary rounded shadow-lg">Confirm</button>
               </div>
             </form>
           </div>
@@ -1055,13 +1055,13 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
       {/* Tag Manager Modal */}
       {isTagManagerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="bg-white w-[95%] md:w-full max-w-md rounded-2xl shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh]">
+          <div className="bg-white w-[95%] md:w-full max-w-md rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh]">
             <div className="flex items-center justify-between px-6 py-5 border-b border-[#f3f2f1]">
               <div className="flex items-center gap-2">
                 <TagIcon className="w-5 h-5 text-[#0078d4]" />
                 <h3 className="text-lg font-black text-[#323130] tracking-tight">Manage Tags</h3>
               </div>
-              <button onClick={() => setIsTagManagerOpen(false)} className="p-1.5 text-[#a19f9d] hover:bg-[#f3f2f1] rounded-full transition-colors">
+              <button onClick={() => setIsTagManagerOpen(false)} className="p-1.5 text-[#a19f9d] hover:bg-[#f3f2f1] rounded transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1074,14 +1074,14 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                     <p className="text-sm text-[#a19f9d] italic">No tags yet.</p>
                   ) : (
                     tags.map(tag => (
-                      <div key={tag.id} className="flex items-center justify-between p-3 bg-[#faf9f8] rounded-xl border border-[#edebe9] group">
+                      <div key={tag.id} className="flex items-center justify-between p-3 bg-[#faf9f8] rounded border border-[#edebe9] group">
                         <div className="flex items-center gap-3">
-                          <div className="w-4 h-4 rounded-full" style={{ backgroundColor: tag.color }} />
+                          <div className="w-4 h-4 rounded" style={{ backgroundColor: tag.color }} />
                           <span className="text-sm font-semibold text-[#323130]">{tag.label}</span>
                         </div>
                         <button 
                           onClick={() => handleDeleteTag(tag.id)} 
-                          className="p-1.5 text-[#a19f9d] hover:text-[#a4262c] hover:bg-red-50 rounded-lg md:opacity-0 group-hover:opacity-100 transition-all"
+                          className="p-1.5 text-[#a19f9d] hover:text-[#a4262c] hover:bg-red-50 rounded md:opacity-0 group-hover:opacity-100 transition-all"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -1099,9 +1099,9 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                     value={newTagLabel} 
                     onChange={(e) => setNewTagLabel(e.target.value)} 
                     placeholder="Tag name..." 
-                    className="flex-1 text-sm font-semibold bg-[#faf9f8] border-none rounded-xl p-3 focus:ring-2 focus:ring-[#0078d4]/20" 
+                    className="flex-1 text-sm font-semibold bg-[#faf9f8] border-none rounded p-3 focus:ring-2 focus:ring-[#0078d4]/20" 
                   />
-                  <button onClick={handleAddTag} disabled={!newTagLabel.trim()} className="px-4 bg-[#0078d4] text-white rounded-xl hover:bg-[#106ebe] disabled:opacity-50 disabled:hover:bg-[#0078d4] transition-colors">
+                  <button onClick={handleAddTag} disabled={!newTagLabel.trim()} className="px-4 bg-[#0078d4] text-white rounded hover:bg-[#106ebe] disabled:opacity-50 disabled:hover:bg-[#0078d4] transition-colors">
                     <Plus className="w-5 h-5" />
                   </button>
                 </div>
@@ -1110,7 +1110,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                     <button 
                       key={color} 
                       onClick={() => setNewTagColor(color)}
-                      className={`w-6 h-6 rounded-full transition-transform hover:scale-110 ${newTagColor === color ? 'ring-2 ring-offset-2 ring-[#605e5c]' : ''}`}
+                      className={`w-6 h-6 rounded transition-transform hover:scale-110 ${newTagColor === color ? 'ring-2 ring-offset-2 ring-[#605e5c]' : ''}`}
                       style={{ backgroundColor: color }}
                     />
                   ))}
@@ -1119,7 +1119,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
             </div>
             
             <div className="p-4 border-t border-[#f3f2f1] bg-white flex justify-end">
-               <button onClick={() => setIsTagManagerOpen(false)} className="px-5 py-2 text-sm font-bold text-[#605e5c] hover:bg-[#f3f2f1] rounded-xl transition-colors">Done</button>
+               <button onClick={() => setIsTagManagerOpen(false)} className="px-5 py-2 text-sm font-bold text-[#605e5c] hover:bg-[#f3f2f1] rounded transition-colors">Done</button>
             </div>
           </div>
         </div>

@@ -244,7 +244,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const NavItem = ({ id, label, icon: Icon }: { id: AppTab; label: string; icon: any }) => (
     <button
       onClick={() => setActiveTab(id)}
-      className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${
+      className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded transition-all duration-200 group ${
         activeTab === id 
         ? 'bg-[#f3f3f3] text-[#0078d4] font-bold shadow-sm ring-1 ring-[#edebe9]' 
         : 'text-[#605e5c] hover:bg-[#f3f3f3] hover:text-[#323130] font-medium'
@@ -258,7 +258,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const MobileNavItem = ({ id, label, icon: Icon }: { id: AppTab; label: string; icon: any }) => (
     <button
       onClick={() => setActiveTab(id)}
-      className={`flex flex-col items-center justify-center p-2 rounded-lg transition-all duration-200 ${
+      className={`flex flex-col items-center justify-center p-2 rounded transition-all duration-200 ${
         activeTab === id 
         ? 'text-[#0078d4]' 
         : 'text-[#a19f9d]'
@@ -288,11 +288,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
         <div className="pt-4 border-t border-[#edebe9]">
           <NavItem id="settings" label="Settings" icon={Settings} />
-          <div className="mt-4 p-3 rounded-xl border border-[#edebe9] flex items-center space-x-3 bg-white shadow-sm">
+          <div className="mt-4 p-3 rounded border border-[#edebe9] flex items-center space-x-3 bg-white shadow-sm">
             {userSettings.profilePicture ? (
-              <img src={userSettings.profilePicture} alt="Profile" className="w-9 h-9 rounded-full object-cover shadow-inner bg-[#edebe9]" />
+              <img src={userSettings.profilePicture} alt="Profile" className="w-9 h-9 rounded object-cover shadow-inner bg-[#edebe9]" />
             ) : (
-              <div className="w-9 h-9 rounded-full bg-[#eff6fc] text-[#0078d4] flex items-center justify-center text-xs font-black shadow-inner">
+              <div className="w-9 h-9 rounded bg-[#eff6fc] text-[#0078d4] flex items-center justify-center text-xs font-black shadow-inner">
                 {userSettings.userName.split(' ').map(n => n[0]).join('').toUpperCase()}
               </div>
             )}
@@ -312,7 +312,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             {/* Streak Badge */}
             <button 
               onClick={() => setIsStreakModalOpen(true)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition-all ${
                 streakData.activeToday 
                   ? 'bg-amber-50 border-amber-200 text-amber-600 shadow-sm' 
                   : 'bg-white border-[#edebe9] text-[#a19f9d] hover:bg-[#faf9f8]'
@@ -322,10 +322,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               <span className="text-xs font-bold tabular-nums">{streakData.count}</span>
             </button>
 
-            <div className="text-xs text-[#605e5c] font-bold px-3 py-1.5 bg-[#f3f2f1] rounded-full border border-[#edebe9] tabular-nums hidden sm:block">
+            <div className="text-xs text-[#605e5c] font-bold px-3 py-1.5 bg-[#f3f2f1] rounded border border-[#edebe9] tabular-nums hidden sm:block">
               {formattedDate} • {formattedTime}
             </div>
-            <div className="text-xs text-[#605e5c] font-bold px-3 py-1.5 bg-[#f3f2f1] rounded-full border border-[#edebe9] tabular-nums sm:hidden">
+            <div className="text-xs text-[#605e5c] font-bold px-3 py-1.5 bg-[#f3f2f1] rounded border border-[#edebe9] tabular-nums sm:hidden">
               {formattedTime}
             </div>
           </div>
@@ -339,7 +339,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       {/* Streak Details Modal */}
       {isStreakModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="bg-white w-[95%] md:w-full max-w-lg rounded-2xl shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden">
+          <div className="bg-white w-[95%] md:w-full max-w-lg rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden">
              {/* Modal Header */}
              <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-6 text-white relative overflow-hidden">
                 <div className="relative z-10">
@@ -353,7 +353,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                           {streakData.activeToday ? "You're on fire! 🔥" : "Keep the momentum going!"}
                         </p>
                       </div>
-                      <button onClick={() => setIsStreakModalOpen(false)} className="p-1.5 bg-white/20 hover:bg-white/30 rounded-full transition-colors">
+                      <button onClick={() => setIsStreakModalOpen(false)} className="p-1.5 bg-white/20 hover:bg-white/30 rounded transition-colors">
                         <X className="w-5 h-5 text-white" />
                       </button>
                    </div>
@@ -367,7 +367,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
              {/* Modal Body */}
              <div className="p-6 space-y-6">
                 {/* Status Box */}
-                <div className={`p-4 rounded-xl border flex items-center gap-3 ${streakData.activeToday ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                <div className={`p-4 rounded border flex items-center gap-3 ${streakData.activeToday ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                    {streakData.activeToday ? (
                      <CheckCircle2 className="w-5 h-5 shrink-0" />
                    ) : (
@@ -386,20 +386,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                      <Info className="w-3.5 h-3.5" /> How to extend streak
                    </h3>
                    <div className="grid grid-cols-1 gap-2">
-                      <div className="flex items-center gap-3 p-3 bg-[#faf9f8] rounded-lg border border-[#edebe9]">
-                         <div className="w-8 h-8 rounded-full bg-blue-50 text-[#0078d4] flex items-center justify-center border border-blue-100">
+                      <div className="flex items-center gap-3 p-3 bg-[#faf9f8] rounded border border-[#edebe9]">
+                         <div className="w-8 h-8 rounded bg-blue-50 text-[#0078d4] flex items-center justify-center border border-blue-100">
                            <CheckCircle2 className="w-4 h-4" />
                          </div>
                          <span className="text-sm font-semibold text-[#323130]">Create or Complete a Task</span>
                       </div>
-                      <div className="flex items-center gap-3 p-3 bg-[#faf9f8] rounded-lg border border-[#edebe9]">
-                         <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
+                      <div className="flex items-center gap-3 p-3 bg-[#faf9f8] rounded border border-[#edebe9]">
+                         <div className="w-8 h-8 rounded bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
                            <Zap className="w-4 h-4 fill-current" />
                          </div>
                          <span className="text-sm font-semibold text-[#323130]">Check or Skip a Habit</span>
                       </div>
-                      <div className="flex items-center gap-3 p-3 bg-[#faf9f8] rounded-lg border border-[#edebe9]">
-                         <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100">
+                      <div className="flex items-center gap-3 p-3 bg-[#faf9f8] rounded border border-[#edebe9]">
+                         <div className="w-8 h-8 rounded bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100">
                            <BookOpen className="w-4 h-4" />
                          </div>
                          <span className="text-sm font-semibold text-[#323130]">Write a Journal Entry</span>
@@ -412,7 +412,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                    <h3 className="text-xs font-black text-[#a19f9d] uppercase tracking-widest flex items-center gap-1.5">
                      <Calendar className="w-3.5 h-3.5" /> Recent Activity
                    </h3>
-                   <div className="flex justify-between items-center gap-1 bg-[#faf9f8] p-3 rounded-xl border border-[#edebe9]">
+                   <div className="flex justify-between items-center gap-1 bg-[#faf9f8] p-3 rounded border border-[#edebe9]">
                       {Array.from({ length: 7 }).map((_, i) => {
                          const d = new Date();
                          d.setDate(d.getDate() - (6 - i));
@@ -423,7 +423,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                          return (
                             <div key={i} className="flex flex-col items-center gap-1.5">
                                <span className="text-[10px] font-bold text-[#a19f9d] uppercase">{d.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>
-                               <div className={`w-8 h-8 rounded-full flex items-center justify-center border text-xs font-bold transition-all ${
+                               <div className={`w-8 h-8 rounded flex items-center justify-center border text-xs font-bold transition-all ${
                                   isActive 
                                   ? 'bg-amber-500 border-amber-600 text-white shadow-sm' 
                                   : (isToday ? 'bg-white border-[#0078d4] text-[#0078d4] border-dashed' : 'bg-white border-[#edebe9] text-[#d1d1d1]')

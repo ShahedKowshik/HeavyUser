@@ -323,7 +323,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
           <div className="mb-6 flex items-center justify-between">
             <button 
               onClick={() => setSelectedHabitId(null)}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-[#edebe9] text-[#605e5c] rounded-[3px] hover:bg-[#f3f2f1] transition-all font-bold text-sm shadow-sm"
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-[#edebe9] text-[#605e5c] rounded hover:bg-[#f3f2f1] transition-all font-bold text-sm shadow-sm"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Habits
@@ -331,7 +331,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => openEditModal(selectedHabit)} 
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-[#edebe9] text-[#605e5c] hover:bg-[#faf9f8] rounded-[3px] transition-colors shadow-sm font-bold text-sm" 
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-[#edebe9] text-[#605e5c] hover:bg-[#faf9f8] rounded transition-colors shadow-sm font-bold text-sm" 
                 title="Edit Habit"
               >
                 <Edit2 className="w-4 h-4" />
@@ -341,18 +341,18 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
           </div>
 
           {/* Habit Title Header */}
-          <div className="bg-white rounded-[3px] border border-[#edebe9] p-6 mb-6 flex flex-col md:flex-row items-start md:items-center gap-6 shadow-sm border-l-4 border-l-blue-500">
-            <div className="w-16 h-16 bg-blue-50 rounded-[3px] flex items-center justify-center text-4xl shadow-inner border border-blue-100">
+          <div className="bg-white rounded border border-[#edebe9] p-6 mb-6 flex flex-col md:flex-row items-start md:items-center gap-6 shadow-sm border-l-4 border-l-blue-500">
+            <div className="w-16 h-16 bg-blue-50 rounded flex items-center justify-center text-4xl shadow-inner border border-blue-100">
               {selectedHabit.icon}
             </div>
             <div className="flex-1">
               <h2 className="text-2xl font-black text-[#323130] tracking-tight mb-1">{selectedHabit.title}</h2>
               <div className="flex flex-wrap gap-4 text-xs font-medium text-[#605e5c]">
-                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-[#f3f2f1] rounded-[3px]">
+                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-[#f3f2f1] rounded">
                   <Target className="w-3.5 h-3.5 text-[#0078d4]" />
                   {selectedHabit.useCounter ? `Goal: ${selectedHabit.target}/day` : 'Daily Check-in'}
                 </span>
-                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-[#f3f2f1] rounded-[3px]">
+                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-[#f3f2f1] rounded">
                   <Calendar className="w-3.5 h-3.5 text-[#0078d4]" />
                   Started {formatDateFriendly(selectedHabit.startDate)}
                 </span>
@@ -369,13 +369,13 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
               { label: 'Times Skipped', value: `${getHabitStats(selectedHabit).totalSkips}`, icon: Ban, color: 'text-gray-500', bg: 'bg-gray-50', border: 'border-gray-200' },
               { label: 'Efficiency', value: `${getHabitStats(selectedHabit).efficiency}%`, icon: Activity, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
             ].map((stat, i) => (
-              <div key={i} className={`bg-white border ${stat.border} p-4 rounded-[3px] flex flex-col gap-2 relative overflow-hidden group hover:shadow-md transition-all shadow-sm`}>
+              <div key={i} className={`bg-white border ${stat.border} p-4 rounded flex flex-col gap-2 relative overflow-hidden group hover:shadow-md transition-all shadow-sm`}>
                 <div className={`absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity ${stat.color}`}>
                   <stat.icon className="w-12 h-12" />
                 </div>
                 <div className="z-10 flex flex-col h-full justify-between">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className={`w-6 h-6 rounded-[3px] flex items-center justify-center ${stat.bg} ${stat.color}`}>
+                    <div className={`w-6 h-6 rounded flex items-center justify-center ${stat.bg} ${stat.color}`}>
                       <stat.icon className="w-3.5 h-3.5" />
                     </div>
                     <div className="text-[10px] font-black text-[#a19f9d] uppercase tracking-widest leading-tight">{stat.label}</div>
@@ -387,7 +387,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
           </div>
 
           {/* Calendar Section */}
-          <div className="bg-white border border-[#edebe9] rounded-[3px] overflow-hidden relative shadow-sm">
+          <div className="bg-white border border-[#edebe9] rounded overflow-hidden relative shadow-sm">
             <div className="bg-[#faf9f8] px-6 py-4 border-b border-[#edebe9] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Activity className="w-4 h-4 text-[#0078d4]" />
@@ -428,7 +428,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
                         key={day}
                         disabled={isFuture || isBeforeStart}
                         onClick={() => setEditingDay(dateStr)}
-                        className={`aspect-square rounded-[3px] flex items-center justify-center text-sm font-semibold transition-all relative border ${statusClass} ${editingDay === dateStr ? 'ring-2 ring-offset-2 ring-[#0078d4] z-10' : ''}`}
+                        className={`aspect-square rounded flex items-center justify-center text-sm font-semibold transition-all relative border ${statusClass} ${editingDay === dateStr ? 'ring-2 ring-offset-2 ring-[#0078d4] z-10' : ''}`}
                       >
                         {count >= selectedHabit.target ? <Check className="w-4 h-4" /> : (selectedHabit.useCounter && count > 0 ? count : (!isBeforeStart && !isFuture ? day : ''))}
                       </button>
@@ -444,15 +444,15 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
                   <span className="text-xs font-black text-[#323130] uppercase tracking-wider">
                     Edit {formatDateFriendly(editingDay)}
                   </span>
-                  <button onClick={() => setEditingDay(null)} className="p-1 text-[#a19f9d] hover:bg-[#edebe9] rounded-[3px]"><X className="w-3 h-3" /></button>
+                  <button onClick={() => setEditingDay(null)} className="p-1 text-[#a19f9d] hover:bg-[#edebe9] rounded"><X className="w-3 h-3" /></button>
                 </div>
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 flex-1 bg-[#f3f2f1] p-1 rounded-[3px]">
+                  <div className="flex items-center gap-2 flex-1 bg-[#f3f2f1] p-1 rounded">
                     {selectedHabit.useCounter ? (
                       <>
                         <button 
                           onClick={() => updateDayStatus(selectedHabit.id, editingDay, Math.max(0, (selectedHabit.progress[editingDay] || 0) - 1), false)}
-                          className="w-8 h-8 flex items-center justify-center bg-white rounded-[3px] text-[#605e5c] hover:text-[#0078d4] shadow-sm"
+                          className="w-8 h-8 flex items-center justify-center bg-white rounded text-[#605e5c] hover:text-[#0078d4] shadow-sm"
                         >
                           <Minus className="w-4 h-4" />
                         </button>
@@ -462,7 +462,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
                         </div>
                         <button 
                           onClick={() => updateDayStatus(selectedHabit.id, editingDay, (selectedHabit.progress[editingDay] || 0) + 1, false)}
-                          className="w-8 h-8 flex items-center justify-center bg-white rounded-[3px] text-[#605e5c] hover:text-[#0078d4] shadow-sm"
+                          className="w-8 h-8 flex items-center justify-center bg-white rounded text-[#605e5c] hover:text-[#0078d4] shadow-sm"
                         >
                           <Plus className="w-4 h-4" />
                         </button>
@@ -470,7 +470,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
                     ) : (
                       <button 
                          onClick={() => updateDayStatus(selectedHabit.id, editingDay, selectedHabit.progress[editingDay] ? 0 : 1, false)}
-                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[3px] font-bold transition-all shadow-sm ${selectedHabit.progress[editingDay] ? 'bg-emerald-600 text-white' : 'bg-white text-[#605e5c]'}`}
+                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded font-bold transition-all shadow-sm ${selectedHabit.progress[editingDay] ? 'bg-emerald-600 text-white' : 'bg-white text-[#605e5c]'}`}
                       >
                          {selectedHabit.progress[editingDay] ? 'Completed' : 'Mark Complete'}
                       </button>
@@ -479,7 +479,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
                   {selectedHabit.useCounter && (
                     <button 
                        onClick={() => updateDayStatus(selectedHabit.id, editingDay, selectedHabit.target, false)}
-                       className="p-2.5 rounded-[3px] bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                       className="p-2.5 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
                        title="Achieve All"
                     >
                       <Target className="w-5 h-5" />
@@ -490,7 +490,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
                       const isSkipped = selectedHabit.skippedDates.includes(editingDay);
                       updateDayStatus(selectedHabit.id, editingDay, 0, !isSkipped);
                     }}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-[3px] font-bold transition-colors ${selectedHabit.skippedDates.includes(editingDay) ? 'bg-[#605e5c] text-white hover:bg-[#323130]' : 'bg-[#f3f2f1] text-[#605e5c] hover:bg-[#edebe9]'}`}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded font-bold transition-colors ${selectedHabit.skippedDates.includes(editingDay) ? 'bg-[#605e5c] text-white hover:bg-[#323130]' : 'bg-[#f3f2f1] text-[#605e5c] hover:bg-[#edebe9]'}`}
                   >
                     <Ban className="w-4 h-4" />
                     <span className="text-sm">{selectedHabit.skippedDates.includes(editingDay) ? 'Unskip Day' : 'Skip Day'}</span>
@@ -503,7 +503,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
            <div className="mt-8 flex justify-center">
               <button 
                 onClick={() => handleDeleteHabit(selectedHabit.id)}
-                className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-[#a4262c] hover:bg-red-50 rounded-[3px] transition-colors border border-transparent hover:border-red-100"
+                className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-[#a4262c] hover:bg-red-50 rounded transition-colors border border-transparent hover:border-red-100"
               >
                 <Trash2 className="w-4 h-4" /> Delete Habit Permanently
               </button>
@@ -520,7 +520,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
             <div className="flex items-center gap-3 w-full md:w-auto">
               <button 
                 onClick={openCreateModal}
-                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 fluent-btn-primary rounded-[3px] shadow-md active:scale-95 transition-transform text-sm font-bold"
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 fluent-btn-primary rounded shadow-md active:scale-95 transition-transform text-sm font-bold"
               >
                 <Plus className="w-4 h-4" />
                 <span>New Habit</span>
@@ -530,8 +530,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {habits.length === 0 ? (
-              <div className="col-span-full py-20 text-center border border-dashed border-[#edebe9] rounded-[3px]">
-                <div className="w-16 h-16 bg-[#eff6fc] rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="col-span-full py-20 text-center border border-dashed border-[#edebe9] rounded">
+                <div className="w-16 h-16 bg-[#eff6fc] rounded flex items-center justify-center mx-auto mb-4">
                   <Smile className="w-8 h-8 text-[#0078d4]" />
                 </div>
                 <h4 className="text-lg font-bold text-[#323130]">No habits yet</h4>
@@ -547,13 +547,13 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
                   <div 
                     key={habit.id}
                     onClick={() => { setSelectedHabitId(habit.id); setEditingDay(null); }}
-                    className="bg-white rounded-[3px] border border-[#edebe9] p-5 cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all group flex flex-col justify-between min-h-[140px] hover:border-l-4 hover:border-l-blue-500 hover:pl-[1.2rem]"
+                    className="bg-white rounded border border-[#edebe9] p-5 cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all group flex flex-col justify-between min-h-[140px] hover:border-l-4 hover:border-l-blue-500 hover:pl-[1.2rem]"
                   >
                     <div className="flex items-start gap-4 mb-4">
-                      <div className="w-10 h-10 bg-blue-50 rounded-[3px] flex items-center justify-center text-xl shadow-sm border border-blue-100 group-hover:scale-110 transition-transform relative">
+                      <div className="w-10 h-10 bg-blue-50 rounded flex items-center justify-center text-xl shadow-sm border border-blue-100 group-hover:scale-110 transition-transform relative">
                         {habit.icon}
                         {habit.useCounter && habit.target > 1 && (
-                          <div className="absolute -bottom-1 -right-1 bg-[#0078d4] text-white text-[9px] font-bold px-1.5 rounded-full border border-white">
+                          <div className="absolute -bottom-1 -right-1 bg-[#0078d4] text-white text-[9px] font-bold px-1.5 rounded border border-white">
                             {habit.target}
                           </div>
                         )}
@@ -561,11 +561,11 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
                       <div className="flex-1 min-w-0">
                         <h4 className="text-base font-bold text-[#323130] truncate">{habit.title}</h4>
                         <div className="flex flex-wrap gap-2 mt-1.5">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#605e5c] bg-[#f3f2f1] px-1.5 py-0.5 rounded-[3px]">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#605e5c] bg-[#f3f2f1] px-1.5 py-0.5 rounded">
                             <Trophy className="w-3 h-3 text-[#d83b01]" /> {total}
                           </span>
                           {streak > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-[3px] border border-amber-100">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">
                               <Flame className="w-3 h-3 fill-current" /> {streak} Streak
                             </span>
                           )}
@@ -589,7 +589,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
                                 title={isBeforeStart ? "Not started yet" : `${date}: ${count}/${habit.target}`}
                                 onClick={(e) => incrementCount(habit.id, date, e)}
                                 disabled={isBeforeStart}
-                                className={`w-6 h-6 rounded-[3px] flex items-center justify-center border transition-all text-[9px] font-bold ${statusClass}`}
+                                className={`w-6 h-6 rounded flex items-center justify-center border transition-all text-[9px] font-bold ${statusClass}`}
                               >
                                 {count >= habit.target ? <Check className="w-3.5 h-3.5" /> : (habit.useCounter && count > 0 ? count : '')}
                               </button>
@@ -609,30 +609,30 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
       {/* Modal - Now accessible from both views */}
       {(isCreateModalOpen || isEditModalOpen) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-           <div className="bg-white w-[95%] md:w-full max-w-md rounded-[3px] shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh]">
+           <div className="bg-white w-[95%] md:w-full max-w-md rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh]">
              <div className="flex items-center justify-between px-6 py-5 border-b border-[#f3f2f1]">
               <h3 className="text-lg font-black text-[#323130] tracking-tight">{isEditModalOpen ? 'Edit Habit' : 'New Habit'}</h3>
-              <button onClick={() => { setIsCreateModalOpen(false); setIsEditModalOpen(false); }} className="p-1.5 text-[#a19f9d] hover:bg-[#f3f2f1] rounded-full transition-colors">
+              <button onClick={() => { setIsCreateModalOpen(false); setIsEditModalOpen(false); }} className="p-1.5 text-[#a19f9d] hover:bg-[#f3f2f1] rounded transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <form onSubmit={handleSaveHabit} className="p-6 space-y-6 overflow-y-auto">
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">Habit Name</label>
-                <input autoFocus required type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="e.g., Drink Water" className="w-full text-sm font-semibold bg-[#faf9f8] border-none rounded-[3px] p-3 focus:ring-2 focus:ring-[#0078d4]/20" />
+                <input autoFocus required type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="e.g., Drink Water" className="w-full text-sm font-semibold bg-[#faf9f8] border-none rounded p-3 focus:ring-2 focus:ring-[#0078d4]/20" />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">Start Date</label>
-                  <input type="date" required value={formStartDate} onChange={(e) => setFormStartDate(e.target.value)} className="w-full text-sm font-semibold bg-[#faf9f8] border-none rounded-[3px] p-3" />
+                  <input type="date" required value={formStartDate} onChange={(e) => setFormStartDate(e.target.value)} className="w-full text-sm font-semibold bg-[#faf9f8] border-none rounded p-3" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">Goal Type</label>
                   <button 
                      type="button" 
                      onClick={() => setFormUseCounter(!formUseCounter)} 
-                     className={`w-full text-sm font-bold p-3 rounded-[3px] border transition-all flex items-center justify-center gap-2 ${formUseCounter ? 'bg-[#eff6fc] text-[#0078d4] border-[#0078d4]' : 'bg-[#faf9f8] text-[#605e5c] border-transparent'}`}
+                     className={`w-full text-sm font-bold p-3 rounded border transition-all flex items-center justify-center gap-2 ${formUseCounter ? 'bg-[#eff6fc] text-[#0078d4] border-[#0078d4]' : 'bg-[#faf9f8] text-[#605e5c] border-transparent'}`}
                   >
                      {formUseCounter ? <RotateCcw className="w-4 h-4" /> : <Check className="w-4 h-4" />}
                      {formUseCounter ? 'Counter' : 'Checkbox'}
@@ -644,15 +644,15 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
                 <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
                   <label className="text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">Daily Target (Count)</label>
                   <div className="flex items-center gap-3">
-                     <button type="button" onClick={() => setFormTarget(Math.max(1, formTarget - 1))} className="w-10 h-10 rounded-[3px] bg-[#f3f2f1] flex items-center justify-center hover:bg-[#edebe9]"><Minus className="w-4 h-4 text-[#605e5c]" /></button>
+                     <button type="button" onClick={() => setFormTarget(Math.max(1, formTarget - 1))} className="w-10 h-10 rounded bg-[#f3f2f1] flex items-center justify-center hover:bg-[#edebe9]"><Minus className="w-4 h-4 text-[#605e5c]" /></button>
                      <input 
                       type="number" 
                       min="1" 
                       value={formTarget} 
                       onChange={(e) => setFormTarget(parseInt(e.target.value) || 1)} 
-                      className="flex-1 text-center text-lg font-bold bg-[#faf9f8] border-none rounded-[3px] p-2"
+                      className="flex-1 text-center text-lg font-bold bg-[#faf9f8] border-none rounded p-2"
                      />
-                     <button type="button" onClick={() => setFormTarget(formTarget + 1)} className="w-10 h-10 rounded-[3px] bg-[#f3f2f1] flex items-center justify-center hover:bg-[#edebe9]"><Plus className="w-4 h-4 text-[#605e5c]" /></button>
+                     <button type="button" onClick={() => setFormTarget(formTarget + 1)} className="w-10 h-10 rounded bg-[#f3f2f1] flex items-center justify-center hover:bg-[#edebe9]"><Plus className="w-4 h-4 text-[#605e5c]" /></button>
                   </div>
                 </div>
               )}
@@ -667,7 +667,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
                       key={idx}
                       type="button"
                       onClick={() => setFormIcon(emoji)}
-                      className={`h-10 rounded-[3px] flex items-center justify-center text-xl transition-all ${formIcon === emoji ? 'bg-[#eff6fc] border border-[#0078d4] shadow-sm' : 'bg-[#faf9f8] border border-transparent hover:bg-[#f3f2f1]'}`}
+                      className={`h-10 rounded flex items-center justify-center text-xl transition-all ${formIcon === emoji ? 'bg-[#eff6fc] border border-[#0078d4] shadow-sm' : 'bg-[#faf9f8] border border-transparent hover:bg-[#f3f2f1]'}`}
                      >
                        {emoji}
                      </button>
@@ -676,8 +676,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
               </div>
 
               <div className="pt-4 border-t border-[#f3f2f1] flex justify-end gap-3">
-                <button type="button" onClick={() => { setIsCreateModalOpen(false); setIsEditModalOpen(false); }} className="px-5 py-2 text-sm font-bold text-[#605e5c] hover:bg-[#f3f2f1] rounded-[3px] transition-colors">Cancel</button>
-                <button type="submit" className="px-8 py-2 text-sm font-bold fluent-btn-primary rounded-[3px] shadow-lg">{isEditModalOpen ? 'Save Changes' : 'Start Habit'}</button>
+                <button type="button" onClick={() => { setIsCreateModalOpen(false); setIsEditModalOpen(false); }} className="px-5 py-2 text-sm font-bold text-[#605e5c] hover:bg-[#f3f2f1] rounded transition-colors">Cancel</button>
+                <button type="submit" className="px-8 py-2 text-sm font-bold fluent-btn-primary rounded shadow-lg">{isEditModalOpen ? 'Save Changes' : 'Start Habit'}</button>
               </div>
             </form>
            </div>

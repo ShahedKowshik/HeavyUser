@@ -78,7 +78,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
          </div>
          <button 
           onClick={onLogout}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-[#edebe9] text-[#605e5c] rounded-xl hover:bg-[#f3f2f1] hover:text-[#a4262c] transition-all font-bold text-xs shadow-sm"
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-[#edebe9] text-[#605e5c] rounded hover:bg-[#f3f2f1] hover:text-[#a4262c] transition-all font-bold text-xs shadow-sm"
          >
            <LogOut className="w-4 h-4" />
            <span className="hidden sm:inline">Sign Out</span>
@@ -87,7 +87,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Account Profile Section */}
-        <div className="bg-white border border-[#edebe9] rounded-xl overflow-hidden hover:shadow-md transition-shadow">
+        <div className="bg-white border border-[#edebe9] rounded overflow-hidden hover:shadow-md transition-shadow">
           <div className="px-6 py-4 border-b border-[#edebe9] bg-[#faf9f8] flex items-center space-x-2">
             <User className="w-4 h-4 text-[#0078d4]" />
             <h3 className="text-sm font-bold text-[#323130]">Account Profile</h3>
@@ -100,7 +100,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                   type="text"
                   value={localName}
                   onChange={(e) => setLocalName(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm bg-[#faf9f8] border-none rounded-lg focus:ring-1 focus:ring-[#0078d4]"
+                  className="w-full px-3 py-2.5 text-sm bg-[#faf9f8] border-none rounded focus:ring-1 focus:ring-[#0078d4]"
                 />
               </div>
                <div className="space-y-1.5">
@@ -112,7 +112,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                   value={localProfilePic}
                   onChange={(e) => setLocalProfilePic(e.target.value)}
                   placeholder="https://..."
-                  className="w-full px-3 py-2.5 text-sm bg-[#faf9f8] border-none rounded-lg focus:ring-1 focus:ring-[#0078d4]"
+                  className="w-full px-3 py-2.5 text-sm bg-[#faf9f8] border-none rounded focus:ring-1 focus:ring-[#0078d4]"
                 />
               </div>
             </div>
@@ -120,7 +120,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
             <div className="flex justify-end pt-2">
                <button
                   onClick={handleSaveProfile}
-                  className="w-full sm:w-auto px-6 py-2.5 bg-[#0078d4] text-white text-xs font-bold rounded-lg hover:bg-[#106ebe] transition-colors shadow-sm"
+                  className="w-full sm:w-auto px-6 py-2.5 bg-[#0078d4] text-white text-xs font-bold rounded hover:bg-[#106ebe] transition-colors shadow-sm"
                 >
                   Save Changes
                 </button>
@@ -132,13 +132,13 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                 User ID
               </label>
               <div className="flex items-stretch space-x-2">
-                <div className="flex-1 bg-[#f3f2f1] border border-[#edebe9] px-3 py-2 rounded-lg text-sm font-mono tracking-wider text-[#0078d4] truncate">
+                <div className="flex-1 bg-[#f3f2f1] border border-[#edebe9] px-3 py-2 rounded text-sm font-mono tracking-wider text-[#0078d4] truncate">
                   {settings.userId}
                 </div>
                 <button
                   onClick={copyToClipboard}
                   title="Copy to clipboard"
-                  className={`px-3 rounded-lg border transition-all flex items-center justify-center ${
+                  className={`px-3 rounded border transition-all flex items-center justify-center ${
                     isCopied 
                     ? 'bg-[#dff6dd] border-[#107c10] text-[#107c10]' 
                     : 'bg-white border-[#edebe9] text-[#605e5c] hover:bg-[#f3f2f1]'
@@ -152,7 +152,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
         </div>
 
         {/* Data Management Section */}
-        <div className="bg-white border border-red-100 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
+        <div className="bg-white border border-red-100 rounded overflow-hidden hover:shadow-md transition-shadow">
           <div className="px-6 py-4 border-b border-red-100 bg-[#fff8f8] flex items-center space-x-2">
             <Trash2 className="w-4 h-4 text-[#a4262c]" />
             <h3 className="text-sm font-bold text-[#a4262c]">Data Management</h3>
@@ -171,13 +171,13 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                   <div className="flex flex-col sm:flex-row gap-2 mt-2">
                     <button
                       onClick={() => setIsConfirmingDelete(true)}
-                      className="px-4 py-2 border border-[#a4262c] text-[#a4262c] text-xs font-bold rounded-lg hover:bg-[#fde7e9] transition-colors whitespace-nowrap text-center"
+                      className="px-4 py-2 border border-[#a4262c] text-[#a4262c] text-xs font-bold rounded hover:bg-[#fde7e9] transition-colors whitespace-nowrap text-center"
                     >
                       Reset Workspace
                     </button>
                      <button
                       onClick={() => setIsConfirmingDelete(true)}
-                      className="px-4 py-2 bg-[#a4262c] text-white text-xs font-bold rounded-lg hover:bg-[#8e1f24] transition-colors whitespace-nowrap shadow-sm text-center"
+                      className="px-4 py-2 bg-[#a4262c] text-white text-xs font-bold rounded hover:bg-[#8e1f24] transition-colors whitespace-nowrap shadow-sm text-center"
                     >
                       Delete Account
                     </button>
@@ -189,7 +189,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                         setIsConfirmingDelete(false);
                         setDeleteKeyword('');
                       }}
-                      className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-[#605e5c] hover:bg-[#f3f2f1] rounded-lg transition-colors"
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-[#605e5c] hover:bg-[#f3f2f1] rounded transition-colors"
                     >
                       <X className="w-3 h-3" /> Cancel
                     </button>
@@ -198,7 +198,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
               </div>
 
               {isConfirmingDelete && (
-                <div className="p-4 bg-[#fff8f8] border border-red-200 rounded-xl animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="p-4 bg-[#fff8f8] border border-red-200 rounded animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="flex items-center space-x-2 text-[#a4262c] mb-3">
                     <AlertTriangle className="w-4 h-4" />
                     <span className="text-xs font-bold uppercase tracking-wider">Warning</span>
@@ -213,13 +213,13 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                       placeholder='Type "delete"'
                       value={deleteKeyword}
                       onChange={(e) => setDeleteKeyword(e.target.value)}
-                      className="w-full px-3 py-2.5 text-sm bg-white border border-red-200 rounded-lg focus:border-[#a4262c] focus:ring-1 focus:ring-[#a4262c]"
+                      className="w-full px-3 py-2.5 text-sm bg-white border border-red-200 rounded focus:border-[#a4262c] focus:ring-1 focus:ring-[#a4262c]"
                       disabled={isDeleting}
                     />
                     <button
                       onClick={handleFinalDelete}
                       disabled={deleteKeyword.toLowerCase() !== 'delete' || isDeleting}
-                      className={`w-full py-2.5 text-xs font-bold rounded-lg transition-all shadow-sm flex items-center justify-center gap-2 ${
+                      className={`w-full py-2.5 text-xs font-bold rounded transition-all shadow-sm flex items-center justify-center gap-2 ${
                         deleteKeyword.toLowerCase() === 'delete' && !isDeleting
                           ? 'bg-[#a4262c] text-white hover:bg-[#821d23]'
                           : 'bg-[#edebe9] text-[#a19f9d] cursor-not-allowed'

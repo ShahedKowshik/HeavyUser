@@ -49,14 +49,14 @@ const AuthPage: React.FC = () => {
     <div className="min-h-screen bg-[#faf9f8] flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="w-12 h-12 bg-[#0078d4] rounded-xl flex items-center justify-center shadow-lg mx-auto mb-4">
+          <div className="w-12 h-12 bg-[#0078d4] rounded flex items-center justify-center shadow-lg mx-auto mb-4">
             <LayoutGrid className="w-7 h-7 text-white" />
           </div>
           <h1 className="text-2xl font-black text-[#323130] tracking-tight">HeavyUser</h1>
           <p className="text-[#605e5c] font-medium mt-1">Productivity for high-performers</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl border border-[#edebe9] overflow-hidden animate-in zoom-in-95 duration-300">
+        <div className="bg-white rounded shadow-xl border border-[#edebe9] overflow-hidden animate-in zoom-in-95 duration-300">
           <div className="flex border-b border-[#f3f2f1]">
             <button
               onClick={() => { setIsLogin(true); setError(''); }}
@@ -74,7 +74,7 @@ const AuthPage: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="p-8 space-y-5">
             {error && (
-              <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2 text-xs font-bold text-[#a4262c] animate-in slide-in-from-left-2">
+              <div className="p-3 bg-red-50 border border-red-100 rounded flex items-center gap-2 text-xs font-bold text-[#a4262c] animate-in slide-in-from-left-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 {error}
               </div>
@@ -87,7 +87,7 @@ const AuthPage: React.FC = () => {
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full p-3 text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded-xl focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                  className="w-full p-3 text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
                   placeholder="John Doe"
                   required
                 />
@@ -100,7 +100,7 @@ const AuthPage: React.FC = () => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full p-3 text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded-xl focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                className="w-full p-3 text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
                 placeholder="name@example.com"
                 required
               />
@@ -113,7 +113,7 @@ const AuthPage: React.FC = () => {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full p-3 pr-10 text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded-xl focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                  className="w-full p-3 pr-10 text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
                   placeholder="Min 6 characters"
                   required
                   minLength={6}
@@ -131,7 +131,7 @@ const AuthPage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 mt-2 fluent-btn-primary rounded-xl flex items-center justify-center gap-2 shadow-md active:scale-95 transition-transform disabled:opacity-70 disabled:pointer-events-none"
+              className="w-full py-3 mt-2 fluent-btn-primary rounded flex items-center justify-center gap-2 shadow-md active:scale-95 transition-transform disabled:opacity-70 disabled:pointer-events-none"
             >
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
