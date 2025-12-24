@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity } from 'lucide-react';
+import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType } from '../types';
 import TaskSection from './TaskSection';
 import SettingsSection from './SettingsSection';
@@ -33,6 +33,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [userSettings, setUserSettings] = useState<UserSettings>({
     userName: user.name,
     userId: user.id,
+    email: user.email,
     profilePicture: user.profilePicture
   });
 
@@ -223,6 +224,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     return { count: currentStreak, activeToday: hasActivityToday, history: sortedDates };
   }, [tasks, habits, journals]);
 
+  // --- Urgent Tasks Alert Logic ---
+  const urgentTasksTodayCount = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return tasks.filter(t => 
+      !t.completed && 
+      t.priority === 'Urgent' && 
+      t.dueDate === today
+    ).length;
+  }, [tasks]);
+
   const renderContent = () => {
     switch (activeTab) {
       case 'tasks':
@@ -309,6 +320,33 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-8 py-4 bg-white/80 backdrop-blur-md border-b border-[#edebe9]">
           <h2 className="text-xl font-black capitalize text-[#323130] tracking-tight">{activeTab}</h2>
           <div className="flex items-center space-x-4">
+            
+            {/* Urgent Tasks Alert */}
+            {urgentTasksTodayCount > 0 && (
+              <div className="relative group flex items-center">
+                {/* Prominent Ping Animation Layer */}
+                <span className="absolute inset-1 rounded bg-red-400 opacity-30 animate-ping" />
+                
+                <div className="relative px-3 py-1.5 bg-red-50 text-red-600 rounded border border-red-200 cursor-help flex items-center z-10">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+                {/* Tooltip */}
+                <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-[#edebe9] rounded shadow-xl p-3 z-50 hidden group-hover:block animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-start gap-3">
+                    <div className="p-1.5 bg-red-100 rounded text-red-600 shrink-0">
+                       <AlertTriangle className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-[#323130] uppercase tracking-wide">Action Required</p>
+                      <p className="text-xs text-[#605e5c] mt-1">
+                        You have <span className="font-bold text-red-600">{urgentTasksTodayCount} urgent task{urgentTasksTodayCount > 1 ? 's' : ''}</span> due today.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Streak Badge */}
             <button 
               onClick={() => setIsStreakModalOpen(true)}

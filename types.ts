@@ -65,5 +65,6 @@ export interface Habit {
 export interface UserSettings {
   userName: string;
   userId: string;
+  email: string;
   profilePicture?: string;
 }

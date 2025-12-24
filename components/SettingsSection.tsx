@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2 } from 'lucide-react';
+import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, Lock, Mail, AlertCircle } from 'lucide-react';
 import { UserSettings } from '../types';
 import { supabase } from '../lib/supabase';
 
@@ -18,8 +18,51 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
   const [isCopied, setIsCopied] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Security State
+  const [newEmail, setNewEmail] = useState(settings.email);
+  const [newPassword, setNewPassword] = useState('');
+  const [securityLoading, setSecurityLoading] = useState<'email' | 'password' | null>(null);
+  const [securityMessage, setSecurityMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
   const handleSaveProfile = () => {
     onUpdate({ ...settings, userName: localName, profilePicture: localProfilePic.trim() || undefined });
+  };
+
+  const handleUpdateEmail = async () => {
+    if (!newEmail || newEmail === settings.email) return;
+    setSecurityLoading('email');
+    setSecurityMessage(null);
+    try {
+      const { error } = await supabase.auth.updateUser({ email: newEmail });
+      if (error) throw error;
+      setSecurityMessage({ 
+        type: 'success', 
+        text: 'Confirmation link sent to your new email address. Please click it to finalize the change.' 
+      });
+    } catch (error: any) {
+      setSecurityMessage({ type: 'error', text: error.message });
+    } finally {
+      setSecurityLoading(null);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      setSecurityMessage({ type: 'error', text: 'Password must be at least 6 characters long.' });
+      return;
+    }
+    setSecurityLoading('password');
+    setSecurityMessage(null);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setSecurityMessage({ type: 'success', text: 'Password updated successfully.' });
+      setNewPassword('');
+    } catch (error: any) {
+      setSecurityMessage({ type: 'error', text: error.message });
+    } finally {
+      setSecurityLoading(null);
+    }
   };
 
   const handleFinalDelete = async () => {
@@ -151,8 +194,79 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
           </div>
         </div>
 
+        {/* Security Section */}
+        <div className="bg-white border border-[#edebe9] rounded overflow-hidden hover:shadow-md transition-shadow">
+          <div className="px-6 py-4 border-b border-[#edebe9] bg-[#faf9f8] flex items-center space-x-2">
+            <Lock className="w-4 h-4 text-[#0078d4]" />
+            <h3 className="text-sm font-bold text-[#323130]">Security</h3>
+          </div>
+          <div className="p-6 space-y-6">
+            {securityMessage && (
+              <div className={`p-3 rounded border text-xs font-bold flex items-start gap-2 ${
+                securityMessage.type === 'success' 
+                  ? 'bg-green-50 border-green-200 text-green-700' 
+                  : 'bg-red-50 border-red-200 text-red-700'
+              }`}>
+                {securityMessage.type === 'success' ? <Check className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                <span>{securityMessage.text}</span>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#605e5c] flex items-center gap-1">
+                  <Mail className="w-3 h-3" /> Email Address
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    className="flex-1 px-3 py-2.5 text-sm bg-[#faf9f8] border-none rounded focus:ring-1 focus:ring-[#0078d4]"
+                  />
+                  <button
+                    onClick={handleUpdateEmail}
+                    disabled={securityLoading === 'email' || newEmail === settings.email}
+                    className="px-4 py-2 bg-white border border-[#edebe9] text-[#605e5c] text-xs font-bold rounded hover:bg-[#f3f2f1] hover:text-[#0078d4] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+                  >
+                    {securityLoading === 'email' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#605e5c] flex items-center gap-1">
+                  <Lock className="w-3 h-3" /> New Password
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    placeholder="Min 6 characters"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="flex-1 px-3 py-2.5 text-sm bg-[#faf9f8] border-none rounded focus:ring-1 focus:ring-[#0078d4]"
+                  />
+                  <button
+                    onClick={handleUpdatePassword}
+                    disabled={securityLoading === 'password' || !newPassword}
+                    className="px-4 py-2 bg-white border border-[#edebe9] text-[#605e5c] text-xs font-bold rounded hover:bg-[#f3f2f1] hover:text-[#0078d4] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+                  >
+                    {securityLoading === 'password' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update'}
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <div className="pt-2">
+               <p className="text-[10px] text-[#a19f9d] leading-relaxed">
+                  Note: Updating your email will send a confirmation link to the new address. Your current session will remain active.
+               </p>
+            </div>
+          </div>
+        </div>
+
         {/* Data Management Section */}
-        <div className="bg-white border border-red-100 rounded overflow-hidden hover:shadow-md transition-shadow">
+        <div className="bg-white border border-red-100 rounded overflow-hidden hover:shadow-md transition-shadow lg:col-span-2">
           <div className="px-6 py-4 border-b border-red-100 bg-[#fff8f8] flex items-center space-x-2">
             <Trash2 className="w-4 h-4 text-[#a4262c]" />
             <h3 className="text-sm font-bold text-[#a4262c]">Data Management</h3>
@@ -173,7 +287,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                       onClick={() => setIsConfirmingDelete(true)}
                       className="px-4 py-2 border border-[#a4262c] text-[#a4262c] text-xs font-bold rounded hover:bg-[#fde7e9] transition-colors whitespace-nowrap text-center"
                     >
-                      Reset Workspace
+                      Reset Data
                     </button>
                      <button
                       onClick={() => setIsConfirmingDelete(true)}
