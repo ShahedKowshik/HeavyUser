@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import AuthPage from './components/AuthPage';
 import Dashboard from './components/Dashboard';
@@ -20,6 +21,7 @@ const App: React.FC = () => {
           email: session.user.email || '',
           name: session.user.user_metadata.full_name || 'User',
           profilePicture: session.user.user_metadata.avatar_url,
+          dayStartHour: session.user.user_metadata.day_start_hour || 0,
         });
       }
       setLoading(false);
@@ -35,6 +37,7 @@ const App: React.FC = () => {
           email: session.user.email || '',
           name: session.user.user_metadata.full_name || 'User',
           profilePicture: session.user.user_metadata.avatar_url,
+          dayStartHour: session.user.user_metadata.day_start_hour || 0,
         });
       } else {
         setCurrentUser(null);

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, Lock, Mail, AlertCircle, Github, Twitter } from 'lucide-react';
+import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, Lock, Mail, AlertCircle, Github, Twitter, Moon } from 'lucide-react';
 import { UserSettings } from '../types';
 import { supabase } from '../lib/supabase';
 
@@ -13,10 +13,12 @@ interface SettingsSectionProps {
 const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, onLogout }) => {
   const [localName, setLocalName] = useState(settings.userName);
   const [localProfilePic, setLocalProfilePic] = useState(settings.profilePicture || '');
+  const [localDayStartHour, setLocalDayStartHour] = useState(settings.dayStartHour || 0);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [deleteKeyword, setDeleteKeyword] = useState('');
   const [isCopied, setIsCopied] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   // Security State
   const [newEmail, setNewEmail] = useState(settings.email);
@@ -25,7 +27,14 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
   const [securityMessage, setSecurityMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
   const handleSaveProfile = () => {
-    onUpdate({ ...settings, userName: localName, profilePicture: localProfilePic.trim() || undefined });
+    onUpdate({ 
+        ...settings, 
+        userName: localName, 
+        profilePicture: localProfilePic.trim() || undefined,
+        dayStartHour: localDayStartHour
+    });
+    setToast('Preferences updated successfully');
+    setTimeout(() => setToast(null), 3000);
   };
 
   const handleUpdateEmail = async () => {
@@ -113,11 +122,20 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
   };
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 relative">
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-4 py-3 rounded-lg shadow-xl z-50 animate-in slide-in-from-bottom-4 fade-in flex items-center gap-3">
+           <div className="bg-green-500 rounded-full p-0.5">
+             <Check className="w-3 h-3 text-white" />
+           </div>
+           <span className="text-sm font-bold">{toast}</span>
+        </div>
+      )}
+
       <div className="mb-8 flex items-center justify-between">
          <div>
             <h3 className="text-2xl font-black text-slate-800 tracking-tight">Configuration</h3>
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Manage your workspace</p>
          </div>
          <div className="flex items-center gap-3">
              <a 
@@ -283,6 +301,60 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                </p>
             </div>
           </div>
+        </div>
+
+        {/* Night Owl Section */}
+        <div className="bg-white border border-indigo-100 rounded overflow-hidden hover:shadow-md transition-shadow lg:col-span-2">
+            <div className="px-6 py-4 border-b border-indigo-100 bg-[#f0f4ff] flex items-center space-x-2">
+                <Moon className="w-4 h-4 text-indigo-600" />
+                <h3 className="text-sm font-bold text-indigo-900">Night Owl Mode</h3>
+            </div>
+            <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                            Standard productivity apps reset your "Today" list at midnight (12:00 AM). 
+                            If you work late, this marks your tasks as overdue while you are still working on them.
+                        </p>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                            <strong>Night Owl Mode</strong> lets you shift the start of your day. 
+                            For example, if you set it to <strong>4:00 AM</strong>, any task you complete before 4 AM counts towards the "previous" day, keeping your streak alive and your dashboard organized.
+                        </p>
+                    </div>
+                    <div className="space-y-3 p-4 bg-indigo-50/50 rounded border border-indigo-100">
+                        <label className="text-xs font-bold text-indigo-900 flex items-center gap-1">
+                            Start my "New Day" at:
+                        </label>
+                        <div className="relative">
+                            <select
+                                value={localDayStartHour}
+                                onChange={(e) => setLocalDayStartHour(parseInt(e.target.value))}
+                                className="w-full px-3 py-2.5 text-sm bg-white border border-indigo-200 rounded focus:ring-1 focus:ring-indigo-500 appearance-none cursor-pointer text-indigo-900 font-bold"
+                            >
+                                {Array.from({ length: 13 }).map((_, i) => {
+                                    const timeLabel = i === 0 ? '12:00 AM (Midnight)' : i === 12 ? '12:00 PM (Noon)' : `${i}:00 AM`;
+                                    return (
+                                        <option key={i} value={i}>
+                                            {timeLabel}
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-indigo-400">
+                                <Moon className="w-4 h-4" />
+                            </div>
+                        </div>
+                        <div className="flex justify-end pt-2">
+                            <button
+                                onClick={handleSaveProfile}
+                                className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded hover:bg-indigo-700 transition-colors shadow-sm"
+                            >
+                                Update Preferences
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         {/* Data Management Section */}

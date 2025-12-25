@@ -1,4 +1,5 @@
 
+
 export type AppTab = 'tasks' | 'habit' | 'journal' | 'notes' | 'settings';
 
 export type Priority = 'Urgent' | 'High' | 'Normal' | 'Low';
@@ -8,6 +9,7 @@ export interface User {
   email: string;
   name: string;
   profilePicture?: string;
+  dayStartHour?: number; // 0-23
 }
 
 export interface Tag {
@@ -91,4 +93,5 @@ export interface UserSettings {
   userId: string;
   email: string;
   profilePicture?: string;
+  dayStartHour?: number;
 }

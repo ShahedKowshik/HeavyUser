@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Plus, Trash2, CheckCircle2, X, SlidersHorizontal, ChevronRight, ListChecks, History, Tag as TagIcon, Calendar, Clock, AlertCircle, FileText, Check, MoreHorizontal, Flag, ArrowRight, CornerDownLeft, ArrowUp, ArrowDown, Flame, Circle, CheckSquare, Square, ArrowLeft, PenLine, Eye, Edit2, Repeat, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, CheckCircle2, X, SlidersHorizontal, ChevronRight, ListChecks, History, Tag as TagIcon, Calendar, Clock, AlertCircle, FileText, Check, MoreHorizontal, Flag, ArrowRight, CornerDownLeft, ArrowUp, ArrowDown, Flame, Circle, CheckSquare, Square, ArrowLeft, PenLine, Eye, Edit2, Repeat, ChevronDown, Moon } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -12,6 +12,7 @@ interface TaskSectionProps {
   tags: Tag[];
   setTags: React.Dispatch<React.SetStateAction<Tag[]>>;
   userId: string;
+  dayStartHour?: number;
 }
 
 type Grouping = 'none' | 'date' | 'priority';
@@ -147,7 +148,7 @@ const mapTaskToDb = (task: Task, userId: string) => ({
     recurrence: task.recurrence
 });
 
-const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId }) => {
+const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   
@@ -545,8 +546,11 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   const getDayDiff = (dateStr: string) => {
     if (!dateStr) return 9999;
     
-    // Get user's local start-of-day in YYYY-MM-DD format
+    // Get user's local start-of-day in YYYY-MM-DD format based on dayStartHour
     const now = new Date();
+    if (now.getHours() < (dayStartHour || 0)) {
+       now.setDate(now.getDate() - 1);
+    }
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     if (dateStr === todayStr) return 0;
@@ -648,7 +652,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
     return entries.map(([title, tasks]) => ({ title, tasks }));
   };
 
-  const activeTasksGroups = useMemo(() => processList(tasks.filter(t => !t.completed)), [tasks, grouping, sorting, tags, filterTags]);
+  const activeTasksGroups = useMemo(() => processList(tasks.filter(t => !t.completed)), [tasks, grouping, sorting, tags, filterTags, dayStartHour]);
   
   // Custom logic for completed tasks: No grouping, sorted by completion date (latest first)
   const completedTasksGroups = useMemo(() => {
@@ -668,7 +672,11 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
      return [{ title: '', tasks: list }];
   }, [tasks, tags, filterTags]);
 
-  const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => (
+  const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => {
+    const isNightOwlActive = (dayStartHour || 0) > 0;
+    const startHourLabel = dayStartHour === 0 ? '12 AM' : dayStartHour === 12 ? '12 PM' : dayStartHour && dayStartHour > 12 ? `${dayStartHour - 12} PM` : `${dayStartHour} AM`;
+
+    return (
     <div className="space-y-4 pb-20">
       {groups.length === 0 && (
          <div className="text-center py-20 opacity-50">
@@ -681,10 +689,24 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
       {groups.map((group, gIdx) => (
         <div key={group.title + gIdx} className="space-y-2">
           {group.title && (
-            <div className="px-1 py-2">
+            <div className="px-1 py-2 flex items-center gap-2">
               <span className={`text-[10px] font-black uppercase tracking-[0.1em] ${group.title === 'Overdue' ? 'text-red-600' : 'text-slate-400'}`}>
                 {group.title}
               </span>
+              {isNightOwlActive && (group.title === 'Today' || group.title === 'Tomorrow') && (
+                <div className="group/owl relative flex items-center cursor-help">
+                    <Moon className="w-3 h-3 text-indigo-400" />
+                    <div className="absolute left-6 top-1/2 -translate-y-1/2 w-64 p-3 bg-slate-800 text-white rounded shadow-xl z-50 hidden group-hover/owl:block animate-in fade-in zoom-in-95 origin-left">
+                        <div className="flex items-center gap-1.5 mb-1 text-indigo-300 font-bold text-xs">
+                            <Moon className="w-3 h-3" /> Night Owl Mode Active
+                        </div>
+                        <p className="text-[10px] leading-relaxed text-slate-300">
+                            Tasks in <strong>{group.title}</strong> will stay here until {startHourLabel}. 
+                            The day does not reset at midnight.
+                        </p>
+                    </div>
+                </div>
+              )}
             </div>
           )}
           <div className="grid grid-cols-1 gap-2">
@@ -841,7 +863,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
         </div>
       ))}
     </div>
-  );
+  )};
 
   return (
     <div className="animate-in fade-in duration-500 pb-20">
@@ -935,8 +957,14 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
       {/* EDIT TASK MODAL (Restored) */}
       {selectedTask && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+        <div 
+          onClick={() => setSelectedTaskId(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl flex flex-col overflow-hidden max-h-[90vh]"
+          >
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                <div className="flex items-center gap-3">
                   <button 

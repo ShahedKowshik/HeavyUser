@@ -1,3 +1,5 @@
+
+
 import React, { useState, useMemo } from 'react';
 import { X, Flame, Check, ChevronLeft, ChevronRight, Activity, Plus, Trash2, Smile, Ban, Target, Minus, Edit2, RotateCcw, ArrowLeft, Trophy, TrendingUp, Calendar, Ruler } from 'lucide-react';
 import { Habit } from '../types';
@@ -8,6 +10,7 @@ interface HabitSectionProps {
   habits: Habit[];
   setHabits: React.Dispatch<React.SetStateAction<Habit[]>>;
   userId: string;
+  dayStartHour?: number;
 }
 
 // Expanded Emoji List (200+ Icons)
@@ -46,7 +49,7 @@ const EMOJI_OPTIONS = [
   '❤️', '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️'
 ];
 
-const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }) => {
+const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, dayStartHour }) => {
   const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -68,6 +71,15 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
     return `${year}-${month}-${day}`;
   };
 
+  // Helper: Get Logical Today Date String
+  const getLogicalDateStr = () => {
+    const d = new Date();
+    if (d.getHours() < (dayStartHour || 0)) {
+      d.setDate(d.getDate() - 1);
+    }
+    return getLocalDateKey(d);
+  };
+
   // Helper: Format date friendly
   const formatDateFriendly = (dateStr: string) => {
     // Treat the date string as local time midnight to avoid timezone shifts
@@ -81,7 +93,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
     setFormIcon(EMOJI_OPTIONS[0]);
     setFormTarget(1);
     setFormUnit('');
-    setFormStartDate(getLocalDateKey(new Date()));
+    setFormStartDate(getLogicalDateStr());
     setFormUseCounter(true);
     setIsCreateModalOpen(true);
   };
@@ -96,23 +108,30 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
     setIsEditModalOpen(true);
   };
 
-  // Helper: Get last 7 days array for the card view
+  // Helper: Get last 7 days array for the card view based on logical today
   const getLast7Days = () => {
+    const logicalToday = new Date();
+    if (logicalToday.getHours() < (dayStartHour || 0)) {
+        logicalToday.setDate(logicalToday.getDate() - 1);
+    }
+
     return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
+      const d = new Date(logicalToday);
       d.setDate(d.getDate() - (6 - i));
       return getLocalDateKey(d);
     });
   };
 
-  // Helper: Calculate streak
+  // Helper: Calculate streak using logical date
   const calculateStreak = (habit: Habit) => {
     let streak = 0;
-    const today = getLocalDateKey(new Date());
+    const today = getLogicalDateStr();
     
     // We iterate backwards from today
-    let currentCheck = new Date();
-    let dateStr = getLocalDateKey(currentCheck);
+    // Construct check date from today string
+    const [y, m, d] = today.split('-').map(Number);
+    let currentCheck = new Date(y, m - 1, d);
+    let dateStr = today;
     
     let safety = 0;
     while (safety < 3650) { 
@@ -146,8 +165,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
     let maxStreak = 0;
     let currentStreak = 0;
     
-    const now = new Date();
-    const endStr = getLocalDateKey(now);
+    // Logic ends at logical today
+    const endStr = getLogicalDateStr();
     let currentStr = habit.startDate;
 
     while (currentStr <= endStr) {
@@ -305,9 +324,17 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
 
   const selectedHabit = useMemo(() => habits.find(h => h.id === selectedHabitId), [habits, selectedHabitId]);
 
-  const today = new Date();
-  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).getDay();
+  // Determine "Today" for Calendar display purposes based on Logical Date
+  const logicalTodayDate = useMemo(() => {
+      const d = new Date();
+      if (d.getHours() < (dayStartHour || 0)) {
+          d.setDate(d.getDate() - 1);
+      }
+      return d;
+  }, [dayStartHour]);
+
+  const daysInMonth = new Date(logicalTodayDate.getFullYear(), logicalTodayDate.getMonth() + 1, 0).getDate();
+  const firstDayOfMonth = new Date(logicalTodayDate.getFullYear(), logicalTodayDate.getMonth(), 1).getDay();
 
   // --- Statistics Calculation (Single Habit) ---
   const getHabitStats = (habit: Habit) => {
@@ -327,7 +354,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
   const getStatusColor = (habit: Habit, date: string) => {
     const count = habit.progress[date] || 0;
     const isSkipped = habit.skippedDates.includes(date);
-    const todayStr = getLocalDateKey(new Date());
+    const todayStr = getLogicalDateStr();
     const isToday = date === todayStr;
     const isFuture = date > todayStr;
     const isBeforeStart = date < habit.startDate;
@@ -431,7 +458,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
               <div className="flex items-center gap-2">
                 <Activity className="w-4 h-4 text-[#0078d4]" />
                 <span className="text-sm font-bold text-slate-800">
-                  {today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  {logicalTodayDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </span>
               </div>
               <div className="flex gap-1">
@@ -455,9 +482,9 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
                   ))}
                   {Array.from({ length: daysInMonth }).map((_, i) => {
                     const day = i + 1;
-                    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const dateStr = `${logicalTodayDate.getFullYear()}-${String(logicalTodayDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     const count = selectedHabit.progress[dateStr] || 0;
-                    const todayStr = getLocalDateKey(new Date());
+                    const todayStr = getLogicalDateStr();
                     const isFuture = dateStr > todayStr;
                     const isBeforeStart = dateStr < selectedHabit.startDate;
                     const statusClass = getStatusColor(selectedHabit, dateStr);
