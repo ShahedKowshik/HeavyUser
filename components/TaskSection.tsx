@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Plus, Trash2, CheckCircle2, X, SlidersHorizontal, ChevronRight, ListChecks, History, Tag as TagIcon, ArrowLeft, CheckSquare, Square, Clock, Calendar, AlertCircle, FileText, ChevronDown, Eye, PenLine, Check } from 'lucide-react';
+import { Plus, Trash2, CheckCircle2, X, SlidersHorizontal, ChevronRight, ListChecks, History, Tag as TagIcon, Calendar, Clock, AlertCircle, FileText, Check, MoreHorizontal, Flag, ArrowRight, CornerDownLeft, ArrowUp, ArrowDown, Flame, Circle, CheckSquare, Square, ArrowLeft, PenLine, Eye, Edit2 } from 'lucide-react';
 import { Task, Priority, Subtask, Tag } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -20,8 +19,31 @@ type Sorting = 'date' | 'priority' | 'title';
 const priorities: Priority[] = ['Urgent', 'High', 'Normal', 'Low'];
 const priorityOrder: Record<Priority, number> = { 'Urgent': 0, 'High': 1, 'Normal': 2, 'Low': 3 };
 
+// 50 Preset Colors
 const PRESET_COLORS = [
-  '#0078d4', '#107c10', '#a4262c', '#d83b01', '#5c2d91', '#008272', '#e3008c', '#605e5c'
+  '#ef4444', '#dc2626', '#b91c1c', '#991b1b', // Reds
+  '#f97316', '#ea580c', '#c2410c', '#9a3412', // Oranges
+  '#f59e0b', '#d97706', '#b45309', '#92400e', // Ambers
+  '#eab308', '#ca8a04', '#a16207', '#854d0e', // Yellows
+  '#84cc16', '#65a30d', '#4d7c0f', '#3f6212', // Limes
+  '#22c55e', '#16a34a', '#15803d', '#14532d', // Greens
+  '#10b981', '#059669', '#047857', '#064e3b', // Emeralds
+  '#14b8a6', '#0d9488', '#0f766e', '#115e59', // Teals
+  '#06b6d4', '#0891b2', '#0e7490', '#164e63', // Cyans
+  '#0ea5e9', '#0284c7', '#0369a1', '#075985', // Sky
+  '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', // Blue
+  '#6366f1', '#4f46e5', '#4338ca', '#3730a3', // Indigo
+  '#8b5cf6', '#7c3aed', '#6d28d9', '#5b21b6', // Violet
+  '#a855f7', '#9333ea', '#7e22ce', '#6b21a8', // Purple
+  '#d946ef', '#c026d3', '#a21caf', '#86198f', // Fuchsia
+  '#ec4899', '#db2777', '#be185d', '#9d174d', // Pink
+  '#f43f5e', '#e11d48', '#be123c', '#9f1239', // Rose
+  '#64748b', '#475569', '#334155', '#1e293b', // Slate
+  '#78716c', '#57534e', '#44403c', '#292524', // Stone
+  '#71717a', '#52525b', '#3f3f46', '#27272a', // Zinc
+  '#737373', '#525252', '#404040', '#262626', // Neutral
+  '#a1a1aa', '#d4d4d8', '#e4e4e7', '#f4f4f5', // Light Greys
+  '#000000', '#ffffff'
 ];
 
 const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId }) => {
@@ -53,9 +75,14 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   const [inlineTagLabel, setInlineTagLabel] = useState('');
   const [inlineTagColor, setInlineTagColor] = useState(PRESET_COLORS[0]);
 
-  // Tag Manager State
+  // Tag Manager State (Creation)
   const [newTagLabel, setNewTagLabel] = useState('');
   const [newTagColor, setNewTagColor] = useState(PRESET_COLORS[0]);
+
+  // Tag Manager State (Editing)
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
+  const [editTagLabel, setEditTagLabel] = useState('');
+  const [editTagColor, setEditTagColor] = useState('');
 
   // Derived State for Details Panel
   const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId), [tasks, selectedTaskId]);
@@ -216,6 +243,8 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   };
 
   const handleDeleteTag = async (id: string) => {
+    if (!window.confirm("Delete this label? It will be removed from all tasks.")) return;
+    
     setTags(tags.filter(t => t.id !== id));
     setTasks(prev => prev.map(t => ({
       ...t,
@@ -231,6 +260,40 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
     // Sync to Supabase
     await supabase.from('tags').delete().eq('id', id);
+  };
+
+  const startEditingTag = (tag: Tag) => {
+    setEditingTagId(tag.id);
+    setEditTagLabel(tag.label);
+    setEditTagColor(tag.color);
+  };
+
+  const cancelEditingTag = () => {
+    setEditingTagId(null);
+    setEditTagLabel('');
+    setEditTagColor('');
+  };
+
+  const saveEditingTag = async () => {
+    if (!editingTagId || !editTagLabel.trim()) return;
+
+    const updatedTag = {
+      id: editingTagId,
+      label: editTagLabel.trim(),
+      color: editTagColor
+    };
+
+    // Optimistic Update
+    setTags(prev => prev.map(t => t.id === editingTagId ? { ...t, ...updatedTag } : t));
+    
+    // Reset Edit State
+    cancelEditingTag();
+
+    // Sync to Supabase
+    await supabase.from('tags').update({
+      label: encryptData(updatedTag.label),
+      color: updatedTag.color
+    }).eq('id', updatedTag.id);
   };
 
   const toggleTask = async (id: string) => {
@@ -313,7 +376,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
     if (!dateStr) return 'No Date';
     const date = new Date(dateStr);
     const utcDate = new Date(date.getTime() + date.getTimezoneOffset() * 60000);
-    return utcDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    return utcDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   const getDayDiff = (dateStr: string) => {
@@ -344,6 +407,17 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
     return '';
   };
 
+  // UI Helper for Priority Display
+  const renderPriorityIcon = (p: Priority, className = "w-3 h-3") => {
+     switch(p) {
+        case 'Urgent': return <Flame className={`${className} text-red-500 fill-red-100`} />;
+        case 'High': return <ArrowUp className={`${className} text-orange-500`} />;
+        case 'Normal': return <Circle className={`${className} text-green-500`} />;
+        case 'Low': return <ArrowDown className={`${className} text-gray-400`} />;
+        default: return <Circle className={className} />;
+     }
+  };
+
   const getPriorityStyle = (p: Priority) => {
     switch (p) {
       case 'Urgent': return { bar: 'bg-[#a4262c]', text: 'text-[#a4262c] bg-red-50 border-red-100' };
@@ -364,11 +438,15 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
     // 2. Sort
     const base = [...filtered].sort((a, b) => {
       if (sorting === 'date') {
-        // Empty dates go last
-        if (!a.dueDate && !b.dueDate) return a.title.localeCompare(b.title);
-        if (!a.dueDate) return 1;
-        if (!b.dueDate) return -1;
-        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        // Primary Sort: Date
+        const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 8640000000000000; // Far future if no date
+        const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 8640000000000000;
+        
+        if (dateA !== dateB) return dateA - dateB;
+
+        // Secondary Sort: Priority (Urgent > High > Normal > Low)
+        // priorityOrder: Urgent=0, High=1...
+        return priorityOrder[a.priority] - priorityOrder[b.priority];
       }
       if (sorting === 'priority') return priorityOrder[a.priority] - priorityOrder[b.priority];
       return a.title.localeCompare(b.title);
@@ -430,7 +508,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                   }}
                   className={`bg-white rounded border border-[#edebe9] px-4 py-3 transition-all hover:shadow-md hover:border-[#d1d1d1] group cursor-pointer ${task.completed ? 'opacity-70 bg-[#faf9f8]' : ''}`}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-start gap-3">
                     {/* Checklist (Checkmark) */}
                     <div className="shrink-0 pt-0.5">
                       <button 
@@ -445,68 +523,66 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                       </button>
                     </div>
 
-                    {/* Main Row Content (Horizontal Table-like) */}
-                    <div className="flex-1 flex items-center gap-4 min-w-0 overflow-hidden">
-                      {/* Title & Tags */}
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div 
-                          className={`text-sm font-semibold transition-colors truncate ${task.completed ? 'text-[#a19f9d] line-through' : 'text-[#323130] hover:text-[#0078d4]'}`}
-                        >
-                          {task.title}
+                    {/* Main Row Content */}
+                    <div className="flex-1 min-w-0">
+                        {/* Title Row - UPDATED: Title -> Arrow -> Indicator */}
+                        <div className="flex items-center flex-wrap gap-2 mb-1">
+                            <span 
+                                className={`text-sm font-semibold transition-colors break-words whitespace-normal ${task.completed ? 'text-[#a19f9d] line-through' : 'text-[#323130] hover:text-[#0078d4]'}`}
+                            >
+                                {task.title}
+                            </span>
+                            
+                            <button 
+                                onClick={(e) => toggleExpand(task.id, e)}
+                                className={`p-0.5 rounded transition-all shrink-0 ${isExpanded ? 'bg-[#edebe9] text-[#0078d4]' : 'text-[#d1d1d1] hover:text-[#0078d4]'}`}
+                            >
+                                <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+                            </button>
+
+                            {hasSubtasks && (
+                                <span className="text-[9px] font-bold text-[#a19f9d] bg-[#f3f2f1] px-1 py-0.5 rounded border border-[#edebe9]">
+                                    {completedSubtasks}/{totalSubtasks}
+                                </span>
+                            )}
                         </div>
 
-                         {/* Tags - Moved beside title */}
-                         {task.tags && task.tags.length > 0 && (
-                          <div className="flex items-center gap-1 hidden sm:flex shrink-0">
-                            {task.tags.map(tagId => {
-                              const tag = tags.find(t => t.id === tagId);
-                              if (!tag) return null;
-                              return (
-                                <span 
-                                  key={tagId} 
-                                  className="text-[10px] font-bold px-2 py-0.5 rounded border border-transparent"
-                                  style={{ backgroundColor: `${tag.color}15`, color: tag.color }}
-                                >
-                                  {tag.label}
-                                </span>
-                              );
-                            })}
-                          </div>
-                         )}
+                        {/* Metadata Row */}
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-1">
+                             {/* Priority Badge */}
+                             <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${pStyle.text}`}>
+                                {renderPriorityIcon(task.priority)}
+                                <span>{task.priority}</span>
+                             </div>
 
-                         {/* Subtask Indicator */}
-                         {hasSubtasks && (
-                           <span className="text-[10px] font-bold text-[#a19f9d] bg-[#f3f2f1] px-1.5 py-0.5 rounded border border-[#edebe9]">
-                              {completedSubtasks}/{totalSubtasks}
-                           </span>
-                         )}
+                             {/* Date */}
+                             {task.dueDate && (
+                                <div className={`flex items-center gap-1.5 text-xs font-medium ${relativeColor}`}>
+                                    <Calendar className="w-3.5 h-3.5 shrink-0" />
+                                    <span>{formatDisplayDate(task.dueDate)}</span>
+                                </div>
+                             )}
 
-                         {/* Expand Arrow - Moved Here */}
-                         <button 
-                            onClick={(e) => toggleExpand(task.id, e)}
-                            className={`p-1 rounded transition-all shrink-0 ${isExpanded ? 'bg-[#edebe9] text-[#0078d4]' : 'text-[#d1d1d1] hover:text-[#0078d4]'}`}
-                          >
-                             <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
-                          </button>
-                      </div>
-
-                      {/* Metadata Row */}
-                      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                         {/* Urgency - Fixed width wrapper for Left Alignment */}
-                         <div className="hidden sm:flex w-[70px] justify-start">
-                           <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border ${pStyle.text}`}>
-                              {task.priority}
-                           </span>
-                         </div>
-                          {/* Mobile Urgency Dot */}
-                          <div className={`sm:hidden w-2 h-2 rounded ${pStyle.bar}`}></div>
-
-                         {/* Date - Fixed width wrapper for Left Alignment */}
-                         <div className={`flex items-center gap-1.5 text-xs font-medium w-auto sm:w-[135px] justify-end sm:justify-start ${relativeColor}`}>
-                             <Calendar className="w-3.5 h-3.5 shrink-0" />
-                             <span className="truncate">{formatDisplayDate(task.dueDate)}</span>
-                         </div>
-                      </div>
+                             {/* Labels */}
+                             {task.tags && task.tags.length > 0 && (
+                                <div className="flex items-center gap-1">
+                                    {task.tags.map(tagId => {
+                                    const tag = tags.find(t => t.id === tagId);
+                                    if (!tag) return null;
+                                    return (
+                                        <span 
+                                        key={tagId} 
+                                        className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border border-transparent"
+                                        style={{ backgroundColor: `${tag.color}15`, color: tag.color }}
+                                        >
+                                        <TagIcon className="w-3 h-3" />
+                                        {tag.label}
+                                        </span>
+                                    );
+                                    })}
+                                </div>
+                             )}
+                        </div>
                     </div>
                   </div>
 
@@ -558,13 +634,10 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   return (
     <div className="animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 mb-8 shrink-0">
-        <div>
-          <h3 className="text-2xl font-black text-[#323130] tracking-tight">
-            {viewMode === 'completed' ? 'Archive' : 'Work'}
-          </h3>
-          <p className="text-[11px] font-bold text-[#a19f9d] uppercase tracking-widest">Master your timeline</p>
-        </div>
-        <div className="flex items-center gap-2 md:gap-3 self-start md:self-auto flex-wrap w-full md:w-auto">
+        {/* Spacer to push buttons right */}
+        <div className="flex-1" />
+        
+        <div className="flex items-center gap-2 md:gap-3 self-start md:self-auto flex-wrap w-full md:w-auto justify-end">
           {viewMode === 'completed' ? (
             <button 
               onClick={() => setViewMode('active')}
@@ -588,7 +661,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                    <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#0078d4] rounded-full" />
                 )}
                 {isViewMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-[#edebe9] rounded shadow-xl z-30 p-1.5 animate-in zoom-in-95 duration-100">
+                  <div className="absolute top-full mt-2 w-56 bg-white border border-[#edebe9] rounded shadow-xl z-30 p-1.5 animate-in zoom-in-95 duration-100 right-0">
                     <div className="px-3 py-2 text-[9px] font-black text-[#a19f9d] uppercase tracking-widest border-b border-[#f3f2f1] mb-1">Display Grouping</div>
                     {(['date', 'priority'] as Grouping[]).map(g => (
                       <button key={g} onClick={() => { setGrouping(g); setIsViewMenuOpen(false); }} className={`w-full text-left px-3 py-2 text-xs rounded transition-colors flex items-center justify-between ${grouping === g ? 'bg-[#eff6fc] text-[#0078d4] font-bold' : 'hover:bg-[#faf9f8]'}`}>
@@ -598,13 +671,13 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                     ))}
 
                     <div className="flex items-center justify-between px-3 py-2 text-[9px] font-black text-[#a19f9d] uppercase tracking-widest border-b border-[#f3f2f1] mb-1 mt-2">
-                        <span>Filter Tags</span>
+                        <span>Filter Labels</span>
                         {filterTags.size > 0 && (
                             <button onClick={(e) => { e.stopPropagation(); setFilterTags(new Set()); }} className="text-[#0078d4] hover:underline normal-case">Clear</button>
                         )}
                     </div>
                     {tags.length === 0 ? (
-                        <div className="px-3 py-2 text-xs text-[#a19f9d] italic">No tags available</div>
+                        <div className="px-3 py-2 text-xs text-[#a19f9d] italic">No labels available</div>
                     ) : (
                         tags.map(tag => (
                             <button
@@ -631,7 +704,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                 className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#edebe9] text-[#605e5c] rounded shadow-sm hover:bg-[#faf9f8] transition-all whitespace-nowrap"
               >
                 <TagIcon className="w-4 h-4" />
-                <span className="text-sm font-bold">Tags</span>
+                <span className="text-sm font-bold">Labels</span>
               </button>
               
               <button 
@@ -668,11 +741,12 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
         )}
       </div>
 
-      {/* Task Details Modal (EDIT MODE) */}
+      {/* Task Details Modal (Same as before but with colors updated) */}
       {selectedTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
            <div className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl flex flex-col overflow-hidden max-h-[85vh] md:max-h-[90vh]">
             <div className="px-5 py-4 border-b border-[#f3f2f1] flex items-center justify-between bg-[#faf9f8]">
+              {/* ... Header ... */}
               <div className="flex items-center gap-2">
                  <button 
                   onClick={() => toggleTask(selectedTask.id)}
@@ -703,8 +777,9 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                 />
               </div>
 
-              {/* Properties Grid */}
+              {/* ... Properties ... */}
               <div className="space-y-5">
+                {/* Date & Time */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-1.5">
                     <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">
@@ -739,13 +814,14 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                       <button
                         key={p}
                         onClick={() => updateSelectedTask({ priority: p })}
-                        className={`flex-1 py-2 text-[10px] font-bold rounded transition-all ${
+                        className={`flex-1 py-2 text-[10px] font-bold rounded transition-all flex items-center justify-center gap-1 ${
                           selectedTask.priority === p 
                             ? 'bg-white text-[#0078d4] shadow-sm' 
                             : 'text-[#605e5c] hover:bg-[#edebe9]'
                         }`}
                       >
-                        {p}
+                         {renderPriorityIcon(p)}
+                         {p}
                       </button>
                     ))}
                   </div>
@@ -754,7 +830,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                      <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">
-                        <TagIcon className="w-3 h-3" /> Tags
+                        <TagIcon className="w-3 h-3" /> Labels
                      </label>
                      {!isCreatingTagInline && (
                         <button type="button" onClick={() => setIsCreatingTagInline(true)} className="text-[10px] font-bold text-[#0078d4] hover:underline flex items-center gap-1">
@@ -770,18 +846,18 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                             type="text" 
                             value={inlineTagLabel} 
                             onChange={(e) => setInlineTagLabel(e.target.value)} 
-                            placeholder="Tag name..." 
+                            placeholder="Label name..." 
                             className="w-full text-xs font-semibold bg-white border border-[#edebe9] rounded p-2 focus:ring-1 focus:ring-[#0078d4]" 
                             autoFocus
                           />
                         </div>
-                        <div className="flex gap-2 flex-wrap">
+                        <div className="flex gap-2 flex-wrap max-h-24 overflow-y-auto">
                           {PRESET_COLORS.map(color => (
                             <button 
                               key={color} 
                               type="button"
                               onClick={() => setInlineTagColor(color)}
-                              className={`w-5 h-5 rounded flex items-center justify-center ${inlineTagColor === color ? 'ring-2 ring-offset-1 ring-[#605e5c]' : ''}`}
+                              className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${inlineTagColor === color ? 'ring-2 ring-offset-1 ring-[#605e5c]' : ''}`}
                               style={{ backgroundColor: color }}
                             >
                               {inlineTagColor === color && <Check className="w-3 h-3 text-white" />}
@@ -790,7 +866,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                         </div>
                         <div className="flex justify-end gap-2 pt-1">
                           <button type="button" onClick={() => setIsCreatingTagInline(false)} className="px-3 py-1 text-xs font-bold text-[#605e5c] hover:bg-[#edebe9] rounded">Cancel</button>
-                          <button type="button" onClick={handleAddInlineTag} disabled={!inlineTagLabel.trim()} className="px-3 py-1 text-xs font-bold bg-[#0078d4] text-white rounded hover:bg-[#106ebe] disabled:opacity-50">Add Tag</button>
+                          <button type="button" onClick={handleAddInlineTag} disabled={!inlineTagLabel.trim()} className="px-3 py-1 text-xs font-bold bg-[#0078d4] text-white rounded hover:bg-[#106ebe] disabled:opacity-50">Add Label</button>
                         </div>
                       </div>
                   ) : (
@@ -805,25 +881,26 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                               const newTags = isActive ? currentTags.filter(id => id !== tag.id) : [...currentTags, tag.id];
                               updateSelectedTask({ tags: newTags });
                             }}
-                            className={`text-[10px] font-bold px-3 py-1.5 rounded border transition-all ${
+                            className={`flex items-center gap-1 text-[10px] font-bold px-3 py-1.5 rounded border transition-all ${
                               isActive 
                               ? 'border-transparent ring-1 ring-offset-1 ring-[#0078d4]' 
                               : 'border-[#edebe9] text-[#605e5c] bg-white hover:bg-[#f3f2f1]'
                             }`}
                             style={isActive ? { backgroundColor: `${tag.color}20`, color: tag.color } : {}}
                           >
+                            <TagIcon className="w-3 h-3" />
                             {tag.label}
                           </button>
                         );
-                      }) : <span className="text-xs text-[#a19f9d] italic pl-1">No tags available.</span>}
+                      }) : <span className="text-xs text-[#a19f9d] italic pl-1">No labels available.</span>}
                     </div>
                   )}
                 </div>
               </div>
 
+              {/* ... Subtasks, Notes ... */}
               <div className="h-px bg-[#f3f2f1]" />
-
-              {/* Subtasks */}
+              {/* ... (Existing Subtasks & Notes logic) ... */}
               <div className="space-y-3">
                 <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">
                   <ListChecks className="w-3 h-3" /> Subtasks
@@ -904,10 +981,10 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
               </div>
             </div>
 
-            {/* Footer */}
             <div className="p-4 border-t border-[#f3f2f1] bg-[#faf9f8] flex justify-between items-center">
               <span className="text-[10px] text-[#a19f9d] font-mono">ID: {selectedTask.id.substring(0,8)}...</span>
               <button 
+                type="button"
                 onClick={() => deleteTask(selectedTask.id)}
                 className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-[#a4262c] hover:bg-red-50 rounded transition-colors"
               >
@@ -918,213 +995,14 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
         </div>
       )}
 
-      {/* Create Modal (NEW TASK MODE) */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh] md:max-h-[90vh]">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#f3f2f1]">
-              <div className="flex items-center gap-2">
-                 <div className="w-6 h-6 rounded border-2 border-dashed border-[#d1d1d1] flex items-center justify-center shrink-0">
-                    <Plus className="w-3 h-3 text-[#d1d1d1]" />
-                 </div>
-                 <h3 className="text-xs font-bold text-[#605e5c] uppercase tracking-wider">New Task</h3>
-              </div>
-              <button onClick={closeModal} className="p-1.5 text-[#a19f9d] hover:bg-[#f3f2f1] rounded transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateTask} className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* Title */}
-              <div>
-                <textarea 
-                  autoFocus
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full text-xl font-bold text-[#323130] bg-transparent border-none p-0 focus:ring-0 resize-none h-auto leading-tight placeholder:text-[#d1d1d1]"
-                  placeholder="What needs doing?"
-                  rows={2}
-                />
-              </div>
-              
-              {/* Properties Grid */}
-              <div className="space-y-5">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div className="space-y-1.5">
-                      <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">
-                        <Calendar className="w-3 h-3" /> Due Date
-                      </label>
-                      <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">
-                        <Clock className="w-3 h-3" /> Time (Opt)
-                      </label>
-                      <input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} className="w-full text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                     <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">
-                       <AlertCircle className="w-3 h-3" /> Urgency
-                     </label>
-                     <div className="flex gap-1 p-1 bg-[#f3f2f1] rounded border border-[#edebe9]">
-                       {priorities.map(p => (
-                         <button
-                           key={p}
-                           type="button"
-                           onClick={() => setPriority(p)}
-                           className={`flex-1 py-2 text-[10px] font-bold rounded transition-all ${
-                             priority === p 
-                               ? 'bg-white text-[#0078d4] shadow-sm' 
-                               : 'text-[#605e5c] hover:bg-[#edebe9]'
-                           }`}
-                         >
-                           {p}
-                         </button>
-                       ))}
-                     </div>
-                  </div>
-
-                  {/* Quick Tag Select & Inline Create */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">
-                        <TagIcon className="w-3 h-3" /> Tags
-                      </label>
-                      {!isCreatingTagInline && (
-                        <button type="button" onClick={() => setIsCreatingTagInline(true)} className="text-[10px] font-bold text-[#0078d4] hover:underline flex items-center gap-1">
-                          <Plus className="w-3 h-3" /> Create New
-                        </button>
-                      )}
-                    </div>
-
-                    {isCreatingTagInline ? (
-                      <div className="bg-[#faf9f8] p-3 rounded border border-[#edebe9] space-y-3 animate-in fade-in zoom-in-95">
-                        <div className="space-y-1">
-                          <input 
-                            type="text" 
-                            value={inlineTagLabel} 
-                            onChange={(e) => setInlineTagLabel(e.target.value)} 
-                            placeholder="Tag name..." 
-                            className="w-full text-xs font-semibold bg-white border border-[#edebe9] rounded p-2 focus:ring-1 focus:ring-[#0078d4]" 
-                            autoFocus
-                          />
-                        </div>
-                        <div className="flex gap-2 flex-wrap">
-                          {PRESET_COLORS.map(color => (
-                            <button 
-                              key={color} 
-                              type="button"
-                              onClick={() => setInlineTagColor(color)}
-                              className={`w-5 h-5 rounded flex items-center justify-center ${inlineTagColor === color ? 'ring-2 ring-offset-1 ring-[#605e5c]' : ''}`}
-                              style={{ backgroundColor: color }}
-                            >
-                               {inlineTagColor === color && <Check className="w-3 h-3 text-white" />}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="flex justify-end gap-2 pt-1">
-                          <button type="button" onClick={() => setIsCreatingTagInline(false)} className="px-3 py-1 text-xs font-bold text-[#605e5c] hover:bg-[#edebe9] rounded">Cancel</button>
-                          <button type="button" onClick={handleAddInlineTag} disabled={!inlineTagLabel.trim()} className="px-3 py-1 text-xs font-bold bg-[#0078d4] text-white rounded hover:bg-[#106ebe] disabled:opacity-50">Add Tag</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2 p-2 bg-[#faf9f8] rounded border border-[#edebe9] min-h-[44px]">
-                         {tags.length > 0 ? tags.map(tag => {
-                            const isSelected = selectedTags.includes(tag.id);
-                            return (
-                              <button
-                                key={tag.id}
-                                type="button"
-                                onClick={() => setSelectedTags(prev => isSelected ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
-                                className={`text-[10px] font-bold px-3 py-1.5 rounded border transition-all ${
-                                  isSelected 
-                                    ? 'border-transparent ring-1 ring-offset-1 ring-[#0078d4]' 
-                                    : 'border-[#edebe9] text-[#605e5c] bg-white hover:bg-[#f3f2f1]'
-                                }`}
-                                style={{ backgroundColor: isSelected ? `${tag.color}20` : undefined, color: isSelected ? tag.color : undefined }}
-                              >
-                                {tag.label}
-                              </button>
-                            );
-                         }) : <span className="text-xs text-[#a19f9d] italic">No tags created.</span>}
-                      </div>
-                    )}
-                  </div>
-              </div>
-              
-              <div className="h-px bg-[#f3f2f1]" />
-
-              {/* Subtasks Creation */}
-              <div className="space-y-3">
-                <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">
-                  <ListChecks className="w-3 h-3" /> Subtasks
-                </label>
-                <div className="space-y-2">
-                   {createSubtasks.map((st, i) => (
-                      <div key={i} className="flex items-center gap-3 group p-2 rounded bg-[#faf9f8] border border-[#edebe9]">
-                        <Square className="w-4 h-4 text-[#d1d1d1]" />
-                        <span className="text-sm font-medium text-[#323130] flex-1 truncate">{st.title}</span>
-                        <button type="button" onClick={() => setCreateSubtasks(prev => prev.filter((_, idx) => idx !== i))} className="text-[#a19f9d] hover:text-[#a4262c]">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                   ))}
-                   <div className="flex items-center gap-3 p-2">
-                      <Plus className="w-4 h-4 text-[#0078d4]" />
-                      <input 
-                        type="text" 
-                        placeholder="Add step..." 
-                        className="flex-1 text-sm bg-transparent border-none p-0 focus:ring-0 placeholder:text-[#a19f9d]"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            const val = e.currentTarget.value.trim();
-                            if (val) {
-                              setCreateSubtasks(prev => [...prev, { title: val, completed: false }]);
-                              e.currentTarget.value = '';
-                            }
-                          }
-                        }}
-                      />
-                   </div>
-                </div>
-              </div>
-              
-              <div className="h-px bg-[#f3f2f1]" />
-
-              {/* Notes Creation */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">
-                  <FileText className="w-3 h-3" /> Notes
-                </label>
-                <textarea 
-                  value={createNotes} 
-                  onChange={(e) => setCreateNotes(e.target.value)} 
-                  placeholder="Add details..." 
-                  className="w-full h-40 text-xs leading-relaxed bg-[#faf9f8] border border-[#edebe9] rounded p-4 resize-none focus:ring-1 focus:ring-[#0078d4] font-mono" 
-                />
-              </div>
-
-              <div className="pt-4 border-t border-[#f3f2f1] flex justify-end gap-3 sticky bottom-0 bg-white">
-                <button type="button" onClick={closeModal} className="px-5 py-2 text-sm font-bold text-[#605e5c] hover:bg-[#f3f2f1] rounded transition-colors">Cancel</button>
-                <button type="submit" className="px-8 py-2 text-sm font-bold fluent-btn-primary rounded shadow-lg">Confirm</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Tag Manager Modal */}
+      {/* Tag Manager Modal (Updated with Edit capability) */}
       {isTagManagerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
           <div className="bg-white w-[95%] md:w-full max-w-md rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh]">
             <div className="flex items-center justify-between px-6 py-5 border-b border-[#f3f2f1]">
               <div className="flex items-center gap-2">
                 <TagIcon className="w-5 h-5 text-[#0078d4]" />
-                <h3 className="text-lg font-black text-[#323130] tracking-tight">Manage Tags</h3>
+                <h3 className="text-lg font-black text-[#323130] tracking-tight">Manage Labels</h3>
               </div>
               <button onClick={() => setIsTagManagerOpen(false)} className="p-1.5 text-[#a19f9d] hover:bg-[#f3f2f1] rounded transition-colors">
                 <X className="w-5 h-5" />
@@ -1132,50 +1010,90 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
             </div>
             
             <div className="p-6 flex-1 overflow-y-auto space-y-6">
+              {/* Existing Tags ... */}
               <div className="space-y-3">
-                <h4 className="text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">Existing Tags</h4>
+                <h4 className="text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">Existing Labels</h4>
                 <div className="space-y-2">
                   {tags.length === 0 ? (
-                    <p className="text-sm text-[#a19f9d] italic">No tags yet.</p>
+                    <p className="text-sm text-[#a19f9d] italic">No labels yet.</p>
                   ) : (
                     tags.map(tag => (
-                      <div key={tag.id} className="flex items-center justify-between p-3 bg-[#faf9f8] rounded border border-[#edebe9] group">
-                        <div className="flex items-center gap-3">
-                          <div className="w-4 h-4 rounded" style={{ backgroundColor: tag.color }} />
-                          <span className="text-sm font-semibold text-[#323130]">{tag.label}</span>
+                      editingTagId === tag.id ? (
+                        // Edit Mode Row
+                        <div key={tag.id} className="p-3 bg-[#eff6fc] rounded border border-[#0078d4] animate-in fade-in">
+                           <div className="flex gap-2 mb-2">
+                              <input 
+                                type="text" 
+                                value={editTagLabel} 
+                                onChange={(e) => setEditTagLabel(e.target.value)} 
+                                className="flex-1 text-xs font-bold bg-white border border-[#0078d4] rounded p-2 focus:ring-1 focus:ring-[#0078d4]" 
+                                autoFocus
+                              />
+                           </div>
+                           {/* Updated Color Picker to show all 50 colors */}
+                           <div className="flex gap-2 flex-wrap mb-2 max-h-24 overflow-y-auto">
+                              {PRESET_COLORS.map(color => (
+                                <button 
+                                  key={color} 
+                                  onClick={() => setEditTagColor(color)}
+                                  className={`w-4 h-4 rounded shrink-0 transition-transform ${editTagColor === color ? 'ring-2 ring-offset-1 ring-[#0078d4] scale-110' : ''}`}
+                                  style={{ backgroundColor: color }}
+                                />
+                              ))}
+                           </div>
+                           <div className="flex justify-end gap-2">
+                              <button onClick={cancelEditingTag} className="p-1.5 text-[#605e5c] hover:bg-[#f3f2f1] rounded"><X className="w-4 h-4" /></button>
+                              <button onClick={saveEditingTag} className="p-1.5 bg-[#0078d4] text-white rounded hover:bg-[#106ebe]"><Check className="w-4 h-4" /></button>
+                           </div>
                         </div>
-                        <button 
-                          onClick={() => handleDeleteTag(tag.id)} 
-                          className="p-1.5 text-[#a19f9d] hover:text-[#a4262c] hover:bg-red-50 rounded md:opacity-0 group-hover:opacity-100 transition-all"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      ) : (
+                        // Display Mode Row
+                        <div key={tag.id} className="flex items-center justify-between p-3 bg-[#faf9f8] rounded border border-[#edebe9] group">
+                          <div className="flex items-center gap-3">
+                            <div className="w-4 h-4 rounded" style={{ backgroundColor: tag.color }} />
+                            <span className="text-sm font-semibold text-[#323130]">{tag.label}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button 
+                              onClick={() => startEditingTag(tag)}
+                              className="p-1.5 text-[#0078d4] hover:bg-blue-50 rounded transition-colors"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteTag(tag.id)} 
+                              className="p-1.5 text-[#a4262c] hover:bg-red-50 rounded transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )
                     ))
                   )}
                 </div>
               </div>
 
               <div className="space-y-3 pt-6 border-t border-[#f3f2f1]">
-                <h4 className="text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">Create New Tag</h4>
+                <h4 className="text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">Create New Label</h4>
                 <div className="flex gap-2">
                   <input 
                     type="text" 
                     value={newTagLabel} 
                     onChange={(e) => setNewTagLabel(e.target.value)} 
-                    placeholder="Tag name..." 
+                    placeholder="Label name..." 
                     className="flex-1 text-sm font-semibold bg-[#faf9f8] border-none rounded p-3 focus:ring-2 focus:ring-[#0078d4]/20" 
                   />
                   <button onClick={handleAddTag} disabled={!newTagLabel.trim()} className="px-4 bg-[#0078d4] text-white rounded hover:bg-[#106ebe] disabled:opacity-50 disabled:hover:bg-[#0078d4] transition-colors">
                     <Plus className="w-5 h-5" />
                   </button>
                 </div>
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex gap-2 flex-wrap max-h-32 overflow-y-auto">
                   {PRESET_COLORS.map(color => (
                     <button 
                       key={color} 
                       onClick={() => setNewTagColor(color)}
-                      className={`w-6 h-6 rounded transition-transform hover:scale-110 ${newTagColor === color ? 'ring-2 ring-offset-2 ring-[#605e5c]' : ''}`}
+                      className={`w-6 h-6 rounded transition-transform hover:scale-110 shrink-0 ${newTagColor === color ? 'ring-2 ring-offset-2 ring-[#605e5c]' : ''}`}
                       style={{ backgroundColor: color }}
                     />
                   ))}

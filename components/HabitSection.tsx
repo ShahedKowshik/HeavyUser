@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo } from 'react';
-import { X, Flame, Check, ChevronLeft, ChevronRight, Activity, Plus, Trash2, Smile, Ban, Target, Minus, Edit2, RotateCcw, ArrowLeft, Trophy, TrendingUp, Calendar } from 'lucide-react';
+import { X, Flame, Check, ChevronLeft, ChevronRight, Activity, Plus, Trash2, Smile, Ban, Target, Minus, Edit2, RotateCcw, ArrowLeft, Trophy, TrendingUp, Calendar, Ruler } from 'lucide-react';
 import { Habit } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -43,7 +42,7 @@ const EMOJI_OPTIONS = [
   // Objects & Symbols
   '🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🏍️', '🛵', '🚲', '🛴', '🦽', '🦼',
   '🎸', '🎹', '🎺', '🎻', '🪕', '🥁', '🎷', '🎨', '🎬', '🎤', '🎧', '🎼', '🎵', '🎶', '🎫', '🎗️', '🎀', '🎁', '🎈', '🎉',
-  '🎊', '🎎', '🎏', '🎐', '🧧', '🎀', '🎁', '🩹', '🩺', '🚪', '🛏️', '🛋️', '🧴', '🧵', '🧶', '🧷', '🧹', '🧺', '🧻', '🧼',
+  '🎊', '🎎', '🎏', '🎐', '🧧', '🎀', '🎁', '🩹', '🩺', '🚪', '🛏️', '🛋️', '🧴', '🧶', '🧷', '🧹', '🧺', '🧻', '🧼',
   '❤️', '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️'
 ];
 
@@ -57,6 +56,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
   const [formTitle, setFormTitle] = useState('');
   const [formIcon, setFormIcon] = useState(EMOJI_OPTIONS[0]);
   const [formTarget, setFormTarget] = useState<number>(1);
+  const [formUnit, setFormUnit] = useState('');
   const [formStartDate, setFormStartDate] = useState('');
   const [formUseCounter, setFormUseCounter] = useState(true);
 
@@ -80,6 +80,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
     setFormTitle('');
     setFormIcon(EMOJI_OPTIONS[0]);
     setFormTarget(1);
+    setFormUnit('');
     setFormStartDate(getLocalDateKey(new Date()));
     setFormUseCounter(true);
     setIsCreateModalOpen(true);
@@ -89,6 +90,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
     setFormTitle(habit.title);
     setFormIcon(habit.icon);
     setFormTarget(habit.target);
+    setFormUnit(habit.unit || '');
     setFormStartDate(habit.startDate);
     setFormUseCounter(habit.useCounter);
     setIsEditModalOpen(true);
@@ -229,6 +231,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
          title: formTitle,
          icon: formIcon,
          target: finalTarget,
+         unit: formUnit,
          startDate: formStartDate,
          useCounter: formUseCounter
        } : h));
@@ -237,6 +240,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
          title: encryptData(formTitle), // Encrypt Title
          icon: formIcon,
          target: finalTarget,
+         unit: formUnit,
          start_date: formStartDate,
          use_counter: formUseCounter
        }).eq('id', selectedHabitId);
@@ -247,6 +251,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
         title: formTitle.trim(),
         icon: formIcon,
         target: finalTarget,
+        unit: formUnit,
         startDate: formStartDate,
         useCounter: formUseCounter,
         progress: {},
@@ -261,6 +266,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
         title: encryptData(newHabit.title), // Encrypt Title
         icon: newHabit.icon,
         target: newHabit.target,
+        unit: newHabit.unit,
         start_date: newHabit.startDate,
         use_counter: newHabit.useCounter,
         progress: {},
@@ -269,11 +275,31 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
     }
   };
 
-  const handleDeleteHabit = async (id: string) => {
-    if (confirm('Are you sure you want to delete this habit?')) {
+  const handleDeleteHabit = async (id: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    
+    if (window.confirm('Are you sure you want to delete this habit permanently?')) {
+      // Optimistic Update
       setHabits(prev => prev.filter(h => h.id !== id));
       setSelectedHabitId(null);
-      await supabase.from('habits').delete().eq('id', id);
+      
+      try {
+        const { error } = await supabase
+          .from('habits')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', userId); // Explicitly match user_id for RLS safety
+
+        if (error) {
+          throw error;
+        }
+      } catch (err) {
+        console.error("Error deleting habit:", err);
+        alert("Failed to delete habit from the server. Please refresh.");
+      }
     }
   };
 
@@ -322,6 +348,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
         <div className="animate-in slide-in-from-right duration-300">
           <div className="mb-6 flex items-center justify-between">
             <button 
+              type="button"
               onClick={() => setSelectedHabitId(null)}
               className="flex items-center gap-2 px-4 py-2 bg-white border border-[#edebe9] text-[#605e5c] rounded hover:bg-[#f3f2f1] transition-all font-bold text-sm shadow-sm"
             >
@@ -330,12 +357,22 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
             </button>
             <div className="flex items-center gap-2">
               <button 
+                type="button"
                 onClick={() => openEditModal(selectedHabit)} 
                 className="flex items-center gap-2 px-4 py-2 bg-white border border-[#edebe9] text-[#605e5c] hover:bg-[#faf9f8] rounded transition-colors shadow-sm font-bold text-sm" 
                 title="Edit Habit"
               >
                 <Edit2 className="w-4 h-4" />
-                <span>Edit Habit</span>
+                <span className="hidden sm:inline">Edit Habit</span>
+              </button>
+              <button 
+                type="button"
+                onClick={(e) => handleDeleteHabit(selectedHabit.id, e)}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-red-100 text-[#a4262c] hover:bg-red-50 rounded transition-colors shadow-sm font-bold text-sm"
+                title="Delete Habit"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Delete</span>
               </button>
             </div>
           </div>
@@ -350,7 +387,9 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
               <div className="flex flex-wrap gap-4 text-xs font-medium text-[#605e5c]">
                 <span className="flex items-center gap-1.5 px-2.5 py-1 bg-[#f3f2f1] rounded">
                   <Target className="w-3.5 h-3.5 text-[#0078d4]" />
-                  {selectedHabit.useCounter ? `Goal: ${selectedHabit.target}/day` : 'Daily Check-in'}
+                  {selectedHabit.useCounter 
+                    ? `Goal: ${selectedHabit.target} ${selectedHabit.unit || 'count'}/day` 
+                    : 'Daily Check-in'}
                 </span>
                 <span className="flex items-center gap-1.5 px-2.5 py-1 bg-[#f3f2f1] rounded">
                   <Calendar className="w-3.5 h-3.5 text-[#0078d4]" />
@@ -456,9 +495,10 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
                         >
                           <Minus className="w-4 h-4" />
                         </button>
-                        <div className="flex-1 text-center font-bold text-lg text-[#323130]">
+                        <div className="flex-1 text-center font-bold text-lg text-[#323130] flex items-center justify-center gap-1">
                           {selectedHabit.progress[editingDay] || 0}
                           <span className="text-xs text-[#a19f9d] font-medium">/{selectedHabit.target}</span>
+                          <span className="text-xs text-[#605e5c] font-normal">{selectedHabit.unit}</span>
                         </div>
                         <button 
                           onClick={() => updateDayStatus(selectedHabit.id, editingDay, (selectedHabit.progress[editingDay] || 0) + 1, false)}
@@ -500,23 +540,14 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
             )}
           </div>
           
-           <div className="mt-8 flex justify-center">
-              <button 
-                onClick={() => handleDeleteHabit(selectedHabit.id)}
-                className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-[#a4262c] hover:bg-red-50 rounded transition-colors border border-transparent hover:border-red-100"
-              >
-                <Trash2 className="w-4 h-4" /> Delete Habit Permanently
-              </button>
-            </div>
+           {/* Bottom Delete Button Removed */}
         </div>
       ) : (
         // --- List View (Default) ---
         <div className="animate-in fade-in duration-500">
-          <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-2xl font-black text-[#323130] tracking-tight">Tracker</h3>
-              <p className="text-[11px] font-bold text-[#a19f9d] uppercase tracking-widest">Consistency is key</p>
-            </div>
+          <div className="mb-8 flex items-center justify-between">
+            {/* Header copy removed as per request */}
+            <div className="flex-1"></div> 
             <div className="flex items-center gap-3 w-full md:w-auto">
               <button 
                 onClick={openCreateModal}
@@ -560,7 +591,13 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="text-base font-bold text-[#323130] truncate">{habit.title}</h4>
-                        <div className="flex flex-wrap gap-2 mt-1.5">
+                         {/* UNIT DISPLAY IN LIST VIEW */}
+                         {habit.useCounter && (
+                            <div className="text-xs text-[#a19f9d] font-medium mt-0.5">
+                                Goal: {habit.target} {habit.unit || 'count'} / day
+                            </div>
+                         )}
+                        <div className="flex flex-wrap gap-2 mt-2">
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#605e5c] bg-[#f3f2f1] px-1.5 py-0.5 rounded">
                             <Trophy className="w-3 h-3 text-[#d83b01]" /> {total}
                           </span>
@@ -586,7 +623,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
                           return (
                             <div key={date} className="flex flex-col items-center gap-1">
                               <button 
-                                title={isBeforeStart ? "Not started yet" : `${date}: ${count}/${habit.target}`}
+                                type="button"
+                                title={isBeforeStart ? "Not started yet" : `${date}: ${count} ${habit.unit || ''}/${habit.target}`}
                                 onClick={(e) => incrementCount(habit.id, date, e)}
                                 disabled={isBeforeStart}
                                 className={`w-6 h-6 rounded flex items-center justify-center border transition-all text-[9px] font-bold ${statusClass}`}
@@ -612,7 +650,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
            <div className="bg-white w-[95%] md:w-full max-w-md rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh]">
              <div className="flex items-center justify-between px-6 py-5 border-b border-[#f3f2f1]">
               <h3 className="text-lg font-black text-[#323130] tracking-tight">{isEditModalOpen ? 'Edit Habit' : 'New Habit'}</h3>
-              <button onClick={() => { setIsCreateModalOpen(false); setIsEditModalOpen(false); }} className="p-1.5 text-[#a19f9d] hover:bg-[#f3f2f1] rounded transition-colors">
+              <button type="button" onClick={() => { setIsCreateModalOpen(false); setIsEditModalOpen(false); }} className="p-1.5 text-[#a19f9d] hover:bg-[#f3f2f1] rounded transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -642,17 +680,33 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId }
 
               {formUseCounter && (
                 <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
-                  <label className="text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">Daily Target (Count)</label>
-                  <div className="flex items-center gap-3">
-                     <button type="button" onClick={() => setFormTarget(Math.max(1, formTarget - 1))} className="w-10 h-10 rounded bg-[#f3f2f1] flex items-center justify-center hover:bg-[#edebe9]"><Minus className="w-4 h-4 text-[#605e5c]" /></button>
-                     <input 
-                      type="number" 
-                      min="1" 
-                      value={formTarget} 
-                      onChange={(e) => setFormTarget(parseInt(e.target.value) || 1)} 
-                      className="flex-1 text-center text-lg font-bold bg-[#faf9f8] border-none rounded p-2"
-                     />
-                     <button type="button" onClick={() => setFormTarget(formTarget + 1)} className="w-10 h-10 rounded bg-[#f3f2f1] flex items-center justify-center hover:bg-[#edebe9]"><Plus className="w-4 h-4 text-[#605e5c]" /></button>
+                  <label className="text-[10px] font-black text-[#a19f9d] uppercase tracking-widest">Daily Target & Unit</label>
+                  <div className="flex gap-4">
+                     {/* Counter Section (50%) */}
+                     <div className="flex items-center gap-1 bg-[#faf9f8] rounded border border-transparent p-1 w-1/2">
+                        <button type="button" onClick={() => setFormTarget(Math.max(1, formTarget - 1))} className="w-8 h-8 rounded bg-white shadow-sm flex items-center justify-center hover:bg-[#edebe9]"><Minus className="w-3 h-3 text-[#605e5c]" /></button>
+                        <input 
+                            type="number" 
+                            min="1" 
+                            value={formTarget} 
+                            onChange={(e) => setFormTarget(parseInt(e.target.value) || 1)} 
+                            className="flex-1 text-center text-lg font-bold bg-transparent border-none p-0 focus:ring-0 w-full"
+                        />
+                        <button type="button" onClick={() => setFormTarget(formTarget + 1)} className="w-8 h-8 rounded bg-white shadow-sm flex items-center justify-center hover:bg-[#edebe9]"><Plus className="w-3 h-3 text-[#605e5c]" /></button>
+                     </div>
+                     {/* Unit Section (50%) */}
+                     <div className="w-1/2">
+                        <div className="relative h-full">
+                            <input 
+                                type="text"
+                                placeholder="Unit Name" 
+                                value={formUnit}
+                                onChange={e => setFormUnit(e.target.value)}
+                                className="w-full h-full text-sm font-semibold bg-[#faf9f8] border-none rounded p-3 pl-9 focus:ring-2 focus:ring-[#0078d4]/20"
+                            />
+                            <Ruler className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#a19f9d]" />
+                        </div>
+                     </div>
                   </div>
                 </div>
               )}

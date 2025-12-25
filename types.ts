@@ -54,6 +54,7 @@ export interface Habit {
   title: string;
   icon: string; // Emoji
   target: number; // Daily target count (e.g., 10 times)
+  unit?: string; // Custom unit name (e.g., "liters", "pages", "steps")
   startDate: string; // ISO Date string (YYYY-MM-DD)
   useCounter: boolean; // Whether to track count or just simple completion
   progress: Record<string, number>; // Date (ISO) -> Count

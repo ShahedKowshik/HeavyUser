@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, Search, Edit2, X, BookOpen, Image as ImageIcon, Sparkles } from 'lucide-react';
 import { JournalEntry, EntryType } from '../types';
@@ -107,9 +106,8 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <h3 className="text-2xl font-black text-[#323130] tracking-tight">Memories</h3>
-          <p className="text-[11px] font-bold text-[#a19f9d] uppercase tracking-widest">Chronicle your journey</p>
+        <div className="flex-1">
+           {/* Header text removed */}
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 self-stretch md:self-auto">
           <div className="flex bg-[#f3f2f1] p-1 rounded border border-[#edebe9]">
