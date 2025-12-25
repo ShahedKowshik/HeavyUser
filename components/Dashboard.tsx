@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle } from 'lucide-react';
+import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType } from '../types';
 import TaskSection from './TaskSection';
 import SettingsSection from './SettingsSection';
@@ -29,6 +29,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [isStreakModalOpen, setIsStreakModalOpen] = useState(false);
 
+  // Sidebar Collapse State with Persistence
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('heavyuser_sidebar_collapsed') === 'true';
+    }
+    return false;
+  });
+
   const [userSettings, setUserSettings] = useState<UserSettings>({
     userName: user.name,
     userId: user.id,
@@ -37,6 +45,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   });
 
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Toggle Sidebar Helper
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed(prev => {
+      const newState = !prev;
+      localStorage.setItem('heavyuser_sidebar_collapsed', String(newState));
+      return newState;
+    });
+  };
 
   // Fetch Data from Supabase
   useEffect(() => {
@@ -255,14 +272,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const NavItem = ({ id, label, icon: Icon }: { id: AppTab; label: string; icon: any }) => (
     <button
       onClick={() => setActiveTab(id)}
-      className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded transition-all duration-200 group ${
+      title={isSidebarCollapsed ? label : undefined}
+      className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2.5 rounded transition-all duration-200 group ${
         activeTab === id 
         ? 'bg-[#f3f3f3] text-[#0078d4] font-bold shadow-sm ring-1 ring-[#edebe9]' 
         : 'text-[#605e5c] hover:bg-[#f3f3f3] hover:text-[#323130] font-medium'
       }`}
     >
-      <Icon className={`w-4 h-4 transition-colors ${activeTab === id ? 'text-[#0078d4]' : 'text-[#a19f9d] group-hover:text-[#605e5c]'}`} />
-      <span className="text-sm">{label}</span>
+      <Icon className={`w-4.5 h-4.5 transition-colors ${activeTab === id ? 'text-[#0078d4]' : 'text-[#a19f9d] group-hover:text-[#605e5c]'}`} />
+      {!isSidebarCollapsed && <span className="text-sm whitespace-nowrap overflow-hidden">{label}</span>}
     </button>
   );
 
@@ -283,34 +301,49 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   return (
     <div className="flex h-screen bg-[#f3f3f3] text-[#323130] overflow-hidden font-sans selection:bg-[#0078d4]/20 selection:text-[#0078d4]">
       {/* Sidebar - Desktop */}
-      <aside className="hidden md:flex w-64 flex-col p-4 space-y-4 bg-white border-r border-[#edebe9] shrink-0 z-20">
-        <div className="flex items-center space-x-3 px-3 py-6">
-          <div className="w-8 h-8 bg-[#0078d4] rounded flex items-center justify-center shadow-sm">
+      <aside className={`hidden md:flex flex-col p-4 space-y-4 bg-white border-r border-[#edebe9] shrink-0 z-20 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20 items-center' : 'w-64'}`}>
+        <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'space-x-3 px-3'} py-6 relative`}>
+          <div className="w-8 h-8 bg-[#0078d4] rounded flex items-center justify-center shadow-sm shrink-0">
             <LayoutGrid className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-lg font-bold tracking-tight">HeavyUser</h1>
+          {!isSidebarCollapsed && (
+             <h1 className="text-lg font-bold tracking-tight whitespace-nowrap overflow-hidden transition-opacity duration-300">HeavyUser</h1>
+          )}
         </div>
 
-        <nav className="flex-1 space-y-1">
+        <nav className="flex-1 space-y-1 w-full">
           <NavItem id="tasks" label="Tasks" icon={CheckCircle2} />
           <NavItem id="habit" label="Habit" icon={Zap} />
           <NavItem id="journal" label="Journal" icon={BookOpen} />
         </nav>
 
-        <div className="pt-4 border-t border-[#edebe9]">
+        <div className={`pt-4 border-t border-[#edebe9] w-full flex flex-col gap-1`}>
+          <button 
+             onClick={toggleSidebar}
+             className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-3 px-3'} py-2 mb-2 text-[#a19f9d] hover:bg-[#f3f3f3] hover:text-[#605e5c] rounded transition-all`}
+             title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+           >
+              {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+              {!isSidebarCollapsed && <span className="text-xs font-bold whitespace-nowrap">Collapse</span>}
+           </button>
+
           <NavItem id="settings" label="Settings" icon={Settings} />
-          <div className="mt-4 p-3 rounded border border-[#edebe9] flex items-center space-x-3 bg-white shadow-sm">
+          
+          <div className={`mt-4 p-2 rounded border border-[#edebe9] flex items-center ${isSidebarCollapsed ? 'justify-center bg-transparent border-transparent' : 'space-x-3 bg-white'} shadow-sm transition-all duration-300`}>
             {userSettings.profilePicture ? (
-              <img src={userSettings.profilePicture} alt="Profile" className="w-9 h-9 rounded object-cover shadow-inner bg-[#edebe9]" />
+              <img src={userSettings.profilePicture} alt="Profile" className="w-9 h-9 rounded object-cover shadow-inner bg-[#edebe9] shrink-0" />
             ) : (
-              <div className="w-9 h-9 rounded bg-[#eff6fc] text-[#0078d4] flex items-center justify-center text-xs font-black shadow-inner">
+              <div className="w-9 h-9 rounded bg-[#eff6fc] text-[#0078d4] flex items-center justify-center text-xs font-black shadow-inner shrink-0">
                 {userSettings.userName.split(' ').map(n => n[0]).join('').toUpperCase()}
               </div>
             )}
-            <div className="overflow-hidden">
-              <p className="text-xs font-bold truncate text-[#323130]">{userSettings.userName}</p>
-              <p className="text-[10px] text-[#a19f9d] font-mono font-medium truncate">{user.email}</p>
-            </div>
+            
+            {!isSidebarCollapsed && (
+               <div className="overflow-hidden">
+                <p className="text-xs font-bold truncate text-[#323130]">{userSettings.userName}</p>
+                <p className="text-[10px] text-[#a19f9d] font-mono font-medium truncate">{user.email}</p>
+              </div>
+            )}
           </div>
         </div>
       </aside>
