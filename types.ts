@@ -22,6 +22,14 @@ export interface Subtask {
   completed: boolean;
 }
 
+export interface Recurrence {
+  type: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  interval: number;
+  weekDays?: number[]; // 0 (Sun) - 6 (Sat)
+  monthDays?: number[]; // 1 - 31
+  yearDays?: { month: number; day: number }[]; // month: 0-11, day: 1-31
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -33,6 +41,7 @@ export interface Task {
   subtasks: Subtask[];
   tags?: string[];
   notes?: string;
+  recurrence?: Recurrence | null;
   createdAt?: string; // ISO string
   updatedAt?: string; // ISO string
 }

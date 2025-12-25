@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType } from '../types';
@@ -80,6 +81,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             title: decryptData(s.title)
           })), 
           tags: t.tags || [],
+          recurrence: t.recurrence, // Map recurrence field
           notes: decryptData(t.notes), // Decrypt Notes
           createdAt: t.created_at, // Map DB created_at
           updatedAt: t.updated_at // Map DB updated_at
