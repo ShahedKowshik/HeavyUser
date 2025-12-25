@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft, Notebook } from 'lucide-react';
-import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note } from '../types';
+import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder } from '../types';
 import TaskSection from './TaskSection';
 import SettingsSection from './SettingsSection';
 import JournalSection from './JournalSection';
@@ -33,6 +33,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [isStreakModalOpen, setIsStreakModalOpen] = useState(false);
 
   // Sidebar Collapse State with Persistence
@@ -167,7 +168,22 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         setJournals(mappedJournals);
       }
 
-      // 5. Fetch Notes (AND DECRYPT)
+      // 5. Fetch Folders (AND DECRYPT)
+      const { data: foldersData } = await supabase
+        .from('folders')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
+
+      if (foldersData) {
+        const mappedFolders: Folder[] = foldersData.map((f: any) => ({
+          id: f.id,
+          name: decryptData(f.name)
+        }));
+        setFolders(mappedFolders);
+      }
+
+      // 6. Fetch Notes (AND DECRYPT)
       const { data: notesData } = await supabase
         .from('notes')
         .select('*')
@@ -179,6 +195,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           id: n.id,
           title: decryptData(n.title),
           content: decryptData(n.content),
+          folderId: n.folder_id, // Map DB folder_id
           createdAt: n.created_at,
           updatedAt: n.updated_at
         }));
@@ -294,7 +311,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       case 'journal':
         return <JournalSection journals={journals} setJournals={setJournals} userId={userId} />;
       case 'notes':
-        return <NotesSection notes={notes} setNotes={setNotes} userId={userId} />;
+        return <NotesSection notes={notes} setNotes={setNotes} folders={folders} setFolders={setFolders} userId={userId} />;
       case 'settings':
         return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} />;
       default:
@@ -333,6 +350,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       <span className="text-[10px] font-bold">{label}</span>
     </button>
   );
+
+  const isNotesTab = activeTab === 'notes';
 
   return (
     <div className="flex h-screen bg-slate-100 text-slate-800 overflow-hidden font-sans selection:bg-[#0078d4]/20 selection:text-[#0078d4]">
@@ -386,8 +405,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 relative flex flex-col overflow-y-auto bg-slate-50/50 pb-20 md:pb-0">
-        <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-8 py-4 bg-white/90 backdrop-blur-md border-b border-slate-200">
+      <main className={`flex-1 relative flex flex-col ${isNotesTab ? 'overflow-hidden' : 'overflow-y-auto'} bg-slate-50/50 pb-20 md:pb-0`}>
+        <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-8 py-4 bg-white/90 backdrop-blur-md border-b border-slate-200 shrink-0">
           <h2 className="text-xl font-black capitalize text-slate-800 tracking-tight">{activeTab}</h2>
           <div className="flex items-center space-x-4">
             
@@ -439,7 +458,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           </div>
         </header>
 
-        <div className="p-4 md:p-8 mx-auto w-full h-full max-w-7xl">
+        <div className={`mx-auto w-full h-full ${isNotesTab ? 'max-w-none h-full flex flex-col' : 'p-4 md:p-8 max-w-7xl'}`}>
           {renderContent()}
         </div>
       </main>

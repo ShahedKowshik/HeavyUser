@@ -72,10 +72,16 @@ export interface Habit {
   completedDates?: string[]; 
 }
 
+export interface Folder {
+  id: string;
+  name: string;
+}
+
 export interface Note {
   id: string;
   title: string;
-  content: string;
+  content: string; // HTML string for Rich Text
+  folderId?: string | null;
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
 }
