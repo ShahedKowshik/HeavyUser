@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft } from 'lucide-react';
-import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType } from '../types';
+import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft, Notebook } from 'lucide-react';
+import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note } from '../types';
 import TaskSection from './TaskSection';
 import SettingsSection from './SettingsSection';
 import JournalSection from './JournalSection';
 import HabitSection from './HabitSection';
+import NotesSection from './NotesSection';
 import { supabase } from '../lib/supabase';
 import { decryptData } from '../lib/crypto';
 
@@ -31,6 +32,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [tags, setTags] = useState<Tag[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [isStreakModalOpen, setIsStreakModalOpen] = useState(false);
 
   // Sidebar Collapse State with Persistence
@@ -164,6 +166,24 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         }));
         setJournals(mappedJournals);
       }
+
+      // 5. Fetch Notes (AND DECRYPT)
+      const { data: notesData } = await supabase
+        .from('notes')
+        .select('*')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false });
+
+      if (notesData) {
+        const mappedNotes: Note[] = notesData.map((n: any) => ({
+          id: n.id,
+          title: decryptData(n.title),
+          content: decryptData(n.content),
+          createdAt: n.created_at,
+          updatedAt: n.updated_at
+        }));
+        setNotes(mappedNotes);
+      }
     };
 
     fetchData();
@@ -215,6 +235,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     // 3. Journal Entries
     journals.forEach(j => activeDates.add(j.timestamp.split('T')[0]));
 
+    // 4. Notes Activity
+    notes.forEach(n => activeDates.add(n.updatedAt.split('T')[0]));
+
     const sortedDates = Array.from(activeDates).sort().reverse();
     const today = getDateOffset(0);
     const yesterday = getDateOffset(-1);
@@ -250,7 +273,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     }
 
     return { count: currentStreak, activeToday: hasActivityToday, history: sortedDates };
-  }, [tasks, habits, journals]);
+  }, [tasks, habits, journals, notes]);
 
   // --- Urgent Tasks Alert Logic ---
   const urgentTasksTodayCount = useMemo(() => {
@@ -270,6 +293,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         return <HabitSection habits={habits} setHabits={setHabits} userId={userId} />;
       case 'journal':
         return <JournalSection journals={journals} setJournals={setJournals} userId={userId} />;
+      case 'notes':
+        return <NotesSection notes={notes} setNotes={setNotes} userId={userId} />;
       case 'settings':
         return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} />;
       default:
@@ -326,6 +351,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           <NavItem id="tasks" label="Tasks" icon={CheckCircle2} />
           <NavItem id="habit" label="Habit" icon={Zap} />
           <NavItem id="journal" label="Journal" icon={BookOpen} />
+          <NavItem id="notes" label="Notes" icon={Notebook} />
         </nav>
 
         <div className={`pt-4 border-t border-slate-200 w-full flex flex-col gap-1`}>
@@ -486,6 +512,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                          </div>
                          <span className="text-sm font-semibold text-slate-800">Write a Journal Entry</span>
                       </div>
+                      <div className="flex items-center gap-3 p-3 bg-slate-50 rounded border border-slate-200">
+                         <div className="w-8 h-8 rounded bg-slate-50 text-slate-600 flex items-center justify-center border border-slate-100">
+                           <Notebook className="w-4 h-4" />
+                         </div>
+                         <span className="text-sm font-semibold text-slate-800">Update a Note</span>
+                      </div>
                    </div>
                 </div>
                 
@@ -527,6 +559,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         <MobileNavItem id="tasks" label="Tasks" icon={CheckCircle2} />
         <MobileNavItem id="habit" label="Habit" icon={Zap} />
         <MobileNavItem id="journal" label="Journal" icon={BookOpen} />
+        <MobileNavItem id="notes" label="Notes" icon={Notebook} />
         <MobileNavItem id="settings" label="Settings" icon={Settings} />
       </nav>
     </div>

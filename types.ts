@@ -1,5 +1,5 @@
 
-export type AppTab = 'tasks' | 'habit' | 'journal' | 'settings';
+export type AppTab = 'tasks' | 'habit' | 'journal' | 'notes' | 'settings';
 
 export type Priority = 'Urgent' | 'High' | 'Normal' | 'Low';
 
@@ -70,6 +70,14 @@ export interface Habit {
   skippedDates: string[]; // Array of ISO Date strings that are exempted
   /** @deprecated kept for backward compatibility if needed during migration, prefer progress */
   completedDates?: string[]; 
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
 }
 
 export interface UserSettings {
