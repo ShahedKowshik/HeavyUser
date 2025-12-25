@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, Lock, Mail, AlertCircle, Github, Twitter, Moon } from 'lucide-react';
 import { UserSettings } from '../types';
@@ -122,7 +121,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
   };
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 relative">
+    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 relative pb-24 md:pb-0">
       {/* Toast Notification */}
       {toast && (
         <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-4 py-3 rounded-lg shadow-xl z-50 animate-in slide-in-from-bottom-4 fade-in flex items-center gap-3">
