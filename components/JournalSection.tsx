@@ -127,7 +127,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
           </div>
           <button onClick={openCreateModal} className="flex items-center justify-center gap-2 px-6 py-2.5 fluent-btn-primary rounded shadow-md active:scale-95 transition-transform">
             <Plus className="w-4 h-4" />
-            <span className="text-sm font-bold">New</span>
+            <span className="text-sm font-bold">New Journal</span>
           </button>
         </div>
       </div>

@@ -717,7 +717,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
               <button onClick={openCreateModal} className="flex items-center gap-2 px-6 py-2.5 fluent-btn-primary rounded shadow-md active:scale-95 transition-transform whitespace-nowrap">
                 <Plus className="w-4 h-4" />
-                <span className="text-sm font-bold">New</span>
+                <span className="text-sm font-bold">New Task</span>
               </button>
             </>
           )}
@@ -741,7 +741,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
         )}
       </div>
 
-      {/* Task Details Modal (Same as before but with colors updated) */}
+      {/* Task Details Modal (Edit) */}
       {selectedTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
            <div className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl flex flex-col overflow-hidden max-h-[85vh] md:max-h-[90vh]">
@@ -991,6 +991,165 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                 <Trash2 className="w-3.5 h-3.5" /> Delete Task
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW TASK CREATION MODAL (Restored) */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl flex flex-col overflow-hidden max-h-[85vh] md:max-h-[90vh]">
+            <div className="px-5 py-4 border-b border-[#f3f2f1] flex items-center justify-between bg-[#faf9f8]">
+               <h3 className="text-lg font-black text-[#323130] tracking-tight">New Task</h3>
+               <button onClick={closeModal} className="p-1.5 text-[#a19f9d] hover:bg-[#edebe9] rounded transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateTask} className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* Title */}
+                    <div>
+                        <input
+                            autoFocus
+                            type="text"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            placeholder="What needs to be done?"
+                            className="w-full text-xl font-bold text-[#323130] bg-transparent border-none p-0 focus:ring-0 placeholder:text-[#d1d1d1]"
+                        />
+                    </div>
+
+                    {/* Properties */}
+                    <div className="space-y-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                             {/* Date */}
+                             <div className="space-y-1.5">
+                                <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest"><Calendar className="w-3 h-3"/> Due Date</label>
+                                <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]" />
+                             </div>
+                             {/* Time */}
+                             <div className="space-y-1.5">
+                                <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest"><Clock className="w-3 h-3"/> Time (Opt)</label>
+                                <input type="time" value={dueTime} onChange={e => setDueTime(e.target.value)} className="w-full text-sm font-semibold bg-[#faf9f8] border border-[#edebe9] rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]" />
+                             </div>
+                        </div>
+
+                        {/* Priority */}
+                        <div className="space-y-1.5">
+                             <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest"><AlertCircle className="w-3 h-3"/> Urgency</label>
+                             <div className="flex gap-1 p-1 bg-[#f3f2f1] rounded border border-[#edebe9]">
+                                {priorities.map(p => (
+                                    <button key={p} type="button" onClick={() => setPriority(p)} className={`flex-1 py-2 text-[10px] font-bold rounded transition-all flex items-center justify-center gap-1 ${priority === p ? 'bg-white text-[#0078d4] shadow-sm' : 'text-[#605e5c] hover:bg-[#edebe9]'}`}>
+                                        {renderPriorityIcon(p)} {p}
+                                    </button>
+                                ))}
+                             </div>
+                        </div>
+
+                        {/* Tags */}
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                                <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest"><TagIcon className="w-3 h-3"/> Labels</label>
+                                {!isCreatingTagInline && <button type="button" onClick={() => setIsCreatingTagInline(true)} className="text-[10px] font-bold text-[#0078d4] hover:underline flex items-center gap-1"><Plus className="w-3 h-3"/> Create New</button>}
+                            </div>
+                             {isCreatingTagInline ? (
+                                  <div className="bg-[#faf9f8] p-3 rounded border border-[#edebe9] space-y-3 animate-in fade-in zoom-in-95">
+                                    <div className="space-y-1">
+                                      <input 
+                                        type="text" 
+                                        value={inlineTagLabel} 
+                                        onChange={(e) => setInlineTagLabel(e.target.value)} 
+                                        placeholder="Label name..." 
+                                        className="w-full text-xs font-semibold bg-white border border-[#edebe9] rounded p-2 focus:ring-1 focus:ring-[#0078d4]" 
+                                        autoFocus
+                                      />
+                                    </div>
+                                    <div className="flex gap-2 flex-wrap max-h-24 overflow-y-auto">
+                                      {PRESET_COLORS.map(color => (
+                                        <button 
+                                          key={color} 
+                                          type="button"
+                                          onClick={() => setInlineTagColor(color)}
+                                          className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${inlineTagColor === color ? 'ring-2 ring-offset-1 ring-[#605e5c]' : ''}`}
+                                          style={{ backgroundColor: color }}
+                                        >
+                                          {inlineTagColor === color && <Check className="w-3 h-3 text-white" />}
+                                        </button>
+                                      ))}
+                                    </div>
+                                    <div className="flex justify-end gap-2 pt-1">
+                                      <button type="button" onClick={() => setIsCreatingTagInline(false)} className="px-3 py-1 text-xs font-bold text-[#605e5c] hover:bg-[#edebe9] rounded">Cancel</button>
+                                      <button type="button" onClick={handleAddInlineTag} disabled={!inlineTagLabel.trim()} className="px-3 py-1 text-xs font-bold bg-[#0078d4] text-white rounded hover:bg-[#106ebe] disabled:opacity-50">Add Label</button>
+                                    </div>
+                                  </div>
+                             ) : (
+                                <div className="flex flex-wrap gap-2 p-2 bg-[#faf9f8] rounded border border-[#edebe9] min-h-[44px]">
+                                    {tags.length > 0 ? tags.map(tag => {
+                                        const isActive = selectedTags.includes(tag.id);
+                                        return (
+                                            <button key={tag.id} type="button" onClick={() => {
+                                                if (isActive) setSelectedTags(prev => prev.filter(t => t !== tag.id));
+                                                else setSelectedTags(prev => [...prev, tag.id]);
+                                            }} className={`flex items-center gap-1 text-[10px] font-bold px-3 py-1.5 rounded border transition-all ${isActive ? 'border-transparent ring-1 ring-offset-1 ring-[#0078d4]' : 'border-[#edebe9] text-[#605e5c] bg-white hover:bg-[#f3f2f1]'}`} style={isActive ? {backgroundColor: `${tag.color}20`, color: tag.color} : {}}>
+                                                <TagIcon className="w-3 h-3"/> {tag.label}
+                                            </button>
+                                        )
+                                    }) : <span className="text-xs text-[#a19f9d] italic pl-1">No labels available.</span>}
+                                </div>
+                             )}
+                        </div>
+                    </div>
+
+                    <div className="h-px bg-[#f3f2f1]" />
+
+                    {/* Subtasks */}
+                    <div className="space-y-3">
+                         <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest"><ListChecks className="w-3 h-3"/> Subtasks</label>
+                         <div className="space-y-2">
+                            {createSubtasks.map((st, idx) => (
+                                <div key={idx} className="flex items-center gap-3 group p-2 rounded hover:bg-[#faf9f8]">
+                                    <button type="button" onClick={() => {
+                                        const newSt = [...createSubtasks];
+                                        newSt[idx].completed = !newSt[idx].completed;
+                                        setCreateSubtasks(newSt);
+                                    }} className="text-[#a19f9d] hover:text-[#0078d4]">
+                                        {st.completed ? <CheckSquare className="w-4 h-4 text-[#107c10]"/> : <Square className="w-4 h-4 rounded"/>}
+                                    </button>
+                                    <span className={`text-sm font-medium flex-1 ${st.completed ? 'line-through text-[#a19f9d]' : 'text-[#323130]'}`}>{st.title}</span>
+                                    <button type="button" onClick={() => setCreateSubtasks(prev => prev.filter((_, i) => i !== idx))} className="text-[#a4262c] p-1.5 hover:bg-red-50 rounded"><Trash2 className="w-3.5 h-3.5"/></button>
+                                </div>
+                            ))}
+                            <div className="flex items-center gap-3 p-2">
+                                <Plus className="w-4 h-4 text-[#0078d4]"/>
+                                <input type="text" placeholder="Add step..." className="flex-1 text-sm bg-transparent border-none p-0 focus:ring-0 placeholder:text-[#a19f9d]" onKeyDown={(e) => {
+                                    if(e.key === 'Enter') {
+                                        e.preventDefault();
+                                        const val = e.currentTarget.value.trim();
+                                        if(val) {
+                                            setCreateSubtasks(prev => [...prev, {title: val, completed: false}]);
+                                            e.currentTarget.value = '';
+                                        }
+                                    }
+                                }}/>
+                            </div>
+                         </div>
+                    </div>
+
+                    <div className="h-px bg-[#f3f2f1]" />
+                    
+                    {/* Notes */}
+                    <div className="space-y-2">
+                        <label className="flex items-center gap-1.5 text-[10px] font-black text-[#a19f9d] uppercase tracking-widest"><FileText className="w-3 h-3"/> Notes</label>
+                        <textarea value={createNotes} onChange={e => setCreateNotes(e.target.value)} placeholder="Add details..." className="w-full h-32 text-xs leading-relaxed bg-[#faf9f8] border border-[#edebe9] rounded p-4 resize-none focus:ring-1 focus:ring-[#0078d4] font-mono" />
+                    </div>
+                </div>
+                
+                <div className="p-4 border-t border-[#f3f2f1] bg-[#faf9f8] flex justify-end gap-3">
+                    <button type="button" onClick={closeModal} className="px-5 py-2 text-sm font-bold text-[#605e5c] hover:bg-[#edebe9] rounded">Cancel</button>
+                    <button type="submit" className="px-8 py-2 text-sm font-bold fluent-btn-primary rounded shadow-lg">Create Task</button>
+                </div>
+            </form>
           </div>
         </div>
       )}
