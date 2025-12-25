@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Plus, Trash2, CheckCircle2, X, SlidersHorizontal, ChevronRight, ListChecks, History, Tag as TagIcon, Calendar, Clock, AlertCircle, FileText, Check, MoreHorizontal, Flag, ArrowRight, CornerDownLeft, ArrowUp, ArrowDown, Flame, Circle, CheckSquare, Square, ArrowLeft, PenLine, Eye, Edit2, Repeat, ChevronDown } from 'lucide-react';
@@ -66,7 +67,6 @@ const getNextDate = (currentDateStr: string, r: Recurrence): string => {
     const days = (r.weekDays && r.weekDays.length > 0) ? [...r.weekDays].sort((a,b)=>a-b) : [currentDay];
 
     // Check if there is a later day in the current interval week?
-    // We treat the current week as valid for the first iteration.
     const nextDayInWeek = days.find(day => day > currentDay);
     
     if (nextDayInWeek !== undefined) {
@@ -74,10 +74,7 @@ const getNextDate = (currentDateStr: string, r: Recurrence): string => {
        return date.toISOString().split('T')[0];
     } else {
        // Move to next interval
-       // Calculate start of current week (Sunday)
        const daysSinceSun = currentDay;
-       // We need to jump to Sunday of the next Interval week
-       // diff = (7 - currentDay) + (interval-1)*7 + firstAllowedDay
        const firstAllowed = days[0];
        const daysToAdd = (7 - currentDay) + ((r.interval - 1) * 7) + firstAllowed;
        date.setUTCDate(date.getUTCDate() + daysToAdd);
@@ -652,7 +649,24 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   };
 
   const activeTasksGroups = useMemo(() => processList(tasks.filter(t => !t.completed)), [tasks, grouping, sorting, tags, filterTags]);
-  const completedTasksGroups = useMemo(() => processList(tasks.filter(t => t.completed)), [tasks, grouping, sorting, tags, filterTags]);
+  
+  // Custom logic for completed tasks: No grouping, sorted by completion date (latest first)
+  const completedTasksGroups = useMemo(() => {
+     let list = tasks.filter(t => t.completed);
+     
+     if (filterTags.size > 0) {
+       list = list.filter(t => t.tags?.some(tagId => filterTags.has(tagId)));
+     }
+     
+     // Sort by completedAt desc (fallback to updatedAt or creation)
+     list.sort((a, b) => {
+        const dateA = a.completedAt || a.updatedAt || a.createdAt || '';
+        const dateB = b.completedAt || b.updatedAt || b.createdAt || '';
+        return dateB.localeCompare(dateA);
+     });
+     
+     return [{ title: '', tasks: list }];
+  }, [tasks, tags, filterTags]);
 
   const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => (
     <div className="space-y-4 pb-20">
@@ -835,13 +849,22 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
         {/* Header Actions */}
         <div className="flex items-center justify-between">
            <div className="flex-1"></div>
-           <button 
-              onClick={openCreateModal}
-              className="flex items-center justify-center gap-2 px-6 py-2.5 fluent-btn-primary rounded shadow-md active:scale-95 transition-transform text-sm font-bold"
-           >
-              <Plus className="w-4 h-4" />
-              <span>New Task</span>
-           </button>
+           <div className="flex items-center gap-3">
+              <button 
+                  onClick={() => setIsTagManagerOpen(true)} 
+                  className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded hover:bg-slate-50 transition-all text-sm font-bold shadow-sm"
+               >
+                  <TagIcon className="w-4 h-4" />
+                  <span>Labels</span>
+               </button>
+               <button 
+                  onClick={openCreateModal}
+                  className="flex items-center justify-center gap-2 px-6 py-2.5 fluent-btn-primary rounded shadow-md active:scale-95 transition-transform text-sm font-bold"
+               >
+                  <Plus className="w-4 h-4" />
+                  <span>New Task</span>
+               </button>
+           </div>
         </div>
 
         {/* Toolbar */}
@@ -876,10 +899,6 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
             </div>
             
             <div className="flex-1" />
-            
-            <button onClick={() => setIsTagManagerOpen(true)} className="text-xs font-bold text-[#0078d4] hover:underline flex items-center gap-1">
-               <TagIcon className="w-3 h-3" /> Labels
-            </button>
         </div>
 
         {/* Tag Filters */}
@@ -1109,9 +1128,8 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
                {/* Notes */}
                <div className="space-y-2 flex-1 flex flex-col min-h-[150px]">
-                  <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><FileText className="w-3 h-3"/> Notes</label>
-                      <div className="flex bg-slate-100 p-0.5 rounded border border-slate-200">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><FileText className="w-3 h-3"/> Notes</label>
+                  <div className="flex bg-slate-100 p-0.5 rounded border border-slate-200">
                           <button 
                               onClick={() => setIsPreviewMode(false)}
                               className={`px-3 py-1 text-[10px] font-bold rounded flex items-center gap-1 transition-all ${!isPreviewMode ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
@@ -1125,7 +1143,6 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                               <Eye className="w-3 h-3" /> Preview
                           </button>
                       </div>
-                  </div>
                   
                   {isPreviewMode ? (
                       <div className="w-full h-full min-h-[8rem] overflow-y-auto bg-white border border-slate-200 rounded p-4">

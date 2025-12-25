@@ -1,16 +1,10 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { Task, JournalEntry } from "../types";
 
-// Safe access to API key to prevent browser crash if process is undefined
-const getApiKey = () => {
-  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-    return process.env.API_KEY;
-  }
-  return '';
-};
-
-const ai = new GoogleGenAI({ apiKey: getApiKey() });
+// The API key must be obtained exclusively from the environment variable process.env.API_KEY.
+// Using a fallback empty string to prevent potential runtime errors if env is missing during init, 
+// though actual calls will fail without a valid key.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
 export const getTaskAnalysis = async (tasks: Task[]): Promise<string> => {
   if (tasks.length === 0) return "Add some tasks to get an AI summary of your day!";
