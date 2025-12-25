@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, Lock, Mail, AlertCircle } from 'lucide-react';
+import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, Lock, Mail, AlertCircle, Github } from 'lucide-react';
 import { UserSettings } from '../types';
 import { supabase } from '../lib/supabase';
 
@@ -118,13 +119,24 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
             <h3 className="text-2xl font-black text-slate-800 tracking-tight">Configuration</h3>
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Manage your workspace</p>
          </div>
-         <button 
-          onClick={onLogout}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded hover:bg-slate-50 hover:text-[#a4262c] transition-all font-bold text-xs shadow-sm"
-         >
-           <LogOut className="w-4 h-4" />
-           <span className="hidden sm:inline">Sign Out</span>
-         </button>
+         <div className="flex items-center gap-3">
+             <a 
+               href="https://github.com/ShahedKowshik/HeavyUser"
+               target="_blank"
+               rel="noopener noreferrer"
+               className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded hover:bg-slate-50 hover:text-slate-900 transition-all font-bold text-xs shadow-sm"
+             >
+               <Github className="w-4 h-4" />
+               <span className="hidden sm:inline">GitHub</span>
+             </a>
+             <button 
+              onClick={onLogout}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded hover:bg-slate-50 hover:text-[#a4262c] transition-all font-bold text-xs shadow-sm"
+             >
+               <LogOut className="w-4 h-4" />
+               <span className="hidden sm:inline">Sign Out</span>
+             </button>
+         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
