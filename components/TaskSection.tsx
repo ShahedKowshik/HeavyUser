@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Plus, Trash2, CheckCircle2, X, SlidersHorizontal, ChevronRight, ListChecks, History, Tag as TagIcon, Calendar, Clock, AlertCircle, FileText, Check, MoreHorizontal, Flag, ArrowRight, CornerDownLeft, ArrowUp, ArrowDown, Flame, Circle, CheckSquare, Square, ArrowLeft, PenLine, Eye, Edit2, Repeat, ChevronDown } from 'lucide-react';
@@ -48,7 +47,6 @@ const PRESET_COLORS = [
 ];
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const getNextDate = (currentDateStr: string, r: Recurrence): string => {
   // Use UTC to prevent DST shifts affecting logic
@@ -154,8 +152,6 @@ const mapTaskToDb = (task: Task, userId: string) => ({
 
 const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
-  const [isViewMenuOpen, setIsViewMenuOpen] = useState(false);
   
   // Selection & View State
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -181,9 +177,6 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   const [isRecurrenceModalOpen, setIsRecurrenceModalOpen] = useState(false);
   const [recurrenceEditValue, setRecurrenceEditValue] = useState<Recurrence | null>(null);
   const [recurrenceCallback, setRecurrenceCallback] = useState<((r: Recurrence | null) => void) | null>(null);
-  // Temporary state for adding a yearly date
-  const [yearlyMonth, setYearlyMonth] = useState(0);
-  const [yearlyDay, setYearlyDay] = useState(1);
 
   // Inline Tag Creation State
   const [isCreatingTagInline, setIsCreatingTagInline] = useState(false);
@@ -336,25 +329,6 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
     setTasks(prev => prev.map(t => t.id === selectedTaskId ? { ...t, ...updates } : t));
   };
 
-  const handleAddTag = async () => {
-    if (!newTagLabel.trim()) return;
-    const newTag: Tag = {
-      id: crypto.randomUUID(),
-      label: newTagLabel.trim(),
-      color: newTagColor,
-    };
-    setTags([...tags, newTag]);
-    setNewTagLabel('');
-
-    // Sync to Supabase (Encrypted Label)
-    await supabase.from('tags').insert({
-      id: newTag.id,
-      user_id: userId,
-      label: encryptData(newTag.label),
-      color: newTag.color
-    });
-  };
-
   const handleAddInlineTag = async () => {
     if (!inlineTagLabel.trim()) return;
     const newTag: Tag = {
@@ -385,60 +359,6 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
       label: encryptData(newTag.label),
       color: newTag.color
     });
-  };
-
-  const handleDeleteTag = async (id: string) => {
-    if (!window.confirm("Delete this label? It will be removed from all tasks.")) return;
-    
-    setTags(tags.filter(t => t.id !== id));
-    setTasks(prev => prev.map(t => ({
-      ...t,
-      tags: t.tags?.filter(tagId => tagId !== id)
-    })));
-    
-    // Also remove from filters if deleted
-    if (filterTags.has(id)) {
-        const next = new Set(filterTags);
-        next.delete(id);
-        setFilterTags(next);
-    }
-
-    // Sync to Supabase
-    await supabase.from('tags').delete().eq('id', id);
-  };
-
-  const startEditingTag = (tag: Tag) => {
-    setEditingTagId(tag.id);
-    setEditTagLabel(tag.label);
-    setEditTagColor(tag.color);
-  };
-
-  const cancelEditingTag = () => {
-    setEditingTagId(null);
-    setEditTagLabel('');
-    setEditTagColor('');
-  };
-
-  const saveEditingTag = async () => {
-    if (!editingTagId || !editTagLabel.trim()) return;
-
-    const updatedTag = {
-      id: editingTagId,
-      label: editTagLabel.trim(),
-      color: editTagColor
-    };
-
-    // Optimistic Update
-    setTags(prev => prev.map(t => t.id === editingTagId ? { ...t, ...updatedTag } : t));
-    
-    // Reset Edit State
-    cancelEditingTag();
-
-    // Sync to Supabase
-    await supabase.from('tags').update({
-      label: encryptData(updatedTag.label),
-      color: updatedTag.color
-    }).eq('id', updatedTag.id);
   };
 
   const toggleTask = async (id: string) => {
@@ -553,12 +473,17 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
   const getDayDiff = (dateStr: string) => {
     if (!dateStr) return 9999;
-    // Compare dateStr (YYYY-MM-DD) with Today (Local YYYY-MM-DD)
-    const todayStr = new Date().toISOString().split('T')[0];
+    
+    // Get user's local start-of-day in YYYY-MM-DD format
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
     if (dateStr === todayStr) return 0;
     
-    const target = new Date(dateStr);
-    const today = new Date(todayStr);
+    // Use UTC for comparison to ensure purely date-based difference without time interference
+    const target = new Date(dateStr); // Parsed as UTC midnight (if YYYY-MM-DD)
+    const today = new Date(todayStr); // Parsed as UTC midnight (if YYYY-MM-DD)
+    
     return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   };
 
@@ -831,526 +756,669 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   );
 
   return (
-    <div className="animate-in fade-in duration-500 w-full">
-       {/* HEADER */}
-       <div className="flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center mb-6">
-          <div className="flex items-center gap-3">
-             <div className="flex bg-slate-100 p-1 rounded border border-slate-200">
-                <button onClick={() => setViewMode('active')} className={`px-4 py-1.5 text-xs font-bold rounded transition-all ${viewMode === 'active' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}>Active</button>
-                <button onClick={() => setViewMode('completed')} className={`px-4 py-1.5 text-xs font-bold rounded transition-all ${viewMode === 'completed' ? 'bg-white text-[#107c10] shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}>Completed</button>
-             </div>
-             <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
-             {/* Grouping */}
-             <div className="flex items-center gap-1">
-                 <span className="text-[10px] font-bold text-slate-400 uppercase hidden sm:inline">Group:</span>
-                 <select 
-                    value={grouping} 
-                    onChange={(e) => setGrouping(e.target.value as Grouping)}
-                    className="text-xs font-bold bg-white border border-slate-200 rounded py-1.5 pl-2 pr-6 focus:ring-1 focus:ring-[#0078d4]"
-                 >
-                    <option value="none">None</option>
-                    <option value="date">Date</option>
-                    <option value="priority">Priority</option>
-                 </select>
-             </div>
-             {/* Sorting */}
-             <div className="flex items-center gap-1">
-                 <span className="text-[10px] font-bold text-slate-400 uppercase hidden sm:inline">Sort:</span>
-                 <select 
-                    value={sorting} 
-                    onChange={(e) => setSorting(e.target.value as Sorting)}
-                    className="text-xs font-bold bg-white border border-slate-200 rounded py-1.5 pl-2 pr-6 focus:ring-1 focus:ring-[#0078d4]"
-                 >
-                    <option value="date">Date</option>
-                    <option value="priority">Priority</option>
-                    <option value="title">Title</option>
-                 </select>
-             </div>
-          </div>
-
-          <div className="flex items-center gap-2 w-full xl:w-auto">
-             <button onClick={() => setIsTagManagerOpen(true)} className="p-2 text-slate-500 hover:bg-slate-100 rounded border border-transparent hover:border-slate-200" title="Manage Labels">
-                <TagIcon className="w-4 h-4" />
-             </button>
-             <button onClick={openCreateModal} className="flex-1 xl:flex-none flex items-center justify-center gap-2 px-6 py-2 fluent-btn-primary rounded shadow-md text-sm font-bold">
-                <Plus className="w-4 h-4" />
-                <span>New Task</span>
-             </button>
-          </div>
-       </div>
-
-       {/* TAG FILTERS */}
-       {tags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 mb-6">
-             <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">Filter:</span>
-             {tags.map(tag => (
-                <button
-                   key={tag.id}
-                   onClick={() => toggleFilterTag(tag.id)}
-                   className={`px-2.5 py-1 rounded text-[10px] font-bold border transition-all flex items-center gap-1 ${filterTags.has(tag.id) ? 'ring-2 ring-offset-1 ring-[#0078d4]' : 'opacity-70 hover:opacity-100'}`}
-                   style={{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color + '40' }}
-                >
-                   {filterTags.has(tag.id) && <Check className="w-3 h-3" />}
-                   {tag.label}
-                </button>
-             ))}
-             {filterTags.size > 0 && (
-                <button onClick={() => setFilterTags(new Set())} className="px-2 py-1 text-[10px] font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded">
-                   Clear
-                </button>
-             )}
-          </div>
-       )}
-
-       {/* LIST */}
-       {renderListGroups(viewMode === 'active' ? activeTasksGroups : completedTasksGroups)}
-
-       {/* CREATE TASK MODAL */}
-       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-           <div className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[90vh]">
-             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-               <h3 className="text-lg font-black text-slate-800 tracking-tight">New Task</h3>
-               <button onClick={closeModal} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded transition-colors">
-                  <X className="w-5 h-5" />
-               </button>
-             </div>
-             <form onSubmit={handleCreateTask} className="flex flex-col flex-1 overflow-hidden">
-                <div className="p-6 overflow-y-auto space-y-6">
-                   {/* Title */}
-                   <div className="space-y-2">
-                      <input 
-                        autoFocus 
-                        required 
-                        type="text" 
-                        value={title} 
-                        onChange={(e) => setTitle(e.target.value)} 
-                        placeholder="What needs to be done?" 
-                        className="w-full text-lg font-bold bg-slate-50 border-none rounded p-4 focus:ring-2 focus:ring-[#0078d4]/20" 
-                      />
-                   </div>
-
-                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Date & Time */}
-                      <div className="space-y-1">
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Due Date</label>
-                         <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full text-sm font-semibold bg-slate-50 border-none rounded p-3" />
-                      </div>
-                      <div className="space-y-1">
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Time (Optional)</label>
-                         <input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} className="w-full text-sm font-semibold bg-slate-50 border-none rounded p-3" />
-                      </div>
-                   </div>
-
-                   {/* Priority & Recurrence */}
-                   <div className="flex gap-4 items-end">
-                      <div className="space-y-1 flex-1">
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Priority</label>
-                         <div className="flex bg-slate-50 p-1 rounded border border-slate-200">
-                            {priorities.map(p => (
-                               <button 
-                                 key={p} 
-                                 type="button" 
-                                 onClick={() => setPriority(p)}
-                                 className={`flex-1 flex items-center justify-center gap-1 py-2 rounded text-[10px] font-bold uppercase transition-all ${priority === p ? getPriorityStyle(p).text + ' shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}
-                               >
-                                  {renderPriorityIcon(p)}
-                                  <span className="hidden sm:inline">{p}</span>
-                               </button>
-                            ))}
-                         </div>
-                      </div>
-                      <div className="space-y-1">
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Recurrence</label>
-                         <RecurrenceButton value={createRecurrence} onChange={setCreateRecurrence} />
-                      </div>
-                   </div>
-
-                   {/* Tags */}
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Labels</label>
-                      <div className="flex flex-wrap gap-2">
-                         {tags.map(tag => (
-                            <button
-                               key={tag.id}
-                               type="button"
-                               onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(t => t !== tag.id) : [...prev, tag.id])}
-                               className={`px-2.5 py-1.5 rounded text-xs font-bold border transition-all flex items-center gap-1.5 ${selectedTags.includes(tag.id) ? 'ring-2 ring-offset-1 ring-[#0078d4]' : 'opacity-70 hover:opacity-100'}`}
-                               style={{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color + '40' }}
-                            >
-                               {tag.label}
-                               {selectedTags.includes(tag.id) && <Check className="w-3 h-3" />}
-                            </button>
-                         ))}
-                         {/* Inline Tag Create */}
-                         {isCreatingTagInline ? (
-                            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded border border-slate-200 animate-in fade-in">
-                               <input 
-                                 type="text" 
-                                 autoFocus
-                                 value={inlineTagLabel} 
-                                 onChange={e => setInlineTagLabel(e.target.value)} 
-                                 className="w-24 text-xs bg-white border-none rounded py-1 px-2 focus:ring-1 focus:ring-[#0078d4]"
-                                 placeholder="New label"
-                                 onKeyDown={e => { if(e.key === 'Enter') { e.preventDefault(); handleAddInlineTag(); } }}
-                               />
-                               <input type="color" value={inlineTagColor} onChange={e => setInlineTagColor(e.target.value)} className="w-6 h-6 rounded cursor-pointer border-none bg-transparent" />
-                               <button type="button" onClick={handleAddInlineTag} className="p-1 text-[#0078d4]"><Check className="w-3 h-3"/></button>
-                               <button type="button" onClick={() => setIsCreatingTagInline(false)} className="p-1 text-slate-400"><X className="w-3 h-3"/></button>
-                            </div>
-                         ) : (
-                            <button type="button" onClick={() => setIsCreatingTagInline(true)} className="px-2.5 py-1.5 rounded text-xs font-bold bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100 flex items-center gap-1">
-                               <Plus className="w-3 h-3" /> New
-                            </button>
-                         )}
-                      </div>
-                   </div>
-
-                   {/* Subtasks */}
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subtasks</label>
-                      <div className="space-y-2">
-                         {createSubtasks.map((st, i) => (
-                            <div key={i} className="flex items-center gap-2">
-                               <CheckSquare className="w-4 h-4 text-slate-300" />
-                               <input 
-                                  type="text" 
-                                  value={st.title} 
-                                  onChange={(e) => {
-                                     const next = [...createSubtasks];
-                                     next[i].title = e.target.value;
-                                     setCreateSubtasks(next);
-                                  }} 
-                                  className="flex-1 text-sm bg-transparent border-b border-slate-200 focus:border-[#0078d4] focus:ring-0 px-0 py-1" 
-                               />
-                               <button type="button" onClick={() => setCreateSubtasks(createSubtasks.filter((_, idx) => idx !== i))} className="text-slate-400 hover:text-red-500"><X className="w-4 h-4"/></button>
-                            </div>
-                         ))}
-                         <div className="flex items-center gap-2">
-                            <Plus className="w-4 h-4 text-[#0078d4]" />
-                            <input 
-                               type="text" 
-                               placeholder="Add a step..." 
-                               className="flex-1 text-sm bg-transparent border-none focus:ring-0 px-0 py-1 placeholder:text-slate-400" 
-                               onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                     e.preventDefault();
-                                     if (e.currentTarget.value.trim()) {
-                                        setCreateSubtasks([...createSubtasks, { title: e.currentTarget.value.trim(), completed: false }]);
-                                        e.currentTarget.value = '';
-                                     }
-                                  }
-                               }}
-                            />
-                         </div>
-                      </div>
-                   </div>
-                   
-                   {/* Notes */}
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Notes</label>
-                      <textarea 
-                        value={createNotes} 
-                        onChange={(e) => setCreateNotes(e.target.value)} 
-                        className="w-full text-sm bg-slate-50 border-none rounded p-3 h-24 resize-none" 
-                        placeholder="Add details..." 
-                      />
-                   </div>
-                </div>
-                <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-                   <button type="button" onClick={closeModal} className="px-5 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded transition-colors">Cancel</button>
-                   <button type="submit" className="px-8 py-2 text-sm font-bold fluent-btn-primary rounded shadow-lg">Create Task</button>
-                </div>
-             </form>
-           </div>
-        </div>
-       )}
-       
-       {/* RECURRENCE CUSTOM MODAL */}
-       {isRecurrenceModalOpen && recurrenceEditValue && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-           <div className="bg-white w-[95%] md:w-full max-w-sm rounded shadow-2xl flex flex-col overflow-hidden">
-             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-               <h3 className="text-lg font-black text-slate-800 tracking-tight">Custom Recurrence</h3>
-               <button onClick={() => setIsRecurrenceModalOpen(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded transition-colors">
-                  <X className="w-5 h-5" />
-               </button>
-             </div>
-             <div className="p-5 space-y-6">
-                
-                {/* Interval and Type Row */}
-                <div className="flex gap-3">
-                   <div className="flex items-center gap-2">
-                     <span className="text-xs font-bold text-slate-500">Repeat every</span>
-                     <input 
-                       type="number" 
-                       min="1" 
-                       max="99" 
-                       value={recurrenceEditValue.interval} 
-                       onChange={(e) => setRecurrenceEditValue({...recurrenceEditValue, interval: Math.max(1, parseInt(e.target.value)||1)})}
-                       className="w-16 text-center font-bold border border-slate-200 rounded p-2 text-sm focus:ring-1 focus:ring-[#0078d4]"
-                     />
-                   </div>
-                   <select
-                     value={recurrenceEditValue.type}
-                     onChange={(e) => setRecurrenceEditValue({...recurrenceEditValue, type: e.target.value as any})}
-                     className="flex-1 font-bold text-sm border border-slate-200 rounded p-2 bg-slate-50 focus:ring-1 focus:ring-[#0078d4]"
-                   >
-                     <option value="daily">Day{recurrenceEditValue.interval > 1 ? 's' : ''}</option>
-                     <option value="weekly">Week{recurrenceEditValue.interval > 1 ? 's' : ''}</option>
-                     <option value="monthly">Month{recurrenceEditValue.interval > 1 ? 's' : ''}</option>
-                     <option value="yearly">Year{recurrenceEditValue.interval > 1 ? 's' : ''}</option>
-                   </select>
-                </div>
-
-                {/* Conditional UI based on Type */}
-                
-                {/* Weekly: Day Picker */}
-                {recurrenceEditValue.type === 'weekly' && (
-                  <div className="space-y-2">
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Repeat on</label>
-                     <div className="flex justify-between">
-                       {WEEKDAYS.map((day, idx) => {
-                         const isSelected = recurrenceEditValue.weekDays?.includes(idx);
-                         return (
-                           <button
-                             key={day}
-                             type="button"
-                             onClick={() => {
-                               const current = recurrenceEditValue.weekDays || [];
-                               const next = isSelected ? current.filter(d => d !== idx) : [...current, idx];
-                               setRecurrenceEditValue({ ...recurrenceEditValue, weekDays: next });
-                             }}
-                             className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${isSelected ? 'bg-[#0078d4] text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                           >
-                             {day.charAt(0)}
-                           </button>
-                         )
-                       })}
-                     </div>
-                  </div>
-                )}
-
-                {/* Monthly: Date Picker */}
-                {recurrenceEditValue.type === 'monthly' && (
-                   <div className="space-y-2">
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Repeat on date</label>
-                     <div className="grid grid-cols-7 gap-1">
-                       {Array.from({length: 31}, (_, i) => i + 1).map(day => {
-                          const isSelected = recurrenceEditValue.monthDays?.includes(day);
-                          return (
-                             <button
-                               key={day}
-                               type="button"
-                               onClick={() => {
-                                  const current = recurrenceEditValue.monthDays || [];
-                                  const next = isSelected ? current.filter(d => d !== day) : [...current, day];
-                                  setRecurrenceEditValue({ ...recurrenceEditValue, monthDays: next });
-                               }}
-                               className={`h-7 rounded flex items-center justify-center text-[10px] font-bold transition-all ${isSelected ? 'bg-[#0078d4] text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
-                             >
-                                {day}
-                             </button>
-                          )
-                       })}
-                     </div>
-                   </div>
-                )}
-
-                {/* Yearly: specific dates */}
-                {recurrenceEditValue.type === 'yearly' && (
-                  <div className="space-y-3">
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Specific Dates</label>
-                     <div className="flex gap-2">
-                        <select value={yearlyMonth} onChange={(e) => setYearlyMonth(parseInt(e.target.value))} className="flex-1 text-xs font-bold p-2 rounded border border-slate-200">
-                           {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
-                        </select>
-                        <select value={yearlyDay} onChange={(e) => setYearlyDay(parseInt(e.target.value))} className="w-16 text-xs font-bold p-2 rounded border border-slate-200">
-                           {Array.from({length: 31}, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
-                        </select>
-                        <button 
-                           type="button"
-                           onClick={() => {
-                              const current = recurrenceEditValue.yearDays || [];
-                              // Prevent duplicates
-                              if (current.some(d => d.month === yearlyMonth && d.day === yearlyDay)) return;
-                              setRecurrenceEditValue({ ...recurrenceEditValue, yearDays: [...current, { month: yearlyMonth, day: yearlyDay }] });
-                           }}
-                           className="px-3 bg-[#0078d4] text-white rounded font-bold text-xs"
-                        >
-                           Add
-                        </button>
-                     </div>
-                     
-                     <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                        {(recurrenceEditValue.yearDays || []).map((yd, i) => (
-                           <div key={i} className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded text-xs font-bold text-slate-600 border border-slate-200">
-                              <span>{MONTHS[yd.month]} {yd.day}</span>
-                              <button 
-                                 type="button"
-                                 onClick={() => {
-                                    const next = (recurrenceEditValue.yearDays || []).filter((_, idx) => idx !== i);
-                                    setRecurrenceEditValue({ ...recurrenceEditValue, yearDays: next });
-                                 }}
-                                 className="text-slate-400 hover:text-red-500"
-                              >
-                                 <X className="w-3 h-3" />
-                              </button>
-                           </div>
-                        ))}
-                        {(!recurrenceEditValue.yearDays || recurrenceEditValue.yearDays.length === 0) && (
-                           <span className="text-xs text-slate-400 italic">Repeats on the same date every year if empty.</span>
-                        )}
-                     </div>
-                  </div>
-                )}
-
-             </div>
-             <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between">
-                <button 
-                  type="button"
-                  onClick={() => {
-                     // Clear recurrence
-                     if (recurrenceCallback) recurrenceCallback(null);
-                     setIsRecurrenceModalOpen(false);
-                  }}
-                  className="px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 rounded"
-                >
-                  Remove
-                </button>
-                <div className="flex gap-2">
-                   <button 
-                     type="button"
-                     onClick={() => setIsRecurrenceModalOpen(false)}
-                     className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded"
-                   >
-                     Cancel
-                   </button>
-                   <button 
-                     type="button"
-                     onClick={handleSaveRecurrence}
-                     className="px-4 py-2 text-xs font-bold fluent-btn-primary rounded shadow-sm"
-                   >
-                     Save
-                   </button>
-                </div>
-             </div>
-           </div>
-        </div>
-      )}
-
-      {/* Tag Manager Modal (Updated with Edit capability) */}
-      {isTagManagerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="bg-white w-[95%] md:w-full max-w-md rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh]">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <TagIcon className="w-5 h-5 text-[#0078d4]" />
-                <h3 className="text-lg font-black text-slate-800 tracking-tight">Manage Labels</h3>
-              </div>
-              <button onClick={() => setIsTagManagerOpen(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded transition-colors">
-                <X className="w-5 h-5" />
-              </button>
+    <div className="animate-in fade-in duration-500 relative">
+        {/* Header Controls */}
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-2 bg-slate-100 p-1 rounded border border-slate-200">
+                <button onClick={() => setViewMode('active')} className={`px-3 py-1.5 text-xs font-bold rounded transition-all ${viewMode === 'active' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}>Active</button>
+                <button onClick={() => setViewMode('completed')} className={`px-3 py-1.5 text-xs font-bold rounded transition-all ${viewMode === 'completed' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}>Completed</button>
             </div>
-            
-            <div className="p-6 flex-1 overflow-y-auto space-y-6">
-              {/* Existing Tags ... */}
-              <div className="space-y-3">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Existing Labels</h4>
-                <div className="space-y-2">
-                  {tags.length === 0 ? (
-                    <p className="text-sm text-slate-400 italic">No labels yet.</p>
-                  ) : (
-                    tags.map(tag => (
-                      editingTagId === tag.id ? (
-                        // Edit Mode Row
-                        <div key={tag.id} className="p-3 bg-[#eff6fc] rounded border border-[#0078d4] animate-in fade-in">
-                           <div className="flex gap-2 mb-2">
-                              <input 
-                                type="text" 
-                                value={editTagLabel} 
-                                onChange={(e) => setEditTagLabel(e.target.value)} 
-                                className="flex-1 text-xs font-bold bg-white border border-[#0078d4] rounded p-2 focus:ring-1 focus:ring-[#0078d4]" 
-                                autoFocus
-                              />
-                           </div>
-                           {/* Updated Color Picker to show all 50 colors */}
-                           <div className="flex gap-2 flex-wrap mb-2 max-h-24 overflow-y-auto">
-                              {PRESET_COLORS.map(color => (
-                                <button 
-                                  key={color} 
-                                  onClick={() => setEditTagColor(color)}
-                                  className={`w-4 h-4 rounded shrink-0 transition-transform ${editTagColor === color ? 'ring-2 ring-offset-1 ring-[#0078d4] scale-110' : ''}`}
-                                  style={{ backgroundColor: color }}
-                                />
-                              ))}
-                           </div>
-                           <div className="flex justify-end gap-2">
-                              <button onClick={cancelEditingTag} className="p-1.5 text-slate-600 hover:bg-slate-100 rounded"><X className="w-4 h-4" /></button>
-                              <button onClick={saveEditingTag} className="p-1.5 bg-[#0078d4] text-white rounded hover:bg-[#106ebe]"><Check className="w-4 h-4" /></button>
-                           </div>
-                        </div>
-                      ) : (
-                        // Display Mode Row
-                        <div key={tag.id} className="flex items-center justify-between p-3 bg-slate-50 rounded border border-slate-200 group">
-                          <div className="flex items-center gap-3">
-                            <div className="w-4 h-4 rounded" style={{ backgroundColor: tag.color }} />
-                            <span className="text-sm font-semibold text-slate-800">{tag.label}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button 
-                              onClick={() => startEditingTag(tag)}
-                              className="p-1.5 text-[#0078d4] hover:bg-blue-50 rounded transition-colors"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteTag(tag.id)} 
-                              className="p-1.5 text-[#a4262c] hover:bg-red-50 rounded transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    ))
-                  )}
-                </div>
-              </div>
+            <div className="flex items-center gap-2 w-full md:w-auto">
+                 <div className="flex bg-slate-100 p-1 rounded border border-slate-200">
+                    <button title="Sort by Date" onClick={() => setGrouping('date')} className={`p-1.5 rounded ${grouping === 'date' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-400'}`}><Calendar className="w-4 h-4"/></button>
+                    <button title="Sort by Priority" onClick={() => setGrouping('priority')} className={`p-1.5 rounded ${grouping === 'priority' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-400'}`}><AlertCircle className="w-4 h-4"/></button>
+                 </div>
+                 
+                 <div className="h-6 w-px bg-slate-200 mx-1" />
 
-              <div className="space-y-3 pt-6 border-t border-slate-100">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Create New Label</h4>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={newTagLabel} 
-                    onChange={(e) => setNewTagLabel(e.target.value)} 
-                    placeholder="Label name..." 
-                    className="flex-1 text-sm font-semibold bg-slate-50 border-none rounded p-3 focus:ring-2 focus:ring-[#0078d4]/20" 
-                  />
-                  <button onClick={handleAddTag} disabled={!newTagLabel.trim()} className="px-4 bg-[#0078d4] text-white rounded hover:bg-[#106ebe] disabled:opacity-50 disabled:hover:bg-[#0078d4] transition-colors">
-                    <Plus className="w-5 h-5" />
+                 <button 
+                   onClick={openCreateModal}
+                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 fluent-btn-primary rounded shadow-md active:scale-95 transition-transform"
+                 >
+                    <Plus className="w-4 h-4" />
+                    <span className="text-sm font-bold">Add Task</span>
+                 </button>
+            </div>
+        </div>
+        
+        {/* Tag Filters */}
+        {tags.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-6">
+                {tags.map(tag => (
+                    <button
+                        key={tag.id}
+                        onClick={() => toggleFilterTag(tag.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold border transition-all ${
+                            filterTags.has(tag.id)
+                            ? 'ring-2 ring-offset-1 ring-[#0078d4] border-transparent shadow-sm' 
+                            : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                        }`}
+                        style={filterTags.has(tag.id) ? { backgroundColor: tag.color, color: 'white' } : {}}
+                    >
+                        <TagIcon className="w-3 h-3" />
+                        {tag.label}
+                    </button>
+                ))}
+                {filterTags.size > 0 && (
+                    <button onClick={() => setFilterTags(new Set())} className="text-[10px] font-bold text-[#0078d4] hover:underline px-2">
+                        Clear
+                    </button>
+                )}
+            </div>
+        )}
+
+        {/* Task List */}
+        {viewMode === 'active' ? renderListGroups(activeTasksGroups) : renderListGroups(completedTasksGroups)}
+
+        {/* EDIT TASK MODAL (Restored) */}
+        {selectedTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+               <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => toggleTask(selectedTask.id)}
+                    className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-all ${
+                      selectedTask.completed 
+                        ? 'bg-[#107c10] border-[#107c10] text-white' 
+                        : 'border-slate-300 hover:border-[#0078d4] bg-white'
+                    }`}
+                  >
+                    {selectedTask.completed && <CheckCircle2 className="w-4 h-4" />}
                   </button>
-                </div>
-                <div className="flex gap-2 flex-wrap max-h-32 overflow-y-auto">
-                  {PRESET_COLORS.map(color => (
-                    <button 
-                      key={color} 
-                      onClick={() => setNewTagColor(color)}
-                      className={`w-6 h-6 rounded transition-transform hover:scale-110 shrink-0 ${newTagColor === color ? 'ring-2 ring-offset-2 ring-slate-600' : ''}`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
-              </div>
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Task Details</span>
+               </div>
+               <button onClick={() => setSelectedTaskId(null)} className="p-1.5 text-slate-400 hover:bg-slate-200 rounded transition-colors">
+                  <X className="w-5 h-5" />
+               </button>
             </div>
-            
-            <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
-               <button onClick={() => setIsTagManagerOpen(false)} className="px-5 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded transition-colors">Done</button>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+               {/* Title */}
+               <div>
+                  <textarea
+                     value={selectedTask.title}
+                     onChange={(e) => updateSelectedTask({ title: e.target.value })}
+                     className="w-full text-xl font-bold text-slate-800 bg-transparent border-none p-0 focus:ring-0 resize-none h-auto leading-tight placeholder:text-slate-300"
+                     placeholder="Task title"
+                     rows={1}
+                     style={{ minHeight: '2rem' }}
+                     onInput={(e) => {
+                         const target = e.target as HTMLTextAreaElement;
+                         target.style.height = 'auto';
+                         target.style.height = target.scrollHeight + 'px';
+                     }}
+                  />
+               </div>
+
+               {/* Properties Grid */}
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                   <div className="space-y-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Calendar className="w-3 h-3"/> Due Date</label>
+                       <input 
+                          type="date" 
+                          value={selectedTask.dueDate || ''} 
+                          onChange={(e) => updateSelectedTask({ dueDate: e.target.value })}
+                          className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                       />
+                   </div>
+                   <div className="space-y-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Clock className="w-3 h-3"/> Time</label>
+                       <input 
+                          type="time" 
+                          value={selectedTask.time || ''} 
+                          onChange={(e) => updateSelectedTask({ time: e.target.value })}
+                          className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                       />
+                   </div>
+               </div>
+
+               <div className="flex flex-col sm:flex-row gap-6">
+                   <div className="space-y-1 flex-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><AlertCircle className="w-3 h-3"/> Priority</label>
+                       <div className="flex bg-slate-50 p-1 rounded border border-slate-200">
+                          {priorities.map(p => (
+                             <button
+                               key={p}
+                               onClick={() => updateSelectedTask({ priority: p })}
+                               className={`flex-1 py-2 text-[10px] font-bold rounded transition-all flex items-center justify-center gap-1 ${
+                                 selectedTask.priority === p 
+                                   ? 'bg-white text-[#0078d4] shadow-sm' 
+                                   : 'text-slate-500 hover:bg-slate-200'
+                               }`}
+                             >
+                                {renderPriorityIcon(p)}
+                                <span className="hidden sm:inline">{p}</span>
+                             </button>
+                          ))}
+                       </div>
+                   </div>
+                   <div className="space-y-1 sm:w-1/3">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Repeat className="w-3 h-3"/> Recurrence</label>
+                       <RecurrenceButton 
+                          value={selectedTask.recurrence || null} 
+                          onChange={(r) => updateSelectedTask({ recurrence: r })} 
+                       />
+                   </div>
+               </div>
+
+               {/* Tags */}
+               <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><TagIcon className="w-3 h-3"/> Labels</label>
+                      {!isCreatingTagInline && (
+                          <button onClick={() => setIsCreatingTagInline(true)} className="text-[10px] font-bold text-[#0078d4] hover:underline flex items-center gap-1">
+                              <Plus className="w-3 h-3"/> New Label
+                          </button>
+                      )}
+                  </div>
+                  {isCreatingTagInline ? (
+                      <div className="bg-slate-50 p-3 rounded border border-slate-200 space-y-2 animate-in fade-in zoom-in-95">
+                          <div className="flex gap-2">
+                              <input 
+                                  type="text" 
+                                  autoFocus
+                                  value={inlineTagLabel} 
+                                  onChange={(e) => setInlineTagLabel(e.target.value)}
+                                  placeholder="Label name"
+                                  className="flex-1 text-xs font-semibold bg-white border border-slate-200 rounded p-2 focus:ring-1 focus:ring-[#0078d4]"
+                              />
+                              <input 
+                                  type="color" 
+                                  value={inlineTagColor} 
+                                  onChange={(e) => setInlineTagColor(e.target.value)} 
+                                  className="w-8 h-full rounded cursor-pointer border border-slate-200 p-0.5 bg-white" 
+                              />
+                          </div>
+                          <div className="flex justify-end gap-2">
+                              <button onClick={() => setIsCreatingTagInline(false)} className="px-3 py-1 text-xs font-bold text-slate-500">Cancel</button>
+                              <button onClick={handleAddInlineTag} className="px-3 py-1 text-xs font-bold bg-[#0078d4] text-white rounded">Add</button>
+                          </div>
+                      </div>
+                  ) : (
+                      <div className="flex flex-wrap gap-2">
+                          {tags.map(tag => {
+                              const isActive = selectedTask.tags?.includes(tag.id);
+                              return (
+                                  <button
+                                      key={tag.id}
+                                      onClick={() => {
+                                          const current = selectedTask.tags || [];
+                                          const next = isActive ? current.filter(id => id !== tag.id) : [...current, tag.id];
+                                          updateSelectedTask({ tags: next });
+                                      }}
+                                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition-all ${
+                                          isActive 
+                                          ? 'ring-2 ring-offset-1 ring-[#0078d4] border-transparent' 
+                                          : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                      }`}
+                                      style={isActive ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
+                                  >
+                                      <TagIcon className="w-3 h-3" />
+                                      {tag.label}
+                                  </button>
+                              );
+                          })}
+                          {tags.length === 0 && <span className="text-xs text-slate-400 italic">No labels created yet.</span>}
+                      </div>
+                  )}
+               </div>
+
+               <div className="h-px bg-slate-100" />
+
+               {/* Subtasks */}
+               <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><ListChecks className="w-3 h-3"/> Subtasks</label>
+                  <div className="space-y-2">
+                      {selectedTask.subtasks.map(st => (
+                          <div key={st.id} className="flex items-center gap-3 group p-2 hover:bg-slate-50 rounded transition-colors">
+                              <button 
+                                  onClick={() => toggleSubtaskInTask(selectedTask.id, st.id)}
+                                  className="text-slate-400 hover:text-[#0078d4] transition-colors"
+                              >
+                                  {st.completed ? <CheckSquare className="w-4 h-4 text-[#107c10]" /> : <Square className="w-4 h-4 rounded" />}
+                              </button>
+                              <span className={`text-sm font-medium flex-1 ${st.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                  {st.title}
+                              </span>
+                              <button 
+                                  onClick={() => deleteSubtaskInTask(selectedTask.id, st.id)}
+                                  className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                              >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                          </div>
+                      ))}
+                      <div className="flex items-center gap-3 p-2">
+                          <Plus className="w-4 h-4 text-[#0078d4]" />
+                          <input 
+                              type="text" 
+                              placeholder="Add step..." 
+                              className="flex-1 text-sm bg-transparent border-none p-0 focus:ring-0 placeholder:text-slate-400"
+                              onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                      const val = e.currentTarget.value.trim();
+                                      if (val) {
+                                          addSubtaskToTask(selectedTask.id, val);
+                                          e.currentTarget.value = '';
+                                      }
+                                  }
+                              }}
+                          />
+                      </div>
+                  </div>
+               </div>
+
+               <div className="h-px bg-slate-100" />
+
+               {/* Notes */}
+               <div className="space-y-2 flex-1 flex flex-col min-h-[150px]">
+                  <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><FileText className="w-3 h-3"/> Notes</label>
+                      <div className="flex bg-slate-100 p-0.5 rounded border border-slate-200">
+                          <button 
+                              onClick={() => setIsPreviewMode(false)}
+                              className={`px-3 py-1 text-[10px] font-bold rounded flex items-center gap-1 transition-all ${!isPreviewMode ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                          >
+                              <PenLine className="w-3 h-3" /> Edit
+                          </button>
+                          <button 
+                              onClick={() => setIsPreviewMode(true)}
+                              className={`px-3 py-1 text-[10px] font-bold rounded flex items-center gap-1 transition-all ${isPreviewMode ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                          >
+                              <Eye className="w-3 h-3" /> Preview
+                          </button>
+                      </div>
+                  </div>
+                  
+                  {isPreviewMode ? (
+                      <div className="w-full h-full min-h-[8rem] overflow-y-auto bg-white border border-slate-200 rounded p-4">
+                          {selectedTask.notes ? (
+                              <ReactMarkdown className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 text-xs text-slate-800">
+                                  {selectedTask.notes}
+                              </ReactMarkdown>
+                          ) : (
+                              <p className="text-xs text-slate-400 italic">No notes added.</p>
+                          )}
+                      </div>
+                  ) : (
+                      <textarea 
+                          value={selectedTask.notes || ''}
+                          onChange={(e) => updateSelectedTask({ notes: e.target.value })}
+                          placeholder="Add details, links, or thoughts..."
+                          className="w-full h-full min-h-[8rem] text-sm leading-relaxed bg-slate-50 border border-slate-200 rounded p-4 resize-none focus:ring-1 focus:ring-[#0078d4] focus:bg-white transition-colors font-mono"
+                      />
+                  )}
+               </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center">
+               <div className="text-[10px] text-slate-400 font-mono">
+                  ID: {selectedTask.id.substring(0, 8)}...
+               </div>
+               <button 
+                  onClick={() => {
+                      if(window.confirm('Delete this task?')) deleteTask(selectedTask.id);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-[#a4262c] hover:bg-red-50 rounded transition-colors"
+               >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete Task
+               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* CREATE TASK MODAL */}
+       {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+               <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 rounded border-2 border-slate-300 flex items-center justify-center bg-white"></div>
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">New Task</span>
+               </div>
+               <button onClick={closeModal} className="p-1.5 text-slate-400 hover:bg-slate-200 rounded transition-colors">
+                  <X className="w-5 h-5" />
+               </button>
+            </div>
+
+            <form onSubmit={handleCreateTask} className="flex-1 overflow-y-auto p-6 space-y-6">
+               {/* Title */}
+               <div>
+                  <textarea
+                     value={title}
+                     onChange={(e) => setTitle(e.target.value)}
+                     className="w-full text-xl font-bold text-slate-800 bg-transparent border-none p-0 focus:ring-0 resize-none h-auto leading-tight placeholder:text-slate-300"
+                     placeholder="What needs to be done?"
+                     rows={1}
+                     autoFocus
+                     onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); } }}
+                  />
+               </div>
+
+               {/* Properties Grid */}
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                   <div className="space-y-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Calendar className="w-3 h-3"/> Due Date</label>
+                       <input 
+                          type="date" 
+                          value={dueDate} 
+                          onChange={(e) => setDueDate(e.target.value)}
+                          className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                       />
+                   </div>
+                   <div className="space-y-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Clock className="w-3 h-3"/> Time</label>
+                       <input 
+                          type="time" 
+                          value={dueTime} 
+                          onChange={(e) => setDueTime(e.target.value)}
+                          className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                       />
+                   </div>
+               </div>
+
+               <div className="flex flex-col sm:flex-row gap-6">
+                   <div className="space-y-1 flex-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><AlertCircle className="w-3 h-3"/> Priority</label>
+                       <div className="flex bg-slate-50 p-1 rounded border border-slate-200">
+                          {priorities.map(p => (
+                             <button
+                               key={p}
+                               type="button"
+                               onClick={() => setPriority(p)}
+                               className={`flex-1 py-2 text-[10px] font-bold rounded transition-all flex items-center justify-center gap-1 ${
+                                 priority === p 
+                                   ? 'bg-white text-[#0078d4] shadow-sm' 
+                                   : 'text-slate-500 hover:bg-slate-200'
+                               }`}
+                             >
+                                {renderPriorityIcon(p)}
+                                <span className="hidden sm:inline">{p}</span>
+                             </button>
+                          ))}
+                       </div>
+                   </div>
+                   <div className="space-y-1 sm:w-1/3">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Repeat className="w-3 h-3"/> Recurrence</label>
+                       <RecurrenceButton 
+                          value={createRecurrence} 
+                          onChange={setCreateRecurrence} 
+                       />
+                   </div>
+               </div>
+
+               {/* Tags */}
+               <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><TagIcon className="w-3 h-3"/> Labels</label>
+                      {!isCreatingTagInline && (
+                          <button type="button" onClick={() => setIsCreatingTagInline(true)} className="text-[10px] font-bold text-[#0078d4] hover:underline flex items-center gap-1">
+                              <Plus className="w-3 h-3"/> New Label
+                          </button>
+                      )}
+                  </div>
+                  {isCreatingTagInline ? (
+                      <div className="bg-slate-50 p-3 rounded border border-slate-200 space-y-2 animate-in fade-in zoom-in-95">
+                          <div className="flex gap-2">
+                              <input 
+                                  type="text" 
+                                  value={inlineTagLabel} 
+                                  onChange={(e) => setInlineTagLabel(e.target.value)}
+                                  placeholder="Label name"
+                                  className="flex-1 text-xs font-semibold bg-white border border-slate-200 rounded p-2 focus:ring-1 focus:ring-[#0078d4]"
+                              />
+                              <input 
+                                  type="color" 
+                                  value={inlineTagColor} 
+                                  onChange={(e) => setInlineTagColor(e.target.value)} 
+                                  className="w-8 h-full rounded cursor-pointer border border-slate-200 p-0.5 bg-white" 
+                              />
+                          </div>
+                          <div className="flex justify-end gap-2">
+                              <button type="button" onClick={() => setIsCreatingTagInline(false)} className="px-3 py-1 text-xs font-bold text-slate-500">Cancel</button>
+                              <button type="button" onClick={handleAddInlineTag} className="px-3 py-1 text-xs font-bold bg-[#0078d4] text-white rounded">Add</button>
+                          </div>
+                      </div>
+                  ) : (
+                      <div className="flex flex-wrap gap-2">
+                          {tags.map(tag => {
+                              const isActive = selectedTags.includes(tag.id);
+                              return (
+                                  <button
+                                      key={tag.id}
+                                      type="button"
+                                      onClick={() => {
+                                          if (isActive) setSelectedTags(prev => prev.filter(id => id !== tag.id));
+                                          else setSelectedTags(prev => [...prev, tag.id]);
+                                      }}
+                                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition-all ${
+                                          isActive 
+                                          ? 'ring-2 ring-offset-1 ring-[#0078d4] border-transparent' 
+                                          : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                      }`}
+                                      style={isActive ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
+                                  >
+                                      <TagIcon className="w-3 h-3" />
+                                      {tag.label}
+                                  </button>
+                              );
+                          })}
+                      </div>
+                  )}
+               </div>
+
+               <div className="h-px bg-slate-100" />
+
+               {/* Subtasks */}
+               <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><ListChecks className="w-3 h-3"/> Subtasks</label>
+                  <div className="space-y-2">
+                      {createSubtasks.map((st, idx) => (
+                          <div key={idx} className="flex items-center gap-3 group p-2 hover:bg-slate-50 rounded transition-colors">
+                              <button 
+                                  type="button"
+                                  onClick={() => {
+                                      const next = [...createSubtasks];
+                                      next[idx].completed = !next[idx].completed;
+                                      setCreateSubtasks(next);
+                                  }}
+                                  className="text-slate-400 hover:text-[#0078d4] transition-colors"
+                              >
+                                  {st.completed ? <CheckSquare className="w-4 h-4 text-[#107c10]" /> : <Square className="w-4 h-4 rounded" />}
+                              </button>
+                              <span className={`text-sm font-medium flex-1 ${st.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                  {st.title}
+                              </span>
+                              <button 
+                                  type="button"
+                                  onClick={() => {
+                                      setCreateSubtasks(prev => prev.filter((_, i) => i !== idx));
+                                  }}
+                                  className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                              >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                          </div>
+                      ))}
+                      <div className="flex items-center gap-3 p-2">
+                          <Plus className="w-4 h-4 text-[#0078d4]" />
+                          <input 
+                              type="text" 
+                              placeholder="Add step..." 
+                              className="flex-1 text-sm bg-transparent border-none p-0 focus:ring-0 placeholder:text-slate-400"
+                              onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      const val = e.currentTarget.value.trim();
+                                      if (val) {
+                                          setCreateSubtasks(prev => [...prev, { title: val, completed: false }]);
+                                          e.currentTarget.value = '';
+                                      }
+                                  }
+                              }}
+                          />
+                      </div>
+                  </div>
+               </div>
+
+               <div className="h-px bg-slate-100" />
+
+               {/* Notes */}
+               <div className="space-y-2 flex-1 flex flex-col min-h-[150px]">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><FileText className="w-3 h-3"/> Notes</label>
+                  <textarea 
+                      value={createNotes}
+                      onChange={(e) => setCreateNotes(e.target.value)}
+                      placeholder="Add details, links, or thoughts..."
+                      className="w-full h-full min-h-[8rem] text-sm leading-relaxed bg-slate-50 border border-slate-200 rounded p-4 resize-none focus:ring-1 focus:ring-[#0078d4] focus:bg-white transition-colors font-mono"
+                  />
+               </div>
+
+               <div className="flex justify-end pt-4 border-t border-slate-100">
+                  <button type="button" onClick={closeModal} className="px-6 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded mr-2">Cancel</button>
+                  <button type="submit" className="px-8 py-2 text-sm font-bold fluent-btn-primary rounded shadow-lg">Create Task</button>
+               </div>
+            </form>
+          </div>
+        </div>
+       )}
+
+       {/* Recurrence Config Modal (Nested) */}
+       {isRecurrenceModalOpen && recurrenceEditValue && (
+           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/10 backdrop-blur-[1px] p-4">
+              <div className="bg-white rounded-lg shadow-xl p-5 w-full max-w-sm animate-in zoom-in-95 duration-150 border border-slate-200">
+                 <h4 className="text-sm font-bold text-slate-800 mb-4">Repeat Task</h4>
+                 
+                 <div className="space-y-4">
+                    <div className="space-y-1">
+                       <label className="text-xs font-bold text-slate-500">Frequency</label>
+                       <select 
+                          value={recurrenceEditValue.type} 
+                          onChange={(e) => setRecurrenceEditValue({...recurrenceEditValue, type: e.target.value as any})}
+                          className="w-full text-sm bg-slate-50 border border-slate-200 rounded p-2"
+                       >
+                          <option value="daily">Daily</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                          <option value="yearly">Yearly</option>
+                       </select>
+                    </div>
+
+                    <div className="space-y-1">
+                       <label className="text-xs font-bold text-slate-500">Every</label>
+                       <div className="flex items-center gap-2">
+                          <input 
+                             type="number" 
+                             min="1" 
+                             value={recurrenceEditValue.interval}
+                             onChange={(e) => setRecurrenceEditValue({...recurrenceEditValue, interval: Math.max(1, parseInt(e.target.value)||1)})}
+                             className="w-20 text-sm bg-slate-50 border border-slate-200 rounded p-2"
+                          />
+                          <span className="text-sm text-slate-600">
+                             {recurrenceEditValue.type === 'daily' ? 'day(s)' : 
+                              recurrenceEditValue.type === 'weekly' ? 'week(s)' : 
+                              recurrenceEditValue.type === 'monthly' ? 'month(s)' : 'year(s)'}
+                          </span>
+                       </div>
+                    </div>
+
+                    {recurrenceEditValue.type === 'weekly' && (
+                       <div className="space-y-2">
+                           <label className="text-xs font-bold text-slate-500">On these days</label>
+                           <div className="flex justify-between">
+                              {WEEKDAYS.map((d, i) => {
+                                 const isSelected = recurrenceEditValue.weekDays?.includes(i);
+                                 return (
+                                    <button 
+                                       key={d}
+                                       type="button"
+                                       onClick={() => {
+                                          const current = recurrenceEditValue.weekDays || [];
+                                          const next = isSelected ? current.filter(x => x !== i) : [...current, i];
+                                          setRecurrenceEditValue({...recurrenceEditValue, weekDays: next});
+                                       }}
+                                       className={`w-8 h-8 rounded-full text-[10px] font-bold flex items-center justify-center transition-colors ${
+                                          isSelected ? 'bg-[#0078d4] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                       }`}
+                                    >
+                                       {d.charAt(0)}
+                                    </button>
+                                 )
+                              })}
+                           </div>
+                       </div>
+                    )}
+                    
+                    {recurrenceEditValue.type === 'monthly' && (
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500">On day of month</label>
+                            <div className="grid grid-cols-7 gap-1">
+                                {Array.from({length: 31}).map((_, i) => {
+                                    const day = i + 1;
+                                    const isSelected = recurrenceEditValue.monthDays?.includes(day);
+                                    return (
+                                        <button 
+                                           key={day}
+                                           type="button"
+                                           onClick={() => {
+                                               const current = recurrenceEditValue.monthDays || [];
+                                               const next = isSelected ? current.filter(x => x !== day) : [...current, day];
+                                               setRecurrenceEditValue({...recurrenceEditValue, monthDays: next});
+                                           }}
+                                           className={`aspect-square rounded text-[10px] font-bold flex items-center justify-center transition-colors ${
+                                              isSelected ? 'bg-[#0078d4] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                           }`}
+                                        >
+                                           {day}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                       <button type="button" onClick={() => setIsRecurrenceModalOpen(false)} className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded">Cancel</button>
+                       <button 
+                         type="button" 
+                         onClick={() => {
+                            // Clear specialized fields if changing types
+                            const cleaned = { ...recurrenceEditValue };
+                            if(cleaned.type !== 'weekly') delete cleaned.weekDays;
+                            if(cleaned.type !== 'monthly') delete cleaned.monthDays;
+                            if(cleaned.type !== 'yearly') delete cleaned.yearDays;
+                            
+                            if (cleaned.type === 'daily') {
+                                // daily is simple
+                            } else if (cleaned.type === 'weekly' && (!cleaned.weekDays || cleaned.weekDays.length === 0)) {
+                                cleaned.weekDays = [new Date().getDay()]; // Default to today
+                            } else if (cleaned.type === 'monthly' && (!cleaned.monthDays || cleaned.monthDays.length === 0)) {
+                                cleaned.monthDays = [new Date().getDate()];
+                            }
+
+                            handleSaveRecurrence();
+                         }} 
+                         className="px-3 py-1.5 text-xs font-bold bg-[#0078d4] text-white rounded shadow-sm"
+                        >
+                           Done
+                        </button>
+                    </div>
+                 </div>
+              </div>
+           </div>
+       )}
+
+       {/* Floating Action Button (Mobile) */}
+       <div className="md:hidden fixed bottom-20 right-4 z-30">
+          <button 
+             onClick={openCreateModal}
+             className="w-14 h-14 bg-[#0078d4] rounded-full shadow-lg flex items-center justify-center text-white active:scale-95 transition-transform"
+          >
+             <Plus className="w-8 h-8" />
+          </button>
+       </div>
     </div>
   );
 };

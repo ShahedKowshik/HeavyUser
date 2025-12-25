@@ -12,7 +12,10 @@ import { decryptData } from '../lib/crypto';
 const getDateOffset = (days: number) => {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  return d.toISOString().split('T')[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 interface DashboardProps {
@@ -213,7 +216,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     journals.forEach(j => activeDates.add(j.timestamp.split('T')[0]));
 
     const sortedDates = Array.from(activeDates).sort().reverse();
-    const today = new Date().toISOString().split('T')[0];
+    const today = getDateOffset(0);
     const yesterday = getDateOffset(-1);
 
     let currentStreak = 0;
@@ -230,7 +233,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       let checkDate = hasActivityToday ? new Date() : new Date(Date.now() - 86400000);
       
       while (true) {
-        const dateStr = checkDate.toISOString().split('T')[0];
+        // Use local ISO format helper logic directly here or rely on getDateOffset logic (though that needs days param)
+        // Simplest to construct string manually for the loop
+        const year = checkDate.getFullYear();
+        const month = String(checkDate.getMonth() + 1).padStart(2, '0');
+        const day = String(checkDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+
         if (activeDates.has(dateStr)) {
           currentStreak++;
           checkDate.setDate(checkDate.getDate() - 1);
@@ -245,7 +254,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
   // --- Urgent Tasks Alert Logic ---
   const urgentTasksTodayCount = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getDateOffset(0);
     return tasks.filter(t => 
       !t.completed && 
       t.priority === 'Urgent' && 
