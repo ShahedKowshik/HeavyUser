@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, Lock, Mail, AlertCircle } from 'lucide-react';
 import { UserSettings } from '../types';
@@ -116,12 +115,12 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
       <div className="mb-8 flex items-center justify-between">
          <div>
-            <h3 className="text-2xl font-black text-[#323130] tracking-tight">Configuration</h3>
-            <p className="text-[11px] font-bold text-[#a19f9d] uppercase tracking-widest">Manage your workspace</p>
+            <h3 className="text-2xl font-black text-slate-800 tracking-tight">Configuration</h3>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Manage your workspace</p>
          </div>
          <button 
           onClick={onLogout}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-[#edebe9] text-[#605e5c] rounded hover:bg-[#f3f2f1] hover:text-[#a4262c] transition-all font-bold text-xs shadow-sm"
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded hover:bg-slate-50 hover:text-[#a4262c] transition-all font-bold text-xs shadow-sm"
          >
            <LogOut className="w-4 h-4" />
            <span className="hidden sm:inline">Sign Out</span>
@@ -130,24 +129,24 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Account Profile Section */}
-        <div className="bg-white border border-[#edebe9] rounded overflow-hidden hover:shadow-md transition-shadow">
-          <div className="px-6 py-4 border-b border-[#edebe9] bg-[#faf9f8] flex items-center space-x-2">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden hover:shadow-md transition-shadow">
+          <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center space-x-2">
             <User className="w-4 h-4 text-[#0078d4]" />
-            <h3 className="text-sm font-bold text-[#323130]">Account Profile</h3>
+            <h3 className="text-sm font-bold text-slate-800">Account Profile</h3>
           </div>
           <div className="p-6 space-y-6">
             <div className="space-y-4">
                <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#605e5c]">Display Name</label>
+                <label className="text-xs font-bold text-slate-600">Display Name</label>
                 <input
                   type="text"
                   value={localName}
                   onChange={(e) => setLocalName(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm bg-[#faf9f8] border-none rounded focus:ring-1 focus:ring-[#0078d4]"
+                  className="w-full px-3 py-2.5 text-sm bg-slate-50 border-none rounded focus:ring-1 focus:ring-[#0078d4]"
                 />
               </div>
                <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#605e5c] flex items-center gap-1">
+                <label className="text-xs font-bold text-slate-600 flex items-center gap-1">
                   <Camera className="w-3 h-3" /> Profile Picture URL
                 </label>
                 <input
@@ -155,7 +154,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                   value={localProfilePic}
                   onChange={(e) => setLocalProfilePic(e.target.value)}
                   placeholder="https://..."
-                  className="w-full px-3 py-2.5 text-sm bg-[#faf9f8] border-none rounded focus:ring-1 focus:ring-[#0078d4]"
+                  className="w-full px-3 py-2.5 text-sm bg-slate-50 border-none rounded focus:ring-1 focus:ring-[#0078d4]"
                 />
               </div>
             </div>
@@ -169,13 +168,13 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                 </button>
             </div>
 
-            <div className="space-y-1.5 pt-4 border-t border-[#f3f2f1]">
-              <label className="text-xs font-bold text-[#605e5c] flex items-center">
+            <div className="space-y-1.5 pt-4 border-t border-slate-100">
+              <label className="text-xs font-bold text-slate-600 flex items-center">
                 <Fingerprint className="w-3 h-3 mr-1" />
                 User ID
               </label>
               <div className="flex items-stretch space-x-2">
-                <div className="flex-1 bg-[#f3f2f1] border border-[#edebe9] px-3 py-2 rounded text-sm font-mono tracking-wider text-[#0078d4] truncate">
+                <div className="flex-1 bg-slate-50 border border-slate-200 px-3 py-2 rounded text-sm font-mono tracking-wider text-[#0078d4] truncate">
                   {settings.userId}
                 </div>
                 <button
@@ -184,7 +183,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                   className={`px-3 rounded border transition-all flex items-center justify-center ${
                     isCopied 
                     ? 'bg-[#dff6dd] border-[#107c10] text-[#107c10]' 
-                    : 'bg-white border-[#edebe9] text-[#605e5c] hover:bg-[#f3f2f1]'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
                   {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -195,10 +194,10 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
         </div>
 
         {/* Security Section */}
-        <div className="bg-white border border-[#edebe9] rounded overflow-hidden hover:shadow-md transition-shadow">
-          <div className="px-6 py-4 border-b border-[#edebe9] bg-[#faf9f8] flex items-center space-x-2">
+        <div className="bg-white border border-slate-200 rounded overflow-hidden hover:shadow-md transition-shadow">
+          <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center space-x-2">
             <Lock className="w-4 h-4 text-[#0078d4]" />
-            <h3 className="text-sm font-bold text-[#323130]">Security</h3>
+            <h3 className="text-sm font-bold text-slate-800">Security</h3>
           </div>
           <div className="p-6 space-y-6">
             {securityMessage && (
@@ -214,7 +213,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
 
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#605e5c] flex items-center gap-1">
+                <label className="text-xs font-bold text-slate-600 flex items-center gap-1">
                   <Mail className="w-3 h-3" /> Email Address
                 </label>
                 <div className="flex gap-2">
@@ -222,12 +221,12 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                     type="email"
                     value={newEmail}
                     onChange={(e) => setNewEmail(e.target.value)}
-                    className="flex-1 px-3 py-2.5 text-sm bg-[#faf9f8] border-none rounded focus:ring-1 focus:ring-[#0078d4]"
+                    className="flex-1 px-3 py-2.5 text-sm bg-slate-50 border-none rounded focus:ring-1 focus:ring-[#0078d4]"
                   />
                   <button
                     onClick={handleUpdateEmail}
                     disabled={securityLoading === 'email' || newEmail === settings.email}
-                    className="px-4 py-2 bg-white border border-[#edebe9] text-[#605e5c] text-xs font-bold rounded hover:bg-[#f3f2f1] hover:text-[#0078d4] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+                    className="px-4 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded hover:bg-slate-50 hover:text-[#0078d4] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
                   >
                     {securityLoading === 'email' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update'}
                   </button>
@@ -235,7 +234,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#605e5c] flex items-center gap-1">
+                <label className="text-xs font-bold text-slate-600 flex items-center gap-1">
                   <Lock className="w-3 h-3" /> New Password
                 </label>
                 <div className="flex gap-2">
@@ -244,12 +243,12 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                     placeholder="Min 6 characters"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="flex-1 px-3 py-2.5 text-sm bg-[#faf9f8] border-none rounded focus:ring-1 focus:ring-[#0078d4]"
+                    className="flex-1 px-3 py-2.5 text-sm bg-slate-50 border-none rounded focus:ring-1 focus:ring-[#0078d4]"
                   />
                   <button
                     onClick={handleUpdatePassword}
                     disabled={securityLoading === 'password' || !newPassword}
-                    className="px-4 py-2 bg-white border border-[#edebe9] text-[#605e5c] text-xs font-bold rounded hover:bg-[#f3f2f1] hover:text-[#0078d4] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+                    className="px-4 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded hover:bg-slate-50 hover:text-[#0078d4] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
                   >
                     {securityLoading === 'password' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update'}
                   </button>
@@ -258,7 +257,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
             </div>
             
             <div className="pt-2">
-               <p className="text-[10px] text-[#a19f9d] leading-relaxed">
+               <p className="text-[10px] text-slate-400 leading-relaxed">
                   Note: Updating your email will send a confirmation link to the new address. Your current session will remain active.
                </p>
             </div>
@@ -275,8 +274,8 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
                 <div>
-                  <p className="text-sm font-bold text-[#323130]">Danger Zone</p>
-                  <p className="text-xs text-[#605e5c] mt-1 leading-relaxed">
+                  <p className="text-sm font-bold text-slate-800">Danger Zone</p>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                     Permanently remove all local data or delete your account reference.
                   </p>
                 </div>
@@ -303,7 +302,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                         setIsConfirmingDelete(false);
                         setDeleteKeyword('');
                       }}
-                      className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-[#605e5c] hover:bg-[#f3f2f1] rounded transition-colors"
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 rounded transition-colors"
                     >
                       <X className="w-3 h-3" /> Cancel
                     </button>
@@ -317,7 +316,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                     <AlertTriangle className="w-4 h-4" />
                     <span className="text-xs font-bold uppercase tracking-wider">Warning</span>
                   </div>
-                  <p className="text-xs text-[#323130] mb-4 font-medium">
+                  <p className="text-xs text-slate-800 mb-4 font-medium">
                     Please type <span className="font-bold italic text-[#a4262c]">delete</span> below to confirm.
                   </p>
                   <div className="flex flex-col gap-3">
@@ -336,7 +335,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                       className={`w-full py-2.5 text-xs font-bold rounded transition-all shadow-sm flex items-center justify-center gap-2 ${
                         deleteKeyword.toLowerCase() === 'delete' && !isDeleting
                           ? 'bg-[#a4262c] text-white hover:bg-[#821d23]'
-                          : 'bg-[#edebe9] text-[#a19f9d] cursor-not-allowed'
+                          : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                       }`}
                     >
                       {isDeleting ? (

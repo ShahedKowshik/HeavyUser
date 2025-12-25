@@ -275,11 +275,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       title={isSidebarCollapsed ? label : undefined}
       className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2.5 rounded transition-all duration-200 group ${
         activeTab === id 
-        ? 'bg-[#f3f3f3] text-[#0078d4] font-bold shadow-sm ring-1 ring-[#edebe9]' 
-        : 'text-[#605e5c] hover:bg-[#f3f3f3] hover:text-[#323130] font-medium'
+        ? 'bg-slate-100 text-[#0078d4] font-bold shadow-sm ring-1 ring-slate-200' 
+        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
       }`}
     >
-      <Icon className={`w-4.5 h-4.5 transition-colors ${activeTab === id ? 'text-[#0078d4]' : 'text-[#a19f9d] group-hover:text-[#605e5c]'}`} />
+      <Icon className={`w-4.5 h-4.5 transition-colors ${activeTab === id ? 'text-[#0078d4]' : 'text-slate-400 group-hover:text-slate-600'}`} />
       {!isSidebarCollapsed && <span className="text-sm whitespace-nowrap overflow-hidden">{label}</span>}
     </button>
   );
@@ -290,7 +290,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       className={`flex flex-col items-center justify-center p-2 rounded transition-all duration-200 ${
         activeTab === id 
         ? 'text-[#0078d4]' 
-        : 'text-[#a19f9d]'
+        : 'text-slate-400'
       }`}
     >
       <Icon className={`w-5 h-5 mb-1 ${activeTab === id ? 'fill-current' : ''}`} />
@@ -299,15 +299,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   );
 
   return (
-    <div className="flex h-screen bg-[#f3f3f3] text-[#323130] overflow-hidden font-sans selection:bg-[#0078d4]/20 selection:text-[#0078d4]">
+    <div className="flex h-screen bg-slate-100 text-slate-800 overflow-hidden font-sans selection:bg-[#0078d4]/20 selection:text-[#0078d4]">
       {/* Sidebar - Desktop */}
-      <aside className={`hidden md:flex flex-col p-4 space-y-4 bg-white border-r border-[#edebe9] shrink-0 z-20 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20 items-center' : 'w-64'}`}>
+      <aside className={`hidden md:flex flex-col p-4 space-y-4 bg-white border-r border-slate-200 shrink-0 z-20 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20 items-center' : 'w-64'}`}>
         <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'space-x-3 px-3'} py-6 relative`}>
           <div className="w-8 h-8 bg-[#0078d4] rounded flex items-center justify-center shadow-sm shrink-0">
             <LayoutGrid className="w-5 h-5 text-white" />
           </div>
           {!isSidebarCollapsed && (
-             <h1 className="text-lg font-bold tracking-tight whitespace-nowrap overflow-hidden transition-opacity duration-300">HeavyUser</h1>
+             <h1 className="text-lg font-bold tracking-tight whitespace-nowrap overflow-hidden transition-opacity duration-300 text-slate-800">HeavyUser</h1>
           )}
         </div>
 
@@ -317,10 +317,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           <NavItem id="journal" label="Journal" icon={BookOpen} />
         </nav>
 
-        <div className={`pt-4 border-t border-[#edebe9] w-full flex flex-col gap-1`}>
+        <div className={`pt-4 border-t border-slate-200 w-full flex flex-col gap-1`}>
           <button 
              onClick={toggleSidebar}
-             className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-3 px-3'} py-2 mb-2 text-[#a19f9d] hover:bg-[#f3f3f3] hover:text-[#605e5c] rounded transition-all`}
+             className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-3 px-3'} py-2 mb-2 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded transition-all`}
              title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
            >
               {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -329,9 +329,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
           <NavItem id="settings" label="Settings" icon={Settings} />
           
-          <div className={`mt-4 p-2 rounded border border-[#edebe9] flex items-center ${isSidebarCollapsed ? 'justify-center bg-transparent border-transparent' : 'space-x-3 bg-white'} shadow-sm transition-all duration-300`}>
+          <div className={`mt-4 p-2 rounded border border-slate-200 flex items-center ${isSidebarCollapsed ? 'justify-center bg-transparent border-transparent' : 'space-x-3 bg-white'} shadow-sm transition-all duration-300`}>
             {userSettings.profilePicture ? (
-              <img src={userSettings.profilePicture} alt="Profile" className="w-9 h-9 rounded object-cover shadow-inner bg-[#edebe9] shrink-0" />
+              <img src={userSettings.profilePicture} alt="Profile" className="w-9 h-9 rounded object-cover shadow-inner bg-slate-100 shrink-0" />
             ) : (
               <div className="w-9 h-9 rounded bg-[#eff6fc] text-[#0078d4] flex items-center justify-center text-xs font-black shadow-inner shrink-0">
                 {userSettings.userName.split(' ').map(n => n[0]).join('').toUpperCase()}
@@ -340,8 +340,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             
             {!isSidebarCollapsed && (
                <div className="overflow-hidden">
-                <p className="text-xs font-bold truncate text-[#323130]">{userSettings.userName}</p>
-                <p className="text-[10px] text-[#a19f9d] font-mono font-medium truncate">{user.email}</p>
+                <p className="text-xs font-bold truncate text-slate-800">{userSettings.userName}</p>
+                <p className="text-[10px] text-slate-500 font-mono font-medium truncate">{user.email}</p>
               </div>
             )}
           </div>
@@ -349,9 +349,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 relative flex flex-col overflow-y-auto bg-[#faf9f8] pb-20 md:pb-0">
-        <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-8 py-4 bg-white/80 backdrop-blur-md border-b border-[#edebe9]">
-          <h2 className="text-xl font-black capitalize text-[#323130] tracking-tight">{activeTab}</h2>
+      <main className="flex-1 relative flex flex-col overflow-y-auto bg-slate-50/50 pb-20 md:pb-0">
+        <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-8 py-4 bg-white/90 backdrop-blur-md border-b border-slate-200">
+          <h2 className="text-xl font-black capitalize text-slate-800 tracking-tight">{activeTab}</h2>
           <div className="flex items-center space-x-4">
             
             {/* Urgent Tasks Alert */}
@@ -364,14 +364,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                   <AlertTriangle className="w-4 h-4" />
                 </div>
                 {/* Tooltip */}
-                <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-[#edebe9] rounded shadow-xl p-3 z-50 hidden group-hover:block animate-in fade-in slide-in-from-top-2">
+                <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded shadow-xl p-3 z-50 hidden group-hover:block animate-in fade-in slide-in-from-top-2">
                   <div className="flex items-start gap-3">
                     <div className="p-1.5 bg-red-100 rounded text-red-600 shrink-0">
                        <AlertTriangle className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-[#323130] uppercase tracking-wide">Action Required</p>
-                      <p className="text-xs text-[#605e5c] mt-1">
+                      <p className="text-xs font-bold text-slate-800 uppercase tracking-wide">Action Required</p>
+                      <p className="text-xs text-slate-600 mt-1">
                         You have <span className="font-bold text-red-600">{urgentTasksTodayCount} urgent task{urgentTasksTodayCount > 1 ? 's' : ''}</span> due today.
                       </p>
                     </div>
@@ -386,17 +386,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition-all ${
                 streakData.activeToday 
                   ? 'bg-amber-50 border-amber-200 text-amber-600 shadow-sm' 
-                  : 'bg-white border-[#edebe9] text-[#a19f9d] hover:bg-[#faf9f8]'
+                  : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'
               }`}
             >
               <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'fill-current' : ''}`} />
               <span className="text-xs font-bold tabular-nums">{streakData.count}</span>
             </button>
 
-            <div className="text-xs text-[#605e5c] font-bold px-3 py-1.5 bg-[#f3f2f1] rounded border border-[#edebe9] tabular-nums hidden sm:block">
+            <div className="text-xs text-slate-600 font-bold px-3 py-1.5 bg-slate-100 rounded border border-slate-200 tabular-nums hidden sm:block">
               {formattedDate} • {formattedTime}
             </div>
-            <div className="text-xs text-[#605e5c] font-bold px-3 py-1.5 bg-[#f3f2f1] rounded border border-[#edebe9] tabular-nums sm:hidden">
+            <div className="text-xs text-slate-600 font-bold px-3 py-1.5 bg-slate-100 rounded border border-slate-200 tabular-nums sm:hidden">
               {formattedTime}
             </div>
           </div>
@@ -453,37 +453,37 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
                 {/* Requirements */}
                 <div className="space-y-3">
-                   <h3 className="text-xs font-black text-[#a19f9d] uppercase tracking-widest flex items-center gap-1.5">
+                   <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                      <Info className="w-3.5 h-3.5" /> How to extend streak
                    </h3>
                    <div className="grid grid-cols-1 gap-2">
-                      <div className="flex items-center gap-3 p-3 bg-[#faf9f8] rounded border border-[#edebe9]">
+                      <div className="flex items-center gap-3 p-3 bg-slate-50 rounded border border-slate-200">
                          <div className="w-8 h-8 rounded bg-blue-50 text-[#0078d4] flex items-center justify-center border border-blue-100">
                            <CheckCircle2 className="w-4 h-4" />
                          </div>
-                         <span className="text-sm font-semibold text-[#323130]">Create or Complete a Task</span>
+                         <span className="text-sm font-semibold text-slate-800">Create or Complete a Task</span>
                       </div>
-                      <div className="flex items-center gap-3 p-3 bg-[#faf9f8] rounded border border-[#edebe9]">
+                      <div className="flex items-center gap-3 p-3 bg-slate-50 rounded border border-slate-200">
                          <div className="w-8 h-8 rounded bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
                            <Zap className="w-4 h-4 fill-current" />
                          </div>
-                         <span className="text-sm font-semibold text-[#323130]">Check or Skip a Habit</span>
+                         <span className="text-sm font-semibold text-slate-800">Check or Skip a Habit</span>
                       </div>
-                      <div className="flex items-center gap-3 p-3 bg-[#faf9f8] rounded border border-[#edebe9]">
+                      <div className="flex items-center gap-3 p-3 bg-slate-50 rounded border border-slate-200">
                          <div className="w-8 h-8 rounded bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100">
                            <BookOpen className="w-4 h-4" />
                          </div>
-                         <span className="text-sm font-semibold text-[#323130]">Write a Journal Entry</span>
+                         <span className="text-sm font-semibold text-slate-800">Write a Journal Entry</span>
                       </div>
                    </div>
                 </div>
                 
                 {/* Recent History Mini-Cal */}
                 <div className="space-y-3 pt-2">
-                   <h3 className="text-xs font-black text-[#a19f9d] uppercase tracking-widest flex items-center gap-1.5">
+                   <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                      <Calendar className="w-3.5 h-3.5" /> Recent Activity
                    </h3>
-                   <div className="flex justify-between items-center gap-1 bg-[#faf9f8] p-3 rounded border border-[#edebe9]">
+                   <div className="flex justify-between items-center gap-1 bg-slate-50 p-3 rounded border border-slate-200">
                       {Array.from({ length: 7 }).map((_, i) => {
                          const d = new Date();
                          d.setDate(d.getDate() - (6 - i));
@@ -493,11 +493,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
                          return (
                             <div key={i} className="flex flex-col items-center gap-1.5">
-                               <span className="text-[10px] font-bold text-[#a19f9d] uppercase">{d.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>
+                               <span className="text-[10px] font-bold text-slate-400 uppercase">{d.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>
                                <div className={`w-8 h-8 rounded flex items-center justify-center border text-xs font-bold transition-all ${
                                   isActive 
                                   ? 'bg-amber-500 border-amber-600 text-white shadow-sm' 
-                                  : (isToday ? 'bg-white border-[#0078d4] text-[#0078d4] border-dashed' : 'bg-white border-[#edebe9] text-[#d1d1d1]')
+                                  : (isToday ? 'bg-white border-[#0078d4] text-[#0078d4] border-dashed' : 'bg-white border-slate-200 text-slate-300')
                                }`}>
                                   {isActive ? <Flame className="w-3.5 h-3.5 fill-current" /> : (isToday ? 'Today' : '')}
                                </div>
@@ -512,7 +512,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       )}
 
       {/* Bottom Navigation - Mobile */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[#edebe9] z-40 flex justify-around py-2 px-2 pb-safe">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 flex justify-around py-2 px-2 pb-safe">
         <MobileNavItem id="tasks" label="Tasks" icon={CheckCircle2} />
         <MobileNavItem id="habit" label="Habit" icon={Zap} />
         <MobileNavItem id="journal" label="Journal" icon={BookOpen} />
