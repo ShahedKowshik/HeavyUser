@@ -846,8 +846,8 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   return (
     <div className="animate-in fade-in duration-500 pb-20">
        <div className="mb-6 space-y-4">
-        {/* Header Actions */}
-        <div className="flex items-center justify-between">
+        {/* Header Actions - Hidden on mobile, visible on desktop */}
+        <div className="hidden md:flex items-center justify-between">
            <div className="flex-1"></div>
            <div className="flex items-center gap-3">
               <button 
@@ -867,31 +867,39 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
            </div>
         </div>
 
-        {/* Toolbar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 border-b border-slate-200 pb-4">
-            <div className="flex bg-slate-100 p-1 rounded border border-slate-200">
-                <button onClick={() => setViewMode('active')} className={`px-4 py-1.5 text-xs font-bold rounded transition-all ${viewMode === 'active' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Active</button>
-                <button onClick={() => setViewMode('completed')} className={`px-4 py-1.5 text-xs font-bold rounded transition-all ${viewMode === 'completed' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Completed</button>
+        {/* Toolbar - Single horizontal scrolling row on mobile */}
+        <div className="flex flex-row items-center gap-2 sm:gap-4 border-b border-slate-200 pb-2 sm:pb-4 overflow-x-auto no-scrollbar">
+            <div className="flex bg-slate-100 p-1 rounded border border-slate-200 shrink-0">
+                <button onClick={() => setViewMode('active')} className={`px-3 sm:px-4 py-1.5 text-xs font-bold rounded transition-all whitespace-nowrap ${viewMode === 'active' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Active</button>
+                <button onClick={() => setViewMode('completed')} className={`px-3 sm:px-4 py-1.5 text-xs font-bold rounded transition-all whitespace-nowrap ${viewMode === 'completed' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Completed</button>
             </div>
 
-            <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+            <div className="h-4 w-px bg-slate-200 shrink-0" />
+
+            {/* Labels Button - Visible ONLY on mobile in toolbar */}
+            <button 
+               onClick={() => setIsTagManagerOpen(true)} 
+               className="md:hidden flex items-center justify-center w-8 h-8 bg-white border border-slate-200 rounded text-slate-500 shrink-0"
+            >
+               <TagIcon className="w-4 h-4" />
+            </button>
 
             {/* Grouping */}
-            <div className="flex items-center gap-2">
-               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Group</span>
-               <select value={grouping} onChange={(e) => setGrouping(e.target.value as Grouping)} className="text-xs font-bold bg-transparent border-none p-0 pr-6 focus:ring-0 cursor-pointer text-slate-600 hover:text-[#0078d4]">
-                  <option value="none">None</option>
+            <div className="flex items-center gap-2 shrink-0 bg-white sm:bg-transparent border sm:border-none border-slate-200 rounded px-2 py-1.5 sm:p-0">
+               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline">Group</span>
+               <select value={grouping} onChange={(e) => setGrouping(e.target.value as Grouping)} className="text-xs font-bold bg-transparent border-none p-0 pr-6 sm:pr-6 focus:ring-0 cursor-pointer text-slate-600 hover:text-[#0078d4]">
+                  <option value="none">No Grouping</option>
                   <option value="date">Date</option>
                   <option value="priority">Priority</option>
                </select>
             </div>
 
-            <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+            <div className="h-4 w-px bg-slate-200 hidden sm:block shrink-0" />
 
             {/* Sorting */}
-            <div className="flex items-center gap-2">
-               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sort</span>
-               <select value={sorting} onChange={(e) => setSorting(e.target.value as Sorting)} className="text-xs font-bold bg-transparent border-none p-0 pr-6 focus:ring-0 cursor-pointer text-slate-600 hover:text-[#0078d4]">
+            <div className="flex items-center gap-2 shrink-0 bg-white sm:bg-transparent border sm:border-none border-slate-200 rounded px-2 py-1.5 sm:p-0">
+               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline">Sort</span>
+               <select value={sorting} onChange={(e) => setSorting(e.target.value as Sorting)} className="text-xs font-bold bg-transparent border-none p-0 pr-6 sm:pr-6 focus:ring-0 cursor-pointer text-slate-600 hover:text-[#0078d4]">
                   <option value="date">Due Date</option>
                   <option value="priority">Priority</option>
                   <option value="title">Title</option>
@@ -901,21 +909,21 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
             <div className="flex-1" />
         </div>
 
-        {/* Tag Filters */}
+        {/* Tag Filters - Horizontal scroll on mobile */}
         {tags.length > 0 && (
-           <div className="flex flex-wrap gap-2">
+           <div className="flex flex-nowrap overflow-x-auto md:flex-wrap gap-2 no-scrollbar pb-1 md:pb-0">
               {tags.map(tag => (
                  <button
                     key={tag.id}
                     onClick={() => toggleFilterTag(tag.id)}
-                    className={`text-[10px] font-bold px-2 py-1 rounded border transition-all ${filterTags.has(tag.id) ? 'ring-1 ring-offset-1 ring-[#0078d4] border-transparent' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                    className={`text-[10px] font-bold px-2 py-1 rounded border transition-all whitespace-nowrap shrink-0 ${filterTags.has(tag.id) ? 'ring-1 ring-offset-1 ring-[#0078d4] border-transparent' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
                     style={filterTags.has(tag.id) ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
                  >
                     {tag.label}
                  </button>
               ))}
               {filterTags.size > 0 && (
-                 <button onClick={() => setFilterTags(new Set())} className="text-[10px] font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 px-2">
+                 <button onClick={() => setFilterTags(new Set())} className="text-[10px] font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 px-2 whitespace-nowrap shrink-0">
                     <X className="w-3 h-3" /> Clear
                  </button>
               )}
