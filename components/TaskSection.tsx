@@ -152,6 +152,7 @@ const mapTaskToDb = (task: Task, userId: string) => ({
 
 const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   
   // Selection & View State
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -329,6 +330,25 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
     setTasks(prev => prev.map(t => t.id === selectedTaskId ? { ...t, ...updates } : t));
   };
 
+  const handleAddTag = async () => {
+    if (!newTagLabel.trim()) return;
+    const newTag: Tag = {
+      id: crypto.randomUUID(),
+      label: newTagLabel.trim(),
+      color: newTagColor,
+    };
+    setTags([...tags, newTag]);
+    setNewTagLabel('');
+
+    // Sync to Supabase (Encrypted Label)
+    await supabase.from('tags').insert({
+      id: newTag.id,
+      user_id: userId,
+      label: encryptData(newTag.label),
+      color: newTag.color
+    });
+  };
+
   const handleAddInlineTag = async () => {
     if (!inlineTagLabel.trim()) return;
     const newTag: Tag = {
@@ -359,6 +379,60 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
       label: encryptData(newTag.label),
       color: newTag.color
     });
+  };
+
+  const handleDeleteTag = async (id: string) => {
+    if (!window.confirm("Delete this label? It will be removed from all tasks.")) return;
+    
+    setTags(tags.filter(t => t.id !== id));
+    setTasks(prev => prev.map(t => ({
+      ...t,
+      tags: t.tags?.filter(tagId => tagId !== id)
+    })));
+    
+    // Also remove from filters if deleted
+    if (filterTags.has(id)) {
+        const next = new Set(filterTags);
+        next.delete(id);
+        setFilterTags(next);
+    }
+
+    // Sync to Supabase
+    await supabase.from('tags').delete().eq('id', id);
+  };
+
+  const startEditingTag = (tag: Tag) => {
+    setEditingTagId(tag.id);
+    setEditTagLabel(tag.label);
+    setEditTagColor(tag.color);
+  };
+
+  const cancelEditingTag = () => {
+    setEditingTagId(null);
+    setEditTagLabel('');
+    setEditTagColor('');
+  };
+
+  const saveEditingTag = async () => {
+    if (!editingTagId || !editTagLabel.trim()) return;
+
+    const updatedTag = {
+      id: editingTagId,
+      label: editTagLabel.trim(),
+      color: editTagColor
+    };
+
+    // Optimistic Update
+    setTags(prev => prev.map(t => t.id === editingTagId ? { ...t, ...updatedTag } : t));
+    
+    // Reset Edit State
+    cancelEditingTag();
+
+    // Sync to Supabase
+    await supabase.from('tags').update({
+      label: encryptData(updatedTag.label),
+      color: updatedTag.color
+    }).eq('id', updatedTag.id);
   };
 
   const toggleTask = async (id: string) => {
@@ -756,62 +830,84 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   );
 
   return (
-    <div className="animate-in fade-in duration-500 relative">
-        {/* Header Controls */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-2 bg-slate-100 p-1 rounded border border-slate-200">
-                <button onClick={() => setViewMode('active')} className={`px-3 py-1.5 text-xs font-bold rounded transition-all ${viewMode === 'active' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}>Active</button>
-                <button onClick={() => setViewMode('completed')} className={`px-3 py-1.5 text-xs font-bold rounded transition-all ${viewMode === 'completed' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}>Completed</button>
-            </div>
-            <div className="flex items-center gap-2 w-full md:w-auto">
-                 <div className="flex bg-slate-100 p-1 rounded border border-slate-200">
-                    <button title="Sort by Date" onClick={() => setGrouping('date')} className={`p-1.5 rounded ${grouping === 'date' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-400'}`}><Calendar className="w-4 h-4"/></button>
-                    <button title="Sort by Priority" onClick={() => setGrouping('priority')} className={`p-1.5 rounded ${grouping === 'priority' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-400'}`}><AlertCircle className="w-4 h-4"/></button>
-                 </div>
-                 
-                 <div className="h-6 w-px bg-slate-200 mx-1" />
-
-                 <button 
-                   onClick={openCreateModal}
-                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 fluent-btn-primary rounded shadow-md active:scale-95 transition-transform"
-                 >
-                    <Plus className="w-4 h-4" />
-                    <span className="text-sm font-bold">Add Task</span>
-                 </button>
-            </div>
+    <div className="animate-in fade-in duration-500 pb-20">
+       <div className="mb-6 space-y-4">
+        {/* Header Actions */}
+        <div className="flex items-center justify-between">
+           <div className="flex-1"></div>
+           <button 
+              onClick={openCreateModal}
+              className="flex items-center justify-center gap-2 px-6 py-2.5 fluent-btn-primary rounded shadow-md active:scale-95 transition-transform text-sm font-bold"
+           >
+              <Plus className="w-4 h-4" />
+              <span>New Task</span>
+           </button>
         </div>
-        
+
+        {/* Toolbar */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 border-b border-slate-200 pb-4">
+            <div className="flex bg-slate-100 p-1 rounded border border-slate-200">
+                <button onClick={() => setViewMode('active')} className={`px-4 py-1.5 text-xs font-bold rounded transition-all ${viewMode === 'active' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Active</button>
+                <button onClick={() => setViewMode('completed')} className={`px-4 py-1.5 text-xs font-bold rounded transition-all ${viewMode === 'completed' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Completed</button>
+            </div>
+
+            <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+            {/* Grouping */}
+            <div className="flex items-center gap-2">
+               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Group</span>
+               <select value={grouping} onChange={(e) => setGrouping(e.target.value as Grouping)} className="text-xs font-bold bg-transparent border-none p-0 pr-6 focus:ring-0 cursor-pointer text-slate-600 hover:text-[#0078d4]">
+                  <option value="none">None</option>
+                  <option value="date">Date</option>
+                  <option value="priority">Priority</option>
+               </select>
+            </div>
+
+            <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+            {/* Sorting */}
+            <div className="flex items-center gap-2">
+               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sort</span>
+               <select value={sorting} onChange={(e) => setSorting(e.target.value as Sorting)} className="text-xs font-bold bg-transparent border-none p-0 pr-6 focus:ring-0 cursor-pointer text-slate-600 hover:text-[#0078d4]">
+                  <option value="date">Due Date</option>
+                  <option value="priority">Priority</option>
+                  <option value="title">Title</option>
+               </select>
+            </div>
+            
+            <div className="flex-1" />
+            
+            <button onClick={() => setIsTagManagerOpen(true)} className="text-xs font-bold text-[#0078d4] hover:underline flex items-center gap-1">
+               <TagIcon className="w-3 h-3" /> Labels
+            </button>
+        </div>
+
         {/* Tag Filters */}
         {tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-6">
-                {tags.map(tag => (
-                    <button
-                        key={tag.id}
-                        onClick={() => toggleFilterTag(tag.id)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold border transition-all ${
-                            filterTags.has(tag.id)
-                            ? 'ring-2 ring-offset-1 ring-[#0078d4] border-transparent shadow-sm' 
-                            : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                        }`}
-                        style={filterTags.has(tag.id) ? { backgroundColor: tag.color, color: 'white' } : {}}
-                    >
-                        <TagIcon className="w-3 h-3" />
-                        {tag.label}
-                    </button>
-                ))}
-                {filterTags.size > 0 && (
-                    <button onClick={() => setFilterTags(new Set())} className="text-[10px] font-bold text-[#0078d4] hover:underline px-2">
-                        Clear
-                    </button>
-                )}
-            </div>
+           <div className="flex flex-wrap gap-2">
+              {tags.map(tag => (
+                 <button
+                    key={tag.id}
+                    onClick={() => toggleFilterTag(tag.id)}
+                    className={`text-[10px] font-bold px-2 py-1 rounded border transition-all ${filterTags.has(tag.id) ? 'ring-1 ring-offset-1 ring-[#0078d4] border-transparent' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                    style={filterTags.has(tag.id) ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
+                 >
+                    {tag.label}
+                 </button>
+              ))}
+              {filterTags.size > 0 && (
+                 <button onClick={() => setFilterTags(new Set())} className="text-[10px] font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 px-2">
+                    <X className="w-3 h-3" /> Clear
+                 </button>
+              )}
+           </div>
         )}
+      </div>
 
-        {/* Task List */}
-        {viewMode === 'active' ? renderListGroups(activeTasksGroups) : renderListGroups(completedTasksGroups)}
+      {viewMode === 'active' ? renderListGroups(activeTasksGroups) : renderListGroups(completedTasksGroups)}
 
-        {/* EDIT TASK MODAL (Restored) */}
-        {selectedTask && (
+      {/* EDIT TASK MODAL (Restored) */}
+      {selectedTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
@@ -1409,6 +1505,118 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
               </div>
            </div>
        )}
+
+       {/* Tag Manager Modal */}
+      {isTagManagerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+          <div className="bg-white w-[95%] md:w-full max-w-md rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh]">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <TagIcon className="w-5 h-5 text-[#0078d4]" />
+                <h3 className="text-lg font-black text-slate-800 tracking-tight">Manage Labels</h3>
+              </div>
+              <button onClick={() => setIsTagManagerOpen(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 flex-1 overflow-y-auto space-y-6">
+              {/* Existing Tags */}
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Existing Labels</h4>
+                <div className="space-y-2">
+                  {tags.length === 0 ? (
+                    <p className="text-sm text-slate-400 italic">No labels yet.</p>
+                  ) : (
+                    tags.map(tag => (
+                      editingTagId === tag.id ? (
+                        // Edit Mode Row
+                        <div key={tag.id} className="p-3 bg-[#eff6fc] rounded border border-[#0078d4] animate-in fade-in">
+                           <div className="flex gap-2 mb-2">
+                              <input 
+                                type="text" 
+                                value={editTagLabel} 
+                                onChange={(e) => setEditTagLabel(e.target.value)} 
+                                className="flex-1 text-xs font-bold bg-white border border-[#0078d4] rounded p-2 focus:ring-1 focus:ring-[#0078d4]" 
+                                autoFocus
+                              />
+                           </div>
+                           <div className="flex gap-2 flex-wrap mb-2 max-h-24 overflow-y-auto">
+                              {PRESET_COLORS.map(color => (
+                                <button 
+                                  key={color} 
+                                  onClick={() => setEditTagColor(color)}
+                                  className={`w-4 h-4 rounded shrink-0 transition-transform ${editTagColor === color ? 'ring-2 ring-offset-1 ring-[#0078d4] scale-110' : ''}`}
+                                  style={{ backgroundColor: color }}
+                                />
+                              ))}
+                           </div>
+                           <div className="flex justify-end gap-2">
+                              <button onClick={cancelEditingTag} className="p-1.5 text-slate-600 hover:bg-slate-100 rounded"><X className="w-4 h-4" /></button>
+                              <button onClick={saveEditingTag} className="p-1.5 bg-[#0078d4] text-white rounded hover:bg-[#106ebe]"><Check className="w-4 h-4" /></button>
+                           </div>
+                        </div>
+                      ) : (
+                        // Display Mode Row
+                        <div key={tag.id} className="flex items-center justify-between p-3 bg-slate-50 rounded border border-slate-200 group">
+                          <div className="flex items-center gap-3">
+                            <div className="w-4 h-4 rounded" style={{ backgroundColor: tag.color }} />
+                            <span className="text-sm font-semibold text-slate-800">{tag.label}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button 
+                              onClick={() => startEditingTag(tag)}
+                              className="p-1.5 text-[#0078d4] hover:bg-blue-50 rounded transition-colors"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteTag(tag.id)} 
+                              className="p-1.5 text-[#a4262c] hover:bg-red-50 rounded transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-6 border-t border-slate-100">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Create New Label</h4>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={newTagLabel} 
+                    onChange={(e) => setNewTagLabel(e.target.value)} 
+                    placeholder="Label name..." 
+                    className="flex-1 text-sm font-semibold bg-slate-50 border-none rounded p-3 focus:ring-2 focus:ring-[#0078d4]/20" 
+                  />
+                  <button onClick={handleAddTag} disabled={!newTagLabel.trim()} className="px-4 bg-[#0078d4] text-white rounded hover:bg-[#106ebe] disabled:opacity-50 disabled:hover:bg-[#0078d4] transition-colors">
+                    <Plus className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="flex gap-2 flex-wrap max-h-32 overflow-y-auto">
+                  {PRESET_COLORS.map(color => (
+                    <button 
+                      key={color} 
+                      onClick={() => setNewTagColor(color)}
+                      className={`w-6 h-6 rounded transition-transform hover:scale-110 shrink-0 ${newTagColor === color ? 'ring-2 ring-offset-2 ring-slate-600' : ''}`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
+               <button onClick={() => setIsTagManagerOpen(false)} className="px-5 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded transition-colors">Done</button>
+            </div>
+          </div>
+        </div>
+      )}
 
        {/* Floating Action Button (Mobile) */}
        <div className="md:hidden fixed bottom-20 right-4 z-30">
