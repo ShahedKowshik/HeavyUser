@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Plus, Trash2, CheckCircle2, X, SlidersHorizontal, ChevronRight, ListChecks, History, Tag as TagIcon, Calendar, Clock, AlertCircle, FileText, Check, MoreHorizontal, Flag, ArrowRight, CornerDownLeft, ArrowUp, ArrowDown, Flame, Circle, CheckSquare, Square, ArrowLeft, PenLine, Eye, Edit2, Repeat, ChevronDown, Moon } from 'lucide-react';
+import { Plus, Trash2, CheckCircle2, X, SlidersHorizontal, ChevronRight, ListChecks, History, Tag as TagIcon, Calendar, Clock, AlertCircle, FileText, Check, MoreHorizontal, Flag, ArrowRight, CornerDownLeft, ArrowUp, ArrowDown, Flame, Circle, CheckSquare, Square, ArrowLeft, PenLine, Eye, Edit2, Repeat, ChevronDown, Moon, Layers, ArrowUpDown } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -868,84 +867,94 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
   return (
     <div className="animate-in fade-in duration-500 pb-20">
        <div className="mb-6 space-y-4">
-        {/* Header Actions - Hidden on mobile, visible on desktop */}
-        <div className="hidden md:flex items-center justify-between">
-           <div className="flex-1"></div>
-           <div className="flex items-center gap-3">
-              <button 
-                  onClick={() => setIsTagManagerOpen(true)} 
-                  className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded hover:bg-slate-50 transition-all text-sm font-bold shadow-sm"
-               >
-                  <TagIcon className="w-4 h-4" />
-                  <span>Labels</span>
-               </button>
-               <button 
-                  onClick={openCreateModal}
-                  className="flex items-center justify-center gap-2 px-6 py-2.5 fluent-btn-primary rounded shadow-md active:scale-95 transition-transform text-sm font-bold"
-               >
-                  <Plus className="w-4 h-4" />
-                  <span>New Task</span>
-               </button>
-           </div>
-        </div>
-
-        {/* Toolbar - Single horizontal scrolling row on mobile */}
-        <div className="flex flex-row items-center gap-2 sm:gap-4 border-b border-slate-200 pb-2 sm:pb-4 overflow-x-auto no-scrollbar">
-            <div className="flex bg-slate-100 p-1 rounded border border-slate-200 shrink-0">
-                <button onClick={() => setViewMode('active')} className={`px-3 sm:px-4 py-1.5 text-xs font-bold rounded transition-all whitespace-nowrap ${viewMode === 'active' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Active</button>
-                <button onClick={() => setViewMode('completed')} className={`px-3 sm:px-4 py-1.5 text-xs font-bold rounded transition-all whitespace-nowrap ${viewMode === 'completed' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Completed</button>
-            </div>
-
-            <div className="h-4 w-px bg-slate-200 shrink-0" />
-
-            {/* Labels Button - Visible ONLY on mobile in toolbar */}
-            <button 
-               onClick={() => setIsTagManagerOpen(true)} 
-               className="md:hidden flex items-center justify-center w-8 h-8 bg-white border border-slate-200 rounded text-slate-500 shrink-0"
-            >
-               <TagIcon className="w-4 h-4" />
-            </button>
-
-            {/* Grouping */}
-            <div className="flex items-center gap-2 shrink-0 bg-white sm:bg-transparent border sm:border-none border-slate-200 rounded px-2 py-1.5 sm:p-0">
-               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline">Group</span>
-               <select value={grouping} onChange={(e) => setGrouping(e.target.value as Grouping)} className="text-xs font-bold bg-transparent border-none p-0 pr-6 sm:pr-6 focus:ring-0 cursor-pointer text-slate-600 hover:text-[#0078d4]">
-                  <option value="none">No Grouping</option>
-                  <option value="date">Date</option>
-                  <option value="priority">Priority</option>
-               </select>
-            </div>
-
-            <div className="h-4 w-px bg-slate-200 hidden sm:block shrink-0" />
-
-            {/* Sorting */}
-            <div className="flex items-center gap-2 shrink-0 bg-white sm:bg-transparent border sm:border-none border-slate-200 rounded px-2 py-1.5 sm:p-0">
-               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline">Sort</span>
-               <select value={sorting} onChange={(e) => setSorting(e.target.value as Sorting)} className="text-xs font-bold bg-transparent border-none p-0 pr-6 sm:pr-6 focus:ring-0 cursor-pointer text-slate-600 hover:text-[#0078d4]">
-                  <option value="date">Due Date</option>
-                  <option value="priority">Priority</option>
-                  <option value="title">Title</option>
-               </select>
-            </div>
+        
+        {/* Container for Controls */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             
-            <div className="flex-1" />
+            {/* View Toggle - Full width on mobile, auto on desktop */}
+            <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0 self-start md:self-auto w-full md:w-auto">
+                <button onClick={() => setViewMode('active')} className={`flex-1 md:flex-none px-6 py-2 text-xs font-bold rounded-md transition-all ${viewMode === 'active' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Active</button>
+                <button onClick={() => setViewMode('completed')} className={`flex-1 md:flex-none px-6 py-2 text-xs font-bold rounded-md transition-all ${viewMode === 'completed' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Completed</button>
+            </div>
+
+            {/* Desktop: Right aligned actions. Mobile: Scrollable row */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 md:pb-0 w-full md:w-auto">
+                
+                {/* Group By */}
+                <div className="relative group shrink-0">
+                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm hover:border-slate-300 transition-all">
+                        <Layers className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-xs font-bold text-slate-600 hidden lg:inline">Group:</span>
+                        <select 
+                            value={grouping} 
+                            onChange={(e) => setGrouping(e.target.value as Grouping)} 
+                            className="appearance-none bg-transparent border-none p-0 pr-4 text-xs font-bold text-slate-800 focus:ring-0 cursor-pointer w-full"
+                        >
+                            <option value="none">None</option>
+                            <option value="date">Date</option>
+                            <option value="priority">Priority</option>
+                        </select>
+                         <ChevronDown className="w-3 h-3 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                </div>
+
+                {/* Sort By */}
+                <div className="relative group shrink-0">
+                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm hover:border-slate-300 transition-all">
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-xs font-bold text-slate-600 hidden lg:inline">Sort:</span>
+                        <select 
+                            value={sorting} 
+                            onChange={(e) => setSorting(e.target.value as Sorting)} 
+                            className="appearance-none bg-transparent border-none p-0 pr-4 text-xs font-bold text-slate-800 focus:ring-0 cursor-pointer w-full"
+                        >
+                            <option value="date">Due Date</option>
+                            <option value="priority">Priority</option>
+                            <option value="title">Title</option>
+                        </select>
+                        <ChevronDown className="w-3 h-3 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                </div>
+
+                <div className="h-6 w-px bg-slate-200 hidden md:block shrink-0 mx-1" />
+
+                {/* Labels Trigger */}
+                <button 
+                   onClick={() => setIsTagManagerOpen(true)} 
+                   className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-all text-xs font-bold shadow-sm shrink-0"
+                >
+                   <TagIcon className="w-3.5 h-3.5" />
+                   <span className="hidden lg:inline">Labels</span>
+                </button>
+
+                {/* Desktop New Task Button */}
+                <button 
+                    onClick={openCreateModal}
+                    className="hidden md:flex items-center justify-center gap-2 px-5 py-2 fluent-btn-primary rounded-lg shadow-md active:scale-95 transition-transform text-sm font-bold shrink-0 ml-2"
+                >
+                    <Plus className="w-4 h-4" />
+                    <span>New Task</span>
+                </button>
+            </div>
         </div>
 
-        {/* Tag Filters - Horizontal scroll on mobile */}
+        {/* Tag Filters (Horizontal Scroll) */}
         {tags.length > 0 && (
-           <div className="flex flex-nowrap overflow-x-auto md:flex-wrap gap-2 no-scrollbar pb-1 md:pb-0">
+           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Filter:</span>
               {tags.map(tag => (
                  <button
                     key={tag.id}
                     onClick={() => toggleFilterTag(tag.id)}
-                    className={`text-[10px] font-bold px-2 py-1 rounded border transition-all whitespace-nowrap shrink-0 ${filterTags.has(tag.id) ? 'ring-1 ring-offset-1 ring-[#0078d4] border-transparent' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                    className={`text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all whitespace-nowrap shrink-0 flex items-center gap-1 ${filterTags.has(tag.id) ? 'ring-1 ring-offset-1 ring-[#0078d4] border-transparent' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
                     style={filterTags.has(tag.id) ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
                  >
+                    <div className="w-1.5 h-1.5 rounded-full" style={{backgroundColor: tag.color}} />
                     {tag.label}
                  </button>
               ))}
               {filterTags.size > 0 && (
-                 <button onClick={() => setFilterTags(new Set())} className="text-[10px] font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 px-2 whitespace-nowrap shrink-0">
+                 <button onClick={() => setFilterTags(new Set())} className="text-[10px] font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 px-2 whitespace-nowrap shrink-0 ml-auto border border-dashed border-slate-300 rounded-full py-1 hover:border-slate-400">
                     <X className="w-3 h-3" /> Clear
                  </button>
               )}
