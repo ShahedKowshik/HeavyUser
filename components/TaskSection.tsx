@@ -141,6 +141,30 @@ const mapTaskToDb = (task: Task, userId: string) => ({
     recurrence: task.recurrence
 });
 
+const RecurrenceButton = ({ value, onChange, openModal }: { value: Recurrence | null, onChange: (r: Recurrence | null) => void, openModal: (current: Recurrence | null, cb: (r: Recurrence | null) => void) => void }) => (
+  <button
+     type="button"
+     onClick={() => openModal(value, onChange)}
+     className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded border transition-all ${
+        value 
+        ? 'bg-[#eff6fc] text-[#0078d4] border-[#0078d4]' 
+        : 'text-slate-600 bg-slate-50 border-slate-200 hover:bg-slate-100'
+     }`}
+  >
+     <Repeat className="w-3.5 h-3.5" />
+     {value ? (
+        <span className="truncate max-w-[150px]">
+           {value.interval > 1 ? `Every ${value.interval} ${value.type.replace('ly', 's')}` : value.type.charAt(0).toUpperCase() + value.type.slice(1)}
+           {value.type === 'weekly' && value.weekDays && value.weekDays.length > 0 && ` on ${value.weekDays.length} days`}
+           {value.type === 'monthly' && value.monthDays && value.monthDays.length > 0 && ` on ${value.monthDays.length} dates`}
+        </span>
+     ) : (
+        "Does not repeat"
+     )}
+     <ChevronDown className="w-3 h-3 opacity-50" />
+  </button>
+);
+
 export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, onTaskComplete, activeFilterTagId }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   
@@ -282,30 +306,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
           setIsCreatingTag(false);
       }
   };
-
-  const RecurrenceButton = ({ value, onChange }: { value: Recurrence | null, onChange: (r: Recurrence | null) => void }) => (
-     <button
-        type="button"
-        onClick={() => openRecurrenceModal(value, onChange)}
-        className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded border transition-all ${
-           value 
-           ? 'bg-[#eff6fc] text-[#0078d4] border-[#0078d4]' 
-           : 'text-slate-600 bg-slate-50 border-slate-200 hover:bg-slate-100'
-        }`}
-     >
-        <Repeat className="w-3.5 h-3.5" />
-        {value ? (
-           <span className="truncate max-w-[150px]">
-              {value.interval > 1 ? `Every ${value.interval} ${value.type.replace('ly', 's')}` : value.type.charAt(0).toUpperCase() + value.type.slice(1)}
-              {value.type === 'weekly' && value.weekDays && value.weekDays.length > 0 && ` on ${value.weekDays.length} days`}
-              {value.type === 'monthly' && value.monthDays && value.monthDays.length > 0 && ` on ${value.monthDays.length} dates`}
-           </span>
-        ) : (
-           "Does not repeat"
-        )}
-        <ChevronDown className="w-3 h-3 opacity-50" />
-     </button>
-  );
 
   const toggleFilterTag = (tagId: string) => {
     const next = new Set(filterTags);
@@ -1038,6 +1038,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                        <RecurrenceButton 
                           value={createRecurrence} 
                           onChange={setCreateRecurrence} 
+                          openModal={openRecurrenceModal}
                        />
                    </div>
                </div>
@@ -1133,7 +1134,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                               className="flex-1 text-sm bg-transparent border-none p-0 focus:ring-0 placeholder:text-slate-400"
                               onKeyDown={(e) => {
                                   if (e.key === 'Enter') {
-                                      e.preventDefault();
                                       const val = e.currentTarget.value.trim();
                                       if (val) {
                                           setCreateSubtasks(prev => [...prev, { title: val, completed: false }]);
@@ -1391,6 +1391,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                        <RecurrenceButton 
                           value={selectedTask.recurrence || null} 
                           onChange={(r) => updateSelectedTask({ recurrence: r })} 
+                          openModal={openRecurrenceModal}
                        />
                    </div>
                </div>

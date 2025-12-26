@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Filter } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Filter, Inbox, HelpCircle, ChevronsUpDown, Search, Plus, LogOut, FileText } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
@@ -11,6 +11,91 @@ import ReportBugSection from './ReportBugSection';
 import PetCompanion, { PetRef } from './PetCompanion';
 import { supabase } from '../lib/supabase';
 import { decryptData } from '../lib/crypto';
+
+// --- Sub-components extracted to prevent re-renders ---
+
+const ClockDisplay = React.memo(() => {
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formattedDate = time.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const formattedTime = time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+  return (
+    <>
+      <div className="text-xs text-slate-600 font-bold px-3 py-1.5 bg-slate-100 rounded border border-slate-200 tabular-nums hidden sm:block">
+        {formattedDate} • {formattedTime}
+      </div>
+      <div className="text-xs text-slate-600 font-bold px-3 py-1.5 bg-slate-100 rounded border border-slate-200 tabular-nums sm:hidden">
+        {formattedTime}
+      </div>
+    </>
+  );
+});
+
+interface NavItemProps {
+  id: AppTab;
+  label: string;
+  icon: any;
+  count?: number;
+  shortcut?: string;
+  activeTab: AppTab;
+  setActiveTab: (id: AppTab) => void;
+  isSidebarCollapsed: boolean;
+}
+
+const NavItem: React.FC<NavItemProps> = ({ id, label, icon: Icon, count, shortcut, activeTab, setActiveTab, isSidebarCollapsed }) => (
+  <button
+    onClick={() => setActiveTab(id)}
+    title={isSidebarCollapsed ? label : undefined}
+    className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2.5 rounded transition-all duration-200 group ${
+      activeTab === id 
+      ? 'bg-slate-100 text-[#0078d4] font-bold shadow-sm ring-1 ring-slate-200' 
+      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
+    }`}
+  >
+    <Icon className={`w-4.5 h-4.5 transition-colors ${activeTab === id ? 'text-[#0078d4]' : 'text-slate-400 group-hover:text-slate-600'}`} />
+    {!isSidebarCollapsed && (
+        <>
+          <span className="text-sm flex-1 text-left truncate">{label}</span>
+          {count !== undefined && count > 0 && (
+              <span className="text-[10px] font-bold bg-white text-slate-600 px-1.5 py-0.5 rounded-md border border-slate-200 tabular-nums shadow-sm">{count}</span>
+          )}
+          {shortcut && !count && (
+              <span className="text-[10px] font-medium text-slate-300 group-hover:text-slate-400 hidden lg:block border border-slate-100 px-1 rounded bg-slate-50">{shortcut}</span>
+          )}
+        </>
+    )}
+  </button>
+);
+
+interface MobileNavItemProps {
+  id: AppTab;
+  label: string;
+  icon: any;
+  activeTab: AppTab;
+  setActiveTab: (id: AppTab) => void;
+}
+
+const MobileNavItem: React.FC<MobileNavItemProps> = ({ id, label, icon: Icon, activeTab, setActiveTab }) => (
+  <button
+    onClick={() => setActiveTab(id)}
+    className={`flex flex-col items-center justify-center p-2 rounded transition-all duration-200 ${
+      activeTab === id 
+      ? 'text-[#0078d4]' 
+      : 'text-slate-400'
+    }`}
+  >
+    <Icon className={`w-5 h-5 mb-1 ${activeTab === id ? 'fill-current' : ''}`} />
+    <span className="text-[10px] font-bold">{label}</span>
+  </button>
+);
+
+// --- Main Component ---
 
 interface DashboardProps {
   user: User;
@@ -37,9 +122,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   // Pet Reference to trigger animations
   const petRef = useRef<PetRef>(null);
 
-  const handleTaskComplete = () => {
+  // Use callback to prevent this function from being recreated on every render
+  const handleTaskComplete = useCallback(() => {
     petRef.current?.celebrate();
-  };
+  }, []);
 
   // Sidebar Collapse State with Persistence
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -56,8 +142,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     profilePicture: user.profilePicture,
     dayStartHour: user.dayStartHour
   });
-
-  const [currentTime, setCurrentTime] = useState(new Date());
 
   // Toggle Sidebar Helper
   const toggleSidebar = () => {
@@ -94,15 +178,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     return `${year}-${month}-${day}`;
   };
 
-  // Countdown Logic
+  // Countdown Logic - Updates every minute instead of every second to reduce re-renders
   useEffect(() => {
     const updateCountdown = () => {
         const now = new Date();
         const startHour = userSettings.dayStartHour || 0;
         
         let target = new Date();
-        // If current hour is less than start hour (e.g. 2am < 4am), the "day" ends at 4am today.
-        // If current hour is greater (10am > 4am), the "day" ends at 4am tomorrow.
         if (now.getHours() < startHour) {
             target.setHours(startHour, 0, 0, 0);
         } else {
@@ -132,25 +214,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         .eq('user_id', userId);
       
       if (tasksData) {
-        // Explicitly map and cast types to satisfy TypeScript strictness
         const mappedTasks: Task[] = tasksData.map((t: any) => ({
           id: t.id,
-          title: decryptData(t.title), // Decrypt Title
-          dueDate: t.due_date || '', // Handle null
+          title: decryptData(t.title),
+          dueDate: t.due_date || '',
           time: t.time,
           completed: t.completed,
-          completedAt: t.completed_at, // Map DB completed_at
-          priority: t.priority as Priority, // Cast string to Priority
-          // Decrypt Subtask Titles
+          completedAt: t.completed_at,
+          priority: t.priority as Priority,
           subtasks: (t.subtasks || []).map((s: any) => ({
             ...s,
             title: decryptData(s.title)
           })), 
           tags: t.tags || [],
-          recurrence: t.recurrence, // Map recurrence field
-          notes: decryptData(t.notes), // Decrypt Notes
-          createdAt: t.created_at, // Map DB created_at
-          updatedAt: t.updated_at // Map DB updated_at
+          recurrence: t.recurrence,
+          notes: decryptData(t.notes),
+          createdAt: t.created_at,
+          updatedAt: t.updated_at
         }));
         setTasks(mappedTasks);
       }
@@ -164,7 +244,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       if (tagsData) {
         const mappedTags: Tag[] = tagsData.map((t: any) => ({
           id: t.id,
-          label: decryptData(t.label), // Decrypt Tag Label
+          label: decryptData(t.label),
           color: t.color
         }));
         setTags(mappedTags);
@@ -179,7 +259,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
       if (habitsData) {
         const mappedHabits: Habit[] = habitsData.map((h: any) => {
-          // Handle Legacy Data Migration
           let progressMap: Record<string, number> = h.progress || {};
           const target = h.target || 1;
           
@@ -208,7 +287,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         setHabits(mappedHabits);
       }
 
-      // 4. Fetch Journals (AND DECRYPT)
+      // 4. Fetch Journals
       const { data: journalsData } = await supabase
         .from('journals')
         .select('*')
@@ -218,8 +297,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       if (journalsData) {
         const mappedJournals: JournalEntry[] = journalsData.map((j: any) => ({
           id: j.id,
-          title: decryptData(j.title),     // Decrypt Title
-          content: decryptData(j.content), // Decrypt Content
+          title: decryptData(j.title),
+          content: decryptData(j.content),
           timestamp: j.timestamp,
           rating: j.rating,
           entryType: j.entry_type as EntryType,
@@ -229,7 +308,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         setJournals(mappedJournals);
       }
 
-      // 5. Fetch Folders (AND DECRYPT)
+      // 5. Fetch Folders
       const { data: foldersData } = await supabase
         .from('folders')
         .select('*')
@@ -244,7 +323,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         setFolders(mappedFolders);
       }
 
-      // 6. Fetch Notes (AND DECRYPT)
+      // 6. Fetch Notes
       const { data: notesData } = await supabase
         .from('notes')
         .select('*')
@@ -279,11 +358,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     });
   };
 
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   // --- Streak Calculation Logic ---
   const streakData = useMemo(() => {
     const activeDates = new Set<string>();
@@ -296,12 +370,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         return d.toISOString().split('T')[0];
     };
 
-    // 1. Task Creation & Completion
     tasks.forEach(t => {
-      // Activity: Creation
       if (t.createdAt) activeDates.add(getLogicalDateFromISO(t.createdAt));
-      
-      // Activity: Completion
       if (t.completed) {
         if (t.completedAt) {
           activeDates.add(getLogicalDateFromISO(t.completedAt));
@@ -311,7 +381,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       }
     });
 
-    // 2. Habit Activity (Progress keys are DATE STRINGS, already logical if generated by HabitSection)
     habits.forEach(h => {
       Object.keys(h.progress).forEach(date => {
         if (h.progress[date] > 0) activeDates.add(date);
@@ -319,10 +388,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       h.skippedDates.forEach(date => activeDates.add(date));
     });
 
-    // 3. Journal Entries
     journals.forEach(j => activeDates.add(getLogicalDateFromISO(j.timestamp)));
-
-    // 4. Notes Activity
     notes.forEach(n => activeDates.add(getLogicalDateFromISO(n.updatedAt)));
 
     const sortedDates = Array.from(activeDates).sort().reverse();
@@ -331,14 +397,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
     let currentStreak = 0;
     
-    // Check if streak is alive (active today or yesterday)
     const hasActivityToday = sortedDates.includes(today);
     const hasActivityYesterday = sortedDates.includes(yesterday);
 
     if (!hasActivityToday && !hasActivityYesterday) {
       currentStreak = 0;
     } else {
-      // Calculate sequence
       const [y, m, d] = (hasActivityToday ? today : yesterday).split('-').map(Number);
       let checkDate = new Date(y, m - 1, d); 
       
@@ -391,39 +455,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     }
   };
 
-  const formattedDate = currentTime.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  const formattedTime = currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-
   const activeFilterTag = useMemo(() => tags.find(t => t.id === activeFilterTagId), [tags, activeFilterTagId]);
-
-  const NavItem = ({ id, label, icon: Icon }: { id: AppTab; label: string; icon: any }) => (
-    <button
-      onClick={() => setActiveTab(id)}
-      title={isSidebarCollapsed ? label : undefined}
-      className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2.5 rounded transition-all duration-200 group ${
-        activeTab === id 
-        ? 'bg-slate-100 text-[#0078d4] font-bold shadow-sm ring-1 ring-slate-200' 
-        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
-      }`}
-    >
-      <Icon className={`w-4.5 h-4.5 transition-colors ${activeTab === id ? 'text-[#0078d4]' : 'text-slate-400 group-hover:text-slate-600'}`} />
-      {!isSidebarCollapsed && <span className="text-sm whitespace-nowrap overflow-hidden">{label}</span>}
-    </button>
-  );
-
-  const MobileNavItem = ({ id, label, icon: Icon }: { id: AppTab; label: string; icon: any }) => (
-    <button
-      onClick={() => setActiveTab(id)}
-      className={`flex flex-col items-center justify-center p-2 rounded transition-all duration-200 ${
-        activeTab === id 
-        ? 'text-[#0078d4]' 
-        : 'text-slate-400'
-      }`}
-    >
-      <Icon className={`w-5 h-5 mb-1 ${activeTab === id ? 'fill-current' : ''}`} />
-      <span className="text-[10px] font-bold">{label}</span>
-    </button>
-  );
 
   const isNotesTab = activeTab === 'notes';
 
@@ -432,24 +464,22 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       {/* Sidebar - Desktop */}
       <aside className={`hidden md:flex flex-col p-4 space-y-4 bg-white border-r border-slate-200 shrink-0 z-20 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20 items-center' : 'w-64'}`}>
         <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'space-x-3 px-3'} py-6 relative`}>
-          <div className="w-8 h-8 bg-[#0078d4] rounded flex items-center justify-center shadow-sm shrink-0">
-            <LayoutGrid className="w-5 h-5 text-white" />
-          </div>
+          <CheckCircle2 className="w-7 h-7 text-[#0078d4] shrink-0" />
           {!isSidebarCollapsed && (
              <h1 className="text-lg font-bold tracking-tight whitespace-nowrap overflow-hidden transition-opacity duration-300 text-slate-800">HeavyUser</h1>
           )}
         </div>
 
         <nav className="flex-1 space-y-1 w-full">
-          <NavItem id="tasks" label="Tasks" icon={CheckCircle2} />
-          <NavItem id="habit" label="Habit" icon={Zap} />
-          <NavItem id="journal" label="Journal" icon={BookOpen} />
-          <NavItem id="notes" label="Notes" icon={Notebook} />
+          <NavItem id="tasks" label="Tasks" icon={Inbox} count={tasks.filter(t => !t.completed).length} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
+          <NavItem id="habit" label="Habits" icon={Activity} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
+          <NavItem id="journal" label="Journal" icon={Notebook} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
+          <NavItem id="notes" label="Notes" icon={FileText} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
         </nav>
 
         <div className={`pt-4 border-t border-slate-200 w-full flex flex-col gap-1`}>
           
-          <NavItem id="settings" label="Settings" icon={Settings} />
+          <NavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
           
           {/* Distinct Group for Feature/Bug */}
           <div className={`my-2 flex flex-col gap-1 ${!isSidebarCollapsed ? 'bg-slate-50 p-2 rounded-lg border border-slate-100' : ''}`}>
@@ -515,7 +545,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       {/* Main Content */}
       <main className={`flex-1 relative flex flex-col ${isNotesTab ? 'overflow-hidden' : 'overflow-y-auto'} bg-slate-50/50 pb-20 md:pb-0`}>
         <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-8 py-4 bg-white/90 backdrop-blur-md border-b border-slate-200 shrink-0">
-          <h2 className="text-xl font-black capitalize text-slate-800 tracking-tight">{activeTab.replace('_', ' ')}</h2>
+          <h2 className="text-xl font-black capitalize text-slate-800 tracking-tight">{activeTab === 'tasks' ? 'Tasks' : activeTab === 'habit' ? 'Habits' : activeTab.replace('_', ' ')}</h2>
           <div className="flex items-center space-x-4">
             
             {/* Global Label Filter */}
@@ -617,12 +647,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               <span className="text-xs font-bold tabular-nums">{streakData.count}</span>
             </button>
 
-            <div className="text-xs text-slate-600 font-bold px-3 py-1.5 bg-slate-100 rounded border border-slate-200 tabular-nums hidden sm:block">
-              {formattedDate} • {formattedTime}
-            </div>
-            <div className="text-xs text-slate-600 font-bold px-3 py-1.5 bg-slate-100 rounded border border-slate-200 tabular-nums sm:hidden">
-              {formattedTime}
-            </div>
+            <ClockDisplay />
           </div>
         </header>
 
@@ -763,11 +788,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
       {/* Bottom Navigation - Mobile */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 flex justify-around py-2 px-2 pb-safe overflow-x-auto no-scrollbar">
-        <MobileNavItem id="tasks" label="Tasks" icon={CheckCircle2} />
-        <MobileNavItem id="habit" label="Habit" icon={Zap} />
-        <MobileNavItem id="journal" label="Journal" icon={BookOpen} />
-        <MobileNavItem id="notes" label="Notes" icon={Notebook} />
-        <MobileNavItem id="settings" label="Settings" icon={Settings} />
+        <MobileNavItem id="tasks" label="Tasks" icon={Inbox} activeTab={activeTab} setActiveTab={setActiveTab} />
+        <MobileNavItem id="habit" label="Habits" icon={Activity} activeTab={activeTab} setActiveTab={setActiveTab} />
+        <MobileNavItem id="journal" label="Journal" icon={Notebook} activeTab={activeTab} setActiveTab={setActiveTab} />
+        <MobileNavItem id="notes" label="Notes" icon={FileText} activeTab={activeTab} setActiveTab={setActiveTab} />
+        <MobileNavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} />
       </nav>
 
       <PetCompanion ref={petRef} />
