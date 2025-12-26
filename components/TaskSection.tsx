@@ -323,9 +323,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     const [settingsPos, setSettingsPos] = useState({ top: 0, left: 0 });
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
-    const [viewMode, setViewMode] = useState<'active' | 'completed'>('active');
+    const [viewMode, setViewMode] = useState<'active' | 'today' | 'completed'>('active');
     const [isPreviewMode, setIsPreviewMode] = useState(false);
-    const [isFocusMode, setIsFocusMode] = useState(false);
 
     // Refs for DatePicker triggers
     const newTaskDateButtonRef = useRef<HTMLButtonElement>(null);
@@ -737,7 +736,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     const activeTasksGroups = useMemo(() => {
         let list = tasks.filter(t => !t.completed);
 
-        if (isFocusMode) {
+        if (viewMode === 'today') {
             list = list.filter(t => {
                 if (!t.dueDate) return false;
                 const key = getGroupingKey(t.dueDate);
@@ -746,7 +745,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
         }
 
         return processList(list);
-    }, [tasks, grouping, sorting, tags, filterTags, dayStartHour, activeFilterTagId, isFocusMode]);
+    }, [tasks, grouping, sorting, tags, filterTags, dayStartHour, activeFilterTagId, viewMode]);
 
     const completedTasksGroups = useMemo(() => {
         let list = tasks.filter(t => t.completed);
@@ -973,7 +972,13 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                             onClick={() => setViewMode('active')}
                             className={`px-3 py-2 text-xs font-bold rounded-md transition-all ${viewMode === 'active' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                         >
-                            My Tasks
+                            All Tasks
+                        </button>
+                        <button
+                            onClick={() => setViewMode('today')}
+                            className={`px-3 py-2 text-xs font-bold rounded-md transition-all ${viewMode === 'today' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Today
                         </button>
                         <button
                             onClick={() => setViewMode('completed')}
@@ -1002,7 +1007,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                 </button>
             </div>
 
-            {viewMode === 'active' ? renderListGroups(activeTasksGroups) : renderListGroups(completedTasksGroups)}
+            {viewMode === 'completed' ? renderListGroups(completedTasksGroups) : renderListGroups(activeTasksGroups)}
 
             {/* Create Task Modal */}
             {isModalOpen && (

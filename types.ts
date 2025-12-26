@@ -90,6 +90,31 @@ export interface Note {
   tags?: string[];
 }
 
+export type SubmissionStatus = 'pending' | 'in_progress' | 'completed' | 'rejected';
+
+export interface BugReport {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string;
+  priority: Priority;
+  attachment_url?: string | null;
+  status: SubmissionStatus;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface FeatureRequest {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string;
+  priority: Priority;
+  status: SubmissionStatus;
+  created_at: string;
+  updated_at?: string;
+}
+
 export interface UserSettings {
   userName: string;
   userId: string;
