@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, Lock, Mail, AlertCircle, Github, Twitter, Moon } from 'lucide-react';
-import { UserSettings } from '../types';
+import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, Lock, Mail, AlertCircle, Github, Twitter, Moon, Lightbulb, Bug, ChevronRight } from 'lucide-react';
+import { UserSettings, AppTab } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface SettingsSectionProps {
   settings: UserSettings;
   onUpdate: (settings: UserSettings) => void;
   onLogout: () => void;
+  onNavigate: (tab: AppTab) => void;
 }
 
-const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, onLogout }) => {
+const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, onLogout, onNavigate }) => {
   const [localName, setLocalName] = useState(settings.userName);
   const [localProfilePic, setLocalProfilePic] = useState(settings.profilePicture || '');
   const [localDayStartHour, setLocalDayStartHour] = useState(settings.dayStartHour || 0);
@@ -166,6 +167,42 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* Feedback Section (Mobile Only) */}
+        <div className="bg-white border border-amber-100 rounded overflow-hidden hover:shadow-md transition-shadow md:hidden">
+            <div className="px-6 py-4 border-b border-amber-100 bg-[#fffdf5] flex items-center space-x-2">
+                <Lightbulb className="w-4 h-4 text-amber-600" />
+                <h3 className="text-sm font-bold text-amber-900">Feedback & Support</h3>
+            </div>
+            <div className="p-6 flex flex-col gap-3">
+                <button 
+                    onClick={() => onNavigate('request_feature')}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 hover:border-amber-400 hover:text-amber-700 transition-all shadow-sm group"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="p-1.5 bg-amber-100 text-amber-600 rounded">
+                            <Lightbulb className="w-4 h-4" />
+                        </div>
+                        <span>Request a Feature</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-amber-500" />
+                </button>
+
+                <button 
+                    onClick={() => onNavigate('report_bug')}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 hover:border-rose-400 hover:text-rose-700 transition-all shadow-sm group"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="p-1.5 bg-rose-100 text-rose-600 rounded">
+                            <Bug className="w-4 h-4" />
+                        </div>
+                        <span>Report a Bug</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-rose-500" />
+                </button>
+            </div>
+        </div>
+
         {/* Account Profile Section */}
         <div className="bg-white border border-slate-200 rounded overflow-hidden hover:shadow-md transition-shadow">
           <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center space-x-2">

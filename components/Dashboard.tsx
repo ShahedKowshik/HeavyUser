@@ -1,13 +1,13 @@
-
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft, Notebook } from 'lucide-react';
+import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft, Notebook, Lightbulb, Bug } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder } from '../types';
 import TaskSection from './TaskSection';
 import SettingsSection from './SettingsSection';
 import JournalSection from './JournalSection';
 import HabitSection from './HabitSection';
 import NotesSection from './NotesSection';
+import RequestFeatureSection from './RequestFeatureSection';
+import ReportBugSection from './ReportBugSection';
 import { supabase } from '../lib/supabase';
 import { decryptData } from '../lib/crypto';
 
@@ -345,8 +345,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         return <JournalSection journals={journals} setJournals={setJournals} userId={userId} />;
       case 'notes':
         return <NotesSection notes={notes} setNotes={setNotes} folders={folders} setFolders={setFolders} userId={userId} />;
+      case 'request_feature':
+        return <RequestFeatureSection userId={userId} />;
+      case 'report_bug':
+        return <ReportBugSection userId={userId} />;
       case 'settings':
-        return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} />;
+        return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} />;
       default:
         return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} />;
     }
@@ -407,18 +411,52 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         </nav>
 
         <div className={`pt-4 border-t border-slate-200 w-full flex flex-col gap-1`}>
+          
+          <NavItem id="settings" label="Settings" icon={Settings} />
+          
+          {/* Distinct Group for Feature/Bug */}
+          <div className={`my-2 flex flex-col gap-1 ${!isSidebarCollapsed ? 'bg-slate-50 p-2 rounded-lg border border-slate-100' : ''}`}>
+             {!isSidebarCollapsed && (
+                 <div className="px-1 pb-1 text-[9px] font-black text-slate-400 uppercase tracking-widest">Feedback</div>
+             )}
+             
+             <button
+                onClick={() => setActiveTab('request_feature')}
+                title={isSidebarCollapsed ? "Request Feature" : undefined}
+                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-2'} py-1.5 rounded-md transition-all duration-200 group ${
+                    activeTab === 'request_feature' 
+                    ? 'bg-amber-100 text-amber-800 font-bold shadow-sm' 
+                    : 'text-slate-500 hover:bg-white hover:text-amber-700 hover:shadow-sm font-medium'
+                }`}
+             >
+                 <Lightbulb className={`w-4 h-4 transition-colors ${activeTab === 'request_feature' ? 'text-amber-700 fill-amber-700/20' : 'text-slate-400 group-hover:text-amber-600'}`} />
+                 {!isSidebarCollapsed && <span className="text-xs">Request Feature</span>}
+             </button>
+
+             <button
+                onClick={() => setActiveTab('report_bug')}
+                title={isSidebarCollapsed ? "Report Bug" : undefined}
+                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-2'} py-1.5 rounded-md transition-all duration-200 group ${
+                    activeTab === 'report_bug' 
+                    ? 'bg-rose-100 text-rose-800 font-bold shadow-sm' 
+                    : 'text-slate-500 hover:bg-white hover:text-rose-700 hover:shadow-sm font-medium'
+                }`}
+             >
+                 <Bug className={`w-4 h-4 transition-colors ${activeTab === 'report_bug' ? 'text-rose-700 fill-rose-700/20' : 'text-slate-400 group-hover:text-rose-600'}`} />
+                 {!isSidebarCollapsed && <span className="text-xs">Report Bug</span>}
+             </button>
+          </div>
+
           <button 
              onClick={toggleSidebar}
-             className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-3 px-3'} py-2 mb-2 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded transition-all`}
+             className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-3 px-3'} py-2 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded transition-all`}
              title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
            >
               {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
               {!isSidebarCollapsed && <span className="text-xs font-bold whitespace-nowrap">Collapse</span>}
            </button>
-
-          <NavItem id="settings" label="Settings" icon={Settings} />
           
-          <div className={`mt-4 p-2 rounded border border-slate-200 flex items-center ${isSidebarCollapsed ? 'justify-center bg-transparent border-transparent' : 'space-x-3 bg-white'} shadow-sm transition-all duration-300`}>
+          <div className={`mt-2 p-2 rounded border border-slate-200 flex items-center ${isSidebarCollapsed ? 'justify-center bg-transparent border-transparent' : 'space-x-3 bg-white'} shadow-sm transition-all duration-300`}>
             {userSettings.profilePicture ? (
               <img src={userSettings.profilePicture} alt="Profile" className="w-9 h-9 rounded object-cover shadow-inner bg-slate-100 shrink-0" />
             ) : (
@@ -440,7 +478,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       {/* Main Content */}
       <main className={`flex-1 relative flex flex-col ${isNotesTab ? 'overflow-hidden' : 'overflow-y-auto'} bg-slate-50/50 pb-20 md:pb-0`}>
         <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-8 py-4 bg-white/90 backdrop-blur-md border-b border-slate-200 shrink-0">
-          <h2 className="text-xl font-black capitalize text-slate-800 tracking-tight">{activeTab}</h2>
+          <h2 className="text-xl font-black capitalize text-slate-800 tracking-tight">{activeTab.replace('_', ' ')}</h2>
           <div className="flex items-center space-x-4">
             
             {/* Urgent Tasks Alert */}
@@ -612,7 +650,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       )}
 
       {/* Bottom Navigation - Mobile */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 flex justify-around py-2 px-2 pb-safe">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 flex justify-around py-2 px-2 pb-safe overflow-x-auto no-scrollbar">
         <MobileNavItem id="tasks" label="Tasks" icon={CheckCircle2} />
         <MobileNavItem id="habit" label="Habit" icon={Zap} />
         <MobileNavItem id="journal" label="Journal" icon={BookOpen} />
