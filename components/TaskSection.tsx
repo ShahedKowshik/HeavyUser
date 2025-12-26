@@ -153,9 +153,11 @@ const mapTaskToDb = (task: Task, userId: string) => ({
 export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, onTaskComplete }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [filterPos, setFilterPos] = useState({ top: 0, left: 0 });
-  const filterBtnRef = useRef<HTMLButtonElement>(null);
+  
+  // Settings Popover State
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const settingsBtnRef = useRef<HTMLButtonElement>(null);
+  const [settingsPos, setSettingsPos] = useState({ top: 0, right: 0 });
   
   // Selection & View State
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -163,8 +165,26 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const [viewMode, setViewMode] = useState<'active' | 'completed'>('active');
   const [isPreviewMode, setIsPreviewMode] = useState(false);
 
-  const [grouping, setGrouping] = useState<Grouping>('date');
-  const [sorting, setSorting] = useState<Sorting>('date');
+  // Initialize view settings from localStorage or defaults
+  const [grouping, setGrouping] = useState<Grouping>(() => {
+      const saved = localStorage.getItem('heavyuser_task_grouping');
+      return (saved as Grouping) || 'date';
+  });
+  
+  const [sorting, setSorting] = useState<Sorting>(() => {
+      const saved = localStorage.getItem('heavyuser_task_sorting');
+      return (saved as Sorting) || 'priority';
+  });
+
+  // Persist view settings when they change
+  useEffect(() => {
+      localStorage.setItem('heavyuser_task_grouping', grouping);
+  }, [grouping]);
+
+  useEffect(() => {
+      localStorage.setItem('heavyuser_task_sorting', sorting);
+  }, [sorting]);
+
   const [filterTags, setFilterTags] = useState<Set<string>>(new Set());
 
   // New Task Form State
@@ -296,27 +316,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     setFilterTags(next);
   };
 
-  const toggleFilterMenu = () => {
-    if (!isFilterOpen && filterBtnRef.current) {
-        const rect = filterBtnRef.current.getBoundingClientRect();
-        let left = rect.left;
-        
-        // Fix overflow on mobile
-        const menuWidth = 224; // w-56 is 14rem ~ 224px
-        const windowWidth = window.innerWidth;
-        const padding = 16;
-
-        // If menu goes off screen right
-        if (left + menuWidth > windowWidth) {
-            left = windowWidth - menuWidth - padding;
-        }
-        
-        // Ensure not off screen left
-        if (left < padding) left = padding;
-
-        setFilterPos({ top: rect.bottom + 8, left });
+  const toggleSettingsMenu = () => {
+    if (!isSettingsOpen && settingsBtnRef.current) {
+        const rect = settingsBtnRef.current.getBoundingClientRect();
+        // Calculate right offset to align with the button on desktop
+        const rightOffset = window.innerWidth - rect.right;
+        setSettingsPos({ top: rect.bottom + 8, right: Math.max(8, rightOffset) });
     }
-    setIsFilterOpen(!isFilterOpen);
+    setIsSettingsOpen(!isSettingsOpen);
   };
 
   const handleCreateTask = async (e: React.FormEvent) => {
@@ -901,138 +908,129 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
   return (
     <div className="animate-in fade-in duration-500 pb-20">
-       <div className="mb-6">
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2">
-             {/* View Toggle */}
-            <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0">
-                <button onClick={() => setViewMode('active')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'active' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Active</button>
-                <button onClick={() => setViewMode('completed')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'completed' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Done</button>
-            </div>
+       <div className="mb-6 flex items-center justify-end gap-2">
+          
+          {/* View Toggle (History) */}
+          <button 
+            onClick={() => setViewMode(viewMode === 'active' ? 'completed' : 'active')}
+            className={`p-2 rounded-lg transition-all border ${viewMode === 'completed' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+            title={viewMode === 'active' ? "View Completed Tasks" : "Back to Active Tasks"}
+          >
+             {viewMode === 'active' ? <History className="w-4 h-4" /> : <ListChecks className="w-4 h-4" />}
+          </button>
 
-            <div className="h-6 w-px bg-slate-200 shrink-0 mx-1" />
+          {/* Settings Menu Button */}
+          <div className="relative">
+            <button
+                ref={settingsBtnRef}
+                onClick={toggleSettingsMenu}
+                className={`p-2 rounded-lg transition-all border ${isSettingsOpen || filterTags.size > 0 ? 'bg-blue-50 text-[#0078d4] border-blue-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                title="View Options"
+            >
+                <SlidersHorizontal className="w-4 h-4" />
+                {filterTags.size > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-[#0078d4]"></span>
+                    </span>
+                )}
+            </button>
             
-            {/* Group By */}
-            <div className="relative group shrink-0">
-                <div className="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded px-3 py-2 shadow-sm hover:border-slate-300 transition-all pointer-events-none min-w-[110px]">
-                    <div className="flex items-center gap-2">
-                        <Layers className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="text-xs font-bold text-slate-600">
-                           {grouping === 'none' ? 'Group' : grouping === 'date' ? 'Date' : 'Priority'}
-                        </span>
+            {/* Consolidated Settings Popover */}
+            {isSettingsOpen && createPortal(
+                <>
+                    <div className="fixed inset-0 z-[99] bg-transparent" onClick={() => setIsSettingsOpen(false)} />
+                    <div 
+                        className="fixed z-[100] w-64 bg-white border border-slate-200 rounded-xl shadow-2xl p-4 animate-in fade-in zoom-in-95 origin-top-right"
+                        style={{ 
+                            top: settingsPos.top, 
+                            right: settingsPos.right 
+                        }}
+                    >
+                        <div className="space-y-4">
+                            {/* Sorting & Grouping */}
+                            <div className="space-y-3">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">View Options</h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-600">Group By</label>
+                                        <select 
+                                            value={grouping} 
+                                            onChange={(e) => setGrouping(e.target.value as Grouping)} 
+                                            className="w-full text-xs bg-slate-50 border border-slate-200 rounded p-1.5 focus:ring-1 focus:ring-[#0078d4]"
+                                        >
+                                            <option value="none">None</option>
+                                            <option value="date">Date</option>
+                                            <option value="priority">Priority</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-600">Sort By</label>
+                                        <select 
+                                            value={sorting} 
+                                            onChange={(e) => setSorting(e.target.value as Sorting)} 
+                                            className="w-full text-xs bg-slate-50 border border-slate-200 rounded p-1.5 focus:ring-1 focus:ring-[#0078d4]"
+                                        >
+                                            <option value="date">Date</option>
+                                            <option value="priority">Priority</option>
+                                            <option value="title">Title</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <hr className="border-slate-100" />
+
+                            {/* Labels Filter */}
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter by Label</h4>
+                                    <button onClick={() => setIsTagManagerOpen(true)} className="text-[10px] font-bold text-[#0078d4] hover:underline">Manage</button>
+                                </div>
+                                <div className="max-h-40 overflow-y-auto space-y-1 custom-scrollbar">
+                                    {tags.length === 0 && <p className="text-xs text-slate-400 italic">No labels created.</p>}
+                                    {tags.map(tag => (
+                                        <button
+                                            key={tag.id}
+                                            onClick={() => toggleFilterTag(tag.id)}
+                                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-bold transition-colors ${filterTags.has(tag.id) ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
+                                        >
+                                            <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${filterTags.has(tag.id) ? 'border-transparent' : 'border-slate-300'}`} style={filterTags.has(tag.id) ? { backgroundColor: tag.color } : {}}>
+                                                {filterTags.has(tag.id) && <Check className="w-2.5 h-2.5 text-white" />}
+                                            </div>
+                                            <span className="truncate">{tag.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                                {filterTags.size > 0 && (
+                                    <button onClick={() => setFilterTags(new Set())} className="w-full text-center text-xs font-bold text-red-500 hover:bg-red-50 py-1.5 rounded transition-colors">
+                                        Clear Filters
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     </div>
-                    <ChevronDown className="w-3 h-3 text-slate-400" />
-                </div>
-                <select 
-                    value={grouping} 
-                    onChange={(e) => setGrouping(e.target.value as Grouping)} 
-                    className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
-                >
-                    <option value="none">None</option>
-                    <option value="date">Date</option>
-                    <option value="priority">Priority</option>
-                </select>
-            </div>
-
-            {/* Sort By */}
-            <div className="relative group shrink-0">
-                <div className="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded px-3 py-2 shadow-sm hover:border-slate-300 transition-all pointer-events-none min-w-[110px]">
-                    <div className="flex items-center gap-2">
-                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="text-xs font-bold text-slate-600">
-                            {sorting === 'date' ? 'Due Date' : sorting === 'priority' ? 'Priority' : 'Title'}
-                        </span>
-                    </div>
-                    <ChevronDown className="w-3 h-3 text-slate-400" />
-                </div>
-                <select 
-                    value={sorting} 
-                    onChange={(e) => setSorting(e.target.value as Sorting)} 
-                    className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
-                >
-                    <option value="date">Due Date</option>
-                    <option value="priority">Priority</option>
-                    <option value="title">Title</option>
-                </select>
-            </div>
-
-            {/* Labels Trigger */}
-            <button 
-               onClick={() => setIsTagManagerOpen(true)} 
-               className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-all text-xs font-bold shadow-sm shrink-0 relative z-20"
-            >
-               <TagIcon className="w-3.5 h-3.5" />
-               <span>Labels</span>
-            </button>
-
-            {/* Filter Dropdown */}
-            {tags.length > 0 && (
-               <>
-                  <div className="h-6 w-px bg-slate-200 shrink-0 mx-1" />
-                  <div className="shrink-0">
-                      <button 
-                          ref={filterBtnRef}
-                          onClick={toggleFilterMenu}
-                          className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg transition-all text-xs font-bold shadow-sm ${filterTags.size > 0 ? 'bg-blue-50 border-blue-200 text-[#0078d4]' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                      >
-                          <SlidersHorizontal className="w-3.5 h-3.5" />
-                          <span className="hidden lg:inline">Filter</span>
-                          {filterTags.size > 0 && (
-                              <span className="flex items-center justify-center bg-[#0078d4] text-white text-[9px] rounded-full w-4 h-4 ml-1">
-                                  {filterTags.size}
-                              </span>
-                          )}
-                          <ChevronDown className="w-3 h-3 opacity-50" />
-                      </button>
-
-                      {isFilterOpen && createPortal(
-                          <>
-                              <div className="fixed inset-0 z-[99] bg-transparent" onClick={() => setIsFilterOpen(false)} />
-                              <div 
-                                  className="fixed z-[100] w-56 bg-white border border-slate-200 rounded-lg shadow-xl p-2 animate-in fade-in zoom-in-95 origin-top-left"
-                                  style={{ top: filterPos.top, left: filterPos.left }}
-                              >
-                                  <div className="flex items-center justify-between px-2 py-1 mb-1">
-                                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter by Label</span>
-                                      {filterTags.size > 0 && (
-                                          <button onClick={() => setFilterTags(new Set())} className="text-[10px] font-bold text-red-500 hover:text-red-600">
-                                              Clear
-                                          </button>
-                                      )}
-                                  </div>
-                                  <div className="max-h-60 overflow-y-auto space-y-1 custom-scrollbar">
-                                      {tags.map(tag => (
-                                          <button
-                                              key={tag.id}
-                                              onClick={() => toggleFilterTag(tag.id)}
-                                              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-bold transition-colors ${filterTags.has(tag.id) ? 'bg-slate-50' : 'hover:bg-slate-50'}`}
-                                          >
-                                              <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${filterTags.has(tag.id) ? 'border-transparent' : 'border-slate-300'}`} style={filterTags.has(tag.id) ? { backgroundColor: tag.color } : {}}>
-                                                  {filterTags.has(tag.id) && <Check className="w-2.5 h-2.5 text-white" />}
-                                              </div>
-                                              <span className="truncate">{tag.label}</span>
-                                          </button>
-                                      ))}
-                                  </div>
-                              </div>
-                          </>,
-                          document.body
-                      )}
-                  </div>
-               </>
+                </>,
+                document.body
             )}
-
-             <div className="flex-1" />
-
-            {/* Desktop New Task Button */}
-            <button 
-                onClick={openCreateModal}
-                className="hidden md:flex items-center justify-center gap-2 px-6 py-2.5 fluent-btn-primary rounded shadow-md active:scale-95 transition-transform text-sm font-bold shrink-0 ml-auto"
-            >
-                <Plus className="w-4 h-4" />
-                <span>New Task</span>
-            </button>
           </div>
+
+          {/* Desktop New Task Button */}
+          <button 
+              onClick={openCreateModal}
+              className="hidden md:flex items-center justify-center gap-2 px-6 py-2 fluent-btn-primary rounded shadow-md active:scale-95 transition-transform text-sm font-bold shrink-0"
+          >
+              <Plus className="w-4 h-4" />
+              <span>New Task</span>
+          </button>
        </div>
+
+       {viewMode === 'completed' && (
+           <div className="mb-4 flex items-center gap-2 text-slate-500 animate-in fade-in slide-in-from-top-1">
+               <CheckCircle2 className="w-4 h-4" />
+               <span className="text-xs font-bold uppercase tracking-widest">Completed Tasks History</span>
+           </div>
+       )}
 
       {viewMode === 'active' ? renderListGroups(activeTasksGroups) : renderListGroups(completedTasksGroups)}
 

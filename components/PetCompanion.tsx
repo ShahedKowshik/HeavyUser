@@ -21,7 +21,7 @@ const QUOTES = [
 const PetCompanion = forwardRef<PetRef, {}>((props, ref) => {
   // State
   // Position starts anchored to bottom-right, switches to absolute left/top on drag
-  const [position, setPosition] = useState<{top?: number, left?: number, right?: number, bottom?: number}>({ right: 20, bottom: 100 });
+  const [position, setPosition] = useState<{top?: number, left?: number, right?: number, bottom?: number}>({ right: 20, bottom: 160 });
   const [mood, setMood] = useState<'idle' | 'sleeping' | 'happy' | 'celebrating' | 'surprised'>('idle');
   const [message, setMessage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
