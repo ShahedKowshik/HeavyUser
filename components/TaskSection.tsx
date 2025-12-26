@@ -1,5 +1,6 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import { Plus, Trash2, CheckCircle2, X, SlidersHorizontal, ChevronRight, ListChecks, History, Tag as TagIcon, Calendar, Clock, AlertCircle, FileText, Check, MoreHorizontal, Flag, ArrowRight, CornerDownLeft, ArrowUp, ArrowDown, Flame, Circle, CheckSquare, Square, ArrowLeft, PenLine, Eye, Edit2, Repeat, ChevronDown, Moon, Layers, ArrowUpDown } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence } from '../types';
@@ -121,14 +122,14 @@ const getNextDate = (currentDateStr: string, r: Recurrence): string => {
         const maxDays = new Date(Date.UTC(y, nextTarget.month + 1, 0)).getUTCDate();
         const finalDay = Math.min(nextTarget.day, maxDays);
         const nextDate = new Date(Date.UTC(y, nextTarget.month, finalDay));
-        return nextDate.toISOString().split('T')[0];
+        return date.toISOString().split('T')[0];
      } else {
         const nextY = y + r.interval;
         const firstTarget = targets[0];
         const maxDays = new Date(Date.UTC(nextY, firstTarget.month + 1, 0)).getUTCDate();
         const finalDay = Math.min(firstTarget.day, maxDays);
         const nextDate = new Date(Date.UTC(nextY, firstTarget.month, finalDay));
-        return nextDate.toISOString().split('T')[0];
+        return date.toISOString().split('T')[0];
      }
   }
 
@@ -149,9 +150,12 @@ const mapTaskToDb = (task: Task, userId: string) => ({
     recurrence: task.recurrence
 });
 
-const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, onTaskComplete }) => {
+export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, onTaskComplete }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [filterPos, setFilterPos] = useState({ top: 0, left: 0 });
+  const filterBtnRef = useRef<HTMLButtonElement>(null);
   
   // Selection & View State
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -290,6 +294,29 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
     if (next.has(tagId)) next.delete(tagId);
     else next.add(tagId);
     setFilterTags(next);
+  };
+
+  const toggleFilterMenu = () => {
+    if (!isFilterOpen && filterBtnRef.current) {
+        const rect = filterBtnRef.current.getBoundingClientRect();
+        let left = rect.left;
+        
+        // Fix overflow on mobile
+        const menuWidth = 224; // w-56 is 14rem ~ 224px
+        const windowWidth = window.innerWidth;
+        const padding = 16;
+
+        // If menu goes off screen right
+        if (left + menuWidth > windowWidth) {
+            left = windowWidth - menuWidth - padding;
+        }
+        
+        // Ensure not off screen left
+        if (left < padding) left = padding;
+
+        setFilterPos({ top: rect.bottom + 8, left });
+    }
+    setIsFilterOpen(!isFilterOpen);
   };
 
   const handleCreateTask = async (e: React.FormEvent) => {
@@ -869,113 +896,607 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
         </div>
       ))}
     </div>
-  )};
+  );
+ };
 
   return (
     <div className="animate-in fade-in duration-500 pb-20">
-       <div className="mb-6 space-y-4">
-        
-        {/* Container for Controls */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+       <div className="mb-6">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2">
+             {/* View Toggle */}
+            <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0">
+                <button onClick={() => setViewMode('active')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'active' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Active</button>
+                <button onClick={() => setViewMode('completed')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'completed' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Done</button>
+            </div>
+
+            <div className="h-6 w-px bg-slate-200 shrink-0 mx-1" />
             
-            {/* View Toggle - Full width on mobile, auto on desktop */}
-            <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0 self-start md:self-auto w-full md:w-auto">
-                <button onClick={() => setViewMode('active')} className={`flex-1 md:flex-none px-6 py-2 text-xs font-bold rounded-md transition-all ${viewMode === 'active' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Active</button>
-                <button onClick={() => setViewMode('completed')} className={`flex-1 md:flex-none px-6 py-2 text-xs font-bold rounded-md transition-all ${viewMode === 'completed' ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Completed</button>
-            </div>
-
-            {/* Desktop: Right aligned actions. Mobile: Scrollable row */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 md:pb-0 w-full md:w-auto">
-                
-                {/* Group By */}
-                <div className="relative group shrink-0">
-                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm hover:border-slate-300 transition-all">
+            {/* Group By */}
+            <div className="relative group shrink-0">
+                <div className="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded px-3 py-2 shadow-sm hover:border-slate-300 transition-all pointer-events-none min-w-[110px]">
+                    <div className="flex items-center gap-2">
                         <Layers className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="text-xs font-bold text-slate-600 hidden lg:inline">Group:</span>
-                        <select 
-                            value={grouping} 
-                            onChange={(e) => setGrouping(e.target.value as Grouping)} 
-                            className="appearance-none bg-transparent border-none p-0 pr-4 text-xs font-bold text-slate-800 focus:ring-0 cursor-pointer w-full"
-                        >
-                            <option value="none">None</option>
-                            <option value="date">Date</option>
-                            <option value="priority">Priority</option>
-                        </select>
-                         <ChevronDown className="w-3 h-3 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <span className="text-xs font-bold text-slate-600">
+                           {grouping === 'none' ? 'Group' : grouping === 'date' ? 'Date' : 'Priority'}
+                        </span>
                     </div>
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
                 </div>
-
-                {/* Sort By */}
-                <div className="relative group shrink-0">
-                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm hover:border-slate-300 transition-all">
-                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="text-xs font-bold text-slate-600 hidden lg:inline">Sort:</span>
-                        <select 
-                            value={sorting} 
-                            onChange={(e) => setSorting(e.target.value as Sorting)} 
-                            className="appearance-none bg-transparent border-none p-0 pr-4 text-xs font-bold text-slate-800 focus:ring-0 cursor-pointer w-full"
-                        >
-                            <option value="date">Due Date</option>
-                            <option value="priority">Priority</option>
-                            <option value="title">Title</option>
-                        </select>
-                        <ChevronDown className="w-3 h-3 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-                </div>
-
-                <div className="h-6 w-px bg-slate-200 hidden md:block shrink-0 mx-1" />
-
-                {/* Labels Trigger */}
-                <button 
-                   onClick={() => setIsTagManagerOpen(true)} 
-                   className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-all text-xs font-bold shadow-sm shrink-0"
+                <select 
+                    value={grouping} 
+                    onChange={(e) => setGrouping(e.target.value as Grouping)} 
+                    className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
                 >
-                   <TagIcon className="w-3.5 h-3.5" />
-                   <span className="hidden lg:inline">Labels</span>
-                </button>
-
-                {/* Desktop New Task Button */}
-                <button 
-                    onClick={openCreateModal}
-                    className="hidden md:flex items-center justify-center gap-2 px-5 py-2 fluent-btn-primary rounded-lg shadow-md active:scale-95 transition-transform text-sm font-bold shrink-0 ml-2"
-                >
-                    <Plus className="w-4 h-4" />
-                    <span>New Task</span>
-                </button>
+                    <option value="none">None</option>
+                    <option value="date">Date</option>
+                    <option value="priority">Priority</option>
+                </select>
             </div>
-        </div>
 
-        {/* Tag Filters (Horizontal Scroll) */}
-        {tags.length > 0 && (
-           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Filter:</span>
-              {tags.map(tag => (
-                 <button
-                    key={tag.id}
-                    onClick={() => toggleFilterTag(tag.id)}
-                    className={`text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all whitespace-nowrap shrink-0 flex items-center gap-1 ${filterTags.has(tag.id) ? 'ring-1 ring-offset-1 ring-[#0078d4] border-transparent' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-                    style={filterTags.has(tag.id) ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
-                 >
-                    <div className="w-1.5 h-1.5 rounded-full" style={{backgroundColor: tag.color}} />
-                    {tag.label}
-                 </button>
-              ))}
-              {filterTags.size > 0 && (
-                 <button onClick={() => setFilterTags(new Set())} className="text-[10px] font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 px-2 whitespace-nowrap shrink-0 ml-auto border border-dashed border-slate-300 rounded-full py-1 hover:border-slate-400">
-                    <X className="w-3 h-3" /> Clear
-                 </button>
-              )}
-           </div>
-        )}
-      </div>
+            {/* Sort By */}
+            <div className="relative group shrink-0">
+                <div className="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded px-3 py-2 shadow-sm hover:border-slate-300 transition-all pointer-events-none min-w-[110px]">
+                    <div className="flex items-center gap-2">
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-xs font-bold text-slate-600">
+                            {sorting === 'date' ? 'Due Date' : sorting === 'priority' ? 'Priority' : 'Title'}
+                        </span>
+                    </div>
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                </div>
+                <select 
+                    value={sorting} 
+                    onChange={(e) => setSorting(e.target.value as Sorting)} 
+                    className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
+                >
+                    <option value="date">Due Date</option>
+                    <option value="priority">Priority</option>
+                    <option value="title">Title</option>
+                </select>
+            </div>
+
+            {/* Labels Trigger */}
+            <button 
+               onClick={() => setIsTagManagerOpen(true)} 
+               className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-all text-xs font-bold shadow-sm shrink-0 relative z-20"
+            >
+               <TagIcon className="w-3.5 h-3.5" />
+               <span>Labels</span>
+            </button>
+
+            {/* Filter Dropdown */}
+            {tags.length > 0 && (
+               <>
+                  <div className="h-6 w-px bg-slate-200 shrink-0 mx-1" />
+                  <div className="shrink-0">
+                      <button 
+                          ref={filterBtnRef}
+                          onClick={toggleFilterMenu}
+                          className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg transition-all text-xs font-bold shadow-sm ${filterTags.size > 0 ? 'bg-blue-50 border-blue-200 text-[#0078d4]' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                      >
+                          <SlidersHorizontal className="w-3.5 h-3.5" />
+                          <span className="hidden lg:inline">Filter</span>
+                          {filterTags.size > 0 && (
+                              <span className="flex items-center justify-center bg-[#0078d4] text-white text-[9px] rounded-full w-4 h-4 ml-1">
+                                  {filterTags.size}
+                              </span>
+                          )}
+                          <ChevronDown className="w-3 h-3 opacity-50" />
+                      </button>
+
+                      {isFilterOpen && createPortal(
+                          <>
+                              <div className="fixed inset-0 z-[99] bg-transparent" onClick={() => setIsFilterOpen(false)} />
+                              <div 
+                                  className="fixed z-[100] w-56 bg-white border border-slate-200 rounded-lg shadow-xl p-2 animate-in fade-in zoom-in-95 origin-top-left"
+                                  style={{ top: filterPos.top, left: filterPos.left }}
+                              >
+                                  <div className="flex items-center justify-between px-2 py-1 mb-1">
+                                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter by Label</span>
+                                      {filterTags.size > 0 && (
+                                          <button onClick={() => setFilterTags(new Set())} className="text-[10px] font-bold text-red-500 hover:text-red-600">
+                                              Clear
+                                          </button>
+                                      )}
+                                  </div>
+                                  <div className="max-h-60 overflow-y-auto space-y-1 custom-scrollbar">
+                                      {tags.map(tag => (
+                                          <button
+                                              key={tag.id}
+                                              onClick={() => toggleFilterTag(tag.id)}
+                                              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-bold transition-colors ${filterTags.has(tag.id) ? 'bg-slate-50' : 'hover:bg-slate-50'}`}
+                                          >
+                                              <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${filterTags.has(tag.id) ? 'border-transparent' : 'border-slate-300'}`} style={filterTags.has(tag.id) ? { backgroundColor: tag.color } : {}}>
+                                                  {filterTags.has(tag.id) && <Check className="w-2.5 h-2.5 text-white" />}
+                                              </div>
+                                              <span className="truncate">{tag.label}</span>
+                                          </button>
+                                      ))}
+                                  </div>
+                              </div>
+                          </>,
+                          document.body
+                      )}
+                  </div>
+               </>
+            )}
+
+             <div className="flex-1" />
+
+            {/* Desktop New Task Button */}
+            <button 
+                onClick={openCreateModal}
+                className="hidden md:flex items-center justify-center gap-2 px-6 py-2.5 fluent-btn-primary rounded shadow-md active:scale-95 transition-transform text-sm font-bold shrink-0 ml-auto"
+            >
+                <Plus className="w-4 h-4" />
+                <span>New Task</span>
+            </button>
+          </div>
+       </div>
 
       {viewMode === 'active' ? renderListGroups(activeTasksGroups) : renderListGroups(completedTasksGroups)}
 
+      {/* CREATE TASK MODAL */}
+       {isModalOpen && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+               <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 rounded border-2 border-slate-300 flex items-center justify-center bg-white"></div>
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">New Task</span>
+               </div>
+               <button onClick={closeModal} className="p-1.5 text-slate-400 hover:bg-slate-200 rounded transition-colors">
+                  <X className="w-5 h-5" />
+               </button>
+            </div>
+
+            <form onSubmit={handleCreateTask} className="flex-1 overflow-y-auto p-6 space-y-6">
+               {/* Title */}
+               <div>
+                  <textarea
+                     value={title}
+                     onChange={(e) => setTitle(e.target.value)}
+                     className="w-full text-xl font-bold text-slate-800 bg-transparent border-none p-0 focus:ring-0 resize-none h-auto leading-tight placeholder:text-slate-300"
+                     placeholder="What needs to be done?"
+                     rows={1}
+                     autoFocus
+                     onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); } }}
+                  />
+               </div>
+
+               {/* Properties Grid */}
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                   <div className="space-y-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Calendar className="w-3 h-3"/> Due Date</label>
+                       <input 
+                          type="date" 
+                          value={dueDate} 
+                          onChange={(e) => setDueDate(e.target.value)}
+                          className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                       />
+                   </div>
+                   <div className="space-y-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Clock className="w-3 h-3"/> Time</label>
+                       <input 
+                          type="time" 
+                          value={dueTime} 
+                          onChange={(e) => setDueTime(e.target.value)}
+                          className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                       />
+                   </div>
+               </div>
+
+               <div className="flex flex-col sm:flex-row gap-6">
+                   <div className="space-y-1 flex-1">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><AlertCircle className="w-3 h-3"/> Priority</label>
+                       <div className="flex bg-slate-50 p-1 rounded border border-slate-200">
+                          {priorities.map(p => (
+                             <button
+                               key={p}
+                               type="button"
+                               onClick={() => setPriority(p)}
+                               className={`flex-1 py-2 text-[10px] font-bold rounded transition-all flex items-center justify-center gap-1 ${
+                                 priority === p 
+                                   ? 'bg-white text-[#0078d4] shadow-sm' 
+                                   : 'text-slate-500 hover:bg-slate-200'
+                               }`}
+                             >
+                                {renderPriorityIcon(p)}
+                                <span className="hidden sm:inline">{p}</span>
+                             </button>
+                          ))}
+                       </div>
+                   </div>
+                   <div className="space-y-1 sm:w-1/3">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Repeat className="w-3 h-3"/> Recurrence</label>
+                       <RecurrenceButton 
+                          value={createRecurrence} 
+                          onChange={setCreateRecurrence} 
+                       />
+                   </div>
+               </div>
+
+               {/* Tags */}
+               <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><TagIcon className="w-3 h-3"/> Labels</label>
+                      {!isCreatingTagInline && (
+                          <button type="button" onClick={() => setIsCreatingTagInline(true)} className="text-[10px] font-bold text-[#0078d4] hover:underline flex items-center gap-1">
+                              <Plus className="w-3 h-3"/> New Label
+                          </button>
+                      )}
+                  </div>
+                  {isCreatingTagInline ? (
+                      <div className="bg-slate-50 p-3 rounded border border-slate-200 space-y-2 animate-in fade-in zoom-in-95">
+                          <div className="flex gap-2">
+                              <input 
+                                  type="text" 
+                                  value={inlineTagLabel} 
+                                  onChange={(e) => setInlineTagLabel(e.target.value)}
+                                  placeholder="Label name"
+                                  className="flex-1 text-xs font-semibold bg-white border border-slate-200 rounded p-2 focus:ring-1 focus:ring-[#0078d4]"
+                              />
+                              <input 
+                                  type="color" 
+                                  value={inlineTagColor} 
+                                  onChange={(e) => setInlineTagColor(e.target.value)} 
+                                  className="w-8 h-full rounded cursor-pointer border border-slate-200 p-0.5 bg-white" 
+                              />
+                          </div>
+                          <div className="flex justify-end gap-2">
+                              <button type="button" onClick={() => setIsCreatingTagInline(false)} className="px-3 py-1 text-xs font-bold text-slate-500">Cancel</button>
+                              <button type="button" onClick={handleAddInlineTag} className="px-3 py-1 text-xs font-bold bg-[#0078d4] text-white rounded">Add</button>
+                          </div>
+                      </div>
+                  ) : (
+                      <div className="flex flex-wrap gap-2">
+                          {tags.map(tag => {
+                              const isActive = selectedTags.includes(tag.id);
+                              return (
+                                  <button
+                                      key={tag.id}
+                                      type="button"
+                                      onClick={() => {
+                                          if (isActive) setSelectedTags(prev => prev.filter(id => id !== tag.id));
+                                          else setSelectedTags(prev => [...prev, tag.id]);
+                                      }}
+                                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition-all ${
+                                          isActive 
+                                          ? 'ring-2 ring-offset-1 ring-[#0078d4] border-transparent' 
+                                          : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                      }`}
+                                      style={isActive ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
+                                  >
+                                      <TagIcon className="w-3 h-3" />
+                                      {tag.label}
+                                  </button>
+                              );
+                          })}
+                      </div>
+                  )}
+               </div>
+
+               <div className="h-px bg-slate-100" />
+
+               {/* Subtasks */}
+               <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><ListChecks className="w-3 h-3"/> Subtasks</label>
+                  <div className="space-y-2">
+                      {createSubtasks.map((st, idx) => (
+                          <div key={idx} className="flex items-center gap-3 group p-2 hover:bg-slate-50 rounded transition-colors">
+                              <button 
+                                  type="button"
+                                  onClick={() => {
+                                      const next = [...createSubtasks];
+                                      next[idx].completed = !next[idx].completed;
+                                      setCreateSubtasks(next);
+                                  }}
+                                  className="text-slate-400 hover:text-[#0078d4] transition-colors"
+                              >
+                                  {st.completed ? <CheckSquare className="w-4 h-4 text-[#107c10]" /> : <Square className="w-4 h-4 rounded" />}
+                              </button>
+                              <span className={`text-sm font-medium flex-1 ${st.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                  {st.title}
+                              </span>
+                              <button 
+                                  type="button"
+                                  onClick={() => {
+                                      setCreateSubtasks(prev => prev.filter((_, i) => i !== idx));
+                                  }}
+                                  className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                              >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                          </div>
+                      ))}
+                      <div className="flex items-center gap-3 p-2">
+                          <Plus className="w-4 h-4 text-[#0078d4]" />
+                          <input 
+                              type="text" 
+                              placeholder="Add step..." 
+                              className="flex-1 text-sm bg-transparent border-none p-0 focus:ring-0 placeholder:text-slate-400"
+                              onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      const val = e.currentTarget.value.trim();
+                                      if (val) {
+                                          setCreateSubtasks(prev => [...prev, { title: val, completed: false }]);
+                                          e.currentTarget.value = '';
+                                      }
+                                  }
+                              }}
+                          />
+                      </div>
+                  </div>
+               </div>
+
+               <div className="h-px bg-slate-100" />
+
+               {/* Notes */}
+               <div className="space-y-2 flex-1 flex flex-col min-h-[150px]">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><FileText className="w-3 h-3"/> Notes</label>
+                  <textarea 
+                      value={createNotes}
+                      onChange={(e) => setCreateNotes(e.target.value)}
+                      placeholder="Add details, links, or thoughts..."
+                      className="w-full h-full min-h-[8rem] text-sm leading-relaxed bg-slate-50 border border-slate-200 rounded p-4 resize-none focus:ring-1 focus:ring-[#0078d4] focus:bg-white transition-colors font-mono"
+                  />
+               </div>
+
+               <div className="flex justify-end pt-4 border-t border-slate-100">
+                  <button type="button" onClick={closeModal} className="px-6 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded mr-2">Cancel</button>
+                  <button type="submit" className="px-8 py-2 text-sm font-bold fluent-btn-primary rounded shadow-lg">Create Task</button>
+               </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+       )}
+
+       {/* Recurrence Config Modal (Nested) */}
+       {isRecurrenceModalOpen && recurrenceEditValue && createPortal(
+           <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/10 backdrop-blur-[1px] p-4">
+              <div className="bg-white rounded-lg shadow-xl p-5 w-full max-w-sm animate-in zoom-in-95 duration-150 border border-slate-200">
+                 <h4 className="text-sm font-bold text-slate-800 mb-4">Repeat Task</h4>
+                 
+                 <div className="space-y-4">
+                    <div className="space-y-1">
+                       <label className="text-xs font-bold text-slate-500">Frequency</label>
+                       <select 
+                          value={recurrenceEditValue.type} 
+                          onChange={(e) => setRecurrenceEditValue({...recurrenceEditValue, type: e.target.value as any})}
+                          className="w-full text-sm bg-slate-50 border border-slate-200 rounded p-2"
+                       >
+                          <option value="daily">Daily</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                          <option value="yearly">Yearly</option>
+                       </select>
+                    </div>
+
+                    <div className="space-y-1">
+                       <label className="text-xs font-bold text-slate-500">Every</label>
+                       <div className="flex items-center gap-2">
+                          <input 
+                             type="number" 
+                             min="1" 
+                             value={recurrenceEditValue.interval}
+                             onChange={(e) => setRecurrenceEditValue({...recurrenceEditValue, interval: Math.max(1, parseInt(e.target.value)||1)})}
+                             className="w-20 text-sm bg-slate-50 border border-slate-200 rounded p-2"
+                          />
+                          <span className="text-sm text-slate-600">
+                             {recurrenceEditValue.type === 'daily' ? 'day(s)' : 
+                              recurrenceEditValue.type === 'weekly' ? 'week(s)' : 
+                              recurrenceEditValue.type === 'monthly' ? 'month(s)' : 'year(s)'}
+                          </span>
+                       </div>
+                    </div>
+
+                    {recurrenceEditValue.type === 'weekly' && (
+                       <div className="space-y-2">
+                           <label className="text-xs font-bold text-slate-500">On these days</label>
+                           <div className="flex justify-between">
+                              {WEEKDAYS.map((d, i) => {
+                                 const isSelected = recurrenceEditValue.weekDays?.includes(i);
+                                 return (
+                                    <button 
+                                       key={d}
+                                       type="button"
+                                       onClick={() => {
+                                          const current = recurrenceEditValue.weekDays || [];
+                                          const next = isSelected ? current.filter(x => x !== i) : [...current, i];
+                                          setRecurrenceEditValue({...recurrenceEditValue, weekDays: next});
+                                       }}
+                                       className={`w-8 h-8 rounded-full text-[10px] font-bold flex items-center justify-center transition-colors ${
+                                          isSelected ? 'bg-[#0078d4] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                       }`}
+                                    >
+                                       {d.charAt(0)}
+                                    </button>
+                                 )
+                              })}
+                           </div>
+                       </div>
+                    )}
+                    
+                    {recurrenceEditValue.type === 'monthly' && (
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500">On day of month</label>
+                            <div className="grid grid-cols-7 gap-1">
+                                {Array.from({length: 31}).map((_, i) => {
+                                    const day = i + 1;
+                                    const isSelected = recurrenceEditValue.monthDays?.includes(day);
+                                    return (
+                                        <button 
+                                           key={day}
+                                           type="button"
+                                           onClick={() => {
+                                               const current = recurrenceEditValue.monthDays || [];
+                                               const next = isSelected ? current.filter(x => x !== day) : [...current, day];
+                                               setRecurrenceEditValue({...recurrenceEditValue, monthDays: next});
+                                           }}
+                                           className={`aspect-square rounded text-[10px] font-bold flex items-center justify-center transition-colors ${
+                                              isSelected ? 'bg-[#0078d4] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                           }`}
+                                        >
+                                           {day}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                       <button type="button" onClick={() => setIsRecurrenceModalOpen(false)} className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded">Cancel</button>
+                       <button 
+                         type="button" 
+                         onClick={() => {
+                            // Clear specialized fields if changing types
+                            const cleaned = { ...recurrenceEditValue };
+                            if(cleaned.type !== 'weekly') delete cleaned.weekDays;
+                            if(cleaned.type !== 'monthly') delete cleaned.monthDays;
+                            if(cleaned.type !== 'yearly') delete cleaned.yearDays;
+                            
+                            if (cleaned.type === 'daily') {
+                                // daily is simple
+                            } else if (cleaned.type === 'weekly' && (!cleaned.weekDays || cleaned.weekDays.length === 0)) {
+                                cleaned.weekDays = [new Date().getDay()]; // Default to today
+                            } else if (cleaned.type === 'monthly' && (!cleaned.monthDays || cleaned.monthDays.length === 0)) {
+                                cleaned.monthDays = [new Date().getDate()];
+                            }
+
+                            handleSaveRecurrence();
+                         }} 
+                         className="px-3 py-1.5 text-xs font-bold bg-[#0078d4] text-white rounded shadow-sm"
+                        >
+                           Done
+                        </button>
+                    </div>
+                 </div>
+              </div>
+           </div>,
+           document.body
+       )}
+
+       {/* Tag Manager Modal */}
+      {isTagManagerOpen && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+          <div className="bg-white w-[95%] md:w-full max-w-md rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh]">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <TagIcon className="w-5 h-5 text-[#0078d4]" />
+                <h3 className="text-lg font-black text-slate-800 tracking-tight">Manage Labels</h3>
+              </div>
+              <button onClick={() => setIsTagManagerOpen(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 flex-1 overflow-y-auto space-y-6">
+              {/* Existing Tags */}
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Existing Labels</h4>
+                <div className="space-y-2">
+                  {tags.length === 0 ? (
+                    <p className="text-sm text-slate-400 italic">No labels yet.</p>
+                  ) : (
+                    tags.map(tag => (
+                      editingTagId === tag.id ? (
+                        // Edit Mode Row
+                        <div key={tag.id} className="p-3 bg-[#eff6fc] rounded border border-[#0078d4] animate-in fade-in">
+                           <div className="flex gap-2 mb-2">
+                              <input 
+                                type="text" 
+                                value={editTagLabel} 
+                                onChange={(e) => setEditTagLabel(e.target.value)} 
+                                className="flex-1 text-xs font-bold bg-white border border-[#0078d4] rounded p-2 focus:ring-1 focus:ring-[#0078d4]" 
+                                autoFocus
+                              />
+                           </div>
+                           <div className="flex gap-2 flex-wrap mb-2 max-h-24 overflow-y-auto">
+                              {PRESET_COLORS.map(color => (
+                                <button 
+                                  key={color} 
+                                  onClick={() => setEditTagColor(color)}
+                                  className={`w-4 h-4 rounded shrink-0 transition-transform ${editTagColor === color ? 'ring-2 ring-offset-1 ring-[#0078d4] scale-110' : ''}`}
+                                  style={{ backgroundColor: color }}
+                                />
+                              ))}
+                           </div>
+                           <div className="flex justify-end gap-2">
+                              <button onClick={cancelEditingTag} className="p-1.5 text-slate-600 hover:bg-slate-100 rounded"><X className="w-4 h-4" /></button>
+                              <button onClick={saveEditingTag} className="p-1.5 bg-[#0078d4] text-white rounded hover:bg-[#106ebe]"><Check className="w-4 h-4" /></button>
+                           </div>
+                        </div>
+                      ) : (
+                        // Display Mode Row
+                        <div key={tag.id} className="flex items-center justify-between p-3 bg-slate-50 rounded border border-slate-200 group">
+                          <div className="flex items-center gap-3">
+                            <div className="w-4 h-4 rounded" style={{ backgroundColor: tag.color }} />
+                            <span className="text-sm font-semibold text-slate-800">{tag.label}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button 
+                              onClick={() => startEditingTag(tag)}
+                              className="p-1.5 text-[#0078d4] hover:bg-blue-50 rounded transition-colors"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteTag(tag.id)} 
+                              className="p-1.5 text-[#a4262c] hover:bg-red-50 rounded transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-6 border-t border-slate-100">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Create New Label</h4>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={newTagLabel} 
+                    onChange={(e) => setNewTagLabel(e.target.value)} 
+                    placeholder="Label name..." 
+                    className="flex-1 text-sm font-semibold bg-slate-50 border-none rounded p-3 focus:ring-2 focus:ring-[#0078d4]/20" 
+                  />
+                  <button onClick={handleAddTag} disabled={!newTagLabel.trim()} className="px-4 bg-[#0078d4] text-white rounded hover:bg-[#106ebe] disabled:opacity-50 disabled:hover:bg-[#0078d4] transition-colors">
+                    <Plus className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="flex gap-2 flex-wrap max-h-32 overflow-y-auto">
+                  {PRESET_COLORS.map(color => (
+                    <button 
+                      key={color} 
+                      onClick={() => setNewTagColor(color)}
+                      className={`w-6 h-6 rounded transition-transform hover:scale-110 shrink-0 ${newTagColor === color ? 'ring-2 ring-offset-2 ring-slate-600' : ''}`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
+               <button onClick={() => setIsTagManagerOpen(false)} className="px-5 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded transition-colors">Done</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* EDIT TASK MODAL */}
-      {selectedTask && (
+      {selectedTask && createPortal(
         <div 
           onClick={() => setSelectedTaskId(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200"
         >
           <div 
             onClick={(e) => e.stopPropagation()} 
@@ -1231,460 +1752,8 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
                </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* CREATE TASK MODAL */}
-       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-               <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 rounded border-2 border-slate-300 flex items-center justify-center bg-white"></div>
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">New Task</span>
-               </div>
-               <button onClick={closeModal} className="p-1.5 text-slate-400 hover:bg-slate-200 rounded transition-colors">
-                  <X className="w-5 h-5" />
-               </button>
-            </div>
-
-            <form onSubmit={handleCreateTask} className="flex-1 overflow-y-auto p-6 space-y-6">
-               {/* Title */}
-               <div>
-                  <textarea
-                     value={title}
-                     onChange={(e) => setTitle(e.target.value)}
-                     className="w-full text-xl font-bold text-slate-800 bg-transparent border-none p-0 focus:ring-0 resize-none h-auto leading-tight placeholder:text-slate-300"
-                     placeholder="What needs to be done?"
-                     rows={1}
-                     autoFocus
-                     onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); } }}
-                  />
-               </div>
-
-               {/* Properties Grid */}
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                   <div className="space-y-1">
-                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Calendar className="w-3 h-3"/> Due Date</label>
-                       <input 
-                          type="date" 
-                          value={dueDate} 
-                          onChange={(e) => setDueDate(e.target.value)}
-                          className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
-                       />
-                   </div>
-                   <div className="space-y-1">
-                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Clock className="w-3 h-3"/> Time</label>
-                       <input 
-                          type="time" 
-                          value={dueTime} 
-                          onChange={(e) => setDueTime(e.target.value)}
-                          className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded p-2.5 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
-                       />
-                   </div>
-               </div>
-
-               <div className="flex flex-col sm:flex-row gap-6">
-                   <div className="space-y-1 flex-1">
-                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><AlertCircle className="w-3 h-3"/> Priority</label>
-                       <div className="flex bg-slate-50 p-1 rounded border border-slate-200">
-                          {priorities.map(p => (
-                             <button
-                               key={p}
-                               type="button"
-                               onClick={() => setPriority(p)}
-                               className={`flex-1 py-2 text-[10px] font-bold rounded transition-all flex items-center justify-center gap-1 ${
-                                 priority === p 
-                                   ? 'bg-white text-[#0078d4] shadow-sm' 
-                                   : 'text-slate-500 hover:bg-slate-200'
-                               }`}
-                             >
-                                {renderPriorityIcon(p)}
-                                <span className="hidden sm:inline">{p}</span>
-                             </button>
-                          ))}
-                       </div>
-                   </div>
-                   <div className="space-y-1 sm:w-1/3">
-                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Repeat className="w-3 h-3"/> Recurrence</label>
-                       <RecurrenceButton 
-                          value={createRecurrence} 
-                          onChange={setCreateRecurrence} 
-                       />
-                   </div>
-               </div>
-
-               {/* Tags */}
-               <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><TagIcon className="w-3 h-3"/> Labels</label>
-                      {!isCreatingTagInline && (
-                          <button type="button" onClick={() => setIsCreatingTagInline(true)} className="text-[10px] font-bold text-[#0078d4] hover:underline flex items-center gap-1">
-                              <Plus className="w-3 h-3"/> New Label
-                          </button>
-                      )}
-                  </div>
-                  {isCreatingTagInline ? (
-                      <div className="bg-slate-50 p-3 rounded border border-slate-200 space-y-2 animate-in fade-in zoom-in-95">
-                          <div className="flex gap-2">
-                              <input 
-                                  type="text" 
-                                  value={inlineTagLabel} 
-                                  onChange={(e) => setInlineTagLabel(e.target.value)}
-                                  placeholder="Label name"
-                                  className="flex-1 text-xs font-semibold bg-white border border-slate-200 rounded p-2 focus:ring-1 focus:ring-[#0078d4]"
-                              />
-                              <input 
-                                  type="color" 
-                                  value={inlineTagColor} 
-                                  onChange={(e) => setInlineTagColor(e.target.value)} 
-                                  className="w-8 h-full rounded cursor-pointer border border-slate-200 p-0.5 bg-white" 
-                              />
-                          </div>
-                          <div className="flex justify-end gap-2">
-                              <button type="button" onClick={() => setIsCreatingTagInline(false)} className="px-3 py-1 text-xs font-bold text-slate-500">Cancel</button>
-                              <button type="button" onClick={handleAddInlineTag} className="px-3 py-1 text-xs font-bold bg-[#0078d4] text-white rounded">Add</button>
-                          </div>
-                      </div>
-                  ) : (
-                      <div className="flex flex-wrap gap-2">
-                          {tags.map(tag => {
-                              const isActive = selectedTags.includes(tag.id);
-                              return (
-                                  <button
-                                      key={tag.id}
-                                      type="button"
-                                      onClick={() => {
-                                          if (isActive) setSelectedTags(prev => prev.filter(id => id !== tag.id));
-                                          else setSelectedTags(prev => [...prev, tag.id]);
-                                      }}
-                                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition-all ${
-                                          isActive 
-                                          ? 'ring-2 ring-offset-1 ring-[#0078d4] border-transparent' 
-                                          : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                                      }`}
-                                      style={isActive ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
-                                  >
-                                      <TagIcon className="w-3 h-3" />
-                                      {tag.label}
-                                  </button>
-                              );
-                          })}
-                      </div>
-                  )}
-               </div>
-
-               <div className="h-px bg-slate-100" />
-
-               {/* Subtasks */}
-               <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><ListChecks className="w-3 h-3"/> Subtasks</label>
-                  <div className="space-y-2">
-                      {createSubtasks.map((st, idx) => (
-                          <div key={idx} className="flex items-center gap-3 group p-2 hover:bg-slate-50 rounded transition-colors">
-                              <button 
-                                  type="button"
-                                  onClick={() => {
-                                      const next = [...createSubtasks];
-                                      next[idx].completed = !next[idx].completed;
-                                      setCreateSubtasks(next);
-                                  }}
-                                  className="text-slate-400 hover:text-[#0078d4] transition-colors"
-                              >
-                                  {st.completed ? <CheckSquare className="w-4 h-4 text-[#107c10]" /> : <Square className="w-4 h-4 rounded" />}
-                              </button>
-                              <span className={`text-sm font-medium flex-1 ${st.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                                  {st.title}
-                              </span>
-                              <button 
-                                  type="button"
-                                  onClick={() => {
-                                      setCreateSubtasks(prev => prev.filter((_, i) => i !== idx));
-                                  }}
-                                  className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                              >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                          </div>
-                      ))}
-                      <div className="flex items-center gap-3 p-2">
-                          <Plus className="w-4 h-4 text-[#0078d4]" />
-                          <input 
-                              type="text" 
-                              placeholder="Add step..." 
-                              className="flex-1 text-sm bg-transparent border-none p-0 focus:ring-0 placeholder:text-slate-400"
-                              onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                      e.preventDefault();
-                                      const val = e.currentTarget.value.trim();
-                                      if (val) {
-                                          setCreateSubtasks(prev => [...prev, { title: val, completed: false }]);
-                                          e.currentTarget.value = '';
-                                      }
-                                  }
-                              }}
-                          />
-                      </div>
-                  </div>
-               </div>
-
-               <div className="h-px bg-slate-100" />
-
-               {/* Notes */}
-               <div className="space-y-2 flex-1 flex flex-col min-h-[150px]">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><FileText className="w-3 h-3"/> Notes</label>
-                  <textarea 
-                      value={createNotes}
-                      onChange={(e) => setCreateNotes(e.target.value)}
-                      placeholder="Add details, links, or thoughts..."
-                      className="w-full h-full min-h-[8rem] text-sm leading-relaxed bg-slate-50 border border-slate-200 rounded p-4 resize-none focus:ring-1 focus:ring-[#0078d4] focus:bg-white transition-colors font-mono"
-                  />
-               </div>
-
-               <div className="flex justify-end pt-4 border-t border-slate-100">
-                  <button type="button" onClick={closeModal} className="px-6 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded mr-2">Cancel</button>
-                  <button type="submit" className="px-8 py-2 text-sm font-bold fluent-btn-primary rounded shadow-lg">Create Task</button>
-               </div>
-            </form>
-          </div>
-        </div>
-       )}
-
-       {/* Recurrence Config Modal (Nested) */}
-       {isRecurrenceModalOpen && recurrenceEditValue && (
-           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/10 backdrop-blur-[1px] p-4">
-              <div className="bg-white rounded-lg shadow-xl p-5 w-full max-w-sm animate-in zoom-in-95 duration-150 border border-slate-200">
-                 <h4 className="text-sm font-bold text-slate-800 mb-4">Repeat Task</h4>
-                 
-                 <div className="space-y-4">
-                    <div className="space-y-1">
-                       <label className="text-xs font-bold text-slate-500">Frequency</label>
-                       <select 
-                          value={recurrenceEditValue.type} 
-                          onChange={(e) => setRecurrenceEditValue({...recurrenceEditValue, type: e.target.value as any})}
-                          className="w-full text-sm bg-slate-50 border border-slate-200 rounded p-2"
-                       >
-                          <option value="daily">Daily</option>
-                          <option value="weekly">Weekly</option>
-                          <option value="monthly">Monthly</option>
-                          <option value="yearly">Yearly</option>
-                       </select>
-                    </div>
-
-                    <div className="space-y-1">
-                       <label className="text-xs font-bold text-slate-500">Every</label>
-                       <div className="flex items-center gap-2">
-                          <input 
-                             type="number" 
-                             min="1" 
-                             value={recurrenceEditValue.interval}
-                             onChange={(e) => setRecurrenceEditValue({...recurrenceEditValue, interval: Math.max(1, parseInt(e.target.value)||1)})}
-                             className="w-20 text-sm bg-slate-50 border border-slate-200 rounded p-2"
-                          />
-                          <span className="text-sm text-slate-600">
-                             {recurrenceEditValue.type === 'daily' ? 'day(s)' : 
-                              recurrenceEditValue.type === 'weekly' ? 'week(s)' : 
-                              recurrenceEditValue.type === 'monthly' ? 'month(s)' : 'year(s)'}
-                          </span>
-                       </div>
-                    </div>
-
-                    {recurrenceEditValue.type === 'weekly' && (
-                       <div className="space-y-2">
-                           <label className="text-xs font-bold text-slate-500">On these days</label>
-                           <div className="flex justify-between">
-                              {WEEKDAYS.map((d, i) => {
-                                 const isSelected = recurrenceEditValue.weekDays?.includes(i);
-                                 return (
-                                    <button 
-                                       key={d}
-                                       type="button"
-                                       onClick={() => {
-                                          const current = recurrenceEditValue.weekDays || [];
-                                          const next = isSelected ? current.filter(x => x !== i) : [...current, i];
-                                          setRecurrenceEditValue({...recurrenceEditValue, weekDays: next});
-                                       }}
-                                       className={`w-8 h-8 rounded-full text-[10px] font-bold flex items-center justify-center transition-colors ${
-                                          isSelected ? 'bg-[#0078d4] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                                       }`}
-                                    >
-                                       {d.charAt(0)}
-                                    </button>
-                                 )
-                              })}
-                           </div>
-                       </div>
-                    )}
-                    
-                    {recurrenceEditValue.type === 'monthly' && (
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500">On day of month</label>
-                            <div className="grid grid-cols-7 gap-1">
-                                {Array.from({length: 31}).map((_, i) => {
-                                    const day = i + 1;
-                                    const isSelected = recurrenceEditValue.monthDays?.includes(day);
-                                    return (
-                                        <button 
-                                           key={day}
-                                           type="button"
-                                           onClick={() => {
-                                               const current = recurrenceEditValue.monthDays || [];
-                                               const next = isSelected ? current.filter(x => x !== day) : [...current, day];
-                                               setRecurrenceEditValue({...recurrenceEditValue, monthDays: next});
-                                           }}
-                                           className={`aspect-square rounded text-[10px] font-bold flex items-center justify-center transition-colors ${
-                                              isSelected ? 'bg-[#0078d4] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                                           }`}
-                                        >
-                                           {day}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                       <button type="button" onClick={() => setIsRecurrenceModalOpen(false)} className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded">Cancel</button>
-                       <button 
-                         type="button" 
-                         onClick={() => {
-                            // Clear specialized fields if changing types
-                            const cleaned = { ...recurrenceEditValue };
-                            if(cleaned.type !== 'weekly') delete cleaned.weekDays;
-                            if(cleaned.type !== 'monthly') delete cleaned.monthDays;
-                            if(cleaned.type !== 'yearly') delete cleaned.yearDays;
-                            
-                            if (cleaned.type === 'daily') {
-                                // daily is simple
-                            } else if (cleaned.type === 'weekly' && (!cleaned.weekDays || cleaned.weekDays.length === 0)) {
-                                cleaned.weekDays = [new Date().getDay()]; // Default to today
-                            } else if (cleaned.type === 'monthly' && (!cleaned.monthDays || cleaned.monthDays.length === 0)) {
-                                cleaned.monthDays = [new Date().getDate()];
-                            }
-
-                            handleSaveRecurrence();
-                         }} 
-                         className="px-3 py-1.5 text-xs font-bold bg-[#0078d4] text-white rounded shadow-sm"
-                        >
-                           Done
-                        </button>
-                    </div>
-                 </div>
-              </div>
-           </div>
-       )}
-
-       {/* Tag Manager Modal */}
-      {isTagManagerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="bg-white w-[95%] md:w-full max-w-md rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh]">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <TagIcon className="w-5 h-5 text-[#0078d4]" />
-                <h3 className="text-lg font-black text-slate-800 tracking-tight">Manage Labels</h3>
-              </div>
-              <button onClick={() => setIsTagManagerOpen(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-6 flex-1 overflow-y-auto space-y-6">
-              {/* Existing Tags */}
-              <div className="space-y-3">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Existing Labels</h4>
-                <div className="space-y-2">
-                  {tags.length === 0 ? (
-                    <p className="text-sm text-slate-400 italic">No labels yet.</p>
-                  ) : (
-                    tags.map(tag => (
-                      editingTagId === tag.id ? (
-                        // Edit Mode Row
-                        <div key={tag.id} className="p-3 bg-[#eff6fc] rounded border border-[#0078d4] animate-in fade-in">
-                           <div className="flex gap-2 mb-2">
-                              <input 
-                                type="text" 
-                                value={editTagLabel} 
-                                onChange={(e) => setEditTagLabel(e.target.value)} 
-                                className="flex-1 text-xs font-bold bg-white border border-[#0078d4] rounded p-2 focus:ring-1 focus:ring-[#0078d4]" 
-                                autoFocus
-                              />
-                           </div>
-                           <div className="flex gap-2 flex-wrap mb-2 max-h-24 overflow-y-auto">
-                              {PRESET_COLORS.map(color => (
-                                <button 
-                                  key={color} 
-                                  onClick={() => setEditTagColor(color)}
-                                  className={`w-4 h-4 rounded shrink-0 transition-transform ${editTagColor === color ? 'ring-2 ring-offset-1 ring-[#0078d4] scale-110' : ''}`}
-                                  style={{ backgroundColor: color }}
-                                />
-                              ))}
-                           </div>
-                           <div className="flex justify-end gap-2">
-                              <button onClick={cancelEditingTag} className="p-1.5 text-slate-600 hover:bg-slate-100 rounded"><X className="w-4 h-4" /></button>
-                              <button onClick={saveEditingTag} className="p-1.5 bg-[#0078d4] text-white rounded hover:bg-[#106ebe]"><Check className="w-4 h-4" /></button>
-                           </div>
-                        </div>
-                      ) : (
-                        // Display Mode Row
-                        <div key={tag.id} className="flex items-center justify-between p-3 bg-slate-50 rounded border border-slate-200 group">
-                          <div className="flex items-center gap-3">
-                            <div className="w-4 h-4 rounded" style={{ backgroundColor: tag.color }} />
-                            <span className="text-sm font-semibold text-slate-800">{tag.label}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button 
-                              onClick={() => startEditingTag(tag)}
-                              className="p-1.5 text-[#0078d4] hover:bg-blue-50 rounded transition-colors"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteTag(tag.id)} 
-                              className="p-1.5 text-[#a4262c] hover:bg-red-50 rounded transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-3 pt-6 border-t border-slate-100">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Create New Label</h4>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={newTagLabel} 
-                    onChange={(e) => setNewTagLabel(e.target.value)} 
-                    placeholder="Label name..." 
-                    className="flex-1 text-sm font-semibold bg-slate-50 border-none rounded p-3 focus:ring-2 focus:ring-[#0078d4]/20" 
-                  />
-                  <button onClick={handleAddTag} disabled={!newTagLabel.trim()} className="px-4 bg-[#0078d4] text-white rounded hover:bg-[#106ebe] disabled:opacity-50 disabled:hover:bg-[#0078d4] transition-colors">
-                    <Plus className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="flex gap-2 flex-wrap max-h-32 overflow-y-auto">
-                  {PRESET_COLORS.map(color => (
-                    <button 
-                      key={color} 
-                      onClick={() => setNewTagColor(color)}
-                      className={`w-6 h-6 rounded transition-transform hover:scale-110 shrink-0 ${newTagColor === color ? 'ring-2 ring-offset-2 ring-slate-600' : ''}`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
-               <button onClick={() => setIsTagManagerOpen(false)} className="px-5 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded transition-colors">Done</button>
-            </div>
-          </div>
-        </div>
+        </div>,
+        document.body
       )}
 
        {/* Floating Action Button (Mobile) */}

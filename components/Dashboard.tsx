@@ -1,9 +1,7 @@
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft, Notebook, Lightbulb, Bug } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder } from '../types';
-import TaskSection from './TaskSection';
+import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
 import JournalSection from './JournalSection';
 import HabitSection from './HabitSection';
