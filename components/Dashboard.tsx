@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft, Notebook, Lightbulb, Bug } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder } from '../types';
 import TaskSection from './TaskSection';
@@ -8,6 +10,7 @@ import HabitSection from './HabitSection';
 import NotesSection from './NotesSection';
 import RequestFeatureSection from './RequestFeatureSection';
 import ReportBugSection from './ReportBugSection';
+import PetCompanion, { PetRef } from './PetCompanion';
 import { supabase } from '../lib/supabase';
 import { decryptData } from '../lib/crypto';
 
@@ -27,6 +30,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [isStreakModalOpen, setIsStreakModalOpen] = useState(false);
+
+  // Pet Reference to trigger animations
+  const petRef = useRef<PetRef>(null);
+
+  const handleTaskComplete = () => {
+    petRef.current?.celebrate();
+  };
 
   // Sidebar Collapse State with Persistence
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -338,9 +348,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const renderContent = () => {
     switch (activeTab) {
       case 'tasks':
-        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} />;
+        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} onTaskComplete={handleTaskComplete} />;
       case 'habit':
-        return <HabitSection habits={habits} setHabits={setHabits} userId={userId} dayStartHour={userSettings.dayStartHour} />;
+        return <HabitSection habits={habits} setHabits={setHabits} userId={userId} dayStartHour={userSettings.dayStartHour} onHabitComplete={handleTaskComplete} />;
       case 'journal':
         return <JournalSection journals={journals} setJournals={setJournals} userId={userId} />;
       case 'notes':
@@ -352,7 +362,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       case 'settings':
         return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} />;
       default:
-        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} />;
+        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} onTaskComplete={handleTaskComplete} />;
     }
   };
 
@@ -657,6 +667,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         <MobileNavItem id="notes" label="Notes" icon={Notebook} />
         <MobileNavItem id="settings" label="Settings" icon={Settings} />
       </nav>
+
+      <PetCompanion ref={petRef} />
     </div>
   );
 };

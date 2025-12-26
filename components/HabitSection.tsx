@@ -11,6 +11,7 @@ interface HabitSectionProps {
   setHabits: React.Dispatch<React.SetStateAction<Habit[]>>;
   userId: string;
   dayStartHour?: number;
+  onHabitComplete?: () => void;
 }
 
 // Expanded Emoji List (200+ Icons)
@@ -49,7 +50,7 @@ const EMOJI_OPTIONS = [
   '❤️', '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️'
 ];
 
-const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, dayStartHour }) => {
+const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, dayStartHour, onHabitComplete }) => {
   const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -219,6 +220,16 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     const newProgress = { ...habit.progress, [date]: newCount };
     setHabits(prev => prev.map(h => h.id === habitId ? { ...h, progress: newProgress, skippedDates: newSkipped } : h));
 
+    // Celebration Trigger
+    // Trigger if we hit or exceed target (and weren't already at target before this click if simpler logic is needed, 
+    // but re-celebrating on further progress is also fine/encouraging)
+    if (newCount >= habit.target && onHabitComplete) {
+       onHabitComplete();
+    } else if (newCount > currentCount && onHabitComplete) {
+       // Also encourage partial progress!
+       onHabitComplete();
+    }
+
     await supabase.from('habits').update({ progress: newProgress, skipped_dates: newSkipped }).eq('id', habitId);
   };
 
@@ -233,6 +244,11 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
         if (!newSkipped.includes(date)) newSkipped = [...newSkipped, date];
     } else {
         newSkipped = newSkipped.filter(d => d !== date);
+    }
+    
+    // Trigger celebration if manually setting to complete
+    if (count >= habit.target && onHabitComplete) {
+       onHabitComplete();
     }
 
     setHabits(prev => prev.map(h => h.id === habitId ? { ...h, progress: newProgress, skippedDates: newSkipped } : h));

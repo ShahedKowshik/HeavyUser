@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Plus, Trash2, CheckCircle2, X, SlidersHorizontal, ChevronRight, ListChecks, History, Tag as TagIcon, Calendar, Clock, AlertCircle, FileText, Check, MoreHorizontal, Flag, ArrowRight, CornerDownLeft, ArrowUp, ArrowDown, Flame, Circle, CheckSquare, Square, ArrowLeft, PenLine, Eye, Edit2, Repeat, ChevronDown, Moon, Layers, ArrowUpDown } from 'lucide-react';
@@ -12,6 +13,7 @@ interface TaskSectionProps {
   setTags: React.Dispatch<React.SetStateAction<Tag[]>>;
   userId: string;
   dayStartHour?: number;
+  onTaskComplete?: () => void;
 }
 
 type Grouping = 'none' | 'date' | 'priority';
@@ -147,7 +149,7 @@ const mapTaskToDb = (task: Task, userId: string) => ({
     recurrence: task.recurrence
 });
 
-const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour }) => {
+const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, onTaskComplete }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   
@@ -466,6 +468,11 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
     }
 
     setTasks(updatedTasks);
+    
+    // Trigger celebration if completing
+    if (newCompleted && onTaskComplete) {
+        onTaskComplete();
+    }
 
     // Sync update to Supabase
     await supabase.from('tasks').update({ 
@@ -964,7 +971,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTag
 
       {viewMode === 'active' ? renderListGroups(activeTasksGroups) : renderListGroups(completedTasksGroups)}
 
-      {/* EDIT TASK MODAL (Restored) */}
+      {/* EDIT TASK MODAL */}
       {selectedTask && (
         <div 
           onClick={() => setSelectedTaskId(null)}
