@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
-import { Plus, Trash2, CheckCircle2, X, SlidersHorizontal, ChevronRight, ListChecks, History, Tag as TagIcon, Calendar, Clock, AlertCircle, FileText, Check, MoreHorizontal, Flag, ArrowRight, CornerDownLeft, ArrowUp, ArrowDown, Flame, Circle, CheckSquare, Square, ArrowLeft, PenLine, Eye, Edit2, Repeat, ChevronDown, Moon, Layers, ArrowUpDown } from 'lucide-react';
+import { Plus, Trash2, CheckCircle2, X, SlidersHorizontal, ChevronRight, ListChecks, History, Tag as TagIcon, Calendar, Clock, AlertCircle, FileText, Check, MoreHorizontal, Flag, ArrowRight, CornerDownLeft, ArrowUp, ArrowDown, Flame, Circle, CheckSquare, Square, ArrowLeft, PenLine, Eye, Edit2, Repeat, ChevronDown, Moon, Layers, ArrowUpDown, Target } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -97,7 +97,7 @@ const getNextDate = (currentDateStr: string, r: Recurrence): string => {
         const finalDay = Math.min(firstDay, maxDays);
         
         const nextDate = new Date(Date.UTC(nextY, nextM, finalDay));
-        return nextDate.toISOString().split('T')[0];
+        return date.toISOString().split('T')[0];
      }
   }
 
@@ -154,6 +154,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'active' | 'completed'>('active');
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false); // New Focus Mode State (Renamed to "Today" in UI)
 
   // Initialize view settings from localStorage or defaults
   const [grouping, setGrouping] = useState<Grouping>(() => {
@@ -591,7 +592,20 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     return entries.map(([title, tasks]) => ({ title, tasks }));
   };
 
-  const activeTasksGroups = useMemo(() => processList(tasks.filter(t => !t.completed)), [tasks, grouping, sorting, tags, filterTags, dayStartHour, activeFilterTagId]);
+  const activeTasksGroups = useMemo(() => {
+    let list = tasks.filter(t => !t.completed);
+    
+    // Focus Mode Filter: Show only Overdue and Today
+    if (isFocusMode) {
+        list = list.filter(t => {
+            if (!t.dueDate) return false;
+            const key = getGroupingKey(t.dueDate);
+            return key === 'Overdue' || key === 'Today';
+        });
+    }
+    
+    return processList(list);
+  }, [tasks, grouping, sorting, tags, filterTags, dayStartHour, activeFilterTagId, isFocusMode]);
   
   // Custom logic for completed tasks: No grouping, sorted by completion date (latest first)
   const completedTasksGroups = useMemo(() => {
@@ -812,9 +826,19 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
   return (
     <div className="animate-in fade-in duration-500 pb-20">
-       <div className="mb-6 flex items-center justify-end gap-2">
+       <div className="mb-3 flex items-center justify-end gap-2">
           {/* ... existing header content ... */}
           
+          {/* Today Mode Toggle */}
+          <button
+            onClick={() => setIsFocusMode(!isFocusMode)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all border ${isFocusMode ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm ring-1 ring-indigo-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+            title={isFocusMode ? "Show All Tasks" : "Show Today & Overdue Only"}
+          >
+            <Calendar className={`w-4 h-4 ${isFocusMode ? 'text-indigo-600' : ''}`} />
+            <span className={`text-xs font-bold ${isFocusMode ? 'text-indigo-700' : 'text-slate-600'}`}>Today</span>
+          </button>
+
           {/* View Toggle (History) */}
           <button 
             onClick={() => setViewMode(viewMode === 'active' ? 'completed' : 'active')}
