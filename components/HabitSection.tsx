@@ -37,19 +37,102 @@ const mk = (icons: string[], tags: string) => icons.map(icon => ({ icon, tags })
 
 // Expanded Emoji Library with Keywords for Search
 const EMOJI_LIBRARY = [
-  // ... (Full Emoji List kept implicit for brevity as it is large, assuming pre-existing content remains) ...
-  // --- FLUIDS & WEATHER ---
-  ...mk(['💧','🚿','🛁'], 'water clean wash shower bath hygiene'),
-  ...mk(['🌊'], 'water wave sea ocean swim'),
-  ...mk(['🌧️','⛈️','🌩️'], 'rain storm weather lightning thunder'),
-  ...mk(['☀️','🌤️','⛅'], 'sun sunny weather day morning'),
-  ...mk(['☁️'], 'cloud weather overcast'),
-  ...mk(['🌈'], 'rainbow weather color hope'),
-  ...mk(['❄️','⛄'], 'snow cold winter ice snowman'),
-  ...mk(['🔥','💥'], 'fire hot burn energy passion'),
-  ...mk(['✨','⭐','🌟'], 'star sparkle shine magic success'),
-  ...mk(['🌙','🌌'], 'moon night space evening sleep'),
-  // ... (rest of emoji library implied) ...
+  // --- HEALTH & FITNESS ---
+  ...mk(['💧','🚿','🛁','🧼'], 'water clean wash shower bath hygiene soap'),
+  ...mk(['🏃','👟','🎽','👣','💨'], 'run jog cardio fitness exercise walk steps fast'),
+  ...mk(['🏋️','💪','🤸','🧘','🧗'], 'gym workout weight lift strength yoga stretch climb flexible'),
+  ...mk(['🚴','🚵','🚲','🛴'], 'bike cycle ride cardio commute'),
+  ...mk(['🏊','🏄','🚣','🤽'], 'swim water sport ocean pool'),
+  ...mk(['🍎','🍌','🍇','🍊','🍓','🍒','🍑','🍐'], 'fruit healthy food snack eat vitamin'),
+  ...mk(['🥦','🥕','🌽','🥒','🥬','🍆','🥑','🥗'], 'vegetable healthy food salad green vegan diet'),
+  ...mk(['🍳','🥩','🍗','🍖','🥓','🥚','🥪','🥙'], 'food protein cook meal eat breakfast lunch dinner'),
+  ...mk(['💊','💉','🩸','🩹','🩺'], 'medication medicine health vitamin doctor blood firstaid'),
+  ...mk(['😴','🛌','💤','🌙','🌚'], 'sleep rest nap bed night dream'),
+  ...mk(['🦷','👀','🧠','🫀','🫁'], 'teeth dentist eye vision brain learn heart cardio lungs breathe'),
+  ...mk(['🚭','🚯','🚳','📵'], 'quit stop bad habit no smoke'),
+
+  // --- MINDFULNESS & MENTAL ---
+  ...mk(['🧘','🛐','🤲','🙏','📿'], 'meditate pray spirit soul peace mindfulness'),
+  ...mk(['📖','📚','📓','📒','📜'], 'read book learn study knowledge bible quran'),
+  ...mk(['✍️','📝','🖊️','🖋️','✏️'], 'write journal diary log note poetry'),
+  ...mk(['🎨','🖌️','🖍️','🎭','🧶','🧵'], 'art draw paint create craft hobby'),
+  ...mk(['🎵','🎸','🎹','🎻','🥁','🎺','🎷','🎤'], 'music instrument play practice sing listen'),
+  ...mk(['🧠','💡','💭','🤔','🧩'], 'think idea brain solve puzzle learn logic'),
+  ...mk(['😊','🥰','😎','🤩','🥳'], 'mood happy gratitude smile positive'),
+  
+  // --- PRODUCTIVITY & WORK ---
+  ...mk(['💻','⌨️','🖱️','🖥️','📱'], 'work computer code dev tech screen'),
+  ...mk(['💼','📁','📂','🗂️','📊','📈','📉'], 'business office work file organize data chart stats'),
+  ...mk(['📅','🗓️','⌚','⏰','⏳','⌛'], 'plan schedule time deadline calendar clock'),
+  ...mk(['✅','☑️','✔️','💯','🎯'], 'goal task complete done finish target focus'),
+  ...mk(['💰','💵','💶','💷','💳','🪙','💸'], 'money save budget finance invest spend'),
+  ...mk(['📧','📨','📩','📮','📞','☎️'], 'email inbox message contact call network'),
+  ...mk(['🚀','✈️','🚁','🚂','🚗'], 'travel commute fly move progress fast'),
+  
+  // --- HOME & CHORES ---
+  ...mk(['🏠','🏡','🏢','🛏️','🛋️'], 'home house room clean tidy'),
+  ...mk(['🧹','🧼','🧽','🧺','🗑️'], 'clean chores sweep wash dishes trash laundry'),
+  ...mk(['🍳','🥣','🥘','🍲','🔪'], 'cook kitchen meal prep chef'),
+  ...mk(['🪴','🌱','🌵','💐','🌻','🌳'], 'garden plant nature flower grow outside'),
+  ...mk(['🐶','🐱','🐭','🐹','🐰'], 'pet dog cat animal care walk feed'),
+  ...mk(['🛒','🛍️','🎁','📦'], 'shop buy grocery gift package'),
+  
+  // --- SOCIAL & FAMILY ---
+  ...mk(['👨‍👩‍👧','👪','👩‍❤️‍💋‍👨','🫂','🤝'], 'family love partner hug connect relationship'),
+  ...mk(['👯','💃','🕺','🎉','🎊'], 'friends party dance social fun'),
+  ...mk(['👶','🧒','👦','👧'], 'kids child parent care play'),
+  ...mk(['🗣️','🗨️','💬','👂'], 'talk listen speak communicate language'),
+  ...mk(['💌','💝','💖','💗','💓'], 'love heart romance date kindness'),
+
+  // --- LEISURE & HOBBIES ---
+  ...mk(['🎮','🕹️','🎲','🎱','🎳'], 'game play video fun relax'),
+  ...mk(['📺','🎬','📽️','🍿','🎧'], 'watch movie show listen podcast entertainment'),
+  ...mk(['📸','📷','📹','🎥'], 'photo camera video memory capture'),
+  ...mk(['⛺','🔥','🪵','🎣','🏔️'], 'camp nature outside hike fish adventure'),
+  ...mk(['⚽','🏀','🏈','⚾','🎾','🏐','🏉'], 'sport ball play team compete game'),
+  
+  // --- NATURE & ELEMENTS ---
+  ...mk(['☀️','🌤️','⛅','🌥️','☁️'], 'sun weather day sky light'),
+  ...mk(['🌧️','⛈️','🌩️','🌨️','❄️'], 'rain storm snow cold winter weather'),
+  ...mk(['🌊','🔥','🌪️','🌈','⭐'], 'water fire wind nature element star'),
+  ...mk(['🌍','🌎','🌏','🗺️','🧭'], 'world earth travel explore map'),
+  
+  // --- FOOD & DRINK ---
+  ...mk(['☕','🍵','🥛','🧃','🥤'], 'coffee tea drink liquid caffeine juice'),
+  ...mk(['🍷','🥂','🍻','🍺','🍸','🍹'], 'alcohol drink party wine beer'),
+  ...mk(['🍔','🍟','🍕','🌭','🌮','🌯'], 'fast food junk cheat meal'),
+  ...mk(['🍫','🍬','🍭','🍪','🍰','🍦'], 'sweet dessert sugar treat chocolate'),
+  ...mk(['🧂','🥜','🌰','🍞','🥐'], 'snack nut bread carb food'),
+
+  // --- ABSTRACT & SYMBOLS ---
+  ...mk(['❤️','🧡','💛','💚','💙','💜','🖤','🤍'], 'color heart love feeling'),
+  ...mk(['🔴','🟠','🟡','🟢','🔵','🟣','⚫','⚪'], 'color circle shape dot'),
+  ...mk(['🟥','🟧','🟨','🟩','🟦','🟪','⬛','⬜'], 'color square shape box'),
+  ...mk(['⚠️','🚫','⛔','🛑','💢'], 'stop warning alert danger'),
+  ...mk(['🔝','🆙','🆒','🆕','🆓'], 'sign symbol text word'),
+  ...mk(['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'], 'zodiac sign star horroscope'),
+  
+  // --- ANIMALS ---
+  ...mk(['🦁','🐯','🐻','🐨','🐼'], 'animal wild zoo nature'),
+  ...mk(['🦊','🦝','🐮','🐷','🐗'], 'animal farm wild cute'),
+  ...mk(['🦓','🦄','🐴','🐲','🦕'], 'animal horse magic dino'),
+  ...mk(['🐸','🐢','🦎','🐍','🐊'], 'reptile green animal nature'),
+  ...mk(['🐳','🐬','🐟','🐠','🐡'], 'fish ocean sea animal swim'),
+  ...mk(['🦋','🐛','🐜','🐝','🐞'], 'insect bug nature small'),
+  ...mk(['🦅','🦆','🦉','🦇','🦜'], 'bird fly animal wing'),
+
+  // --- OBJECTS & TOOLS ---
+  ...mk(['🔨','🪓','⛏️','🔧','🪛'], 'tool build fix repair work'),
+  ...mk(['🔩','⚙️','🗜️','⚖️','⛓️'], 'metal gear build industry'),
+  ...mk(['🔫','💣','🧨','🛡️','🗡️'], 'weapon fight protect security'),
+  ...mk(['🔮','🧿','🏺','⚱️','💈'], 'object magic mystery item'),
+  ...mk(['🔑','🗝️','🚪','🪑','🚽'], 'key door furniture home toilet'),
+  
+  // --- TRANSPORT ---
+  ...mk(['🚓','🚑','🚒','🚐','🚚'], 'car vehicle emergency work drive'),
+  ...mk(['🚜','🏎️','🏍️','🛵','🦽'], 'vehicle farm race bike move'),
+  ...mk(['🚂','🚆','🚅','🚋','🚌'], 'train bus public transport city'),
+  ...mk(['⚓','⛵','🚤','🛳️','⛴️'], 'boat ship sea ocean travel'),
 ];
 
 const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, dayStartHour, onHabitComplete, tags, setTags }) => {
