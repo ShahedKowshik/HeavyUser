@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { X, Flame, Check, ChevronLeft, ChevronRight, Activity, Plus, Trash2, Smile, Ban, Target, Minus, Edit2, RotateCcw, ArrowLeft, Trophy, TrendingUp, Calendar, Ruler, Search, Tag as TagIcon } from 'lucide-react';
 import { Habit, Tag } from '../types';
@@ -750,7 +751,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
             <div className="flex items-center gap-3 w-full md:w-auto">
               <button 
                 onClick={openCreateModal}
-                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 fluent-btn-primary rounded shadow-md active:scale-95 transition-transform text-sm font-bold"
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-[#0078d4] text-white hover:bg-[#106ebe] rounded shadow-md active:scale-95 transition-transform text-sm font-bold"
               >
                 <Plus className="w-4 h-4" />
                 <span>New Habit</span>
@@ -998,7 +999,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
               <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
                 <button type="button" onClick={() => { setIsCreateModalOpen(false); setIsEditModalOpen(false); }} className="px-5 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded transition-colors">Cancel</button>
-                <button type="submit" className="px-8 py-2 text-sm font-bold fluent-btn-primary rounded shadow-lg">{isEditModalOpen ? 'Save Changes' : 'Start Habit'}</button>
+                <button type="submit" className="px-8 py-2 text-sm font-bold bg-[#0078d4] text-white hover:bg-[#106ebe] rounded shadow-lg">{isEditModalOpen ? 'Save Changes' : 'Start Habit'}</button>
               </div>
             </form>
            </div>

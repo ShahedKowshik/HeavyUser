@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Filter, Inbox, HelpCircle, ChevronsUpDown, Search, Plus, LogOut, FileText } from 'lucide-react';
+import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Filter, Inbox, HelpCircle, ChevronsUpDown, Search, Plus, LogOut, FileText, ListTodo, File, Book } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
@@ -8,7 +9,6 @@ import HabitSection from './HabitSection';
 import NotesSection from './NotesSection';
 import RequestFeatureSection from './RequestFeatureSection';
 import ReportBugSection from './ReportBugSection';
-import PetCompanion, { PetRef } from './PetCompanion';
 import { supabase } from '../lib/supabase';
 import { decryptData } from '../lib/crypto';
 
@@ -52,7 +52,7 @@ const NavItem: React.FC<NavItemProps> = ({ id, label, icon: Icon, count, shortcu
   <button
     onClick={() => setActiveTab(id)}
     title={isSidebarCollapsed ? label : undefined}
-    className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2.5 rounded transition-all duration-200 group ${
+    className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2 rounded transition-all duration-200 group ${
       activeTab === id 
       ? 'bg-slate-100 text-[#0078d4] font-bold shadow-sm ring-1 ring-slate-200' 
       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
@@ -118,14 +118,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   // Global Label Filter
   const [activeFilterTagId, setActiveFilterTagId] = useState<string | null>(null);
   const [isTagFilterOpen, setIsTagFilterOpen] = useState(false);
-
-  // Pet Reference to trigger animations
-  const petRef = useRef<PetRef>(null);
-
-  // Use callback to prevent this function from being recreated on every render
-  const handleTaskComplete = useCallback(() => {
-    petRef.current?.celebrate();
-  }, []);
 
   // Sidebar Collapse State with Persistence
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -437,9 +429,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const renderContent = () => {
     switch (activeTab) {
       case 'tasks':
-        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} onTaskComplete={handleTaskComplete} activeFilterTagId={activeFilterTagId} />;
+        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} activeFilterTagId={activeFilterTagId} />;
       case 'habit':
-        return <HabitSection habits={habits} setHabits={setHabits} userId={userId} dayStartHour={userSettings.dayStartHour} onHabitComplete={handleTaskComplete} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
+        return <HabitSection habits={habits} setHabits={setHabits} userId={userId} dayStartHour={userSettings.dayStartHour} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'journal':
         return <JournalSection journals={journals} setJournals={setJournals} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'notes':
@@ -451,7 +443,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       case 'settings':
         return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} tags={tags} setTags={setTags} />;
       default:
-        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} onTaskComplete={handleTaskComplete} activeFilterTagId={activeFilterTagId} />;
+        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} activeFilterTagId={activeFilterTagId} />;
     }
   };
 
@@ -462,7 +454,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   return (
     <div className="flex h-screen bg-slate-100 text-slate-800 overflow-hidden font-sans selection:bg-[#0078d4]/20 selection:text-[#0078d4]">
       {/* Sidebar - Desktop */}
-      <aside className={`hidden md:flex flex-col p-4 space-y-4 bg-white border-r border-slate-200 shrink-0 z-20 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20 items-center' : 'w-64'}`}>
+      <aside className={`hidden md:flex flex-col p-4 space-y-2 bg-white border-r border-slate-200 shrink-0 z-20 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20 items-center' : 'w-64'}`}>
         <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'space-x-3 px-3'} py-6 relative`}>
           <CheckCircle2 className="w-7 h-7 text-[#0078d4] shrink-0" />
           {!isSidebarCollapsed && (
@@ -471,10 +463,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         </div>
 
         <nav className="flex-1 space-y-1 w-full">
-          <NavItem id="tasks" label="Tasks" icon={Inbox} count={tasks.filter(t => !t.completed).length} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
-          <NavItem id="habit" label="Habits" icon={Activity} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
-          <NavItem id="journal" label="Journal" icon={Notebook} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
-          <NavItem id="notes" label="Notes" icon={FileText} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
+          <NavItem id="tasks" label="Tasks" icon={ListTodo} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
+          <NavItem id="habit" label="Habits" icon={Zap} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
+          <NavItem id="journal" label="Journal" icon={Book} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
+          <NavItem id="notes" label="Notes" icon={File} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
         </nav>
 
         <div className={`pt-4 border-t border-slate-200 w-full flex flex-col gap-1`}>
@@ -788,14 +780,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
       {/* Bottom Navigation - Mobile */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 flex justify-around py-2 px-2 pb-safe overflow-x-auto no-scrollbar">
-        <MobileNavItem id="tasks" label="Tasks" icon={Inbox} activeTab={activeTab} setActiveTab={setActiveTab} />
-        <MobileNavItem id="habit" label="Habits" icon={Activity} activeTab={activeTab} setActiveTab={setActiveTab} />
-        <MobileNavItem id="journal" label="Journal" icon={Notebook} activeTab={activeTab} setActiveTab={setActiveTab} />
-        <MobileNavItem id="notes" label="Notes" icon={FileText} activeTab={activeTab} setActiveTab={setActiveTab} />
+        <MobileNavItem id="tasks" label="Tasks" icon={ListTodo} activeTab={activeTab} setActiveTab={setActiveTab} />
+        <MobileNavItem id="habit" label="Habits" icon={Zap} activeTab={activeTab} setActiveTab={setActiveTab} />
+        <MobileNavItem id="journal" label="Journal" icon={Book} activeTab={activeTab} setActiveTab={setActiveTab} />
+        <MobileNavItem id="notes" label="Notes" icon={File} activeTab={activeTab} setActiveTab={setActiveTab} />
         <MobileNavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} />
       </nav>
-
-      <PetCompanion ref={petRef} />
     </div>
   );
 };
