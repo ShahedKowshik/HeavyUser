@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft, Notebook, Lightbulb, Bug, Clock } from 'lucide-react';
+import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Filter } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
@@ -29,6 +29,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [isStreakModalOpen, setIsStreakModalOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState('');
+
+  // Global Label Filter
+  const [activeFilterTagId, setActiveFilterTagId] = useState<string | null>(null);
+  const [isTagFilterOpen, setIsTagFilterOpen] = useState(false);
 
   // Pet Reference to trigger animations
   const petRef = useRef<PetRef>(null);
@@ -369,13 +373,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const renderContent = () => {
     switch (activeTab) {
       case 'tasks':
-        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} onTaskComplete={handleTaskComplete} />;
+        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} onTaskComplete={handleTaskComplete} activeFilterTagId={activeFilterTagId} />;
       case 'habit':
-        return <HabitSection habits={habits} setHabits={setHabits} userId={userId} dayStartHour={userSettings.dayStartHour} onHabitComplete={handleTaskComplete} tags={tags} setTags={setTags} />;
+        return <HabitSection habits={habits} setHabits={setHabits} userId={userId} dayStartHour={userSettings.dayStartHour} onHabitComplete={handleTaskComplete} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'journal':
-        return <JournalSection journals={journals} setJournals={setJournals} userId={userId} tags={tags} setTags={setTags} />;
+        return <JournalSection journals={journals} setJournals={setJournals} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'notes':
-        return <NotesSection notes={notes} setNotes={setNotes} folders={folders} setFolders={setFolders} userId={userId} tags={tags} setTags={setTags} />;
+        return <NotesSection notes={notes} setNotes={setNotes} folders={folders} setFolders={setFolders} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'request_feature':
         return <RequestFeatureSection userId={userId} />;
       case 'report_bug':
@@ -383,12 +387,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       case 'settings':
         return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} tags={tags} setTags={setTags} />;
       default:
-        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} onTaskComplete={handleTaskComplete} />;
+        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} onTaskComplete={handleTaskComplete} activeFilterTagId={activeFilterTagId} />;
     }
   };
 
   const formattedDate = currentTime.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const formattedTime = currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+  const activeFilterTag = useMemo(() => tags.find(t => t.id === activeFilterTagId), [tags, activeFilterTagId]);
 
   const NavItem = ({ id, label, icon: Icon }: { id: AppTab; label: string; icon: any }) => (
     <button
@@ -512,6 +518,66 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           <h2 className="text-xl font-black capitalize text-slate-800 tracking-tight">{activeTab.replace('_', ' ')}</h2>
           <div className="flex items-center space-x-4">
             
+            {/* Global Label Filter */}
+            <div className="relative">
+                <button
+                    onClick={() => setIsTagFilterOpen(!isTagFilterOpen)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition-all ${
+                        activeFilterTagId 
+                        ? 'font-bold shadow-sm' 
+                        : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'
+                    }`}
+                    style={activeFilterTag ? {
+                        backgroundColor: `${activeFilterTag.color}15`,
+                        borderColor: activeFilterTag.color,
+                        color: activeFilterTag.color
+                    } : {}}
+                    title="Filter by Label"
+                >
+                    <TagIcon className={`w-3.5 h-3.5 ${activeFilterTagId ? 'fill-current' : ''}`} />
+                    {activeFilterTag && <span className="text-xs">{activeFilterTag.label}</span>}
+                </button>
+
+                {activeFilterTagId && (
+                    <button
+                        onClick={() => setActiveFilterTagId(null)}
+                        className="absolute -top-2 -right-2 bg-slate-200 text-slate-500 rounded-full p-0.5 hover:bg-red-500 hover:text-white transition-colors"
+                        title="Clear Filter"
+                    >
+                        <X className="w-3 h-3" />
+                    </button>
+                )}
+
+                {isTagFilterOpen && (
+                    <>
+                        <div className="fixed inset-0 z-10" onClick={() => setIsTagFilterOpen(false)} />
+                        <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-lg shadow-xl z-20 p-2 animate-in zoom-in-95 origin-top-right">
+                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Select Label</h4>
+                            <div className="max-h-60 overflow-y-auto space-y-1">
+                                {tags.length === 0 && <p className="text-xs text-slate-400 italic px-1">No labels created.</p>}
+                                <button
+                                    onClick={() => { setActiveFilterTagId(null); setIsTagFilterOpen(false); }}
+                                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-bold transition-colors ${!activeFilterTagId ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
+                                >
+                                    <LayoutGrid className="w-3.5 h-3.5 text-slate-400" />
+                                    <span>All Items</span>
+                                </button>
+                                {tags.map(tag => (
+                                    <button
+                                        key={tag.id}
+                                        onClick={() => { setActiveFilterTagId(tag.id); setIsTagFilterOpen(false); }}
+                                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-bold transition-colors ${activeFilterTagId === tag.id ? 'bg-[#eff6fc] text-[#0078d4]' : 'text-slate-600 hover:bg-slate-50'}`}
+                                    >
+                                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                                        <span className="truncate">{tag.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
+
             {/* Urgent Tasks Alert */}
             {urgentTasksTodayCount > 0 && (
               <div className="relative group flex items-center">

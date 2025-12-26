@@ -12,6 +12,7 @@ interface HabitSectionProps {
   onHabitComplete?: () => void;
   tags: Tag[];
   setTags: React.Dispatch<React.SetStateAction<Tag[]>>;
+  activeFilterTagId?: string | null;
 }
 
 // Helper to create a new tag inline
@@ -32,6 +33,7 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     return newTag;
 };
 
+// ... existing mk and EMOJI_LIBRARY code ...
 // Helper to build emoji objects with tags
 const mk = (icons: string[], tags: string) => icons.map(icon => ({ icon, tags }));
 
@@ -135,7 +137,7 @@ const EMOJI_LIBRARY = [
   ...mk(['⚓','⛵','🚤','🛳️','⛴️'], 'boat ship sea ocean travel'),
 ];
 
-const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, dayStartHour, onHabitComplete, tags, setTags }) => {
+const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, dayStartHour, onHabitComplete, tags, setTags, activeFilterTagId }) => {
   const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -189,13 +191,15 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     setFormUnit('');
     setFormStartDate(getLogicalDateStr());
     setFormUseCounter(true);
-    setFormTags([]);
+    // Pre-fill with active global filter tag if present
+    setFormTags(activeFilterTagId ? [activeFilterTagId] : []);
     setIconSearch('');
     setNewTagInput('');
     setIsCreatingTag(false);
     setIsCreateModalOpen(true);
   };
 
+  // ... (rest of existing logic methods like openEditModal, handleInlineCreateTag)
   const openEditModal = (habit: Habit) => {
     setFormTitle(habit.title);
     setFormIcon(habit.icon);
@@ -465,6 +469,12 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
   const selectedHabit = useMemo(() => habits.find(h => h.id === selectedHabitId), [habits, selectedHabitId]);
 
+  // Filtered List Logic
+  const filteredHabits = useMemo(() => {
+      if (!activeFilterTagId) return habits;
+      return habits.filter(h => h.tags?.includes(activeFilterTagId));
+  }, [habits, activeFilterTagId]);
+
   // Determine "Today" for Calendar display purposes based on Logical Date
   const logicalTodayDate = useMemo(() => {
       const d = new Date();
@@ -545,6 +555,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
             </div>
           </div>
 
+          {/* ... existing Detail View content ... */}
           {/* Habit Title Header */}
           <div className="bg-white rounded border border-slate-200 p-6 mb-6 flex flex-col md:flex-row items-start md:items-center gap-6 shadow-sm border-l-4 border-l-blue-500">
             <div className="w-16 h-16 bg-blue-50 rounded flex items-center justify-center text-4xl shadow-inner border border-blue-100">
@@ -589,7 +600,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
           {/* Statistics Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-            {/* Stats logic same as before... */}
             {[
               { label: 'Current Streak', value: `${getHabitStats(selectedHabit).streak} Days`, icon: Flame, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
               { label: 'Longest Streak', value: `${getHabitStats(selectedHabit).longestStreak} Days`, icon: TrendingUp, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-100' },
@@ -749,16 +759,16 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {habits.length === 0 ? (
+            {filteredHabits.length === 0 ? (
               <div className="col-span-full py-20 text-center border border-dashed border-slate-200 rounded">
                 <div className="w-16 h-16 bg-[#eff6fc] rounded flex items-center justify-center mx-auto mb-4">
                   <Smile className="w-8 h-8 text-[#0078d4]" />
                 </div>
-                <h4 className="text-lg font-bold text-slate-800">No habits yet</h4>
+                <h4 className="text-lg font-bold text-slate-800">No habits found</h4>
                 <p className="text-sm text-slate-500 mt-1">Start building your streak today.</p>
               </div>
             ) : (
-              habits.map(habit => {
+              filteredHabits.map(habit => {
                 const streak = calculateStreak(habit);
                 const last7 = getLast7Days();
                 const total = Object.values(habit.progress).filter(c => c >= habit.target).length;
@@ -836,6 +846,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
       {/* Modal - Now accessible from both views */}
       {(isCreateModalOpen || isEditModalOpen) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+           {/* ... existing modal code ... */}
            <div className="bg-white w-[95%] md:w-full max-w-md rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh]">
              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h3 className="text-lg font-black text-slate-800 tracking-tight">{isEditModalOpen ? 'Edit Habit' : 'New Habit'}</h3>

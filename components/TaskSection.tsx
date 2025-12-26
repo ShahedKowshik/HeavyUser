@@ -14,6 +14,7 @@ interface TaskSectionProps {
   userId: string;
   dayStartHour?: number;
   onTaskComplete?: () => void;
+  activeFilterTagId?: string | null;
 }
 
 type Grouping = 'none' | 'date' | 'priority';
@@ -140,7 +141,7 @@ const mapTaskToDb = (task: Task, userId: string) => ({
     recurrence: task.recurrence
 });
 
-export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, onTaskComplete }) => {
+export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, onTaskComplete, activeFilterTagId }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   
   // Settings Popover State
@@ -236,7 +237,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     setDueDate(''); // Default to empty (No Date)
     setDueTime('');
     setPriority('Normal');
-    setSelectedTags([]);
+    // Pre-fill with active global filter tag if present
+    setSelectedTags(activeFilterTagId ? [activeFilterTagId] : []);
     setCreateSubtasks([]);
     setCreateNotes('');
     setCreateRecurrence(null);
@@ -532,10 +534,17 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   const processList = (list: Task[]) => {
-    // 1. Filter by Tags
+    // 1. Filter by Tags (Local View + Global Filter)
     let filtered = list;
+    
+    // Apply Global Filter First
+    if (activeFilterTagId) {
+        filtered = filtered.filter(t => t.tags?.includes(activeFilterTagId));
+    }
+
+    // Apply Local Filter if active
     if (filterTags.size > 0) {
-      filtered = list.filter(t => t.tags?.some(tagId => filterTags.has(tagId)));
+      filtered = filtered.filter(t => t.tags?.some(tagId => filterTags.has(tagId)));
     }
 
     // 2. Sort
@@ -582,12 +591,17 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     return entries.map(([title, tasks]) => ({ title, tasks }));
   };
 
-  const activeTasksGroups = useMemo(() => processList(tasks.filter(t => !t.completed)), [tasks, grouping, sorting, tags, filterTags, dayStartHour]);
+  const activeTasksGroups = useMemo(() => processList(tasks.filter(t => !t.completed)), [tasks, grouping, sorting, tags, filterTags, dayStartHour, activeFilterTagId]);
   
   // Custom logic for completed tasks: No grouping, sorted by completion date (latest first)
   const completedTasksGroups = useMemo(() => {
      let list = tasks.filter(t => t.completed);
      
+     // Apply Global Filter
+     if (activeFilterTagId) {
+         list = list.filter(t => t.tags?.includes(activeFilterTagId));
+     }
+
      if (filterTags.size > 0) {
        list = list.filter(t => t.tags?.some(tagId => filterTags.has(tagId)));
      }
@@ -600,9 +614,10 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
      });
      
      return [{ title: '', tasks: list }];
-  }, [tasks, tags, filterTags]);
+  }, [tasks, tags, filterTags, activeFilterTagId]);
 
   const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => {
+    // ... existing render logic ...
     const isNightOwlActive = (dayStartHour || 0) > 0;
     const startHourLabel = dayStartHour === 0 ? '12 AM' : dayStartHour === 12 ? '12 PM' : dayStartHour && dayStartHour > 12 ? `${dayStartHour - 12} PM` : `${dayStartHour} AM`;
 
@@ -798,6 +813,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   return (
     <div className="animate-in fade-in duration-500 pb-20">
        <div className="mb-6 flex items-center justify-end gap-2">
+          {/* ... existing header content ... */}
           
           {/* View Toggle (History) */}
           <button 
@@ -1051,6 +1067,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                   </div>
                </div>
 
+               {/* ... rest of form ... */}
                <div className="h-px bg-slate-100" />
 
                {/* Subtasks */}
@@ -1131,6 +1148,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
        {/* Recurrence Config Modal (Nested) */}
        {isRecurrenceModalOpen && recurrenceEditValue && createPortal(
            <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/10 backdrop-blur-[1px] p-4">
+              {/* ... existing modal code ... */}
               <div className="bg-white rounded-lg shadow-xl p-5 w-full max-w-sm animate-in zoom-in-95 duration-150 border border-slate-200">
                  <h4 className="text-sm font-bold text-slate-800 mb-4">Repeat Task</h4>
                  
@@ -1260,6 +1278,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
           onClick={() => setSelectedTaskId(null)}
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200"
         >
+          {/* ... existing edit modal code ... */}
           <div 
             onClick={(e) => e.stopPropagation()} 
             className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl flex flex-col overflow-hidden max-h-[90vh]"

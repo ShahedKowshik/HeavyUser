@@ -10,6 +10,7 @@ interface JournalSectionProps {
   userId: string;
   tags: Tag[];
   setTags: React.Dispatch<React.SetStateAction<Tag[]>>;
+  activeFilterTagId?: string | null;
 }
 
 type JournalFilter = 'All' | 'Log' | 'Gratitude';
@@ -32,7 +33,7 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     return newTag;
 };
 
-const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, userId, tags, setTags }) => {
+const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, userId, tags, setTags, activeFilterTagId }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -48,7 +49,9 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
   const [isCreatingTag, setIsCreatingTag] = useState(false);
 
   const openCreateModal = () => {
-    setEditingEntry(null); setTitle(''); setContent(''); setEntryType('Log'); setEntryTags([]);
+    setEditingEntry(null); setTitle(''); setContent(''); setEntryType('Log'); 
+    // Pre-fill with active global filter tag if present
+    setEntryTags(activeFilterTagId ? [activeFilterTagId] : []);
     setNewTagInput(''); setIsCreatingTag(false);
     setIsModalOpen(true);
   };
@@ -135,7 +138,10 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
       // Search works because 'journals' props are already decrypted in Dashboard.tsx
       const matchesSearch = j.title.toLowerCase().includes(searchQuery.toLowerCase()) || j.content.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesFilter = filter === 'All' || j.entryType === filter;
-      return matchesSearch && matchesFilter;
+      // Global Tag Filter Logic
+      const matchesGlobalTag = !activeFilterTagId || j.tags?.includes(activeFilterTagId);
+      
+      return matchesSearch && matchesFilter && matchesGlobalTag;
     });
 
     const groups: Record<string, JournalEntry[]> = {};
@@ -147,7 +153,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
 
     // Sort dates descending
     return Object.entries(groups).sort((a, b) => new Date(b[1][0].timestamp).getTime() - new Date(a[1][0].timestamp).getTime());
-  }, [journals, searchQuery, filter]);
+  }, [journals, searchQuery, filter, activeFilterTagId]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">

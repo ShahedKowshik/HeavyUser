@@ -12,6 +12,7 @@ interface NotesSectionProps {
   userId: string;
   tags: Tag[];
   setTags: React.Dispatch<React.SetStateAction<Tag[]>>;
+  activeFilterTagId?: string | null;
 }
 
 type ViewState = 'sidebar' | 'editor';
@@ -34,7 +35,7 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     return newTag;
 };
 
-const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, setFolders, userId, tags, setTags }) => {
+const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, setFolders, userId, tags, setTags, activeFilterTagId }) => {
   // Navigation State
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,14 +73,21 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
   const [isMoveMenuOpen, setIsMoveMenuOpen] = useState(false);
 
   const filteredNotes = useMemo(() => {
-    return notes
+    let filtered = notes;
+    
+    // Global Tag Filter
+    if (activeFilterTagId) {
+        filtered = filtered.filter(n => n.tags && n.tags.includes(activeFilterTagId));
+    }
+
+    return filtered
       .filter(n => {
         const contentText = n.content.replace(/<[^>]*>?/gm, '');
         return n.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                contentText.toLowerCase().includes(searchQuery.toLowerCase());
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [notes, searchQuery]);
+  }, [notes, searchQuery, activeFilterTagId]);
 
   const selectedNote = useMemo(() => notes.find(n => n.id === selectedNoteId), [notes, selectedNoteId]);
 
@@ -320,6 +328,9 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
     const newId = crypto.randomUUID();
     const timestamp = new Date().toISOString();
     
+    // Pre-fill with active global filter tag if present
+    const initialTags = activeFilterTagId ? [activeFilterTagId] : [];
+
     const newNote: Note = {
       id: newId,
       title: '',
@@ -327,7 +338,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
       folderId: targetFolderId,
       createdAt: timestamp,
       updatedAt: timestamp,
-      tags: []
+      tags: initialTags
     };
 
     setNotes([newNote, ...notes]);
@@ -359,10 +370,11 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
       folder_id: targetFolderId,
       created_at: timestamp,
       updated_at: timestamp,
-      tags: []
+      tags: initialTags
     });
   };
 
+  // ... (rest of existing logic like handleCreateFolder, handleRenameFolder, etc.)
   const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;
@@ -664,6 +676,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
       <div className="flex-1 flex flex-col h-full bg-white relative">
         {/* Editor Toolbar */}
         <div className="flex items-center justify-between p-4 border-b border-slate-100 shrink-0">
+           {/* ... existing toolbar code ... */}
            <div className="flex items-center gap-2">
               <button 
                   className="md:hidden p-2 -ml-2 text-slate-400 hover:text-[#0078d4]"
