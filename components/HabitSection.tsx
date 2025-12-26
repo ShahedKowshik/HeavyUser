@@ -1,6 +1,6 @@
 
-
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Flame, Check, ChevronLeft, ChevronRight, Activity, Plus, Trash2, Smile, Ban, Target, Minus, Pencil, RotateCcw, ArrowLeft, Trophy, TrendingUp, Calendar, Ruler, Search, Tag as TagIcon } from 'lucide-react';
 import { Habit, Tag } from '../types';
 import { supabase } from '../lib/supabase';
@@ -33,6 +33,152 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     });
     
     return newTag;
+};
+
+// --- Date Picker Component Logic ---
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const getLocalDateString = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
+const HabitDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRef }: { value: string, onChange: (date: string) => void, onClose: () => void, dayStartHour?: number, triggerRef: React.RefObject<HTMLElement> }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [coords, setCoords] = useState({ top: 0, left: 0 });
+
+    useEffect(() => {
+        const updatePosition = () => {
+            if (triggerRef.current) {
+                const rect = triggerRef.current.getBoundingClientRect();
+                setCoords({
+                    top: rect.bottom + 4,
+                    left: rect.left
+                });
+            }
+        };
+        
+        updatePosition();
+        window.addEventListener('scroll', updatePosition, true);
+        window.addEventListener('resize', updatePosition);
+        
+        return () => {
+            window.removeEventListener('scroll', updatePosition, true);
+            window.removeEventListener('resize', updatePosition);
+        };
+    }, [triggerRef]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                containerRef.current && 
+                !containerRef.current.contains(event.target as Node) &&
+                triggerRef.current &&
+                !triggerRef.current.contains(event.target as Node)
+            ) {
+                onClose();
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [onClose, triggerRef]);
+
+    const getLogicalDate = () => {
+        const d = new Date();
+        if (d.getHours() < dayStartHour) {
+            d.setDate(d.getDate() - 1);
+        }
+        return d;
+    };
+
+    const [viewDate, setViewDate] = useState(() => value ? new Date(value) : getLogicalDate());
+
+    const handleQuickSelect = (daysToAdd: number) => {
+        const d = getLogicalDate();
+        d.setDate(d.getDate() + daysToAdd);
+        onChange(getLocalDateString(d));
+        onClose();
+    };
+
+    const handleDayClick = (day: number) => {
+        const d = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+        onChange(getLocalDateString(d));
+        onClose();
+    };
+
+    const changeMonth = (delta: number) => {
+        const d = new Date(viewDate.getFullYear(), viewDate.getMonth() + delta, 1);
+        setViewDate(d);
+    };
+
+    const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
+    const firstDayOfWeek = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
+    const monthName = viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    const isSelected = (day: number) => {
+        if (!value) return false;
+        const [y, m, d] = value.split('-').map(Number);
+        return y === viewDate.getFullYear() && m === (viewDate.getMonth() + 1) && d === day;
+    };
+    
+    const isToday = (day: number) => {
+        const today = getLogicalDate();
+        return today.getFullYear() === viewDate.getFullYear() && today.getMonth() === viewDate.getMonth() && today.getDate() === day;
+    };
+
+    return createPortal(
+        <div 
+            ref={containerRef} 
+            style={{ 
+                position: 'fixed',
+                top: coords.top, 
+                left: coords.left,
+                zIndex: 9999 
+            }}
+            className="bg-white rounded-lg shadow-xl border border-slate-200 p-4 w-72 animate-in zoom-in-95 origin-top-left font-sans text-slate-800"
+        >
+            <div className="grid grid-cols-2 gap-2 mb-4 border-b border-slate-100 pb-4">
+                <button type="button" onClick={() => handleQuickSelect(0)} className="text-xs font-bold text-slate-600 bg-slate-50 hover:bg-blue-50 hover:text-[#0078d4] py-1.5 rounded transition-colors">Today</button>
+                <button type="button" onClick={() => handleQuickSelect(1)} className="text-xs font-bold text-slate-600 bg-slate-50 hover:bg-blue-50 hover:text-[#0078d4] py-1.5 rounded transition-colors">Tomorrow</button>
+                <button type="button" onClick={() => handleQuickSelect(-1)} className="text-xs font-bold text-slate-600 bg-slate-50 hover:bg-blue-50 hover:text-[#0078d4] py-1.5 rounded transition-colors">Yesterday</button>
+                <button type="button" onClick={() => handleQuickSelect(-7)} className="text-xs font-bold text-slate-600 bg-slate-50 hover:bg-blue-50 hover:text-[#0078d4] py-1.5 rounded transition-colors">-7 Days</button>
+            </div>
+
+            <div className="flex items-center justify-between mb-2">
+                <button type="button" onClick={() => changeMonth(-1)} className="p-1 text-slate-400 hover:bg-slate-100 rounded"><ChevronLeft className="w-4 h-4" /></button>
+                <span className="text-sm font-bold text-slate-800">{monthName}</span>
+                <button type="button" onClick={() => changeMonth(1)} className="p-1 text-slate-400 hover:bg-slate-100 rounded"><ChevronRight className="w-4 h-4" /></button>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1 text-center mb-1">
+                {WEEKDAYS.map(d => <div key={d} className="text-[10px] font-bold text-slate-400 uppercase">{d.slice(0, 2)}</div>)}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+                {Array.from({ length: firstDayOfWeek }).map((_, i) => <div key={`empty-${i}`} />)}
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const day = i + 1;
+                    const selected = isSelected(day);
+                    const today = isToday(day);
+                    return (
+                        <button
+                            key={day}
+                            type="button"
+                            onClick={() => handleDayClick(day)}
+                            className={`w-8 h-8 flex items-center justify-center text-xs font-medium rounded hover:bg-slate-100 transition-colors ${
+                                selected ? 'bg-[#0078d4] text-white hover:bg-[#006cbd]' : 
+                                today ? 'text-[#0078d4] font-bold ring-1 ring-inset ring-[#0078d4]' : 'text-slate-700'
+                            }`}
+                        >
+                            {day}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>,
+        document.body
+    );
 };
 
 // ... existing mk and EMOJI_LIBRARY code ...
@@ -154,6 +300,10 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
   const [formUseCounter, setFormUseCounter] = useState(true);
   const [formTags, setFormTags] = useState<string[]>([]);
   
+  // Date Picker State
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const datePickerTriggerRef = useRef<HTMLButtonElement>(null);
+  
   // Tag Creation State
   const [newTagInput, setNewTagInput] = useState('');
   const [isCreatingTag, setIsCreatingTag] = useState(false);
@@ -198,6 +348,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     setIconSearch('');
     setNewTagInput('');
     setIsCreatingTag(false);
+    setIsDatePickerOpen(false);
     setIsCreateModalOpen(true);
   };
 
@@ -213,6 +364,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     setIconSearch('');
     setNewTagInput('');
     setIsCreatingTag(false);
+    setIsDatePickerOpen(false);
     setIsEditModalOpen(true);
   };
 
@@ -847,9 +999,15 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
       {/* Modal - Now accessible from both views */}
       {(isCreateModalOpen || isEditModalOpen) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+        <div 
+            onClick={() => { setIsCreateModalOpen(false); setIsEditModalOpen(false); }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
+        >
            {/* ... existing modal code ... */}
-           <div className="bg-white w-[95%] md:w-full max-w-md rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh]">
+           <div 
+             onClick={(e) => e.stopPropagation()}
+             className="bg-white w-[95%] md:w-full max-w-md rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh]"
+           >
              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h3 className="text-lg font-black text-slate-800 tracking-tight">{isEditModalOpen ? 'Edit Habit' : 'New Habit'}</h3>
               <button type="button" onClick={() => { setIsCreateModalOpen(false); setIsEditModalOpen(false); }} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded transition-colors">
@@ -865,7 +1023,26 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Start Date</label>
-                  <input type="date" required value={formStartDate} onChange={(e) => setFormStartDate(e.target.value)} className="w-full text-sm font-semibold bg-slate-50 border-none rounded p-3" />
+                  <div className="relative">
+                      <button 
+                         type="button"
+                         ref={datePickerTriggerRef}
+                         onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
+                         className={`w-full flex items-center justify-between gap-2 text-sm font-semibold bg-slate-50 border border-transparent rounded p-3 hover:bg-slate-100 transition-colors ${formStartDate ? 'text-slate-800' : 'text-slate-400'}`}
+                      >
+                         <span>{formStartDate ? formatDateFriendly(formStartDate) : 'Select Date'}</span>
+                         <Calendar className="w-4 h-4 text-slate-400" />
+                      </button>
+                      {isDatePickerOpen && (
+                          <HabitDatePicker 
+                              value={formStartDate} 
+                              onChange={setFormStartDate} 
+                              onClose={() => setIsDatePickerOpen(false)} 
+                              dayStartHour={dayStartHour}
+                              triggerRef={datePickerTriggerRef}
+                          />
+                      )}
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Goal Type</label>
