@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Bug, Send, Loader2, CheckCircle2, X, UploadCloud, FileText, AlertTriangle } from 'lucide-react';
+import { Bug, Send, Loader2, CircleCheck, X, UploadCloud, FileText, TriangleAlert } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface ReportBugSectionProps {
@@ -126,7 +126,7 @@ const ReportBugSection: React.FC<ReportBugSectionProps> = ({ userId }) => {
         {isSuccess ? (
             <div className="p-12 flex flex-col items-center justify-center text-center animate-in zoom-in-95 duration-300">
                 <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mb-4 border border-green-100">
-                    <CheckCircle2 className="w-8 h-8" />
+                    <CircleCheck className="w-8 h-8" />
                 </div>
                 <h4 className="text-xl font-bold text-slate-800 mb-2">Report Sent!</h4>
                 <p className="text-slate-500">Thanks for helping us improve.</p>
@@ -141,7 +141,7 @@ const ReportBugSection: React.FC<ReportBugSectionProps> = ({ userId }) => {
             <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-6">
                 {error && (
                     <div className="p-4 bg-red-50 text-red-700 text-sm font-bold rounded-lg flex items-center gap-2 border border-red-100">
-                        <AlertTriangle className="w-4 h-4" />
+                        <TriangleAlert className="w-4 h-4" />
                         {error}
                     </div>
                 )}
@@ -169,7 +169,7 @@ const ReportBugSection: React.FC<ReportBugSectionProps> = ({ userId }) => {
                         id="description"
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Steps to reproduce, expected behavior, etc..."
+                        placeholder="Describe what happened and how to reproduce it..."
                         className="w-full text-sm font-medium bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4] transition-all placeholder:text-slate-400 min-h-[120px] resize-y"
                         required
                     />
@@ -194,43 +194,40 @@ const ReportBugSection: React.FC<ReportBugSectionProps> = ({ userId }) => {
                 </div>
 
                 <div className="space-y-2">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
-                        Attachment <span className="text-slate-400 font-medium normal-case tracking-normal">(Optional, max 2MB)</span>
+                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                        Attachment (Optional)
                     </label>
-                    
                     {!file ? (
                         <div 
                             onClick={() => fileInputRef.current?.click()}
-                            className="border-2 border-dashed border-slate-200 rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:border-[#0078d4] hover:bg-[#eff6fc] transition-all group"
+                            className="border-2 border-dashed border-slate-200 rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:border-[#0078d4] hover:bg-slate-50 transition-all text-center"
                         >
-                            <UploadCloud className="w-8 h-8 text-slate-300 group-hover:text-[#0078d4] mb-2 transition-colors" />
-                            <p className="text-sm font-bold text-slate-600 group-hover:text-[#0078d4]">Click to upload screenshot</p>
-                            <p className="text-xs text-slate-400 mt-1">PNG, JPG, PDF (Max 2MB)</p>
+                            <UploadCloud className="w-8 h-8 text-slate-300 mb-2" />
+                            <p className="text-sm font-bold text-slate-600">Click to upload screenshot</p>
+                            <p className="text-xs text-slate-400 mt-1">Max 2MB (Images only)</p>
                             <input 
                                 ref={fileInputRef}
                                 type="file" 
-                                className="hidden" 
+                                accept="image/*" 
                                 onChange={handleFileChange}
-                                accept="image/*,.pdf"
+                                className="hidden"
                             />
                         </div>
                     ) : (
-                        <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                            <div className="flex items-center gap-3 overflow-hidden">
-                                <div className="w-10 h-10 bg-white rounded border border-slate-200 flex items-center justify-center shrink-0">
-                                    <FileText className="w-5 h-5 text-[#0078d4]" />
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="text-sm font-bold text-slate-800 truncate">{file.name}</p>
-                                    <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(1)} KB</p>
-                                </div>
+                        <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                            <div className="p-2 bg-white rounded border border-slate-100">
+                                <FileText className="w-5 h-5 text-[#0078d4]" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-slate-700 truncate">{file.name}</p>
+                                <p className="text-xs text-slate-400">{(file.size / 1024).toFixed(0)} KB</p>
                             </div>
                             <button 
-                                type="button"
+                                type="button" 
                                 onClick={removeFile}
-                                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded"
                             >
-                                <X className="w-5 h-5" />
+                                <X className="w-4 h-4" />
                             </button>
                         </div>
                     )}
@@ -245,12 +242,12 @@ const ReportBugSection: React.FC<ReportBugSectionProps> = ({ userId }) => {
                         {isSubmitting ? (
                             <>
                                 <Loader2 className="w-5 h-5 animate-spin" />
-                                <span>Submitting...</span>
+                                <span>Sending...</span>
                             </>
                         ) : (
                             <>
                                 <Send className="w-5 h-5" />
-                                <span>Submit Report</span>
+                                <span>Submit Bug Report</span>
                             </>
                         )}
                     </button>

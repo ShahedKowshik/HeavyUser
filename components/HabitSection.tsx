@@ -1,6 +1,7 @@
 
+
 import React, { useState, useMemo } from 'react';
-import { X, Flame, Check, ChevronLeft, ChevronRight, Activity, Plus, Trash2, Smile, Ban, Target, Minus, Edit2, RotateCcw, ArrowLeft, Trophy, TrendingUp, Calendar, Ruler, Search, Tag as TagIcon } from 'lucide-react';
+import { X, Flame, Check, ChevronLeft, ChevronRight, Activity, Plus, Trash2, Smile, Ban, Target, Minus, Pencil, RotateCcw, ArrowLeft, Trophy, TrendingUp, Calendar, Ruler, Search, Tag as TagIcon } from 'lucide-react';
 import { Habit, Tag } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -541,7 +542,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                 className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded transition-colors shadow-sm font-bold text-sm" 
                 title="Edit Habit"
               >
-                <Edit2 className="w-4 h-4" />
+                <Pencil className="w-4 h-4" />
                 <span className="hidden sm:inline">Edit Habit</span>
               </button>
               <button 

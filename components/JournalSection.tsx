@@ -1,6 +1,7 @@
 
+
 import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, Search, Edit2, X, BookOpen, Image as ImageIcon, Sparkles, Tag as TagIcon } from 'lucide-react';
+import { Plus, Trash2, Search, Pencil, X, BookOpen, Image as ImageIcon, Sparkles, Tag as TagIcon } from 'lucide-react';
 import { JournalEntry, EntryType, Tag } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -220,7 +221,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
                        </div>
                        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                           <button onClick={() => openEditModal(entry)} className="p-1.5 text-[#0078d4] hover:bg-blue-50 rounded transition-colors" title="Edit">
-                             <Edit2 className="w-3.5 h-3.5" />
+                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={() => deleteEntry(entry.id)} className="p-1.5 text-[#a4262c] hover:bg-red-50 rounded transition-colors" title="Delete">
                              <Trash2 className="w-3.5 h-3.5" />

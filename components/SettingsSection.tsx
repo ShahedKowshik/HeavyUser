@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { User, Trash2, AlertTriangle, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, Lock, Mail, AlertCircle, Github, Twitter, Moon, Lightbulb, Bug, ChevronRight, Tag as TagIcon, Plus, Edit2 } from 'lucide-react';
+import { User, Trash2, TriangleAlert, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, Lock, Mail, AlertCircle, Moon, Tag as TagIcon, Plus, Pencil, Code } from 'lucide-react';
 import { UserSettings, AppTab, Tag } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -201,7 +202,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
          <h3 className="text-2xl font-black text-foreground tracking-tight">Configuration</h3>
          <div className="flex items-center gap-2">
              <Button variant="outline" size="sm" onClick={() => window.open("https://github.com/ShahedKowshik/HeavyUser", "_blank")}>
-               <Github className="w-4 h-4 mr-2" /> GitHub
+               <Code className="w-4 h-4 mr-2" /> GitHub
              </Button>
              <Button variant="outline" size="sm" onClick={onLogout}>
                <LogOut className="w-4 h-4 mr-2" /> Sign Out
@@ -248,7 +249,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                             <span className="text-sm font-semibold">{tag.label}</span>
                                         </div>
                                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEditingTag(tag)}><Edit2 className="w-3 h-3" /></Button>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEditingTag(tag)}><Pencil className="w-3 h-3" /></Button>
                                             <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteTag(tag.id)}><Trash2 className="w-3 h-3" /></Button>
                                         </div>
                                     </div>
@@ -429,7 +430,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                 ) : (
                   <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-md mt-2 space-y-3">
                     <p className="text-xs font-bold text-destructive flex items-center gap-1">
-                        <AlertTriangle className="w-4 h-4" /> Warning
+                        <TriangleAlert className="w-4 h-4" /> Warning
                     </p>
                     <p className="text-xs text-foreground">Type <span className="font-bold text-destructive">delete</span> to confirm.</p>
                     <Input 

@@ -1,5 +1,7 @@
+
+
 import React, { useState } from 'react';
-import { Lightbulb, Send, Loader2, CheckCircle2, X } from 'lucide-react';
+import { Lightbulb, Send, Loader2, CircleCheck, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface RequestFeatureSectionProps {
@@ -80,7 +82,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
         {isSuccess ? (
             <div className="p-12 flex flex-col items-center justify-center text-center animate-in zoom-in-95 duration-300">
                 <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mb-4 border border-green-100">
-                    <CheckCircle2 className="w-8 h-8" />
+                    <CircleCheck className="w-8 h-8" />
                 </div>
                 <h4 className="text-xl font-bold text-slate-800 mb-2">Request Received!</h4>
                 <p className="text-slate-500">Thank you for your feedback. We're on it.</p>

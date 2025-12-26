@@ -1,6 +1,7 @@
 
+
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Filter, Inbox, HelpCircle, ChevronsUpDown, Search, Plus, LogOut, FileText, ListTodo, File, Book } from 'lucide-react';
+import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
@@ -456,7 +457,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       {/* Sidebar - Desktop */}
       <aside className={`hidden md:flex flex-col p-4 space-y-2 bg-white border-r border-slate-200 shrink-0 z-20 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20 items-center' : 'w-64'}`}>
         <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'space-x-3 px-3'} py-6 relative`}>
-          <CheckCircle2 className="w-7 h-7 text-[#0078d4] shrink-0" />
+          <CircleCheck className="w-7 h-7 text-[#0078d4] shrink-0" />
           {!isSidebarCollapsed && (
              <h1 className="text-lg font-bold tracking-tight whitespace-nowrap overflow-hidden transition-opacity duration-300 text-slate-800">HeavyUser</h1>
           )}
@@ -607,13 +608,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                 <span className="absolute inset-1 rounded bg-red-400 opacity-30 animate-ping" />
                 
                 <div className="relative px-3 py-1.5 bg-red-50 text-red-600 rounded border border-red-200 cursor-help flex items-center z-10">
-                  <AlertTriangle className="w-4 h-4" />
+                  <TriangleAlert className="w-4 h-4" />
                 </div>
                 {/* Tooltip */}
                 <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded shadow-xl p-3 z-50 hidden group-hover:block animate-in fade-in slide-in-from-top-2">
                   <div className="flex items-start gap-3">
                     <div className="p-1.5 bg-red-100 rounded text-red-600 shrink-0">
-                       <AlertTriangle className="w-4 h-4" />
+                       <TriangleAlert className="w-4 h-4" />
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-800 uppercase tracking-wide">Action Required</p>
@@ -687,7 +688,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                 {/* Status Box */}
                 <div className={`p-4 rounded border flex items-center gap-3 ${streakData.activeToday ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                    {streakData.activeToday ? (
-                     <CheckCircle2 className="w-5 h-5 shrink-0" />
+                     <CircleCheck className="w-5 h-5 shrink-0" />
                    ) : (
                      <Activity className="w-5 h-5 shrink-0" />
                    )}
@@ -715,7 +716,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                    <div className="grid grid-cols-1 gap-2">
                       <div className="flex items-center gap-3 p-3 bg-slate-50 rounded border border-slate-200">
                          <div className="w-8 h-8 rounded bg-blue-50 text-[#0078d4] flex items-center justify-center border border-blue-100">
-                           <CheckCircle2 className="w-4 h-4" />
+                           <CircleCheck className="w-4 h-4" />
                          </div>
                          <span className="text-sm font-semibold text-slate-800">Create or Complete a Task</span>
                       </div>

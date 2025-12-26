@@ -1,8 +1,9 @@
 
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
-import { Plus, Trash2, CheckCircle2, X, SlidersHorizontal, ChevronRight, ListChecks, History, Tag as TagIcon, Calendar, Clock, AlertCircle, FileText, Check, MoreHorizontal, Flag, ArrowRight, CornerDownLeft, ArrowUp, ArrowDown, Flame, Circle, CheckSquare, Square, ArrowLeft, PenLine, Eye, Edit2, Repeat, ChevronDown, Moon, Layers, ArrowUpDown, Target } from 'lucide-react';
+import { Plus, Trash2, CircleCheck, X, SlidersHorizontal, ChevronRight, ListChecks, Tag as TagIcon, Calendar, Clock, FileText, Check, Flag, ArrowRight, ArrowUp, ArrowDown, Flame, Circle, CheckSquare, Square, Repeat, ChevronDown, Moon, Layers, ArrowUpDown, Target } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -574,7 +575,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     }
 
     // 2. Sort
-    const base = [...filtered].sort((a, b) => {
+    const base = [...filtered].sort((a,b) => {
       if (sorting === 'date') {
         // Primary Sort: Date
         const dateA = a.dueDate || '9999-99-99';
@@ -665,7 +666,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
       {groups.length === 0 && (
          <div className="text-center py-20 opacity-50">
              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                 <CheckCircle2 className="w-8 h-8 text-slate-400" />
+                 <CircleCheck className="w-8 h-8 text-slate-400" />
              </div>
              <p className="font-bold text-slate-500">No tasks found</p>
          </div>
@@ -722,7 +723,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                             : 'border-slate-300 hover:border-[#0078d4] bg-white'
                         }`}
                       >
-                        {task.completed && <CheckCircle2 className="w-3 h-3" />}
+                        {task.completed && <CircleCheck className="w-3 h-3" />}
                       </button>
                       {/* Recurrence Indicator */}
                       {task.recurrence && !task.completed && (
