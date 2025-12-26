@@ -1,9 +1,8 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Plus, Trash2, Edit2, X, FileText, ChevronLeft, Folder, Bold, Italic, List, Heading, CheckSquare, FolderPlus, MoreHorizontal, Layout, Type, CheckCircle2, ArrowLeft, Menu, AlertTriangle, Clock, MoreVertical, Check, Pencil } from 'lucide-react';
-import { Note, Folder as FolderType } from '../types';
+import { Search, Plus, Trash2, Edit2, X, FileText, ChevronLeft, Folder, Bold, Italic, List, Heading, CheckSquare, FolderPlus, MoreHorizontal, Layout, Type, CheckCircle2, ArrowLeft, Menu, AlertTriangle, Clock, MoreVertical, Check, Pencil, Tag as TagIcon } from 'lucide-react';
+import { Note, Folder as FolderType, Tag } from '../types';
 import { supabase } from '../lib/supabase';
-import { encryptData, decryptData } from '../lib/crypto';
+import { encryptData } from '../lib/crypto';
 
 interface NotesSectionProps {
   notes: Note[];
@@ -11,11 +10,31 @@ interface NotesSectionProps {
   folders: FolderType[];
   setFolders: React.Dispatch<React.SetStateAction<FolderType[]>>;
   userId: string;
+  tags: Tag[];
+  setTags: React.Dispatch<React.SetStateAction<Tag[]>>;
 }
 
 type ViewState = 'folders' | 'list' | 'editor';
 
-const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, setFolders, userId }) => {
+// Helper to create a new tag inline
+const createNewTag = async (label: string, userId: string): Promise<Tag> => {
+    const newTag: Tag = {
+        id: crypto.randomUUID(),
+        label: label.trim(),
+        color: '#3b82f6', // Default blue
+    };
+    
+    await supabase.from('tags').insert({
+        id: newTag.id,
+        user_id: userId,
+        label: encryptData(newTag.label),
+        color: newTag.color
+    });
+    
+    return newTag;
+};
+
+const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, setFolders, userId, tags, setTags }) => {
   const [activeFolderId, setActiveFolderId] = useState<string>('all');
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -25,12 +44,17 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
 
   // Editor State
   const [editorTitle, setEditorTitle] = useState('');
+  const [editorTags, setEditorTags] = useState<string[]>([]);
   const editorRef = useRef<HTMLDivElement>(null);
   const prevNoteIdRef = useRef<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isTagPopoverOpen, setIsTagPopoverOpen] = useState(false);
   
+  // Tag Creation State
+  const [newTagInput, setNewTagInput] = useState('');
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
+
   // Auto-Delete State
-  // We track IDs of notes that are currently in the "danger zone" (untitled & new)
   const [pendingNoteIds, setPendingNoteIds] = useState<Set<string>>(new Set());
   const deletionTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -58,17 +82,9 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
   const selectedNote = useMemo(() => notes.find(n => n.id === selectedNoteId), [notes, selectedNoteId]);
 
   // --- Auto-Delete Logic ---
-
-  // Helper to actually perform deletion
   const executeAutoDelete = async (id: string) => {
-    // Check if it still exists and still has no title (double check state)
-    // We can't easily access the latest 'notes' state inside setTimeout closure without refs or function update
-    // But we rely on the cleanup in handleTitleChange to prevent this if title was added.
-    
-    // UI Update
     setNotes(prev => {
         const note = prev.find(n => n.id === id);
-        // If note doesn't exist or HAS a title now, abort delete
         if (!note || note.title.trim() !== '') return prev;
         return prev.filter(n => n.id !== id);
     });
@@ -84,7 +100,6 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
         setMobileView('list');
     }
 
-    // DB Delete
     await supabase.from('notes').delete().eq('id', id);
     delete deletionTimers.current[id];
   };
@@ -100,16 +115,11 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
             const age = now - createdTime;
 
             if (age > 30000) {
-                // Too old, delete immediately
                 executeAutoDelete(note.id);
             } else {
-                // Still within window, restart timer for remaining time
                 const remaining = 30000 - age;
                 newPendingIds.add(note.id);
-                
-                // Clear existing just in case
                 if (deletionTimers.current[note.id]) clearTimeout(deletionTimers.current[note.id]);
-                
                 deletionTimers.current[note.id] = setTimeout(() => {
                     executeAutoDelete(note.id);
                 }, remaining);
@@ -118,13 +128,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
     });
 
     setPendingNoteIds(newPendingIds);
-
-    return () => {
-        // We do NOT clear timers on unmount so they run even if user switches tabs.
-        // However, if the entire App unmounts (refresh), they die naturally.
-        // React strict mode might double invoke, so we need to be careful, but basic set/clear logic holds.
-    };
-  }, []); // Run once on mount (and when notes are initially loaded if notes dependency added, but unsafe)
+  }, []);
 
   // 2. Editor Logic
   useEffect(() => {
@@ -133,13 +137,16 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
     if (selectedNoteId && selectedNote) {
       if (hasSwitched) {
         setEditorTitle(selectedNote.title);
+        setEditorTags(selectedNote.tags || []);
         if (editorRef.current) {
           editorRef.current.innerHTML = selectedNote.content;
         }
         prevNoteIdRef.current = selectedNoteId;
+        setIsTagPopoverOpen(false);
       } 
     } else {
       setEditorTitle('');
+      setEditorTags([]);
       if (editorRef.current) {
         editorRef.current.innerHTML = '';
       }
@@ -149,7 +156,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
 
   const saveToDb = useMemo(() => {
     let timeout: ReturnType<typeof setTimeout>;
-    return (id: string, title: string, content: string) => {
+    return (id: string, title: string, content: string, currentTags: string[]) => {
       setIsSaving(true);
       clearTimeout(timeout);
       timeout = setTimeout(async () => {
@@ -157,6 +164,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
             await supabase.from('notes').update({
             title: encryptData(title),
             content: encryptData(content),
+            tags: currentTags,
             updated_at: new Date().toISOString()
             }).eq('id', id);
         } catch (e) {
@@ -173,7 +181,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
     const newContent = editorRef.current.innerHTML;
     
     setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, content: newContent, updatedAt: new Date().toISOString() } : n));
-    saveToDb(selectedNoteId, editorTitle, newContent);
+    saveToDb(selectedNoteId, editorTitle, newContent, editorTags);
   };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -183,7 +191,6 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
     if (selectedNoteId) {
        // --- AUTO DELETE CANCELLATION LOGIC ---
        if (newTitle.trim().length > 0) {
-           // Title present, safe to keep
            if (deletionTimers.current[selectedNoteId]) {
                clearTimeout(deletionTimers.current[selectedNoteId]);
                delete deletionTimers.current[selectedNoteId];
@@ -193,18 +200,45 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                next.delete(selectedNoteId);
                return next;
            });
-       } else {
-           // Title cleared? Technically could restart timer, but usually we only care about initial creation.
-           // For now, if they clear the title of an old note, we don't delete it. We only target *new* untitled notes.
-           // (If desired, we could restart timer here, but that might be annoying).
        }
-       // -------------------------------------
 
       if (editorRef.current) {
         setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, title: newTitle, updatedAt: new Date().toISOString() } : n));
-        saveToDb(selectedNoteId, newTitle, editorRef.current.innerHTML);
+        saveToDb(selectedNoteId, newTitle, editorRef.current.innerHTML, editorTags);
       }
     }
+  };
+
+  const toggleEditorTag = (tagId: string) => {
+      if (!selectedNoteId) return;
+      const nextTags = editorTags.includes(tagId) ? editorTags.filter(id => id !== tagId) : [...editorTags, tagId];
+      setEditorTags(nextTags);
+      setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, tags: nextTags, updatedAt: new Date().toISOString() } : n));
+      if (editorRef.current) {
+          saveToDb(selectedNoteId, editorTitle, editorRef.current.innerHTML, nextTags);
+      }
+  };
+
+  const handleInlineCreateTag = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!newTagInput.trim()) return;
+      
+      setIsCreatingTag(true);
+      try {
+          const newTag = await createNewTag(newTagInput, userId);
+          setTags(prev => [...prev, newTag]);
+          setEditorTags(prev => [...prev, newTag.id]);
+          // Sync with DB
+          if (selectedNoteId && editorRef.current) {
+              const updatedTags = [...editorTags, newTag.id];
+              saveToDb(selectedNoteId, editorTitle, editorRef.current.innerHTML, updatedTags);
+          }
+          setNewTagInput('');
+      } catch (err) {
+          console.error(err);
+      } finally {
+          setIsCreatingTag(false);
+      }
   };
 
   const handleCreateNote = async () => {
@@ -218,7 +252,8 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
       content: '',
       folderId: targetFolderId,
       createdAt: timestamp,
-      updatedAt: timestamp
+      updatedAt: timestamp,
+      tags: []
     };
 
     setNotes([newNote, ...notes]);
@@ -244,7 +279,8 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
       content: encryptData(''),
       folder_id: targetFolderId,
       created_at: timestamp,
-      updated_at: timestamp
+      updated_at: timestamp,
+      tags: []
     });
   };
 
@@ -296,7 +332,6 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
   const handleDeleteNote = async (id: string, force = false) => {
     if (!force && !window.confirm("Permanently delete this note?")) return;
     
-    // Clear any pending timers
     if (deletionTimers.current[id]) {
         clearTimeout(deletionTimers.current[id]);
         delete deletionTimers.current[id];
@@ -508,8 +543,6 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
              </div>
           ) : (
              filteredNotes.map(note => {
-               // Resolve folder name if we are in the 'all' view
-               const noteFolder = folders.find(f => f.id === note.folderId);
                const isPending = pendingNoteIds.has(note.id);
 
                return (
@@ -526,163 +559,198 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                   }`}
                >
                   <div className="flex justify-between items-start mb-1 gap-2">
-                      <h4 className={`text-sm font-bold truncate flex-1 ${selectedNoteId === note.id ? 'text-[#0078d4]' : 'text-slate-800'}`}>
-                         {note.title || (isPending ? <span className="text-slate-400 italic">Untitled (Deleting in 30s)</span> : 'Untitled')}
+                      <h4 className="text-sm font-bold text-slate-800 line-clamp-1 break-all flex-1">
+                        {note.title || 'Untitled Note'}
                       </h4>
-                      
-                      {/* List View Delete Button */}
-                      <button 
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteNote(note.id);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 -mt-1 -mr-2 text-slate-300 hover:text-red-500 rounded"
-                        title="Delete Note"
-                      >
-                         <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                  </div>
-                  
-                  <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-50">
-                     <span className="text-[10px] font-bold text-slate-400">
+                      <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap shrink-0">
                         {formatDateList(note.updatedAt)}
-                     </span>
-                     {/* Show folder badge if in 'all' view and folder exists */}
-                     {activeFolderId === 'all' && noteFolder && (
-                       <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                          <Folder className="w-2.5 h-2.5" />
-                          {noteFolder.name}
-                       </span>
-                     )}
+                      </span>
                   </div>
-                  
-                  {/* Visual Indicator for Auto-Delete */}
-                  {isPending && (
-                      <div className="absolute top-0 right-0 left-0 h-0.5 bg-amber-400 animate-pulse rounded-t-lg"></div>
-                  )}
+                  <p className="text-xs text-slate-500 line-clamp-2 mb-2 h-8 leading-relaxed">
+                     {note.content.replace(/<[^>]*>?/gm, '') || 'No additional text'}
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {note.tags?.map(tagId => {
+                        const tag = tags.find(t => t.id === tagId);
+                        if (!tag) return null;
+                        return (
+                            <span key={tagId} className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} title={tag.label} />
+                        );
+                    })}
+                  </div>
                </div>
-            )})
+               );
+             })
           )}
        </div>
     </div>
   );
 
   const renderEditorPane = () => {
-    if (!selectedNoteId) {
-       return (
-          <div className="hidden md:flex flex-col h-full items-center justify-center bg-slate-50 p-8">
-             <div className="text-center max-w-sm">
-                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 mx-auto shadow-sm border border-slate-100">
-                    <Edit2 className="w-6 h-6 text-slate-300" />
-                </div>
-                <h3 className="font-bold text-slate-700 text-lg mb-2">Select a note to view</h3>
-                <p className="text-sm text-slate-500">Choose a note from the list or create a new one to start writing.</p>
-             </div>
-          </div>
-       );
+    if (!selectedNoteId || !selectedNote) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center bg-slate-50/50 text-slate-400">
+           <Type className="w-16 h-16 opacity-10 mb-4" />
+           <p className="text-sm font-bold">Select a note to view</p>
+        </div>
+      );
     }
-    
-    // Check if currently selected note is pending deletion
-    const isPendingDeletion = pendingNoteIds.has(selectedNoteId);
 
     return (
-       <div className="flex flex-col h-full bg-slate-100 md:p-4 w-full relative">
-          <div className="flex-1 bg-white md:rounded-lg md:shadow-sm md:border md:border-slate-200 flex flex-col overflow-hidden relative">
-             
-             {/* Auto-Delete Warning Banner */}
-             {isPendingDeletion && (
-                <div className="bg-amber-50 border-b border-amber-200 text-amber-800 px-4 py-2 flex items-center justify-between animate-in slide-in-from-top-full duration-300 absolute top-14 left-0 right-0 z-30">
-                    <div className="flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 animate-pulse" />
-                        <span className="text-xs font-bold">Add a title, otherwise the notes will be deleted within 30 seconds.</span>
-                    </div>
-                    <Clock className="w-3.5 h-3.5 opacity-50" />
-                </div>
-             )}
-
-             {/* Editor Toolbar Header */}
-             <div className="h-14 px-6 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white z-20">
-                <div className="flex items-center gap-3">
+      <div className="flex-1 flex flex-col h-full bg-white relative">
+        {/* Editor Toolbar */}
+        <div className="flex items-center justify-between p-4 border-b border-slate-100 shrink-0">
+           <div className="flex items-center gap-2">
+              <button 
+                  className="md:hidden p-2 -ml-2 text-slate-400 hover:text-[#0078d4]"
+                  onClick={() => setMobileView('list')}
+              >
+                  <ChevronLeft className="w-5 h-5" />
+              </button>
+              <div className="flex items-center text-xs text-slate-400 gap-2">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Edited {formatDateDetail(selectedNote.updatedAt)}</span>
+                  {isSaving && <span className="text-[#0078d4] font-bold animate-pulse">Saving...</span>}
+              </div>
+           </div>
+           
+           <div className="flex items-center gap-1">
+               {/* Tag Button */}
+               <div className="relative">
                    <button 
-                      onClick={() => setMobileView('list')}
-                      className="md:hidden p-1.5 -ml-2 text-slate-500 hover:text-[#0078d4] rounded-full hover:bg-slate-50"
+                       onClick={() => setIsTagPopoverOpen(!isTagPopoverOpen)}
+                       className={`p-2 rounded hover:bg-slate-100 transition-colors ${editorTags.length > 0 ? 'text-[#0078d4]' : 'text-slate-400'}`}
+                       title="Manage Labels"
                    >
-                      <ArrowLeft className="w-5 h-5" />
+                       <TagIcon className="w-4 h-4" />
                    </button>
-                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden md:block">
-                       Last edited {formatDateDetail(selectedNote?.updatedAt || '')}
-                   </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                    <div className="text-[10px] font-bold text-slate-400 transition-opacity duration-300">
-                       {isSaving ? 'Saving...' : 'Saved'}
-                    </div>
-                    <div className="h-4 w-px bg-slate-200"></div>
-                    <button 
-                       onClick={() => handleDeleteNote(selectedNoteId)} 
-                       className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                       title="Delete Note"
-                    >
-                       <Trash2 className="w-4 h-4" />
-                    </button>
-                </div>
-             </div>
-   
-             {/* Editor Canvas */}
-             <div className="flex-1 overflow-y-auto cursor-text bg-white" onClick={() => editorRef.current?.focus()}>
-                <div className="max-w-3xl mx-auto px-8 py-10 h-full flex flex-col pt-12">
-                   <input
-                      id="note-title-input"
-                      type="text"
-                      value={editorTitle}
-                      onChange={handleTitleChange}
-                      placeholder="Title"
-                      className="text-3xl font-black text-slate-900 placeholder:text-slate-300 border-none p-0 focus:ring-0 w-full bg-transparent mb-6 tracking-tight"
-                   />
                    
-                   <div
-                      key={selectedNoteId} // Added key to force remount on note switch, fixing content persistence bug
-                      ref={editorRef}
-                      contentEditable
-                      onInput={handleContentChange}
-                      className="flex-1 w-full border-none p-0 focus:ring-0 text-base leading-7 text-slate-700 placeholder:text-slate-300 bg-transparent outline-none prose prose-slate max-w-none empty:before:content-['Type_something...'] empty:before:text-slate-300"
-                      suppressContentEditableWarning={true}
-                   />
-                </div>
-             </div>
-   
-             {/* Integrated Bottom Toolbar */}
-             <div className="h-12 border-t border-slate-100 bg-slate-50 flex items-center justify-center gap-1 shrink-0 px-4">
-                <button onMouseDown={(e) => { e.preventDefault(); execCmd('formatBlock', '<h2>'); }} className="p-2 text-slate-500 hover:text-[#0078d4] hover:bg-white rounded transition-colors" title="Heading"><Heading className="w-4 h-4" /></button>
-                <button onMouseDown={(e) => { e.preventDefault(); execCmd('formatBlock', '<div>'); }} className="p-2 text-slate-500 hover:text-[#0078d4] hover:bg-white rounded transition-colors" title="Paragraph"><Type className="w-4 h-4" /></button>
-                <div className="w-px h-4 bg-slate-200 mx-2"></div>
-                <button onMouseDown={(e) => { e.preventDefault(); execCmd('bold'); }} className="p-2 text-slate-500 hover:text-[#0078d4] hover:bg-white rounded transition-colors" title="Bold"><Bold className="w-4 h-4" /></button>
-                <button onMouseDown={(e) => { e.preventDefault(); execCmd('italic'); }} className="p-2 text-slate-500 hover:text-[#0078d4] hover:bg-white rounded transition-colors" title="Italic"><Italic className="w-4 h-4" /></button>
-                <div className="w-px h-4 bg-slate-200 mx-2"></div>
-                <button onMouseDown={(e) => { e.preventDefault(); execCmd('insertUnorderedList'); }} className="p-2 text-slate-500 hover:text-[#0078d4] hover:bg-white rounded transition-colors" title="List"><List className="w-4 h-4" /></button>
-                <button onMouseDown={(e) => { e.preventDefault(); execCmd('insertHTML', '&#9744;&nbsp;'); }} className="p-2 text-slate-500 hover:text-[#0078d4] hover:bg-white rounded transition-colors" title="Checkbox"><CheckSquare className="w-4 h-4" /></button>
-             </div>
-          </div>
-       </div>
+                   {isTagPopoverOpen && (
+                       <>
+                        <div className="fixed inset-0 z-10" onClick={() => setIsTagPopoverOpen(false)} />
+                        <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-lg shadow-xl z-20 p-2 animate-in zoom-in-95 origin-top-right">
+                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Labels</h4>
+                            <div className="max-h-40 overflow-y-auto space-y-1">
+                                {tags.length === 0 && <p className="text-xs text-slate-400 italic px-1">No labels found.</p>}
+                                {tags.map(tag => (
+                                    <button
+                                        key={tag.id}
+                                        onClick={() => toggleEditorTag(tag.id)}
+                                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-bold hover:bg-slate-50 transition-colors"
+                                    >
+                                        <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${editorTags.includes(tag.id) ? 'border-transparent' : 'border-slate-300'}`} style={editorTags.includes(tag.id) ? { backgroundColor: tag.color } : {}}>
+                                            {editorTags.includes(tag.id) && <Check className="w-2.5 h-2.5 text-white" />}
+                                        </div>
+                                        <span className="truncate">{tag.label}</span>
+                                    </button>
+                                ))}
+                                {/* Inline Tag Creator */}
+                                <div className="flex items-center gap-1 mt-1 pt-1 border-t border-slate-100">
+                                    <input 
+                                        type="text" 
+                                        placeholder="New Label..." 
+                                        value={newTagInput}
+                                        onChange={(e) => setNewTagInput(e.target.value)}
+                                        className="w-full text-xs px-2 py-1.5 border border-slate-200 rounded focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                                        onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }}
+                                    />
+                                    <button 
+                                        type="button"
+                                        onClick={handleInlineCreateTag}
+                                        disabled={!newTagInput.trim() || isCreatingTag}
+                                        className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-[#eff6fc] hover:text-[#0078d4] disabled:opacity-50"
+                                    >
+                                        <Plus className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                       </>
+                   )}
+               </div>
+
+               <button 
+                  onClick={() => handleDeleteNote(selectedNoteId)}
+                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                  title="Delete Note"
+               >
+                  <Trash2 className="w-4 h-4" />
+               </button>
+           </div>
+        </div>
+
+        {/* Editor Content */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+           <div className="max-w-3xl mx-auto px-6 py-8 md:py-12">
+               {/* Title Input */}
+               <input 
+                  id="note-title-input"
+                  type="text" 
+                  value={editorTitle}
+                  onChange={handleTitleChange}
+                  placeholder="Untitled Note"
+                  className="w-full text-3xl font-black text-slate-800 placeholder:text-slate-300 border-none outline-none bg-transparent mb-6"
+               />
+               
+               {/* Tags Display */}
+               {editorTags.length > 0 && (
+                   <div className="flex flex-wrap gap-2 mb-6">
+                       {editorTags.map(tagId => {
+                            const tag = tags.find(t => t.id === tagId);
+                            if (!tag) return null;
+                            return (
+                                <span 
+                                key={tagId} 
+                                className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border border-transparent"
+                                style={{ backgroundColor: `${tag.color}15`, color: tag.color }}
+                                >
+                                <TagIcon className="w-3 h-3" />
+                                {tag.label}
+                                </span>
+                            );
+                        })}
+                   </div>
+               )}
+
+               {/* Rich Text Toolbar */}
+               <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-100 mb-6 py-2 flex items-center gap-1">
+                  <button onClick={() => execCmd('bold')} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded" title="Bold"><Bold className="w-4 h-4" /></button>
+                  <button onClick={() => execCmd('italic')} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded" title="Italic"><Italic className="w-4 h-4" /></button>
+                  <div className="w-px h-4 bg-slate-200 mx-1" />
+                  <button onClick={() => execCmd('insertUnorderedList')} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded" title="List"><List className="w-4 h-4" /></button>
+                  <button onClick={() => execCmd('formatBlock', 'H2')} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded" title="Heading"><Heading className="w-4 h-4" /></button>
+               </div>
+
+               {/* Content Editable */}
+               <div 
+                  ref={editorRef}
+                  contentEditable
+                  onInput={handleContentChange}
+                  className="prose prose-slate max-w-none focus:outline-none min-h-[300px] text-sm leading-7 empty:before:content-[attr(data-placeholder)] empty:before:text-slate-300"
+                  data-placeholder="Start typing..."
+               />
+           </div>
+        </div>
+      </div>
     );
   };
 
   return (
-    <div className="h-full w-full flex overflow-hidden bg-slate-100">
-       {/* Desktop Layout */}
-       <div className="hidden md:flex w-full h-full">
-          {renderFoldersPane()}
-          {renderListPane()}
-          <div className="flex-1 min-w-0 h-full relative z-0">{renderEditorPane()}</div>
-       </div>
-
-       {/* Mobile Layout (Navigation Stack) */}
-       <div className="md:hidden w-full h-full bg-white">
-          {mobileView === 'folders' && renderFoldersPane()}
-          {mobileView === 'list' && renderListPane()}
-          {mobileView === 'editor' && renderEditorPane()}
-       </div>
+    <div className="flex h-full bg-white relative">
+      {/* Folders Pane */}
+      <div className={`${mobileView === 'folders' ? 'flex w-full' : 'hidden'} md:flex md:w-64 h-full`}>
+        {renderFoldersPane()}
+      </div>
+      
+      {/* List Pane */}
+      <div className={`${mobileView === 'list' ? 'flex w-full' : 'hidden'} md:flex md:w-80 h-full`}>
+        {renderListPane()}
+      </div>
+      
+      {/* Editor Pane */}
+      <div className={`${mobileView === 'editor' ? 'flex w-full' : 'hidden'} md:flex flex-1 h-full`}>
+        {renderEditorPane()}
+      </div>
     </div>
   );
 };

@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef, useCallback } from 'react';
-import { Sparkles, Cookie, MessageCircle } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
 export interface PetRef {
   celebrate: () => void;
@@ -31,6 +30,25 @@ const PetCompanion = forwardRef<PetRef, {}>((props, ref) => {
   const dragOffset = useRef({ x: 0, y: 0 });
   const petRef = useRef<HTMLDivElement>(null);
   const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Helper functions
+  const triggerReaction = (reaction: 'idle' | 'sleeping' | 'happy' | 'celebrating' | 'surprised') => {
+    setMood(reaction);
+    // Auto reset to idle unless sleeping
+    if (reaction !== 'sleeping' && reaction !== 'idle') {
+      setTimeout(() => {
+        setMood(prev => prev === 'sleeping' ? 'sleeping' : 'idle');
+      }, 2000);
+    }
+  };
+
+  const showMessage = (text: string) => {
+    setMessage(text);
+    if (messageTimer.current) clearTimeout(messageTimer.current);
+    messageTimer.current = setTimeout(() => {
+      setMessage(null);
+    }, 3000);
+  };
 
   // Expose methods to parent
   useImperativeHandle(ref, () => ({
@@ -81,227 +99,90 @@ const PetCompanion = forwardRef<PetRef, {}>((props, ref) => {
         });
       }
     };
-    const handleMouseUp = () => setIsDragging(false);
+    
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
 
     if (isDragging) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
     }
+
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isDragging]);
 
-  // Touch Drag Support
-  useEffect(() => {
-     const handleTouchMove = (e: TouchEvent) => {
-        if(isDragging) {
-           const touch = e.touches[0];
-           setPosition({
-               left: touch.clientX - dragOffset.current.x,
-               top: touch.clientY - dragOffset.current.y
-           });
-        }
-     };
-     const handleTouchEnd = () => setIsDragging(false);
-     
-     if (isDragging) {
-         window.addEventListener('touchmove', handleTouchMove, { passive: false });
-         window.addEventListener('touchend', handleTouchEnd);
-     }
-     return () => {
-         window.removeEventListener('touchmove', handleTouchMove);
-         window.removeEventListener('touchend', handleTouchEnd);
-     }
-  }, [isDragging]);
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Only allow left click drag
+    if (e.button !== 0) return;
 
-
-  const startDrag = (e: React.MouseEvent | React.TouchEvent) => {
-    // Prevent dragging if clicking button
-    if ((e.target as HTMLElement).closest('button')) return;
-
-    // Convert to left/top positioning if not already
-    const rect = petRef.current!.getBoundingClientRect();
-    
-    let clientX, clientY;
-    if ('touches' in e) {
-       clientX = e.touches[0].clientX;
-       clientY = e.touches[0].clientY;
-    } else {
-       clientX = (e as React.MouseEvent).clientX;
-       clientY = (e as React.MouseEvent).clientY;
-    }
-    
-    // Switch state to absolute left/top to allow free movement
-    setPosition({
-        left: rect.left,
-        top: rect.top
-    });
-
-    dragOffset.current = {
-      x: clientX - rect.left,
-      y: clientY - rect.top
-    };
-    setIsDragging(true);
-  };
-
-  const triggerReaction = (newMood: typeof mood) => {
-    setMood(newMood);
-    if (newMood === 'celebrating') {
-        setTimeout(() => setMood('idle'), 3000);
-    } else if (newMood === 'surprised' || newMood === 'happy') {
-        setTimeout(() => setMood('idle'), 1500);
+    if (petRef.current) {
+        const rect = petRef.current.getBoundingClientRect();
+        dragOffset.current = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+        setIsDragging(true);
+        // Switch to explicit coordinates on first drag
+        setPosition({
+            left: rect.left,
+            top: rect.top
+        });
     }
   };
 
-  const showMessage = (text: string) => {
-      setMessage(text);
-      if (messageTimer.current) clearTimeout(messageTimer.current);
-      messageTimer.current = setTimeout(() => setMessage(null), 3000);
+  const handlePetClick = () => {
+    if (isDragging) return;
+    triggerReaction('happy');
   };
 
-  const handleTap = () => {
-    if (mood === 'sleeping') {
-        setMood('idle');
-        showMessage("Yawn... I'm up!");
-    } else {
-        triggerReaction('surprised');
-    }
-  };
-
-  const feedPet = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      triggerReaction('happy');
-      showMessage("Yum! 🍪");
-  };
-
-  // Animation classes
-  const getBodyClass = () => {
+  // Pet Rendering Logic
+  const renderPetEmoji = () => {
       switch(mood) {
-          case 'celebrating': return 'animate-bounce';
-          case 'happy': return 'animate-pulse';
-          case 'surprised': return 'scale-110';
-          case 'sleeping': return 'opacity-80 translate-y-2';
-          default: return 'animate-float'; // Custom float defined below
+          case 'sleeping': return '💤 🐱';
+          case 'happy': return '😸';
+          case 'celebrating': return '🥳 🐱';
+          case 'surprised': return '🙀';
+          default: return '🐱';
       }
   };
 
   return (
-    <>
-        <div 
+    <div 
         ref={petRef}
         style={{ 
-            left: position.left, 
-            top: position.top, 
-            right: position.right, 
-            bottom: position.bottom,
-            touchAction: 'none' 
+            position: 'fixed', 
+            zIndex: 50,
+            cursor: isDragging ? 'grabbing' : 'grab',
+            ...position 
         }}
-        className="fixed z-[60] cursor-move select-none transition-transform duration-75 group"
-        onMouseDown={startDrag}
-        onTouchStart={startDrag}
-        onClick={handleTap}
-        >
-            {/* Message Bubble */}
+        onMouseDown={handleMouseDown}
+        onClick={handlePetClick}
+        className="select-none transition-transform active:scale-95 touch-none"
+    >
+        <div className="relative group">
             {message && (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 bg-white px-3 py-2 rounded-xl shadow-lg border border-slate-200 text-xs font-bold whitespace-nowrap animate-in zoom-in-95 origin-bottom z-10">
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-lg text-xs font-bold text-slate-800 animate-in zoom-in-95 slide-in-from-bottom-2">
                     {message}
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-white"></div>
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-4 border-transparent border-t-white"></div>
                 </div>
             )}
-
-            {/* Pet Container */}
-            <div className={`relative w-16 h-16 transition-all duration-300 ${getBodyClass()}`}>
-                
-                {/* Context Actions (Feed) - Only show on hover/idle */}
-                <div className="absolute -right-8 top-0 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button 
-                    onClick={feedPet}
-                    className="p-1.5 bg-white rounded-full shadow-md text-amber-600 border border-amber-100 hover:scale-110 transition-transform"
-                    title="Feed me!"
-                    >
-                    <Cookie className="w-4 h-4" />
-                </button>
-                </div>
-
-                {/* SVG Pet Body */}
-                <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-xl filter">
-                    {/* Body */}
-                    <path 
-                    d="M50 10 C 80 10, 95 40, 95 65 C 95 90, 75 95, 50 95 C 25 95, 5 90, 5 65 C 5 40, 20 10, 50 10 Z" 
-                    fill="#0078d4" 
-                    />
-                    
-                    {/* Highlight/Shine */}
-                    <ellipse cx="35" cy="30" rx="10" ry="5" fill="rgba(255,255,255,0.3)" transform="rotate(-45 35 30)" />
-
-                    {/* Eyes */}
-                    {mood === 'sleeping' ? (
-                    <g stroke="white" strokeWidth="3" fill="none">
-                        <path d="M 30 50 Q 35 55 40 50" />
-                        <path d="M 60 50 Q 65 55 70 50" />
-                    </g>
-                    ) : (
-                    <g fill="white">
-                        <circle cx="35" cy="45" r={mood === 'surprised' ? 10 : 8} />
-                        <circle cx="65" cy="45" r={mood === 'surprised' ? 10 : 8} />
-                        <circle cx="35" cy="45" r="3" fill="#1e293b" />
-                        <circle cx="65" cy="45" r="3" fill="#1e293b" />
-                    </g>
-                    )}
-
-                    {/* Mouth */}
-                    <g stroke="white" strokeWidth="3" fill="none" strokeLinecap="round">
-                    {mood === 'happy' || mood === 'celebrating' ? (
-                        <path d="M 35 65 Q 50 75 65 65" /> // Smile
-                    ) : mood === 'surprised' ? (
-                        <circle cx="50" cy="70" r="5" /> // O mouth
-                    ) : mood === 'sleeping' ? (
-                        <path d="M 45 70 Q 50 65 55 70" /> // Small mouth
-                    ) : (
-                        <path d="M 40 70 Q 50 75 60 70" /> // Neutral smile
-                    )}
-                    </g>
-                    
-                    {/* Cheeks */}
-                    {(mood === 'happy' || mood === 'celebrating') && (
-                        <g fill="#ff90b3" opacity="0.6">
-                        <circle cx="25" cy="55" r="5" />
-                        <circle cx="75" cy="55" r="5" />
-                        </g>
-                    )}
-                </svg>
-
-                {/* Sleep Zzz */}
-                {mood === 'sleeping' && (
-                    <div className="absolute -top-4 -right-2 flex flex-col items-center">
-                        <span className="text-slate-400 font-bold text-xs animate-bounce" style={{animationDelay: '0s'}}>z</span>
-                        <span className="text-slate-400 font-bold text-xs animate-bounce" style={{animationDelay: '0.2s'}}>z</span>
-                        <span className="text-slate-400 font-bold text-xs animate-bounce" style={{animationDelay: '0.4s'}}>Z</span>
-                    </div>
-                )}
-                
-                {/* Celebration Particles */}
-                {mood === 'celebrating' && (
-                    <div className="absolute inset-0 pointer-events-none">
-                        <Sparkles className="absolute -top-4 -left-4 w-6 h-6 text-yellow-400 animate-ping" />
-                        <Sparkles className="absolute -top-2 -right-4 w-5 h-5 text-blue-300 animate-pulse" />
-                        <Sparkles className="absolute bottom-0 -right-4 w-4 h-4 text-pink-400 animate-bounce" />
-                    </div>
-                )}
+            
+            <div className={`w-12 h-12 bg-white rounded-full shadow-xl border-2 border-slate-100 flex items-center justify-center text-2xl transition-all hover:scale-110 hover:shadow-2xl ${mood === 'celebrating' ? 'animate-bounce' : ''}`}>
+                {renderPetEmoji()}
+            </div>
+            
+            {/* Interaction Hints (Hover) */}
+            <div className="absolute -right-1 -top-1 opacity-0 group-hover:opacity-100 transition-opacity">
+               <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                  <Sparkles className="w-2 h-2 text-white" />
+               </div>
             </div>
         </div>
-        <style>{`
-          @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-5px); }
-          }
-          .animate-float {
-            animation: float 3s ease-in-out infinite;
-          }
-        `}</style>
-    </>
+    </div>
   );
 });
 

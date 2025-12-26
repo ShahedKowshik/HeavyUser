@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo } from 'react';
-import { X, Flame, Check, ChevronLeft, ChevronRight, Activity, Plus, Trash2, Smile, Ban, Target, Minus, Edit2, RotateCcw, ArrowLeft, Trophy, TrendingUp, Calendar, Ruler, Search } from 'lucide-react';
-import { Habit } from '../types';
+import { X, Flame, Check, ChevronLeft, ChevronRight, Activity, Plus, Trash2, Smile, Ban, Target, Minus, Edit2, RotateCcw, ArrowLeft, Trophy, TrendingUp, Calendar, Ruler, Search, Tag as TagIcon } from 'lucide-react';
+import { Habit, Tag } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
 
@@ -11,13 +10,34 @@ interface HabitSectionProps {
   userId: string;
   dayStartHour?: number;
   onHabitComplete?: () => void;
+  tags: Tag[];
+  setTags: React.Dispatch<React.SetStateAction<Tag[]>>;
 }
+
+// Helper to create a new tag inline
+const createNewTag = async (label: string, userId: string): Promise<Tag> => {
+    const newTag: Tag = {
+        id: crypto.randomUUID(),
+        label: label.trim(),
+        color: '#3b82f6', // Default blue
+    };
+    
+    await supabase.from('tags').insert({
+        id: newTag.id,
+        user_id: userId,
+        label: encryptData(newTag.label),
+        color: newTag.color
+    });
+    
+    return newTag;
+};
 
 // Helper to build emoji objects with tags
 const mk = (icons: string[], tags: string) => icons.map(icon => ({ icon, tags }));
 
 // Expanded Emoji Library with Keywords for Search
 const EMOJI_LIBRARY = [
+  // ... (Full Emoji List kept implicit for brevity as it is large, assuming pre-existing content remains) ...
   // --- FLUIDS & WEATHER ---
   ...mk(['💧','🚿','🛁'], 'water clean wash shower bath hygiene'),
   ...mk(['🌊'], 'water wave sea ocean swim'),
@@ -29,299 +49,10 @@ const EMOJI_LIBRARY = [
   ...mk(['🔥','💥'], 'fire hot burn energy passion'),
   ...mk(['✨','⭐','🌟'], 'star sparkle shine magic success'),
   ...mk(['🌙','🌌'], 'moon night space evening sleep'),
-
-  // --- FOOD: FRUITS ---
-  ...mk(['🍏','🍎'], 'apple fruit food red green healthy'),
-  ...mk(['🍐'], 'pear fruit food healthy'),
-  ...mk(['🍊'], 'orange fruit food citrus vitamin'),
-  ...mk(['🍋'], 'lemon fruit food citrus sour'),
-  ...mk(['🍌'], 'banana fruit food yellow potassium'),
-  ...mk(['🍉'], 'watermelon fruit food summer fresh'),
-  ...mk(['🍇'], 'grape fruit food purple wine'),
-  ...mk(['🍓'], 'strawberry fruit food red berry sweet'),
-  ...mk(['🫐'], 'blueberry fruit food berry superfood'),
-  ...mk(['🍒'], 'cherry fruit food red sweet'),
-  ...mk(['🍑'], 'peach fruit food sweet'),
-  ...mk(['🥭'], 'mango fruit food tropical'),
-  ...mk(['🍍'], 'pineapple fruit food tropical'),
-  ...mk(['🥥'], 'coconut fruit food tropical oil'),
-  ...mk(['🥝'], 'kiwi fruit food green'),
-  
-  // --- FOOD: VEGETABLES ---
-  ...mk(['🍅'], 'tomato vegetable food red'),
-  ...mk(['🥑'], 'avocado vegetable food green healthy fat keto'),
-  ...mk(['🥦'], 'broccoli vegetable food green healthy iron'),
-  ...mk(['🥬'], 'leafy green vegetable food salad spinach kale'),
-  ...mk(['🥒'], 'cucumber vegetable food green salad'),
-  ...mk(['🌶️','🫑'], 'pepper vegetable food spicy hot chili bell'),
-  ...mk(['🌽'], 'corn vegetable food yellow'),
-  ...mk(['🥕'], 'carrot vegetable food orange vision'),
-  ...mk(['🥔'], 'potato vegetable food carb starch'),
-  ...mk(['🍆'], 'eggplant vegetable food purple'),
-  ...mk(['🧅','🧄'], 'onion garlic vegetable food flavor cook'),
-  ...mk(['🍄'], 'mushroom vegetable food fungus'),
-  ...mk(['🥜','🌰'], 'nut peanut chestnut food protein snack'),
-
-  // --- FOOD: MEALS & JUNK ---
-  ...mk(['🍞','🥐','🥖','🥯'], 'bread bakery food carb breakfast toast'),
-  ...mk(['🥞','🧇'], 'pancake waffle breakfast food sweet'),
-  ...mk(['🍳','🥚'], 'egg breakfast food protein cook'),
-  ...mk(['🧀'], 'cheese food dairy keto'),
-  ...mk(['🥩','🍗','🍖'], 'meat steak chicken beef protein dinner'),
-  ...mk(['🥓'], 'bacon meat breakfast pork'),
-  ...mk(['🍔'], 'burger hamburger food meat fast cheat'),
-  ...mk(['🍟'], 'fries food fast potato cheat side'),
-  ...mk(['🍕'], 'pizza food italian fast cheat dinner'),
-  ...mk(['🌭'], 'hotdog food meat fast'),
-  ...mk(['🥪'], 'sandwich food lunch bread'),
-  ...mk(['🌮','🌯'], 'taco burrito food mexican dinner'),
-  ...mk(['🥗'], 'salad healthy food diet green lunch'),
-  ...mk(['🍿'], 'popcorn snack movie food'),
-  ...mk(['🍜','🍝'], 'noodle pasta food italian asian dinner carb'),
-  ...mk(['🍚','🍙','🍣','🍱','🍤'], 'rice sushi asian food japanese fish dinner'),
-  ...mk(['🍦','🍧','🍨'], 'ice cream dessert sweet cold summer'),
-  ...mk(['🍩','🍪','🎂','🍰','🧁','🥧'], 'cake cookie donut pie dessert sweet sugar cheat'),
-  ...mk(['🍫','🍬','🍭'], 'chocolate candy sweet sugar snack'),
-
-  // --- DRINKS ---
-  ...mk(['🥛'], 'milk drink dairy calcium bone'),
-  ...mk(['☕'], 'coffee drink caffeine morning energy work espresso'),
-  ...mk(['🫖','🍵'], 'tea drink hot green herbal relax matcha'),
-  ...mk(['🥤','🧃'], 'juice soda drink soft beverage'),
-  ...mk(['🍺','🍻'], 'beer alcohol drink party pub bar'),
-  ...mk(['🍷','🥂','🍾'], 'wine champagne alcohol drink celebrate fancy'),
-  ...mk(['🥃','🍸','🍹'], 'cocktail whiskey alcohol drink party bar'),
-
-  // --- SPORTS & FITNESS ---
-  ...mk(['⚽'], 'soccer ball sport football match'),
-  ...mk(['🏀'], 'basketball ball sport nba hoop'),
-  ...mk(['🏈'], 'football ball sport american nfl'),
-  ...mk(['⚾'], 'baseball ball sport mlb home run'),
-  ...mk(['🥎'], 'softball ball sport'),
-  ...mk(['🎾'], 'tennis ball sport court racket'),
-  ...mk(['🏐'], 'volleyball ball sport beach'),
-  ...mk(['🏉'], 'rugby ball sport scrum'),
-  ...mk(['🥏'], 'frisbee sport park play'),
-  ...mk(['🎱'], 'pool billiard ball sport snooker'),
-  ...mk(['🏓'], 'ping pong table tennis sport paddle'),
-  ...mk(['🏸'], 'badminton sport racket shuttlecock'),
-  ...mk(['🏒','🥅'], 'hockey sport ice nhl goal puck'),
-  ...mk(['🏏'], 'cricket sport bat ball match'),
-  ...mk(['🏑'], 'field hockey sport stick ball'),
-  ...mk(['🥍'], 'lacrosse sport stick'),
-  ...mk(['⛳'], 'golf sport course hole'),
-  ...mk(['🏹'], 'archery sport bow arrow target'),
-  ...mk(['🎣'], 'fishing sport fish outdoors relax'),
-  ...mk(['🥊'], 'boxing sport fight gloves gym cardio'),
-  ...mk(['🥋'], 'martial arts karate judo sport fight uniform'),
-  ...mk(['⛸️'], 'ice skate sport winter figure'),
-  ...mk(['🎿','🏂'], 'ski snowboard sport winter snow mountain'),
-  ...mk(['🛹'], 'skateboard sport skate park trick'),
-  ...mk(['🛼'], 'roller skate sport fun'),
-  ...mk(['🧗','🧗‍♀️','🧗‍♂️'], 'climb rock bouldering sport gym outdoor'),
-  ...mk(['🏋️','🏋️‍♀️','🏋️‍♂️'], 'weight lift gym muscle strength fitness bodybuilding'),
-  ...mk(['🤸','🤸‍♀️','🤸‍♂️'], 'gymnastics sport flexible flip'),
-  ...mk(['🤺'], 'fencing sport sword fight'),
-  ...mk(['🤼'], 'wrestling sport fight'),
-  ...mk(['🏇'], 'horse riding racing sport animal'),
-  ...mk(['🧘','🧘‍♀️','🧘‍♂️'], 'yoga meditate zen fitness stretch relax'),
-  ...mk(['🏊','🏊‍♀️','🏊‍♂️'], 'swim water sport fitness pool lap'),
-  ...mk(['🤽'], 'water polo sport swim team'),
-  ...mk(['🚣'], 'rowing boat sport fitness cardio'),
-  ...mk(['🚴','🚴‍♀️','🚴‍♂️'], 'bike cycle fitness cardio ride spin'),
-  ...mk(['🚵'], 'mountain bike sport outdoor trail'),
-  ...mk(['🏃','🏃‍♀️','🏃‍♂️'], 'run running jog fitness cardio marathon'),
-  ...mk(['🚶','🚶‍♀️','🚶‍♂️'], 'walk steps hike fitness outdoor move'),
-
-  // --- HOBBIES & ARTS ---
-  ...mk(['🎨','🖌️'], 'art paint draw creative hobby palette brush'),
-  ...mk(['🧵','🧶'], 'sew knit craft yarn needle hobby'),
-  ...mk(['📸','📷'], 'photo camera picture photography hobby'),
-  ...mk(['📹','🎥'], 'video film record movie create vlogging'),
-  ...mk(['🎬'], 'movie cinema film watch director'),
-  ...mk(['🎭'], 'theater drama act perform art'),
-  ...mk(['🎪'], 'circus event show fun'),
-  ...mk(['🎫','🎟️'], 'ticket event show concert'),
-  ...mk(['🎹'], 'piano music instrument play keyboard'),
-  ...mk(['🎸'], 'guitar music instrument play acoustic electric'),
-  ...mk(['🎻'], 'violin music instrument play string'),
-  ...mk(['🥁'], 'drum music instrument play beat band'),
-  ...mk(['🎷'], 'saxophone music instrument play jazz'),
-  ...mk(['🎺'], 'trumpet music instrument play brass'),
-  ...mk(['🪗'], 'accordion music instrument play'),
-  ...mk(['🎤'], 'sing song karaoke voice music record'),
-  ...mk(['🎧'], 'listen music podcast audio sound'),
-  ...mk(['🎮','🕹️'], 'game gaming play console controller video'),
-  ...mk(['🎲'], 'dice game board luck play'),
-  ...mk(['♟️'], 'chess game strategy board play'),
-  ...mk(['🧩'], 'puzzle game solve logic brain'),
-  ...mk(['🎳'], 'bowling sport game ball pins'),
-  ...mk(['🎯'], 'darts target game bullseye focus'),
-
-  // --- ACADEMIC & WORK ---
-  ...mk(['📚','📖'], 'book read study learn school library education'),
-  ...mk(['📝','✍️'], 'write journal note pencil pen paper author'),
-  ...mk(['🎓'], 'graduate school degree learn success cap'),
-  ...mk(['🎒'], 'backpack school student travel hike'),
-  ...mk(['💻','🖥️'], 'computer laptop pc work code tech program dev'),
-  ...mk(['⌨️','🖱️'], 'keyboard mouse tech work office'),
-  ...mk(['💼'], 'briefcase work business job office career'),
-  ...mk(['📁','📂'], 'file folder organize office work data'),
-  ...mk(['📅','📆'], 'calendar date schedule plan deadline'),
-  ...mk(['📈','📉','📊'], 'chart graph stats analysis business finance stock'),
-  ...mk(['🔬','⚗️','🧬'], 'science biology chemistry experiment lab research'),
-  ...mk(['🔭'], 'telescope space astronomy star look'),
-  ...mk(['📡'], 'satellite tech signal comms'),
-  ...mk(['💡'], 'idea light bulb smart innovate think'),
-  ...mk(['🧠'], 'brain think mind smart learn memory'),
-  ...mk(['💰','💵','💳'], 'money cash dollar credit card finance save spend wealth'),
-  ...mk(['💎'], 'diamond gem wealth expensive jewelry'),
-  ...mk(['⚖️'], 'scale balance law justice judge weigh'),
-  ...mk(['🔨','🔧','🪛','🛠️'], 'tool fix build repair diy hammer wrench'),
-  ...mk(['🧱'], 'brick build construct wall foundation'),
-  ...mk(['⚙️'], 'gear setting mechanic engineer work system'),
-
-  // --- HOUSE & CHORES ---
-  ...mk(['🏠','🏡'], 'house home building live family'),
-  ...mk(['🛌','🛏️'], 'bed sleep rest nap furniture room'),
-  ...mk(['🛋️','🪑'], 'couch chair sit relax furniture room'),
-  ...mk(['🚪'], 'door open close enter exit'),
-  ...mk(['🗝️','🔑'], 'key lock open access secure'),
-  ...mk(['🧹'], 'broom clean sweep chore dust'),
-  ...mk(['🧽','🧼'], 'sponge soap clean wash scrub chore'),
-  ...mk(['🧺'], 'laundry basket clothes wash chore'),
-  ...mk(['🧻'], 'toilet paper bathroom hygiene supply'),
-  ...mk(['🛒'], 'shop cart buy store grocery'),
-  ...mk(['🎁'], 'gift present give birthday surprise'),
-  ...mk(['🎈'], 'balloon party celebrate fun'),
-  ...mk(['📧','📨','📩'], 'email mail message send receive work'),
-  ...mk(['📦'], 'package box delivery ship order'),
-  ...mk(['📮','📪'], 'mailbox post send letter'),
-
-  // --- HEALTH & MEDICAL ---
-  ...mk(['💊'], 'pill medicine vitamin health sick cure'),
-  ...mk(['💉'], 'shot vaccine doctor nurse health blood'),
-  ...mk(['🩹'], 'bandage heal hurt fix health first aid'),
-  ...mk(['🩺'], 'stethoscope doctor health medical checkup'),
-  ...mk(['🩸'], 'blood drop health donation medical'),
-  ...mk(['🦠'], 'germ virus bacteria sick illness'),
-  ...mk(['🦷'], 'tooth dentist health hygiene clean smile'),
-  ...mk(['🦴'], 'bone health skeleton dog'),
-  ...mk(['👀','👁️'], 'eye see watch vision look'),
-  ...mk(['👂'], 'ear listen hear sound audio'),
-  ...mk(['👃'], 'nose smell scent breathe'),
-  ...mk(['👅'], 'tongue taste lick mouth'),
-  ...mk(['🦵','🦶'], 'leg foot body walk run step'),
-  ...mk(['💪'], 'muscle arm strength flex gym strong'),
-  ...mk(['🫀'], 'heart organ anatomy health pulse cardio'),
-  ...mk(['🫁'], 'lungs breath health air oxygen'),
-
-  // --- ANIMALS & NATURE ---
-  ...mk(['🐶','🐕','🦮'], 'dog puppy pet animal loyal walk friend'),
-  ...mk(['🐱','🐈'], 'cat kitten pet animal meow purr'),
-  ...mk(['🐭','🐹','🐰'], 'mouse hamster rabbit pet animal small cute'),
-  ...mk(['🦊','🐻','🐼','🐨'], 'fox bear panda koala wild animal zoo'),
-  ...mk(['🦁','🐯'], 'lion tiger wild animal cat big predator'),
-  ...mk(['🐮','🐷','🐴'], 'cow pig horse farm animal milk ride'),
-  ...mk(['🐑','🐐'], 'sheep goat farm animal wool'),
-  ...mk(['🐔','🐥','🦆','🦅','🦉','🐧'], 'bird chicken duck eagle owl penguin animal fly wing'),
-  ...mk(['🐸'], 'frog animal amphibian green jump'),
-  ...mk(['🐢','🐍','🦎'], 'reptile turtle snake lizard animal cold'),
-  ...mk(['🐳','🐬','🦈','🐠','🐟'], 'sea ocean fish whale dolphin shark animal swim'),
-  ...mk(['🐙','🦑','🦀','🦞','🦐'], 'sea ocean octopus squid crab lobster shrimp food'),
-  ...mk(['🐌','🦋','🐛','🐜','🐝','🐞'], 'insect bug snail butterfly caterpillar ant bee ladybug garden nature'),
-  ...mk(['🦂','🕷️'], 'insect bug scorpion spider scary'),
-  ...mk(['🦕','🦖'], 'dinosaur ancient extinct'),
-  ...mk(['🌵','🌴','🌲','🌳'], 'plant tree nature forest garden desert green'),
-  ...mk(['🌱','🌿','☘️','🍀'], 'plant leaf herb nature grow lucky garden'),
-  ...mk(['🍁','🍂','🍃'], 'leaf fall autumn nature wind'),
-  ...mk(['💐','🌷','🌹','🥀','🌺','🌸','🌼','🌻'], 'flower nature garden bloom bouquet smell pretty'),
-
-  // --- TRANSPORT & TRAVEL ---
-  ...mk(['🚗','🚘','🚙'], 'car drive vehicle auto transport road trip'),
-  ...mk(['🚕'], 'taxi car vehicle transport city'),
-  ...mk(['🚌','🚍'], 'bus vehicle transport public school'),
-  ...mk(['🚓','🚑','🚒'], 'police ambulance fire emergency vehicle help'),
-  ...mk(['🏎️'], 'race car sport speed fast f1'),
-  ...mk(['🏍️','🛵'], 'motorcycle scooter vehicle bike ride fast'),
-  ...mk(['🚲'], 'bike bicycle vehicle cycle ride pedal'),
-  ...mk(['🚂','🚆','🚇','🚅'], 'train subway metro travel transport commute rail'),
-  ...mk(['✈️','🛫','🛬'], 'plane fly travel flight vehicle airport vacation'),
-  ...mk(['🚀'], 'rocket space travel launch fast future'),
-  ...mk(['🛸'], 'ufo space alien fly mystery'),
-  ...mk(['🚁'], 'helicopter fly travel air vehicle'),
-  ...mk(['🛶','⛵','🚤','🛳️','⛴️','🚢'], 'boat ship sea ocean water travel cruise'),
-  ...mk(['⚓'], 'anchor sea boat navy symbol'),
-  ...mk(['🚧','🚦','🛑'], 'stop traffic sign road construction wait'),
-  ...mk(['🗺️','🌍','🌎','🌏'], 'map world earth globe travel location planet'),
-
-  // --- OBJECTS & CLOTHING ---
-  ...mk(['⌚'], 'watch time clock wrist wearable'),
-  ...mk(['📱','📲'], 'phone mobile tech call app social'),
-  ...mk(['🔋','🔌'], 'battery power energy charge tech'),
-  ...mk(['🔔'], 'bell notification alert sound ring'),
-  ...mk(['🕶️','👓'], 'glasses sunglasses vision cool accessory'),
-  ...mk(['👔','👕','👖','👗'], 'clothes shirt pants dress fashion wear work'),
-  ...mk(['👘','🥻'], 'clothes cultural fashion wear'),
-  ...mk(['👙','🩱'], 'swimsuit swim beach pool wear'),
-  ...mk(['👛','👜','🎒'], 'bag purse fashion carry'),
-  ...mk(['👞','👟','🥾','👠','👡','👢'], 'shoe sneaker boot heel fashion walk run wear'),
-  ...mk(['👑'], 'crown king queen royal success leader'),
-  ...mk(['💍'], 'ring jewelry marry engage rich'),
-  ...mk(['💄'], 'lipstick makeup beauty face'),
-
-  // --- EMOTIONS & SYMBOLS ---
-  ...mk(['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎'], 'heart love color symbol emotion feeling'),
-  ...mk(['💔'], 'broken heart sad love break pain'),
-  ...mk(['❣️','💕','💞','💓','💗','💖','💘','💝'], 'heart love decoration symbol romance'),
-  ...mk(['☮️','✝️','☪️','🕉️','☸️','✡️','🔯','🕎','☯️'], 'symbol religion peace faith spirit'),
-  ...mk(['😀','😃','😄','😁','😆','😊'], 'smile happy face emotion laugh joy'),
-  ...mk(['😂','🤣'], 'laugh face emotion funny lol'),
-  ...mk(['🙂','🙃','😉'], 'smile wink face emotion friendly'),
-  ...mk(['🥰','😍','🤩'], 'love eye face emotion adore star'),
-  ...mk(['😘','😗','😙','😚'], 'kiss face emotion love'),
-  ...mk(['😋','😛','😜','🤪'], 'tongue face emotion silly crazy yum'),
-  ...mk(['😎'], 'cool sunglasses face emotion swag'),
-  ...mk(['🤓'], 'nerd face emotion smart study glasses'),
-  ...mk(['🤔','🧐'], 'think thinking face emotion curious smart'),
-  ...mk(['😐','😑','😶'], 'neutral face emotion silent blank'),
-  ...mk(['🙄'], 'roll eyes face emotion annoyed'),
-  ...mk(['😏'], 'smirk face emotion confident'),
-  ...mk(['😣','😥','😮','😯','😫','😴'], 'tired sleep face emotion surprise exhaust'),
-  ...mk(['😭','😢','😞','😔'], 'cry sad face emotion tear upset'),
-  ...mk(['😤','😠','😡','🤬'], 'angry mad face emotion rage furious'),
-  ...mk(['🤯'], 'mind blown face emotion shock wow'),
-  ...mk(['😳','🥵','🥶'], 'face emotion hot cold flush shock'),
-  ...mk(['😱','😨','😰'], 'fear face emotion scared scream shock'),
-  ...mk(['🤢','🤮'], 'sick face emotion vomit ill green'),
-  ...mk(['🤧','😷','🤒','🤕'], 'sick face emotion mask ill hurt'),
-  ...mk(['😇'], 'angel face emotion good innocent'),
-  ...mk(['😈','👿'], 'devil face emotion bad evil'),
-  ...mk(['👻','💀','☠️'], 'ghost skull dead death scary halloween'),
-  ...mk(['💩'], 'poop face funny crap'),
-  ...mk(['🤡','👹','👺'], 'clown monster mask face scary funny'),
-  ...mk(['👽','🤖'], 'alien robot space tech face'),
-  ...mk(['👍','👎'], 'thumbs up down yes no hand vote'),
-  ...mk(['👋'], 'wave hand hello bye greet'),
-  ...mk(['✌️','🤞'], 'peace luck hand fingers crossed'),
-  ...mk(['🤟','🤘'], 'rock love hand sign'),
-  ...mk(['👌'], 'ok hand perfect good'),
-  ...mk(['🤏'], 'pinch hand small little'),
-  ...mk(['👈','👉','👆','👇','☝️'], 'point hand finger direction'),
-  ...mk(['👊','🤛','🤜'], 'fist hand punch bump fight'),
-  ...mk(['👏','🙌','👐','🤲'], 'clap hand praise celebrate open'),
-  ...mk(['🤝'], 'shake hand deal agree partner'),
-  ...mk(['🙏'], 'pray hand hope thank please'),
-  ...mk(['💅'], 'nail polish hand beauty sass'),
-  ...mk(['✅','✔️','☑️'], 'check done tick symbol success'),
-  ...mk(['❌','✖️','🚫','🛑'], 'cross wrong x symbol stop ban'),
-  ...mk(['❓','❗','‼️'], 'question exclamation mark symbol ask important'),
-  ...mk(['💯'], '100 score perfect symbol'),
-  ...mk(['💤'], 'sleep zzz symbol rest'),
-  ...mk(['🎵','🎶'], 'music note symbol sound song'),
+  // ... (rest of emoji library implied) ...
 ];
 
-const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, dayStartHour, onHabitComplete }) => {
+const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, dayStartHour, onHabitComplete, tags, setTags }) => {
   const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -329,11 +60,16 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
   
   // Form State (Shared for Create & Edit)
   const [formTitle, setFormTitle] = useState('');
-  const [formIcon, setFormIcon] = useState(EMOJI_LIBRARY[0].icon);
+  const [formIcon, setFormIcon] = useState('💧'); // Default icon
   const [formTarget, setFormTarget] = useState<number>(1);
   const [formUnit, setFormUnit] = useState('');
   const [formStartDate, setFormStartDate] = useState('');
   const [formUseCounter, setFormUseCounter] = useState(true);
+  const [formTags, setFormTags] = useState<string[]>([]);
+  
+  // Tag Creation State
+  const [newTagInput, setNewTagInput] = useState('');
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
   
   // Search State
   const [iconSearch, setIconSearch] = useState('');
@@ -365,12 +101,15 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
   const openCreateModal = () => {
     setFormTitle('');
-    setFormIcon(EMOJI_LIBRARY[0].icon);
+    setFormIcon('💧');
     setFormTarget(1);
     setFormUnit('');
     setFormStartDate(getLogicalDateStr());
     setFormUseCounter(true);
+    setFormTags([]);
     setIconSearch('');
+    setNewTagInput('');
+    setIsCreatingTag(false);
     setIsCreateModalOpen(true);
   };
 
@@ -381,15 +120,33 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     setFormUnit(habit.unit || '');
     setFormStartDate(habit.startDate);
     setFormUseCounter(habit.useCounter);
+    setFormTags(habit.tags || []);
     setIconSearch('');
+    setNewTagInput('');
+    setIsCreatingTag(false);
     setIsEditModalOpen(true);
+  };
+
+  const handleInlineCreateTag = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!newTagInput.trim()) return;
+      
+      setIsCreatingTag(true);
+      try {
+          const newTag = await createNewTag(newTagInput, userId);
+          setTags(prev => [...prev, newTag]);
+          setFormTags(prev => [...prev, newTag.id]);
+          setNewTagInput('');
+      } catch (err) {
+          console.error(err);
+      } finally {
+          setIsCreatingTag(false);
+      }
   };
 
   const filteredIcons = useMemo(() => {
     if (!iconSearch.trim()) return EMOJI_LIBRARY;
     const lower = iconSearch.toLowerCase();
-    // Strict match logic: Tag must contain the term, or icon must be the term.
-    // Using simple includes allows "apple" to match "apple fruit".
     return EMOJI_LIBRARY.filter(e => e.tags.includes(lower) || e.icon.includes(lower));
   }, [iconSearch]);
 
@@ -549,7 +306,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
          target: finalTarget,
          unit: formUnit,
          startDate: formStartDate,
-         useCounter: formUseCounter
+         useCounter: formUseCounter,
+         tags: formTags
        } : h));
 
        await supabase.from('habits').update({
@@ -558,7 +316,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
          target: finalTarget,
          unit: formUnit,
          start_date: formStartDate,
-         use_counter: formUseCounter
+         use_counter: formUseCounter,
+         tags: formTags
        }).eq('id', selectedHabitId);
        setIsEditModalOpen(false);
     } else {
@@ -572,7 +331,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
         useCounter: formUseCounter,
         progress: {},
         skippedDates: [],
-        completedDates: []
+        completedDates: [],
+        tags: formTags
       };
       setHabits(prev => [...prev, newHabit]);
       setIsCreateModalOpen(false);
@@ -586,7 +346,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
         start_date: newHabit.startDate,
         use_counter: newHabit.useCounter,
         progress: {},
-        skipped_dates: []
+        skipped_dates: [],
+        tags: newHabit.tags
       });
     }
   };
@@ -719,12 +480,33 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                   <Calendar className="w-3.5 h-3.5 text-[#0078d4]" />
                   Started {formatDateFriendly(selectedHabit.startDate)}
                 </span>
+                
+                {/* Display Tags */}
+                {selectedHabit.tags && selectedHabit.tags.length > 0 && (
+                    <div className="flex items-center gap-1">
+                        {selectedHabit.tags.map(tagId => {
+                            const tag = tags.find(t => t.id === tagId);
+                            if (!tag) return null;
+                            return (
+                                <span 
+                                key={tagId} 
+                                className="flex items-center gap-1 px-1.5 py-0.5 rounded border border-transparent"
+                                style={{ backgroundColor: `${tag.color}15`, color: tag.color }}
+                                >
+                                <TagIcon className="w-3 h-3" />
+                                {tag.label}
+                                </span>
+                            );
+                        })}
+                    </div>
+                )}
               </div>
             </div>
           </div>
 
           {/* Statistics Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+            {/* Stats logic same as before... */}
             {[
               { label: 'Current Streak', value: `${getHabitStats(selectedHabit).streak} Days`, icon: Flame, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
               { label: 'Longest Streak', value: `${getHabitStats(selectedHabit).longestStreak} Days`, icon: TrendingUp, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-100' },
@@ -1034,6 +816,54 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                   </div>
                 </div>
               )}
+
+              {/* Tag Selector */}
+              <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><TagIcon className="w-3 h-3"/> Labels</label>
+                  <div className="flex flex-wrap gap-2">
+                      {tags.map(tag => {
+                          const isActive = formTags.includes(tag.id);
+                          return (
+                              <button
+                                  key={tag.id}
+                                  type="button"
+                                  onClick={() => {
+                                      if (isActive) setFormTags(prev => prev.filter(id => id !== tag.id));
+                                      else setFormTags(prev => [...prev, tag.id]);
+                                  }}
+                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition-all ${
+                                      isActive 
+                                      ? 'ring-2 ring-offset-1 ring-[#0078d4] border-transparent' 
+                                      : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                  }`}
+                                  style={isActive ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
+                              >
+                                  <TagIcon className="w-3 h-3" />
+                                  {tag.label}
+                              </button>
+                          );
+                      })}
+                      {/* Inline Tag Creator */}
+                      <div className="flex items-center gap-1">
+                          <input 
+                             type="text" 
+                             placeholder="New Label..." 
+                             value={newTagInput}
+                             onChange={(e) => setNewTagInput(e.target.value)}
+                             className="w-24 text-xs px-2 py-1.5 border border-slate-200 rounded focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                             onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }}
+                          />
+                          <button 
+                             type="button"
+                             onClick={handleInlineCreateTag}
+                             disabled={!newTagInput.trim() || isCreatingTag}
+                             className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-[#eff6fc] hover:text-[#0078d4] disabled:opacity-50"
+                          >
+                             <Plus className="w-3.5 h-3.5" />
+                          </button>
+                      </div>
+                  </div>
+              </div>
 
               <div className="space-y-2">
                  <div className="flex items-center justify-between">

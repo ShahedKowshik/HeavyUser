@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft, Notebook, Lightbulb, Bug } from 'lucide-react';
+import { LayoutGrid, CheckCircle2, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, AlertTriangle, ChevronLeft, ChevronRight, PanelLeft, Notebook, Lightbulb, Bug, Clock } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
@@ -28,6 +28,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [isStreakModalOpen, setIsStreakModalOpen] = useState(false);
+  const [timeLeft, setTimeLeft] = useState('');
 
   // Pet Reference to trigger animations
   const petRef = useRef<PetRef>(null);
@@ -89,6 +90,34 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     return `${year}-${month}-${day}`;
   };
 
+  // Countdown Logic
+  useEffect(() => {
+    const updateCountdown = () => {
+        const now = new Date();
+        const startHour = userSettings.dayStartHour || 0;
+        
+        let target = new Date();
+        // If current hour is less than start hour (e.g. 2am < 4am), the "day" ends at 4am today.
+        // If current hour is greater (10am > 4am), the "day" ends at 4am tomorrow.
+        if (now.getHours() < startHour) {
+            target.setHours(startHour, 0, 0, 0);
+        } else {
+            target.setDate(target.getDate() + 1);
+            target.setHours(startHour, 0, 0, 0);
+        }
+
+        const diff = target.getTime() - now.getTime();
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        
+        setTimeLeft(`${hours}h ${minutes}m`);
+    };
+
+    const timer = setInterval(updateCountdown, 60000);
+    updateCountdown();
+    return () => clearInterval(timer);
+  }, [userSettings.dayStartHour]);
+
   // Fetch Data from Supabase
   useEffect(() => {
     const fetchData = async () => {
@@ -146,30 +175,30 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
       if (habitsData) {
         const mappedHabits: Habit[] = habitsData.map((h: any) => {
-          // Handle Legacy Data Migration (convert completed_dates array to progress object if progress is missing)
+          // Handle Legacy Data Migration
           let progressMap: Record<string, number> = h.progress || {};
           const target = h.target || 1;
           
           if (Object.keys(progressMap).length === 0 && h.completed_dates && Array.isArray(h.completed_dates)) {
             h.completed_dates.forEach((date: string) => {
-              progressMap[date] = target; // Assume legacy completions met the target
+              progressMap[date] = target; 
             });
           }
 
-          // Safe Date Parsing
           const createdDate = h.created_at ? h.created_at.split('T')[0] : new Date().toISOString().split('T')[0];
 
           return {
             id: h.id,
-            title: decryptData(h.title), // Decrypt Habit Title
+            title: decryptData(h.title), 
             icon: h.icon,
             target: target,
-            unit: h.unit || '', // Map unit field
+            unit: h.unit || '',
             progress: progressMap,
             skippedDates: h.skipped_dates || [],
             startDate: h.start_date || createdDate,
-            useCounter: h.use_counter !== false, // Default to true if undefined (legacy compatibility)
-            completedDates: [] 
+            useCounter: h.use_counter !== false,
+            completedDates: [],
+            tags: h.tags || []
           };
         });
         setHabits(mappedHabits);
@@ -190,7 +219,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           timestamp: j.timestamp,
           rating: j.rating,
           entryType: j.entry_type as EntryType,
-          coverImage: j.cover_image
+          coverImage: j.cover_image,
+          tags: j.tags || []
         }));
         setJournals(mappedJournals);
       }
@@ -222,9 +252,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           id: n.id,
           title: decryptData(n.title),
           content: decryptData(n.content),
-          folderId: n.folder_id, // Map DB folder_id
+          folderId: n.folder_id, 
           createdAt: n.created_at,
-          updatedAt: n.updated_at
+          updatedAt: n.updated_at,
+          tags: n.tags || []
         }));
         setNotes(mappedNotes);
       }
@@ -253,10 +284,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const streakData = useMemo(() => {
     const activeDates = new Set<string>();
 
-    // For consistency, all activity should be mapped to the Logical Date it occurred on.
-    // However, most timestamps (created_at) are absolute. 
-    // We must adjust them based on dayStartHour to see which "Logical Day" they belong to.
-    
     const getLogicalDateFromISO = (isoString: string) => {
         const d = new Date(isoString);
         if (d.getHours() < (userSettings.dayStartHour || 0)) {
@@ -281,8 +308,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     });
 
     // 2. Habit Activity (Progress keys are DATE STRINGS, already logical if generated by HabitSection)
-    // NOTE: HabitSection generates keys using getLogicalDateStr logic now. 
-    // Assuming existing keys are strictly dates YYYY-MM-DD.
     habits.forEach(h => {
       Object.keys(h.progress).forEach(date => {
         if (h.progress[date] > 0) activeDates.add(date);
@@ -310,8 +335,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       currentStreak = 0;
     } else {
       // Calculate sequence
-      // We start checking from today if active, otherwise yesterday
-      // Construct date object from logical string to iterate
       const [y, m, d] = (hasActivityToday ? today : yesterday).split('-').map(Number);
       let checkDate = new Date(y, m - 1, d); 
       
@@ -348,17 +371,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       case 'tasks':
         return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} onTaskComplete={handleTaskComplete} />;
       case 'habit':
-        return <HabitSection habits={habits} setHabits={setHabits} userId={userId} dayStartHour={userSettings.dayStartHour} onHabitComplete={handleTaskComplete} />;
+        return <HabitSection habits={habits} setHabits={setHabits} userId={userId} dayStartHour={userSettings.dayStartHour} onHabitComplete={handleTaskComplete} tags={tags} setTags={setTags} />;
       case 'journal':
-        return <JournalSection journals={journals} setJournals={setJournals} userId={userId} />;
+        return <JournalSection journals={journals} setJournals={setJournals} userId={userId} tags={tags} setTags={setTags} />;
       case 'notes':
-        return <NotesSection notes={notes} setNotes={setNotes} folders={folders} setFolders={setFolders} userId={userId} />;
+        return <NotesSection notes={notes} setNotes={setNotes} folders={folders} setFolders={setFolders} userId={userId} tags={tags} setTags={setTags} />;
       case 'request_feature':
         return <RequestFeatureSection userId={userId} />;
       case 'report_bug':
         return <ReportBugSection userId={userId} />;
       case 'settings':
-        return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} />;
+        return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} tags={tags} setTags={setTags} />;
       default:
         return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} onTaskComplete={handleTaskComplete} />;
     }
@@ -544,7 +567,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
       {/* Streak Details Modal */}
       {isStreakModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+        <div 
+            onClick={(e) => {
+                // Close if clicking outside the modal content
+                if (e.target === e.currentTarget) setIsStreakModalOpen(false);
+            }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
+        >
           <div className="bg-white w-[95%] md:w-full max-w-lg rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden">
              {/* Modal Header */}
              <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-6 text-white relative overflow-hidden">
@@ -579,11 +608,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                    ) : (
                      <Activity className="w-5 h-5 shrink-0" />
                    )}
-                   <p className="text-sm font-bold">
-                     {streakData.activeToday 
-                       ? "Daily streak extended! Great work." 
-                       : "Complete an activity today to continue your streak."}
-                   </p>
+                   <div className="flex-1">
+                       <p className="text-sm font-bold">
+                         {streakData.activeToday 
+                           ? "Daily streak extended! Great work." 
+                           : "Complete an activity today to continue your streak."}
+                       </p>
+                       <div className="flex items-center gap-1.5 mt-1 text-xs font-medium opacity-80">
+                           <Clock className="w-3 h-3" />
+                           <span>
+                               {streakData.activeToday ? 'Next streak starts in: ' : 'Time left today: '}
+                               <span className="font-bold font-mono">{timeLeft}</span>
+                           </span>
+                       </div>
+                   </div>
                 </div>
 
                 {/* Requirements */}

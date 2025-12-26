@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, Search, Edit2, X, BookOpen, Image as ImageIcon, Sparkles } from 'lucide-react';
-import { JournalEntry, EntryType } from '../types';
+import { Plus, Trash2, Search, Edit2, X, BookOpen, Image as ImageIcon, Sparkles, Tag as TagIcon } from 'lucide-react';
+import { JournalEntry, EntryType, Tag } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
 
@@ -8,11 +8,31 @@ interface JournalSectionProps {
   journals: JournalEntry[];
   setJournals: React.Dispatch<React.SetStateAction<JournalEntry[]>>;
   userId: string;
+  tags: Tag[];
+  setTags: React.Dispatch<React.SetStateAction<Tag[]>>;
 }
 
 type JournalFilter = 'All' | 'Log' | 'Gratitude';
 
-const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, userId }) => {
+// Helper to create a new tag inline
+const createNewTag = async (label: string, userId: string): Promise<Tag> => {
+    const newTag: Tag = {
+        id: crypto.randomUUID(),
+        label: label.trim(),
+        color: '#3b82f6', // Default blue
+    };
+    
+    await supabase.from('tags').insert({
+        id: newTag.id,
+        user_id: userId,
+        label: encryptData(newTag.label),
+        color: newTag.color
+    });
+    
+    return newTag;
+};
+
+const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, userId, tags, setTags }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,18 +41,42 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [entryType, setEntryType] = useState<EntryType>('Log');
+  const [entryTags, setEntryTags] = useState<string[]>([]);
+
+  // Tag Creation State
+  const [newTagInput, setNewTagInput] = useState('');
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
 
   const openCreateModal = () => {
-    setEditingEntry(null); setTitle(''); setContent(''); setEntryType('Log');
+    setEditingEntry(null); setTitle(''); setContent(''); setEntryType('Log'); setEntryTags([]);
+    setNewTagInput(''); setIsCreatingTag(false);
     setIsModalOpen(true);
   };
 
   const openEditModal = (entry: JournalEntry) => {
-    setEditingEntry(entry); setTitle(entry.title); setContent(entry.content); setEntryType(entry.entryType);
+    setEditingEntry(entry); setTitle(entry.title); setContent(entry.content); setEntryType(entry.entryType); setEntryTags(entry.tags || []);
+    setNewTagInput(''); setIsCreatingTag(false);
     setIsModalOpen(true);
   };
 
   const closeModal = () => { setIsModalOpen(false); setEditingEntry(null); };
+
+  const handleInlineCreateTag = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!newTagInput.trim()) return;
+      
+      setIsCreatingTag(true);
+      try {
+          const newTag = await createNewTag(newTagInput, userId);
+          setTags(prev => [...prev, newTag]);
+          setEntryTags(prev => [...prev, newTag.id]);
+          setNewTagInput('');
+      } catch (err) {
+          console.error(err);
+      } finally {
+          setIsCreatingTag(false);
+      }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,19 +84,20 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
 
     if (editingEntry) {
       // Optimistic Update (Update local state with PLAIN TEXT for UI)
-      setJournals(prev => prev.map(j => j.id === editingEntry.id ? { ...j, title, content, entryType } : j));
+      setJournals(prev => prev.map(j => j.id === editingEntry.id ? { ...j, title, content, entryType, tags: entryTags } : j));
       
       // Sync to Supabase (Send ENCRYPTED text)
       await supabase.from('journals').update({
         title: encryptData(title),
         content: encryptData(content),
-        entry_type: entryType
+        entry_type: entryType,
+        tags: entryTags
       }).eq('id', editingEntry.id);
       
     } else {
       const newId = crypto.randomUUID();
       const timestamp = new Date().toISOString();
-      const newEntry: JournalEntry = { id: newId, title, content, timestamp, rating: null, entryType };
+      const newEntry: JournalEntry = { id: newId, title, content, timestamp, rating: null, entryType, tags: entryTags };
       
       // Optimistic Update (Add to local state with PLAIN TEXT)
       setJournals([newEntry, ...journals]);
@@ -65,7 +110,8 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
         content: encryptData(content),
         timestamp,
         entry_type: entryType,
-        rating: null
+        rating: null,
+        tags: entryTags
       });
     }
     closeModal();
@@ -146,9 +192,25 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
                 {entries.map((entry) => (
                   <div key={entry.id} className="group bg-white rounded border border-slate-200 p-5 hover:shadow-lg hover:border-slate-300 transition-all flex flex-col justify-between relative">
                     <div className="flex items-start justify-between mb-3">
-                       <span className={`text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded ${entry.entryType === 'Gratitude' ? 'bg-orange-50 text-[#d83b01]' : 'bg-blue-50 text-[#0078d4]'}`}>
-                          {entry.entryType}
-                       </span>
+                       <div className="flex flex-wrap gap-2">
+                           <span className={`text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded ${entry.entryType === 'Gratitude' ? 'bg-orange-50 text-[#d83b01]' : 'bg-blue-50 text-[#0078d4]'}`}>
+                              {entry.entryType}
+                           </span>
+                           {entry.tags?.map(tagId => {
+                                const tag = tags.find(t => t.id === tagId);
+                                if (!tag) return null;
+                                return (
+                                    <span 
+                                    key={tagId} 
+                                    className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border border-transparent"
+                                    style={{ backgroundColor: `${tag.color}15`, color: tag.color }}
+                                    >
+                                    <TagIcon className="w-2.5 h-2.5" />
+                                    {tag.label}
+                                    </span>
+                                );
+                            })}
+                       </div>
                        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                           <button onClick={() => openEditModal(entry)} className="p-1.5 text-[#0078d4] hover:bg-blue-50 rounded transition-colors" title="Edit">
                              <Edit2 className="w-3.5 h-3.5" />
@@ -211,6 +273,54 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Title</label>
                 <input autoFocus required type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Give this moment a name..." className="w-full text-base font-bold bg-slate-50 border-none rounded p-4 focus:ring-2 focus:ring-[#0078d4]/10" />
+              </div>
+
+              {/* Tag Selector */}
+              <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><TagIcon className="w-3 h-3"/> Labels</label>
+                  <div className="flex flex-wrap gap-2">
+                      {tags.map(tag => {
+                          const isActive = entryTags.includes(tag.id);
+                          return (
+                              <button
+                                  key={tag.id}
+                                  type="button"
+                                  onClick={() => {
+                                      if (isActive) setEntryTags(prev => prev.filter(id => id !== tag.id));
+                                      else setEntryTags(prev => [...prev, tag.id]);
+                                  }}
+                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition-all ${
+                                      isActive 
+                                      ? 'ring-2 ring-offset-1 ring-[#0078d4] border-transparent' 
+                                      : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                  }`}
+                                  style={isActive ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
+                              >
+                                  <TagIcon className="w-3 h-3" />
+                                  {tag.label}
+                              </button>
+                          );
+                      })}
+                      {/* Inline Tag Creator */}
+                      <div className="flex items-center gap-1">
+                          <input 
+                             type="text" 
+                             placeholder="New Label..." 
+                             value={newTagInput}
+                             onChange={(e) => setNewTagInput(e.target.value)}
+                             className="w-24 text-xs px-2 py-1.5 border border-slate-200 rounded focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                             onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }}
+                          />
+                          <button 
+                             type="button"
+                             onClick={handleInlineCreateTag}
+                             disabled={!newTagInput.trim() || isCreatingTag}
+                             className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-[#eff6fc] hover:text-[#0078d4] disabled:opacity-50"
+                          >
+                             <Plus className="w-3.5 h-3.5" />
+                          </button>
+                      </div>
+                  </div>
               </div>
 
               <div className="space-y-2">

@@ -1,5 +1,4 @@
 
-
 export type AppTab = 'tasks' | 'habit' | 'journal' | 'notes' | 'settings' | 'request_feature' | 'report_bug';
 
 export type Priority = 'Urgent' | 'High' | 'Normal' | 'Low';
@@ -58,6 +57,7 @@ export interface JournalEntry {
   rating: number | null; // 1-10, nullable for optionality
   entryType: EntryType;
   coverImage?: string; // URL for cover image
+  tags?: string[];
 }
 
 export interface Habit {
@@ -71,7 +71,8 @@ export interface Habit {
   progress: Record<string, number>; // Date (ISO) -> Count
   skippedDates: string[]; // Array of ISO Date strings that are exempted
   /** @deprecated kept for backward compatibility if needed during migration, prefer progress */
-  completedDates?: string[]; 
+  completedDates?: string[];
+  tags?: string[];
 }
 
 export interface Folder {
@@ -86,6 +87,7 @@ export interface Note {
   folderId?: string | null;
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
+  tags?: string[];
 }
 
 export interface UserSettings {

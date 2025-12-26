@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
@@ -23,34 +22,25 @@ type Sorting = 'date' | 'priority' | 'title';
 const priorities: Priority[] = ['Urgent', 'High', 'Normal', 'Low'];
 const priorityOrder: Record<Priority, number> = { 'Urgent': 0, 'High': 1, 'Normal': 2, 'Low': 3 };
 
-// 50 Preset Colors
-const PRESET_COLORS = [
-  '#ef4444', '#dc2626', '#b91c1c', '#991b1b', // Reds
-  '#f97316', '#ea580c', '#c2410c', '#9a3412', // Oranges
-  '#f59e0b', '#d97706', '#b45309', '#92400e', // Ambers
-  '#eab308', '#ca8a04', '#a16207', '#854d0e', // Yellows
-  '#84cc16', '#65a30d', '#4d7c0f', '#3f6212', // Limes
-  '#22c55e', '#16a34a', '#15803d', '#14532d', // Greens
-  '#10b981', '#059669', '#047857', '#064e3b', // Emeralds
-  '#14b8a6', '#0d9488', '#0f766e', '#115e59', // Teals
-  '#06b6d4', '#0891b2', '#0e7490', '#164e63', // Cyans
-  '#0ea5e9', '#0284c7', '#0369a1', '#075985', // Sky
-  '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', // Blue
-  '#6366f1', '#4f46e5', '#4338ca', '#3730a3', // Indigo
-  '#8b5cf6', '#7c3aed', '#6d28d9', '#5b21b6', // Violet
-  '#a855f7', '#9333ea', '#7e22ce', '#6b21a8', // Purple
-  '#d946ef', '#c026d3', '#a21caf', '#86198f', // Fuchsia
-  '#ec4899', '#db2777', '#be185d', '#9d174d', // Pink
-  '#f43f5e', '#e11d48', '#be123c', '#9f1239', // Rose
-  '#64748b', '#475569', '#334155', '#1e293b', // Slate
-  '#78716c', '#57534e', '#44403c', '#292524', // Stone
-  '#71717a', '#52525b', '#3f3f46', '#27272a', // Zinc
-  '#737373', '#525252', '#404040', '#262626', // Neutral
-  '#a1a1aa', '#d4d4d8', '#e4e4e7', '#f4f4f5', // Light Greys
-  '#000000', '#ffffff'
-];
-
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// Helper to create a new tag inline (Shared logic concept)
+const createNewTag = async (label: string, userId: string): Promise<Tag> => {
+    const newTag: Tag = {
+        id: crypto.randomUUID(),
+        label: label.trim(),
+        color: '#3b82f6', // Default blue
+    };
+    
+    await supabase.from('tags').insert({
+        id: newTag.id,
+        user_id: userId,
+        label: encryptData(newTag.label),
+        color: newTag.color
+    });
+    
+    return newTag;
+};
 
 const getNextDate = (currentDateStr: string, r: Recurrence): string => {
   // Use UTC to prevent DST shifts affecting logic
@@ -152,7 +142,6 @@ const mapTaskToDb = (task: Task, userId: string) => ({
 
 export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, onTaskComplete }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   
   // Settings Popover State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -197,24 +186,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const [createNotes, setCreateNotes] = useState('');
   const [createRecurrence, setCreateRecurrence] = useState<Recurrence | null>(null);
   
+  // Tag Creation State (Inline)
+  const [newTagInput, setNewTagInput] = useState('');
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
+
   // Custom Recurrence Modal
   const [isRecurrenceModalOpen, setIsRecurrenceModalOpen] = useState(false);
   const [recurrenceEditValue, setRecurrenceEditValue] = useState<Recurrence | null>(null);
   const [recurrenceCallback, setRecurrenceCallback] = useState<((r: Recurrence | null) => void) | null>(null);
-
-  // Inline Tag Creation State
-  const [isCreatingTagInline, setIsCreatingTagInline] = useState(false);
-  const [inlineTagLabel, setInlineTagLabel] = useState('');
-  const [inlineTagColor, setInlineTagColor] = useState(PRESET_COLORS[0]);
-
-  // Tag Manager State (Creation)
-  const [newTagLabel, setNewTagLabel] = useState('');
-  const [newTagColor, setNewTagColor] = useState(PRESET_COLORS[0]);
-
-  // Tag Manager State (Editing)
-  const [editingTagId, setEditingTagId] = useState<string | null>(null);
-  const [editTagLabel, setEditTagLabel] = useState('');
-  const [editTagColor, setEditTagColor] = useState('');
 
   // Derived State for Details Panel
   const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId), [tasks, selectedTaskId]);
@@ -261,9 +240,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     setCreateSubtasks([]);
     setCreateNotes('');
     setCreateRecurrence(null);
-    setIsCreatingTagInline(false);
-    setInlineTagLabel('');
-    setInlineTagColor(PRESET_COLORS[0]);
+    setNewTagInput('');
+    setIsCreatingTag(false);
     setIsModalOpen(true);
   };
 
@@ -283,6 +261,23 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
           recurrenceCallback(recurrenceEditValue);
       }
       setIsRecurrenceModalOpen(false);
+  };
+
+  const handleInlineCreateTag = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!newTagInput.trim()) return;
+      
+      setIsCreatingTag(true);
+      try {
+          const newTag = await createNewTag(newTagInput, userId);
+          setTags(prev => [...prev, newTag]);
+          setSelectedTags(prev => [...prev, newTag.id]);
+          setNewTagInput('');
+      } catch (err) {
+          console.error(err);
+      } finally {
+          setIsCreatingTag(false);
+      }
   };
 
   const RecurrenceButton = ({ value, onChange }: { value: Recurrence | null, onChange: (r: Recurrence | null) => void }) => (
@@ -361,111 +356,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const updateSelectedTask = (updates: Partial<Task>) => {
     if (!selectedTaskId) return;
     setTasks(prev => prev.map(t => t.id === selectedTaskId ? { ...t, ...updates } : t));
-  };
-
-  const handleAddTag = async () => {
-    if (!newTagLabel.trim()) return;
-    const newTag: Tag = {
-      id: crypto.randomUUID(),
-      label: newTagLabel.trim(),
-      color: newTagColor,
-    };
-    setTags([...tags, newTag]);
-    setNewTagLabel('');
-
-    // Sync to Supabase (Encrypted Label)
-    await supabase.from('tags').insert({
-      id: newTag.id,
-      user_id: userId,
-      label: encryptData(newTag.label),
-      color: newTag.color
-    });
-  };
-
-  const handleAddInlineTag = async () => {
-    if (!inlineTagLabel.trim()) return;
-    const newTag: Tag = {
-      id: crypto.randomUUID(),
-      label: inlineTagLabel.trim(),
-      color: inlineTagColor,
-    };
-    setTags([...tags, newTag]);
-    
-    if (selectedTaskId) {
-        // Edit Mode: Update current task immediately
-        const currentTags = selectedTask?.tags || [];
-        updateSelectedTask({ tags: [...currentTags, newTag.id] });
-    } else {
-        // Create Mode: Update form state
-        setSelectedTags(prev => [...prev, newTag.id]);
-    }
-    
-    // Reset Inline Form
-    setInlineTagLabel('');
-    setInlineTagColor(PRESET_COLORS[0]);
-    setIsCreatingTagInline(false);
-
-    // Sync to Supabase (Encrypted Label)
-    await supabase.from('tags').insert({
-      id: newTag.id,
-      user_id: userId,
-      label: encryptData(newTag.label),
-      color: newTag.color
-    });
-  };
-
-  const handleDeleteTag = async (id: string) => {
-    if (!window.confirm("Delete this label? It will be removed from all tasks.")) return;
-    
-    setTags(tags.filter(t => t.id !== id));
-    setTasks(prev => prev.map(t => ({
-      ...t,
-      tags: t.tags?.filter(tagId => tagId !== id)
-    })));
-    
-    // Also remove from filters if deleted
-    if (filterTags.has(id)) {
-        const next = new Set(filterTags);
-        next.delete(id);
-        setFilterTags(next);
-    }
-
-    // Sync to Supabase
-    await supabase.from('tags').delete().eq('id', id);
-  };
-
-  const startEditingTag = (tag: Tag) => {
-    setEditingTagId(tag.id);
-    setEditTagLabel(tag.label);
-    setEditTagColor(tag.color);
-  };
-
-  const cancelEditingTag = () => {
-    setEditingTagId(null);
-    setEditTagLabel('');
-    setEditTagColor('');
-  };
-
-  const saveEditingTag = async () => {
-    if (!editingTagId || !editTagLabel.trim()) return;
-
-    const updatedTag = {
-      id: editingTagId,
-      label: editTagLabel.trim(),
-      color: editTagColor
-    };
-
-    // Optimistic Update
-    setTags(prev => prev.map(t => t.id === editingTagId ? { ...t, ...updatedTag } : t));
-    
-    // Reset Edit State
-    cancelEditingTag();
-
-    // Sync to Supabase
-    await supabase.from('tags').update({
-      label: encryptData(updatedTag.label),
-      color: updatedTag.color
-    }).eq('id', updatedTag.id);
   };
 
   const toggleTask = async (id: string) => {
@@ -764,7 +654,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                   onClick={() => { 
                     setSelectedTaskId(task.id); 
                     setIsPreviewMode(false); 
-                    setIsCreatingTagInline(false);
                   }}
                   className={`bg-white rounded border border-slate-200 px-4 py-3 transition-all hover:shadow-md hover:border-slate-300 group cursor-pointer ${task.completed ? 'opacity-70 bg-slate-50' : ''}`}
                 >
@@ -985,7 +874,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter by Label</h4>
-                                    <button onClick={() => setIsTagManagerOpen(true)} className="text-[10px] font-bold text-[#0078d4] hover:underline">Manage</button>
                                 </div>
                                 <div className="max-h-40 overflow-y-auto space-y-1 custom-scrollbar">
                                     {tags.length === 0 && <p className="text-xs text-slate-400 italic">No labels created.</p>}
@@ -1018,7 +906,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
           {/* Desktop New Task Button */}
           <button 
               onClick={openCreateModal}
-              className="hidden md:flex items-center justify-center gap-2 px-6 py-2 fluent-btn-primary rounded shadow-md active:scale-95 transition-transform text-sm font-bold shrink-0"
+              className="hidden md:flex items-center justify-center gap-2 px-6 py-2.5 fluent-btn-primary rounded shadow-md active:scale-95 transition-transform text-sm font-bold shrink-0"
           >
               <Plus className="w-4 h-4" />
               <span>New Task</span>
@@ -1116,62 +1004,51 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
                {/* Tags */}
                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><TagIcon className="w-3 h-3"/> Labels</label>
-                      {!isCreatingTagInline && (
-                          <button type="button" onClick={() => setIsCreatingTagInline(true)} className="text-[10px] font-bold text-[#0078d4] hover:underline flex items-center gap-1">
-                              <Plus className="w-3 h-3"/> New Label
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><TagIcon className="w-3 h-3"/> Labels</label>
+                  <div className="flex flex-wrap gap-2">
+                      {tags.map(tag => {
+                          const isActive = selectedTags.includes(tag.id);
+                          return (
+                              <button
+                                  key={tag.id}
+                                  type="button"
+                                  onClick={() => {
+                                      if (isActive) setSelectedTags(prev => prev.filter(id => id !== tag.id));
+                                      else setSelectedTags(prev => [...prev, tag.id]);
+                                  }}
+                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition-all ${
+                                      isActive 
+                                      ? 'ring-2 ring-offset-1 ring-[#0078d4] border-transparent' 
+                                      : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                  }`}
+                                  style={isActive ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
+                              >
+                                  <TagIcon className="w-3 h-3" />
+                                  {tag.label}
+                              </button>
+                          );
+                      })}
+                      
+                      {/* Inline Tag Creator */}
+                      <div className="flex items-center gap-1">
+                          <input 
+                             type="text" 
+                             placeholder="New Label..." 
+                             value={newTagInput}
+                             onChange={(e) => setNewTagInput(e.target.value)}
+                             className="w-24 text-xs px-2 py-1.5 border border-slate-200 rounded focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                             onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }}
+                          />
+                          <button 
+                             type="button"
+                             onClick={handleInlineCreateTag}
+                             disabled={!newTagInput.trim() || isCreatingTag}
+                             className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-[#eff6fc] hover:text-[#0078d4] disabled:opacity-50"
+                          >
+                             <Plus className="w-3.5 h-3.5" />
                           </button>
-                      )}
+                      </div>
                   </div>
-                  {isCreatingTagInline ? (
-                      <div className="bg-slate-50 p-3 rounded border border-slate-200 space-y-2 animate-in fade-in zoom-in-95">
-                          <div className="flex gap-2">
-                              <input 
-                                  type="text" 
-                                  value={inlineTagLabel} 
-                                  onChange={(e) => setInlineTagLabel(e.target.value)}
-                                  placeholder="Label name"
-                                  className="flex-1 text-xs font-semibold bg-white border border-slate-200 rounded p-2 focus:ring-1 focus:ring-[#0078d4]"
-                              />
-                              <input 
-                                  type="color" 
-                                  value={inlineTagColor} 
-                                  onChange={(e) => setInlineTagColor(e.target.value)} 
-                                  className="w-8 h-full rounded cursor-pointer border border-slate-200 p-0.5 bg-white" 
-                              />
-                          </div>
-                          <div className="flex justify-end gap-2">
-                              <button type="button" onClick={() => setIsCreatingTagInline(false)} className="px-3 py-1 text-xs font-bold text-slate-500">Cancel</button>
-                              <button type="button" onClick={handleAddInlineTag} className="px-3 py-1 text-xs font-bold bg-[#0078d4] text-white rounded">Add</button>
-                          </div>
-                      </div>
-                  ) : (
-                      <div className="flex flex-wrap gap-2">
-                          {tags.map(tag => {
-                              const isActive = selectedTags.includes(tag.id);
-                              return (
-                                  <button
-                                      key={tag.id}
-                                      type="button"
-                                      onClick={() => {
-                                          if (isActive) setSelectedTags(prev => prev.filter(id => id !== tag.id));
-                                          else setSelectedTags(prev => [...prev, tag.id]);
-                                      }}
-                                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition-all ${
-                                          isActive 
-                                          ? 'ring-2 ring-offset-1 ring-[#0078d4] border-transparent' 
-                                          : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                                      }`}
-                                      style={isActive ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
-                                  >
-                                      <TagIcon className="w-3 h-3" />
-                                      {tag.label}
-                                  </button>
-                              );
-                          })}
-                      </div>
-                  )}
                </div>
 
                <div className="h-px bg-slate-100" />
@@ -1377,119 +1254,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
            document.body
        )}
 
-       {/* Tag Manager Modal */}
-      {isTagManagerOpen && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="bg-white w-[95%] md:w-full max-w-md rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden max-h-[85vh]">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <TagIcon className="w-5 h-5 text-[#0078d4]" />
-                <h3 className="text-lg font-black text-slate-800 tracking-tight">Manage Labels</h3>
-              </div>
-              <button onClick={() => setIsTagManagerOpen(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-6 flex-1 overflow-y-auto space-y-6">
-              {/* Existing Tags */}
-              <div className="space-y-3">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Existing Labels</h4>
-                <div className="space-y-2">
-                  {tags.length === 0 ? (
-                    <p className="text-sm text-slate-400 italic">No labels yet.</p>
-                  ) : (
-                    tags.map(tag => (
-                      editingTagId === tag.id ? (
-                        // Edit Mode Row
-                        <div key={tag.id} className="p-3 bg-[#eff6fc] rounded border border-[#0078d4] animate-in fade-in">
-                           <div className="flex gap-2 mb-2">
-                              <input 
-                                type="text" 
-                                value={editTagLabel} 
-                                onChange={(e) => setEditTagLabel(e.target.value)} 
-                                className="flex-1 text-xs font-bold bg-white border border-[#0078d4] rounded p-2 focus:ring-1 focus:ring-[#0078d4]" 
-                                autoFocus
-                              />
-                           </div>
-                           <div className="flex gap-2 flex-wrap mb-2 max-h-24 overflow-y-auto">
-                              {PRESET_COLORS.map(color => (
-                                <button 
-                                  key={color} 
-                                  onClick={() => setEditTagColor(color)}
-                                  className={`w-4 h-4 rounded shrink-0 transition-transform ${editTagColor === color ? 'ring-2 ring-offset-1 ring-[#0078d4] scale-110' : ''}`}
-                                  style={{ backgroundColor: color }}
-                                />
-                              ))}
-                           </div>
-                           <div className="flex justify-end gap-2">
-                              <button onClick={cancelEditingTag} className="p-1.5 text-slate-600 hover:bg-slate-100 rounded"><X className="w-4 h-4" /></button>
-                              <button onClick={saveEditingTag} className="p-1.5 bg-[#0078d4] text-white rounded hover:bg-[#106ebe]"><Check className="w-4 h-4" /></button>
-                           </div>
-                        </div>
-                      ) : (
-                        // Display Mode Row
-                        <div key={tag.id} className="flex items-center justify-between p-3 bg-slate-50 rounded border border-slate-200 group">
-                          <div className="flex items-center gap-3">
-                            <div className="w-4 h-4 rounded" style={{ backgroundColor: tag.color }} />
-                            <span className="text-sm font-semibold text-slate-800">{tag.label}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button 
-                              onClick={() => startEditingTag(tag)}
-                              className="p-1.5 text-[#0078d4] hover:bg-blue-50 rounded transition-colors"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteTag(tag.id)} 
-                              className="p-1.5 text-[#a4262c] hover:bg-red-50 rounded transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-3 pt-6 border-t border-slate-100">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Create New Label</h4>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={newTagLabel} 
-                    onChange={(e) => setNewTagLabel(e.target.value)} 
-                    placeholder="Label name..." 
-                    className="flex-1 text-sm font-semibold bg-slate-50 border-none rounded p-3 focus:ring-2 focus:ring-[#0078d4]/20" 
-                  />
-                  <button onClick={handleAddTag} disabled={!newTagLabel.trim()} className="px-4 bg-[#0078d4] text-white rounded hover:bg-[#106ebe] disabled:opacity-50 disabled:hover:bg-[#0078d4] transition-colors">
-                    <Plus className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="flex gap-2 flex-wrap max-h-32 overflow-y-auto">
-                  {PRESET_COLORS.map(color => (
-                    <button 
-                      key={color} 
-                      onClick={() => setNewTagColor(color)}
-                      className={`w-6 h-6 rounded transition-transform hover:scale-110 shrink-0 ${newTagColor === color ? 'ring-2 ring-offset-2 ring-slate-600' : ''}`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
-               <button onClick={() => setIsTagManagerOpen(false)} className="px-5 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded transition-colors">Done</button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
       {/* EDIT TASK MODAL */}
       {selectedTask && createPortal(
         <div 
@@ -1590,64 +1354,32 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
                {/* Tags */}
                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><TagIcon className="w-3 h-3"/> Labels</label>
-                      {!isCreatingTagInline && (
-                          <button onClick={() => setIsCreatingTagInline(true)} className="text-[10px] font-bold text-[#0078d4] hover:underline flex items-center gap-1">
-                              <Plus className="w-3 h-3"/> New Label
-                          </button>
-                      )}
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><TagIcon className="w-3 h-3"/> Labels</label>
+                  <div className="flex flex-wrap gap-2">
+                      {tags.length === 0 && <span className="text-xs text-slate-400 italic">No labels created.</span>}
+                      {tags.map(tag => {
+                          const isActive = selectedTask.tags?.includes(tag.id);
+                          return (
+                              <button
+                                  key={tag.id}
+                                  onClick={() => {
+                                      const current = selectedTask.tags || [];
+                                      const next = isActive ? current.filter(id => id !== tag.id) : [...current, tag.id];
+                                      updateSelectedTask({ tags: next });
+                                  }}
+                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition-all ${
+                                      isActive 
+                                      ? 'ring-2 ring-offset-1 ring-[#0078d4] border-transparent' 
+                                      : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                  }`}
+                                  style={isActive ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
+                              >
+                                  <TagIcon className="w-3 h-3" />
+                                  {tag.label}
+                              </button>
+                          );
+                      })}
                   </div>
-                  {isCreatingTagInline ? (
-                      <div className="bg-slate-50 p-3 rounded border border-slate-200 space-y-2 animate-in fade-in zoom-in-95">
-                          <div className="flex gap-2">
-                              <input 
-                                  type="text" 
-                                  autoFocus
-                                  value={inlineTagLabel} 
-                                  onChange={(e) => setInlineTagLabel(e.target.value)}
-                                  placeholder="Label name"
-                                  className="flex-1 text-xs font-semibold bg-white border border-slate-200 rounded p-2 focus:ring-1 focus:ring-[#0078d4]"
-                              />
-                              <input 
-                                  type="color" 
-                                  value={inlineTagColor} 
-                                  onChange={(e) => setInlineTagColor(e.target.value)} 
-                                  className="w-8 h-full rounded cursor-pointer border border-slate-200 p-0.5 bg-white" 
-                              />
-                          </div>
-                          <div className="flex justify-end gap-2">
-                              <button onClick={() => setIsCreatingTagInline(false)} className="px-3 py-1 text-xs font-bold text-slate-500">Cancel</button>
-                              <button onClick={handleAddInlineTag} className="px-3 py-1 text-xs font-bold bg-[#0078d4] text-white rounded">Add</button>
-                          </div>
-                      </div>
-                  ) : (
-                      <div className="flex flex-wrap gap-2">
-                          {tags.map(tag => {
-                              const isActive = selectedTask.tags?.includes(tag.id);
-                              return (
-                                  <button
-                                      key={tag.id}
-                                      onClick={() => {
-                                          const current = selectedTask.tags || [];
-                                          const next = isActive ? current.filter(id => id !== tag.id) : [...current, tag.id];
-                                          updateSelectedTask({ tags: next });
-                                      }}
-                                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition-all ${
-                                          isActive 
-                                          ? 'ring-2 ring-offset-1 ring-[#0078d4] border-transparent' 
-                                          : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                                      }`}
-                                      style={isActive ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
-                                  >
-                                      <TagIcon className="w-3 h-3" />
-                                      {tag.label}
-                                  </button>
-                              );
-                          })}
-                          {tags.length === 0 && <span className="text-xs text-slate-400 italic">No labels created yet.</span>}
-                      </div>
-                  )}
                </div>
 
                <div className="h-px bg-slate-100" />
