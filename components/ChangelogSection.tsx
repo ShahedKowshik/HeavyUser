@@ -7,6 +7,21 @@ const ChangelogSection: React.FC = () => {
     const logs = [
         {
             date: '2025-12-27',
+            time: '11:55 AM',
+            title: 'UI Accent Color Standardization',
+            changes: [
+                {
+                    type: 'Changed', items: [
+                        "Standardized the global primary accent color to Blue (#0078d4) across all sections (Tasks, Journal, Notes, Settings) to match the Habits section.",
+                        "Updated sidebar navigation active states to use the consistent blue accent.",
+                        "Changed default new tag color to blue for immediate visual consistency.",
+                        "Updated all primary action buttons (Submit, Add, Save) to use the new standardized blue."
+                    ]
+                }
+            ]
+        },
+        {
+            date: '2025-12-27',
             time: '06:40 AM',
             title: 'Sidebar Reorganization',
             changes: [
