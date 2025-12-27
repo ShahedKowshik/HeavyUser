@@ -7,6 +7,20 @@ const ChangelogSection: React.FC = () => {
     const logs = [
         {
             date: '2025-12-27',
+            time: '02:54 PM',
+            title: 'Visual Identity Refinement',
+            changes: [
+                {
+                    type: 'Changed', items: [
+                        "Updated favicon to a new minimal, square design with a white checkmark on a black background.",
+                        "Replaced the sidebar 'CircleCheck' icon with the actual application favicon for consistent branding.",
+                        "Bumped favicon version to 'v4' for immediate cache validation."
+                    ]
+                }
+            ]
+        },
+        {
+            date: '2025-12-27',
             time: '11:55 AM',
             title: 'UI Accent Color Standardization',
             changes: [
