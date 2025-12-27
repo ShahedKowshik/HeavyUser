@@ -455,7 +455,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       {/* Sidebar - Desktop */}
       <aside className={`hidden md:flex flex-col p-4 space-y-2 bg-white border-r border-slate-200 shrink-0 z-20 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20 items-center' : 'w-64'}`}>
         <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'space-x-3 px-3'} py-6 relative`}>
-          <CircleCheck className="w-7 h-7 text-slate-600 shrink-0" />
+          <CircleCheck className="w-9 h-9 text-slate-600 shrink-0" />
           {!isSidebarCollapsed && (
             <h1 className="text-lg font-bold tracking-tight whitespace-nowrap overflow-hidden transition-opacity duration-300 text-slate-800">HeavyUser</h1>
           )}
