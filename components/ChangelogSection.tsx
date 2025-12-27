@@ -7,6 +7,28 @@ const ChangelogSection: React.FC = () => {
     const logs = [
         {
             date: '2025-12-27',
+            time: '05:37 PM',
+            title: 'Habit Analytics & UX Overhaul',
+            changes: [
+                {
+                    type: 'Added', items: [
+                        "Progressive Gradient Colors: Habit progress now visually shifts from Red -> Orange -> Yellow -> Green based on daily percentage achieved.",
+                        "Quick Log Panel: A prominent 'Log Today's Progress' panel at the top of the habit detail view for instant access.",
+                        "Improved List View: Added a quick (+) button to habit cards in the list view for one-click increments.",
+                        "Target Met Indicators: Added combined Checkmark + Count displays to clearly show completion status."
+                    ]
+                },
+                {
+                    type: 'Changed', items: [
+                        "Standardized Analytics Cards: Moved from disparate colored borders to a clean, unified slate border design.",
+                        "Layout Restoration: Restored the Analytics grid layout to prevent vertical stacking.",
+                        "Visual Hierarchy: Reordered the detail view to prioritize daily logging actions."
+                    ]
+                }
+            ]
+        },
+        {
+            date: '2025-12-27',
             time: '02:54 PM',
             title: 'Visual Identity Refinement',
             changes: [
