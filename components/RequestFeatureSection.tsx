@@ -131,7 +131,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                     <button
                         onClick={() => setViewMode('submit')}
                         className={`px-6 py-2 text-sm font-black rounded-lg transition-all ${viewMode === 'submit'
-                            ? 'bg-slate-700 text-white shadow-md'
+                            ? 'bg-[#0078d4] text-white shadow-md'
                             : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
                             }`}
                     >
@@ -141,7 +141,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                     <button
                         onClick={() => setViewMode('history')}
                         className={`px-6 py-2 text-sm font-black rounded-lg transition-all ${viewMode === 'history'
-                            ? 'bg-slate-700 text-white shadow-md'
+                            ? 'bg-[#0078d4] text-white shadow-md'
                             : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
                             }`}
                     >
@@ -166,7 +166,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                             <p className="text-sm text-slate-500 mb-6">You haven't submitted any feature requests.</p>
                             <button
                                 onClick={() => setViewMode('submit')}
-                                className="px-6 py-2 bg-slate-600 text-white font-bold rounded-lg hover:bg-slate-700 transition-all"
+                                className="px-6 py-2 bg-[#0078d4] text-white font-bold rounded-lg hover:bg-[#106ebe] transition-all"
                             >
                                 Submit Your First Request
                             </button>
@@ -285,7 +285,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                                 <button
                                     type="submit"
                                     disabled={isSubmitting || !title.trim() || !description.trim()}
-                                    className="flex items-center gap-2 px-8 py-3 bg-slate-700 text-white font-black rounded-lg hover:bg-slate-800 transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+                                    className="flex items-center gap-2 px-8 py-3 bg-[#0078d4] text-white font-black rounded-lg hover:bg-[#106ebe] transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
                                 >
                                     {isSubmitting ? (
                                         <>

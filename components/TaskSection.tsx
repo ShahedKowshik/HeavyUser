@@ -32,7 +32,7 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     const newTag: Tag = {
         id: crypto.randomUUID(),
         label: label.trim(),
-        color: '#475569', // slate-600
+        color: '#3b82f6', // blue-500
     };
 
     await supabase.from('tags').insert({
@@ -768,7 +768,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     }, [tasks, tags, filterTags, activeFilterTagId]);
 
     const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => {
-        const isNightOwlActive = (dayStartHour || 0) > 0;
+        const currentHour = new Date().getHours();
+        const isNightOwlActive = (dayStartHour || 0) > 0 && currentHour < (dayStartHour || 0);
         const startHourLabel = dayStartHour === 0 ? '12 AM' : dayStartHour === 12 ? '12 PM' : dayStartHour && dayStartHour > 12 ? `${dayStartHour - 12} PM` : `${dayStartHour} AM`;
 
         return (
@@ -1000,7 +1001,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
                 <button
                     onClick={openCreateModal}
-                    className="flex items-center justify-center gap-2 px-6 h-10 bg-slate-600 text-white hover:bg-slate-700 rounded shadow-md active:scale-95 transition-transform text-sm font-bold"
+                    className="flex items-center justify-center gap-2 px-6 h-10 bg-[#0078d4] text-white hover:bg-[#106ebe] rounded shadow-md active:scale-95 transition-transform text-sm font-bold"
                 >
                     <Plus className="w-4 h-4" />
                     <span>New Task</span>

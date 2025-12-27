@@ -55,11 +55,11 @@ const NavItem: React.FC<NavItemProps> = ({ id, label, icon: Icon, count, shortcu
     onClick={() => setActiveTab(id)}
     title={isSidebarCollapsed ? label : undefined}
     className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2 rounded-lg transition-all duration-200 group ${activeTab === id
-      ? 'bg-slate-200 text-slate-900 font-bold shadow-sm ring-1 ring-slate-300'
+      ? 'bg-[#0078d4] text-white font-bold shadow-sm'
       : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950 font-medium'
       }`}
   >
-    <Icon className={`w-4.5 h-4.5 transition-colors ${activeTab === id ? 'text-slate-900' : 'text-slate-500 group-hover:text-slate-800'}`} />
+    <Icon className={`w-4.5 h-4.5 transition-colors ${activeTab === id ? 'text-white' : 'text-slate-500 group-hover:text-slate-800'}`} />
     {!isSidebarCollapsed && (
       <>
         <span className="text-sm flex-1 text-left truncate">{label}</span>
@@ -485,7 +485,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               onClick={() => setActiveTab('changelog')}
               title={isSidebarCollapsed ? "What's New" : undefined}
               className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2 rounded-md transition-all duration-200 group ${activeTab === 'changelog'
-                ? 'bg-blue-600 text-white font-bold shadow-md ring-1 ring-blue-700'
+                ? 'bg-[#0078d4] text-white font-bold shadow-sm'
                 : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300 hover:text-blue-700 hover:shadow-sm font-bold'
                 }`}
             >

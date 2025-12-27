@@ -22,7 +22,7 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     const newTag: Tag = {
         id: crypto.randomUUID(),
         label: label.trim(),
-        color: '#475569', // Default slate-600
+        color: '#3b82f6', // Default blue-500
     };
 
     await supabase.from('tags').insert({
@@ -486,7 +486,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                     <div className="relative">
                         <button
                             onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
-                            className="w-8 h-8 flex items-center justify-center bg-slate-700 text-white rounded-lg shadow-sm hover:bg-slate-800 transition-all"
+                            className="w-8 h-8 flex items-center justify-center bg-[#0078d4] text-white rounded-lg shadow-sm hover:bg-[#106ebe] transition-all"
                             title="Add"
                         >
                             <Plus className="w-5 h-5" />
@@ -553,7 +553,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                                             className="flex-1 text-xs px-2 py-1.5 border-none outline-none bg-transparent font-semibold"
                                             onBlur={() => { if (!editFolderName.trim()) setEditingFolderId(null); }}
                                         />
-                                        <button type="submit" className="p-1 bg-slate-600 text-white rounded hover:bg-slate-700"><Check className="w-3 h-3" /></button>
+                                        <button type="submit" className="p-1 bg-[#0078d4] text-white rounded hover:bg-[#106ebe]"><Check className="w-3 h-3" /></button>
                                         <button type="button" onClick={() => setEditingFolderId(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded"><X className="w-3 h-3" /></button>
                                     </div>
                                 </form>
@@ -632,7 +632,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                                 className="flex-1 text-xs px-2 py-1.5 border-none outline-none bg-transparent font-semibold"
                                 onBlur={() => !newFolderName && setIsCreatingFolder(false)}
                             />
-                            <button type="submit" disabled={!newFolderName} className="p-1.5 bg-slate-600 text-white rounded-md"><Plus className="w-3 h-3" /></button>
+                            <button type="submit" disabled={!newFolderName} className="p-1.5 bg-[#0078d4] text-white rounded-md"><Plus className="w-3 h-3" /></button>
                         </div>
                     </form>
                 )}

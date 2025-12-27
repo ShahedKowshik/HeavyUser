@@ -1214,7 +1214,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
               <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
                 <button type="button" onClick={() => { setIsCreateModalOpen(false); setIsEditModalOpen(false); }} className="px-5 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded transition-colors">Cancel</button>
-                <button type="submit" className="px-8 py-2 text-sm font-bold bg-slate-600 text-white hover:bg-slate-700 rounded shadow-lg">{isEditModalOpen ? 'Save Changes' : 'Start Habit'}</button>
+                <button type="submit" className="px-8 py-2 text-sm font-bold bg-[#0078d4] text-white hover:bg-[#106ebe] rounded shadow-lg">{isEditModalOpen ? 'Save Changes' : 'Start Habit'}</button>
               </div>
             </form>
           </div>

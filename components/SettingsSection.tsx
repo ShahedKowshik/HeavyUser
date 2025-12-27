@@ -428,7 +428,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                     </option>
                   ))}
                 </select>
-                <Button onClick={handleSaveProfile} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
+                <Button onClick={handleSaveProfile} className="w-full bg-[#0078d4] hover:bg-[#106ebe] text-white">
                   Update Preferences
                 </Button>
               </div>

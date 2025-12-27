@@ -218,7 +218,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
           </div>
         </div>
 
-        <button onClick={openCreateModal} className="flex items-center justify-center gap-2 px-6 h-10 bg-slate-600 text-white hover:bg-slate-700 rounded shadow-md active:scale-95 transition-transform">
+        <button onClick={openCreateModal} className="flex items-center justify-center gap-2 px-6 h-10 bg-[#0078d4] text-white hover:bg-[#106ebe] rounded shadow-md active:scale-95 transition-transform">
           <Plus className="w-4 h-4" />
           <span className="text-sm font-bold">New Journal</span>
         </button>
@@ -375,7 +375,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
             </form>
             <div className="px-8 py-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-4">
               <button type="button" onClick={closeModal} className="px-6 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded transition-all">Cancel</button>
-              <button onClick={handleSave} type="submit" className="px-10 py-2.5 text-sm font-bold bg-slate-600 text-white hover:bg-slate-700 rounded shadow-lg active:scale-95 transition-transform">Store Memory</button>
+              <button onClick={handleSave} type="submit" className="px-10 py-2.5 text-sm font-bold bg-[#0078d4] text-white hover:bg-[#106ebe] rounded shadow-lg active:scale-95 transition-transform">Store Memory</button>
             </div>
           </div>
         </div>
