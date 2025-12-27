@@ -493,31 +493,29 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               {!isSidebarCollapsed && <span className="text-xs">What's New</span>}
             </button>
 
-            <div className={`grid ${isSidebarCollapsed ? 'grid-cols-1' : 'grid-cols-2'} gap-1`}>
-              <button
-                onClick={() => setActiveTab('request_feature')}
-                title={isSidebarCollapsed ? "Request Feature" : undefined}
-                className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-2 px-2'} py-1.5 rounded-md transition-all duration-200 group ${activeTab === 'request_feature'
-                  ? 'bg-amber-100 text-amber-800 font-bold shadow-sm'
-                  : 'text-slate-500 hover:bg-white hover:text-amber-700 hover:shadow-sm font-medium border border-transparent hover:border-amber-100'
-                  }`}
-              >
-                <Lightbulb className={`w-3.5 h-3.5 transition-colors ${activeTab === 'request_feature' ? 'text-amber-700 fill-amber-700/20' : 'text-slate-400 group-hover:text-amber-600'}`} />
-                {!isSidebarCollapsed && <span className="text-[10px] whitespace-nowrap">Feature</span>}
-              </button>
+            <button
+              onClick={() => setActiveTab('request_feature')}
+              title={isSidebarCollapsed ? "Request Feature" : undefined}
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2 rounded-md transition-all duration-200 group ${activeTab === 'request_feature'
+                ? 'bg-amber-100 text-amber-800 font-bold shadow-sm ring-1 ring-amber-200'
+                : 'text-slate-600 hover:bg-white hover:text-amber-700 hover:shadow-sm font-bold border border-transparent hover:border-amber-100'
+                }`}
+            >
+              <Lightbulb className={`w-4 h-4 transition-colors ${activeTab === 'request_feature' ? 'text-amber-700 fill-amber-700/20' : 'text-slate-400 group-hover:text-amber-600'}`} />
+              {!isSidebarCollapsed && <span className="text-xs">Request Feature</span>}
+            </button>
 
-              <button
-                onClick={() => setActiveTab('report_bug')}
-                title={isSidebarCollapsed ? "Report Bug" : undefined}
-                className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-2 px-2'} py-1.5 rounded-md transition-all duration-200 group ${activeTab === 'report_bug'
-                  ? 'bg-rose-100 text-rose-800 font-bold shadow-sm'
-                  : 'text-slate-500 hover:bg-white hover:text-rose-700 hover:shadow-sm font-medium border border-transparent hover:border-rose-100'
-                  }`}
-              >
-                <Bug className={`w-3.5 h-3.5 transition-colors ${activeTab === 'report_bug' ? 'text-rose-700 fill-rose-700/20' : 'text-slate-400 group-hover:text-rose-600'}`} />
-                {!isSidebarCollapsed && <span className="text-[10px] whitespace-nowrap">Bug</span>}
-              </button>
-            </div>
+            <button
+              onClick={() => setActiveTab('report_bug')}
+              title={isSidebarCollapsed ? "Report Bug" : undefined}
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2 rounded-md transition-all duration-200 group ${activeTab === 'report_bug'
+                ? 'bg-rose-100 text-rose-800 font-bold shadow-sm ring-1 ring-rose-200'
+                : 'text-slate-600 hover:bg-white hover:text-rose-700 hover:shadow-sm font-bold border border-transparent hover:border-rose-100'
+                }`}
+            >
+              <Bug className={`w-4 h-4 transition-colors ${activeTab === 'report_bug' ? 'text-rose-700 fill-rose-700/20' : 'text-slate-400 group-hover:text-rose-600'}`} />
+              {!isSidebarCollapsed && <span className="text-xs">Report Bug</span>}
+            </button>
           </div>
 
           <button

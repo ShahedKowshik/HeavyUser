@@ -7,10 +7,42 @@ const ChangelogSection: React.FC = () => {
     const logs = [
         {
             date: '2025-12-27',
+            time: '06:40 AM',
+            title: 'Sidebar Reorganization',
+            changes: [
+                {
+                    type: 'Changed', items: [
+                        "Moved 'What's New' to a prominent Updates section.",
+                        "Placed 'Feature' and 'Bug' buttons in a more compact yet accessible layout."
+                    ]
+                }
+            ]
+        },
+        {
+            date: '2025-12-27',
+            time: '06:35 AM',
+            title: 'Changelog Integration',
+            changes: [
+                { type: 'Added', items: ["New 'What's New' section in the sidebar with a beautiful timeline UI."] }
+            ]
+        },
+        {
+            date: '2025-12-27',
+            time: '06:25 AM',
             title: 'Favicon & UI Branding',
             changes: [
-                { type: 'Added', items: ['New high-resolution favicon reflecting the "CircleCheck" brand identity.', 'Versioning query to favicon link in index.html to ensure immediate browser updates.'] },
-                { type: 'Changed', items: ['Increased sidebar branding icon size from w-7 to w-9 for better visual prominence.', 'Standardized the git-push workflow to include detailed summaries.'] }
+                {
+                    type: 'Added', items: [
+                        'New high-resolution favicon reflecting the "CircleCheck" brand identity.',
+                        'Versioning query to favicon link in index.html to ensure immediate browser updates.'
+                    ]
+                },
+                {
+                    type: 'Changed', items: [
+                        'Increased sidebar branding icon size from w-7 to w-9 for better visual prominence.',
+                        'Standardized the git-push workflow to include detailed summaries.'
+                    ]
+                }
             ]
         }
     ];
@@ -58,7 +90,7 @@ const ChangelogSection: React.FC = () => {
                                 <div className="flex items-center gap-3 mb-4">
                                     <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-black uppercase tracking-wider border border-slate-200">
                                         <Clock className="w-3 h-3" />
-                                        {new Date(log.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                        {new Date(log.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} • {log.time}
                                     </div>
                                     <h4 className="text-lg font-black text-slate-900">{log.title}</h4>
                                 </div>
