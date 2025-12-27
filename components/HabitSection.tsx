@@ -700,8 +700,19 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     if (isBeforeStart) return 'bg-slate-50 text-slate-300 border-transparent cursor-default opacity-40';
     if (isFuture) return 'bg-white text-slate-200 border-slate-100';
     if (isSkipped) return 'bg-slate-100 text-slate-500 border-slate-200'; // Skipped = Neutral Gray
+
+    // Met Target
     if (count >= habit.target) return 'bg-emerald-500 text-white border-emerald-500 shadow-sm'; // Met = Vibrant Emerald
-    if (count > 0 && count < habit.target) return 'bg-amber-100 text-amber-700 border-amber-200'; // Partial = Amber
+
+    // Partial Progress - Gradient Logic
+    if (count > 0 && count < habit.target) {
+      const ratio = count / habit.target;
+      if (ratio <= 0.25) return 'bg-rose-100 text-rose-700 border-rose-200'; // Red-ish
+      if (ratio <= 0.50) return 'bg-orange-100 text-orange-700 border-orange-200'; // Orange-ish
+      if (ratio <= 0.75) return 'bg-amber-100 text-amber-700 border-amber-200'; // Yellow-ish
+      return 'bg-lime-100 text-lime-700 border-lime-200'; // Green-ish
+    }
+
     if (isToday) return 'bg-white text-slate-600 border-blue-400 ring-2 ring-blue-100'; // Today = Blue outline
     return 'bg-rose-50 text-rose-500 border-rose-100'; // Missed = Rose
   };
@@ -785,27 +796,72 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
             </div>
           </div>
 
+          {/* Quick Action Panel for Today (Moved to Top & Enhanced) */}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50/50 rounded-xl p-6 mb-8 border border-blue-100/60 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+            <div className="absolute -right-6 -top-6 text-blue-600 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity transform rotate-12">
+              <Calendar className="w-40 h-40" />
+            </div>
+
+            <div className="flex items-center gap-4 z-10 relative w-full sm:w-auto">
+              <div className="w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-blue-200 shadow-lg flex items-center justify-center flex-shrink-0 ring-4 ring-white">
+                <Calendar className="w-7 h-7" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-800 tracking-tight leading-tight">Log Today's Progress</h3>
+                <p className="text-sm text-slate-500 font-medium">
+                  {logicalTodayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-slate-200 shadow-sm z-10 hover:border-blue-300 transition-colors w-full sm:w-auto justify-between sm:justify-end">
+              <button
+                onClick={() => updateDayStatus(selectedHabit.id, getLogicalDateStr(), Math.max(0, (selectedHabit.progress[getLogicalDateStr()] || 0) - 1), false)}
+                className="w-10 h-10 flex items-center justify-center bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors border border-slate-100 disabled:opacity-50"
+                disabled={!selectedHabit.useCounter}
+              >
+                <Minus className="w-5 h-5" />
+              </button>
+
+              <div className="px-4 text-center min-w-[5rem]">
+                <div className="text-2xl font-black text-slate-800 leading-none tracking-tight">
+                  {selectedHabit.progress[getLogicalDateStr()] || 0}
+                </div>
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                  / {selectedHabit.target}
+                </div>
+              </div>
+
+              <button
+                onClick={() => updateDayStatus(selectedHabit.id, getLogicalDateStr(), (selectedHabit.progress[getLogicalDateStr()] || 0) + 1, false)}
+                className="w-10 h-10 flex items-center justify-center bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors shadow-emerald-200 shadow-md active:scale-95"
+              >
+                <Plus className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+
           {/* Statistics Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
             {[
-              { label: 'Current Streak', value: `${getHabitStats(selectedHabit).streak} Days`, icon: Flame, color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
-              { label: 'Longest Streak', value: `${getHabitStats(selectedHabit).longestStreak} Days`, icon: TrendingUp, color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' },
-              { label: 'Total Completions', value: `${getHabitStats(selectedHabit).totalMetDays}`, icon: Trophy, color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
-              { label: 'Times Skipped', value: `${getHabitStats(selectedHabit).totalSkips}`, icon: Ban, color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-300' },
-              { label: 'Efficiency', value: `${getHabitStats(selectedHabit).efficiency}%`, icon: Activity, color: 'text-slate-900', bg: 'bg-slate-50', border: 'border-slate-300' },
+              { label: 'Current Streak', value: `${getHabitStats(selectedHabit).streak} Days`, icon: Flame, color: 'text-amber-600', bg: 'bg-amber-50' },
+              { label: 'Longest Streak', value: `${getHabitStats(selectedHabit).longestStreak} Days`, icon: TrendingUp, color: 'text-purple-600', bg: 'bg-purple-50' },
+              { label: 'Total Completions', value: `${getHabitStats(selectedHabit).totalMetDays}`, icon: Trophy, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+              { label: 'Times Skipped', value: `${getHabitStats(selectedHabit).totalSkips}`, icon: Ban, color: 'text-rose-500', bg: 'bg-rose-50' },
+              { label: 'Efficiency', value: `${getHabitStats(selectedHabit).efficiency}%`, icon: Activity, color: 'text-blue-600', bg: 'bg-blue-50' },
             ].map((stat, i) => (
-              <div key={i} className={`bg-white border ${stat.border} p-4 rounded flex flex-col gap-2 relative overflow-hidden group hover:shadow-md transition-all shadow-sm`}>
-                <div className={`absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity ${stat.color}`}>
-                  <stat.icon className="w-12 h-12" />
+              <div key={i} className="bg-white border border-slate-200 p-4 rounded flex flex-col gap-2 relative overflow-hidden group hover:shadow-md hover:border-slate-300 transition-all shadow-sm">
+                <div className={`absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity transform rotate-12 ${stat.color}`}>
+                  <stat.icon className="w-24 h-24" />
                 </div>
                 <div className="z-10 flex flex-col h-full justify-between">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className={`w-6 h-6 rounded flex items-center justify-center ${stat.bg} ${stat.color}`}>
-                      <stat.icon className="w-3.5 h-3.5" />
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${stat.bg} ${stat.color} ring-1 ring-inset ring-black/5`}>
+                      <stat.icon className="w-4 h-4" />
                     </div>
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-tight">{stat.label}</div>
+                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-tight">{stat.label}</div>
                   </div>
-                  <div className="text-2xl font-black text-slate-800 tracking-tight">{stat.value}</div>
+                  <div className="text-2xl font-black text-slate-800 tracking-tight ml-1">{stat.value}</div>
                 </div>
               </div>
             ))}
@@ -848,14 +904,23 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                     const isBeforeStart = dateStr < selectedHabit.startDate;
                     const statusClass = getStatusColor(selectedHabit, dateStr);
 
+                    const isMet = count >= selectedHabit.target;
+
                     return (
                       <button
                         key={day}
                         disabled={isFuture || isBeforeStart}
                         onClick={() => setEditingDay(dateStr)}
-                        className={`aspect-square rounded flex items-center justify-center text-sm font-semibold transition-all relative border ${statusClass} ${editingDay === dateStr ? 'ring-2 ring-offset-2 ring-[#0078d4] z-10' : ''}`}
+                        className={`aspect-square rounded flex flex-col items-center justify-center text-xs font-semibold transition-all relative border ${statusClass} ${editingDay === dateStr ? 'ring-2 ring-offset-2 ring-[#0078d4] z-10' : ''}`}
                       >
-                        {count >= selectedHabit.target ? <Check className="w-4 h-4" /> : (selectedHabit.useCounter && count > 0 ? count : (!isBeforeStart && !isFuture ? day : ''))}
+                        {isMet ? (
+                          <div className="flex flex-col items-center leading-none gap-0.5">
+                            <Check className="w-3.5 h-3.5" />
+                            {selectedHabit.useCounter && <span className="text-[9px] font-bold opacity-80">{count}/{selectedHabit.target}</span>}
+                          </div>
+                        ) : (
+                          selectedHabit.useCounter && count > 0 ? count : (!isBeforeStart && !isFuture ? day : '')
+                        )}
                       </button>
                     );
                   })}
@@ -980,24 +1045,33 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                           </div>
                         )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-base font-bold text-slate-800 truncate">{habit.title}</h4>
-                        {/* UNIT DISPLAY IN LIST VIEW */}
-                        {habit.useCounter && (
-                          <div className="text-xs text-slate-500 font-medium mt-0.5">
-                            Goal: {habit.target} {habit.unit || 'count'} / day
-                          </div>
-                        )}
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded">
-                            <Trophy className="w-3 h-3 text-[#d83b01]" /> {total}
-                          </span>
-                          {streak > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">
-                              <Flame className="w-3 h-3 fill-current" /> {streak} Streak
-                            </span>
+                      <div className="flex-1 min-w-0 flex justify-between items-start gap-2">
+                        <div className="min-w-0">
+                          <h4 className="text-base font-bold text-slate-800 truncate">{habit.title}</h4>
+                          {/* UNIT DISPLAY IN LIST VIEW */}
+                          {habit.useCounter && (
+                            <div className="text-xs text-slate-500 font-medium mt-0.5">
+                              Goal: {habit.target} {habit.unit || 'count'} / day
+                            </div>
                           )}
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded">
+                              <Trophy className="w-3 h-3 text-[#d83b01]" /> {total}
+                            </span>
+                            {streak > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">
+                                <Flame className="w-3 h-3 fill-current" /> {streak} Streak
+                              </span>
+                            )}
+                          </div>
                         </div>
+                        <button
+                          onClick={(e) => incrementCount(habit.id, getLogicalDateStr(), e)}
+                          className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 hover:scale-105 transition-all shadow-sm border border-blue-100"
+                          title="Add to Today"
+                        >
+                          <Plus className="w-5 h-5" />
+                        </button>
                       </div>
                     </div>
 
@@ -1020,7 +1094,14 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                 disabled={isBeforeStart}
                                 className={`w-6 h-6 rounded flex items-center justify-center border transition-all text-[9px] font-bold ${statusClass}`}
                               >
-                                {count >= habit.target ? <Check className="w-3.5 h-3.5" /> : (habit.useCounter && count > 0 ? count : '')}
+                                {count >= habit.target ? (
+                                  habit.useCounter ? (
+                                    <div className="flex flex-col items-center justify-center leading-none scale-75">
+                                      <Check className="w-3 h-3 mb-[1px]" />
+                                      <span className="text-[8px] font-black">{count}</span>
+                                    </div>
+                                  ) : <Check className="w-3.5 h-3.5" />
+                                ) : (habit.useCounter && count > 0 ? count : '')}
                               </button>
                             </div>
                           );
