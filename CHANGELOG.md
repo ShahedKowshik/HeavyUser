@@ -4,6 +4,12 @@ All notable changes to the HeavyUser project will be documented in this file.
 
 ## [2025-12-27]
 
+### Visual Identity Refinement [02:54 PM]
+#### Changed
+- Updated favicon to a new minimal, square design with a white checkmark on a black background.
+- Replaced the sidebar `CircleCheck` icon with the actual application favicon for consistent branding.
+- Bumped favicon version to `v4` for immediate cache validation.
+
 ### UI Accent Color Standardization [11:55 AM]
 #### Changed
 - Standardized the global primary accent color to Blue (`#0078d4`) across all sections (Tasks, Journal, Notes, Settings) to match the Habits section.
