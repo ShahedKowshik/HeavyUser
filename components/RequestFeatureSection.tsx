@@ -63,11 +63,11 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
     const getPriorityColor = (p: Priority) => {
         if (priority !== p) return 'text-slate-500 hover:bg-slate-200';
         switch (p) {
-            case 'Urgent': return 'bg-red-50 text-red-600 shadow-sm ring-1 ring-red-200';
-            case 'High': return 'bg-orange-50 text-orange-600 shadow-sm ring-1 ring-orange-200';
-            case 'Normal': return 'bg-blue-50 text-blue-600 shadow-sm ring-1 ring-blue-200';
-            case 'Low': return 'bg-slate-100 text-slate-600 shadow-sm ring-1 ring-slate-300';
-            default: return 'bg-white text-[#0078d4] shadow-sm';
+            case 'Urgent': return 'bg-red-100 text-red-700 shadow-sm ring-1 ring-red-300';
+            case 'High': return 'bg-orange-100 text-orange-700 shadow-sm ring-1 ring-orange-300';
+            case 'Normal': return 'bg-slate-200 text-slate-800 shadow-sm ring-1 ring-slate-300';
+            case 'Low': return 'bg-slate-200 text-slate-700 shadow-sm ring-1 ring-slate-300';
+            default: return 'bg-white text-slate-600 shadow-sm';
         }
     };
 
@@ -98,13 +98,13 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
     const getStatusInfo = (status: SubmissionStatus) => {
         switch (status) {
             case 'pending':
-                return { icon: Clock, color: 'text-amber-600 bg-amber-50 border-amber-200', label: 'Pending' };
+                return { icon: Clock, color: 'text-amber-700 bg-amber-100 border-amber-300', label: 'Pending' };
             case 'in_progress':
-                return { icon: AlertCircle, color: 'text-blue-600 bg-blue-50 border-blue-200', label: 'In Progress' };
+                return { icon: AlertCircle, color: 'text-blue-700 bg-blue-100 border-blue-300', label: 'In Progress' };
             case 'completed':
-                return { icon: CheckCircle2, color: 'text-green-600 bg-green-50 border-green-200', label: 'Completed' };
+                return { icon: CheckCircle2, color: 'text-green-700 bg-green-100 border-green-300', label: 'Completed' };
             case 'rejected':
-                return { icon: XCircle, color: 'text-red-600 bg-red-50 border-red-200', label: 'Rejected' };
+                return { icon: XCircle, color: 'text-red-700 bg-red-100 border-red-300', label: 'Rejected' };
         }
     };
 
@@ -116,10 +116,10 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
     return (
         <div className="animate-in fade-in duration-500 pb-20 max-w-4xl mx-auto">
             <div className="mb-8">
-                <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-100">
-                    <Lightbulb className="w-6 h-6 text-[#0078d4]" />
+                <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-200">
+                    <Lightbulb className="w-6 h-6 text-slate-600" />
                 </div>
-                <h3 className="text-2xl font-black text-slate-800 tracking-tight text-center">
+                <h3 className="text-2xl font-black text-slate-950 tracking-tight text-center">
                     Feature Requests
                 </h3>
                 <p className="text-sm font-medium text-slate-500 mt-2 max-w-md mx-auto text-center">
@@ -130,9 +130,9 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                 <div className="flex gap-2 justify-center mt-6">
                     <button
                         onClick={() => setViewMode('submit')}
-                        className={`px-6 py-2 text-sm font-bold rounded-lg transition-all ${viewMode === 'submit'
-                            ? 'bg-[#0078d4] text-white shadow-md'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        className={`px-6 py-2 text-sm font-black rounded-lg transition-all ${viewMode === 'submit'
+                            ? 'bg-slate-700 text-white shadow-md'
+                            : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
                             }`}
                     >
                         <Send className="w-4 h-4 inline-block mr-2" />
@@ -140,9 +140,9 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                     </button>
                     <button
                         onClick={() => setViewMode('history')}
-                        className={`px-6 py-2 text-sm font-bold rounded-lg transition-all ${viewMode === 'history'
-                            ? 'bg-[#0078d4] text-white shadow-md'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        className={`px-6 py-2 text-sm font-black rounded-lg transition-all ${viewMode === 'history'
+                            ? 'bg-slate-700 text-white shadow-md'
+                            : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
                             }`}
                     >
                         <History className="w-4 h-4 inline-block mr-2" />
@@ -156,7 +156,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                 <div className="space-y-4">
                     {isLoadingRequests ? (
                         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 flex flex-col items-center justify-center">
-                            <Loader2 className="w-8 h-8 text-[#0078d4] animate-spin mb-4" />
+                            <Loader2 className="w-8 h-8 text-slate-600 animate-spin mb-4" />
                             <p className="text-sm text-slate-500 font-medium">Loading your requests...</p>
                         </div>
                     ) : featureRequests.length === 0 ? (
@@ -166,7 +166,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                             <p className="text-sm text-slate-500 mb-6">You haven't submitted any feature requests.</p>
                             <button
                                 onClick={() => setViewMode('submit')}
-                                className="px-6 py-2 bg-[#0078d4] text-white font-bold rounded-lg hover:bg-[#106ebe] transition-all"
+                                className="px-6 py-2 bg-slate-600 text-white font-bold rounded-lg hover:bg-slate-700 transition-all"
                             >
                                 Submit Your First Request
                             </button>
@@ -180,7 +180,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                                     <div className="p-6">
                                         <div className="flex items-start justify-between gap-4 mb-4">
                                             <div className="flex-1">
-                                                <h4 className="text-lg font-bold text-slate-800 mb-2">{request.title}</h4>
+                                                <h4 className="text-lg font-black text-slate-900 mb-2">{request.title}</h4>
                                                 <p className="text-sm text-slate-600 leading-relaxed">{request.description}</p>
                                             </div>
                                             <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold ${statusInfo.color}`}>
@@ -196,7 +196,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                                             </div>
                                             <div className={`px-2 py-1 rounded ${request.priority === 'Urgent' ? 'bg-red-100 text-red-700' :
                                                 request.priority === 'High' ? 'bg-orange-100 text-orange-700' :
-                                                    request.priority === 'Normal' ? 'bg-blue-100 text-blue-700' :
+                                                    request.priority === 'Normal' ? 'bg-slate-100 text-slate-700' :
                                                         'bg-slate-100 text-slate-700'
                                                 } font-bold`}>
                                                 {request.priority}
@@ -220,7 +220,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                             <p className="text-slate-500">Thank you for your feedback. We're on it.</p>
                             <button
                                 onClick={() => setIsSuccess(false)}
-                                className="mt-6 text-[#0078d4] font-bold text-sm hover:underline"
+                                className="mt-6 text-slate-600 font-bold text-sm hover:underline"
                             >
                                 Submit another request
                             </button>
@@ -244,7 +244,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                                     value={title}
                                     onChange={(e) => setTitle(e.target.value)}
                                     placeholder="e.g., Dark Mode, Calendar View..."
-                                    className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4] transition-all placeholder:text-slate-400"
+                                    className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition-all placeholder:text-slate-400"
                                     required
                                 />
                             </div>
@@ -258,7 +258,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
                                     placeholder="Describe what you want to achieve and how it helps..."
-                                    className="w-full text-sm font-medium bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4] transition-all placeholder:text-slate-400 min-h-[120px] resize-y"
+                                    className="w-full text-sm font-medium bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition-all placeholder:text-slate-400 min-h-[120px] resize-y"
                                     required
                                 />
                             </div>
@@ -285,7 +285,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                                 <button
                                     type="submit"
                                     disabled={isSubmitting || !title.trim() || !description.trim()}
-                                    className="flex items-center gap-2 px-8 py-3 bg-[#0078d4] text-white font-bold rounded-lg hover:bg-[#106ebe] transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+                                    className="flex items-center gap-2 px-8 py-3 bg-slate-700 text-white font-black rounded-lg hover:bg-slate-800 transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
                                 >
                                     {isSubmitting ? (
                                         <>

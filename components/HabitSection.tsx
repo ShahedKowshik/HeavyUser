@@ -140,20 +140,20 @@ const HabitDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRe
       className="bg-white rounded-lg shadow-xl border border-slate-200 p-4 w-72 animate-in zoom-in-95 origin-top-left font-sans text-slate-800"
     >
       <div className="grid grid-cols-2 gap-2 mb-4 border-b border-slate-100 pb-4">
-        <button type="button" onClick={() => handleQuickSelect(0)} className="text-xs font-bold text-slate-600 bg-slate-50 hover:bg-blue-50 hover:text-[#0078d4] py-1.5 rounded transition-colors">Today</button>
-        <button type="button" onClick={() => handleQuickSelect(1)} className="text-xs font-bold text-slate-600 bg-slate-50 hover:bg-blue-50 hover:text-[#0078d4] py-1.5 rounded transition-colors">Tomorrow</button>
-        <button type="button" onClick={() => handleQuickSelect(-1)} className="text-xs font-bold text-slate-600 bg-slate-50 hover:bg-blue-50 hover:text-[#0078d4] py-1.5 rounded transition-colors">Yesterday</button>
-        <button type="button" onClick={() => handleQuickSelect(-7)} className="text-xs font-bold text-slate-600 bg-slate-50 hover:bg-blue-50 hover:text-[#0078d4] py-1.5 rounded transition-colors">-7 Days</button>
+        <button type="button" onClick={() => handleQuickSelect(0)} className="text-xs font-black text-slate-700 bg-slate-100 hover:bg-slate-200 py-1.5 rounded transition-colors shadow-sm">Today</button>
+        <button type="button" onClick={() => handleQuickSelect(1)} className="text-xs font-black text-slate-700 bg-slate-100 hover:bg-slate-200 py-1.5 rounded transition-colors shadow-sm">Tomorrow</button>
+        <button type="button" onClick={() => handleQuickSelect(-1)} className="text-xs font-black text-slate-700 bg-slate-100 hover:bg-slate-200 py-1.5 rounded transition-colors shadow-sm">Yesterday</button>
+        <button type="button" onClick={() => handleQuickSelect(-7)} className="text-xs font-black text-slate-700 bg-slate-100 hover:bg-slate-200 py-1.5 rounded transition-colors shadow-sm">-7 Days</button>
       </div>
 
       <div className="flex items-center justify-between mb-2">
-        <button type="button" onClick={() => changeMonth(-1)} className="p-1 text-slate-400 hover:bg-slate-100 rounded"><ChevronLeft className="w-4 h-4" /></button>
-        <span className="text-sm font-bold text-slate-800">{monthName}</span>
-        <button type="button" onClick={() => changeMonth(1)} className="p-1 text-slate-400 hover:bg-slate-100 rounded"><ChevronRight className="w-4 h-4" /></button>
+        <button type="button" onClick={() => changeMonth(-1)} className="p-1.5 text-slate-600 hover:bg-slate-100 rounded transition-colors"><ChevronLeft className="w-4 h-4" /></button>
+        <span className="text-sm font-black text-slate-900">{monthName}</span>
+        <button type="button" onClick={() => changeMonth(1)} className="p-1.5 text-slate-600 hover:bg-slate-100 rounded transition-colors"><ChevronRight className="w-4 h-4" /></button>
       </div>
 
       <div className="grid grid-cols-7 gap-1 text-center mb-1">
-        {WEEKDAYS.map(d => <div key={d} className="text-[10px] font-bold text-slate-400 uppercase">{d.slice(0, 2)}</div>)}
+        {WEEKDAYS.map(d => <div key={d} className="text-[10px] font-black text-slate-500 uppercase">{d.slice(0, 2)}</div>)}
       </div>
       <div className="grid grid-cols-7 gap-1">
         {Array.from({ length: firstDayOfWeek }).map((_, i) => <div key={`empty-${i}`} />)}
@@ -166,8 +166,8 @@ const HabitDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRe
               key={day}
               type="button"
               onClick={() => handleDayClick(day)}
-              className={`w-8 h-8 flex items-center justify-center text-xs font-medium rounded hover:bg-slate-100 transition-colors ${selected ? 'bg-[#0078d4] text-white hover:bg-[#006cbd]' :
-                today ? 'text-[#0078d4] font-bold ring-1 ring-inset ring-[#0078d4]' : 'text-slate-700'
+              className={`w-8 h-8 flex items-center justify-center text-xs font-bold rounded hover:bg-slate-100 transition-colors ${selected ? 'bg-slate-700 text-white hover:bg-slate-800' :
+                today ? 'text-slate-900 font-black ring-2 ring-inset ring-slate-200 bg-slate-50' : 'text-slate-800'
                 }`}
             >
               {day}
@@ -749,16 +749,16 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
               {selectedHabit.icon}
             </div>
             <div className="flex-1">
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-1">{selectedHabit.title}</h2>
+              <h2 className="text-2xl font-black text-slate-950 tracking-tight mb-1">{selectedHabit.title}</h2>
               <div className="flex flex-wrap gap-4 text-xs font-medium text-slate-600">
-                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded">
-                  <Target className="w-3.5 h-3.5 text-[#0078d4]" />
+                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded border border-slate-200">
+                  <Target className="w-3.5 h-3.5 text-slate-600" />
                   {selectedHabit.useCounter
                     ? `Goal: ${selectedHabit.target} ${selectedHabit.unit || 'count'}/day`
                     : 'Daily Check-in'}
                 </span>
-                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded">
-                  <Calendar className="w-3.5 h-3.5 text-[#0078d4]" />
+                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded border border-slate-200">
+                  <Calendar className="w-3.5 h-3.5 text-slate-600" />
                   Started {formatDateFriendly(selectedHabit.startDate)}
                 </span>
 
@@ -771,8 +771,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                       return (
                         <span
                           key={tagId}
-                          className="flex items-center gap-1 px-1.5 py-0.5 rounded border border-transparent"
-                          style={{ backgroundColor: `${tag.color}15`, color: tag.color }}
+                          className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg border border-transparent font-black shadow-sm"
+                          style={{ backgroundColor: `${tag.color}25`, color: tag.color }}
                         >
                           <TagIcon className="w-3 h-3" />
                           {tag.label}
@@ -788,11 +788,11 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
           {/* Statistics Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
             {[
-              { label: 'Current Streak', value: `${getHabitStats(selectedHabit).streak} Days`, icon: Flame, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
-              { label: 'Longest Streak', value: `${getHabitStats(selectedHabit).longestStreak} Days`, icon: TrendingUp, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-100' },
-              { label: 'Total Completions', value: `${getHabitStats(selectedHabit).totalMetDays}`, icon: Trophy, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
-              { label: 'Times Skipped', value: `${getHabitStats(selectedHabit).totalSkips}`, icon: Ban, color: 'text-slate-500', bg: 'bg-slate-50', border: 'border-slate-200' },
-              { label: 'Efficiency', value: `${getHabitStats(selectedHabit).efficiency}%`, icon: Activity, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
+              { label: 'Current Streak', value: `${getHabitStats(selectedHabit).streak} Days`, icon: Flame, color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
+              { label: 'Longest Streak', value: `${getHabitStats(selectedHabit).longestStreak} Days`, icon: TrendingUp, color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' },
+              { label: 'Total Completions', value: `${getHabitStats(selectedHabit).totalMetDays}`, icon: Trophy, color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+              { label: 'Times Skipped', value: `${getHabitStats(selectedHabit).totalSkips}`, icon: Ban, color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-300' },
+              { label: 'Efficiency', value: `${getHabitStats(selectedHabit).efficiency}%`, icon: Activity, color: 'text-slate-900', bg: 'bg-slate-50', border: 'border-slate-300' },
             ].map((stat, i) => (
               <div key={i} className={`bg-white border ${stat.border} p-4 rounded flex flex-col gap-2 relative overflow-hidden group hover:shadow-md transition-all shadow-sm`}>
                 <div className={`absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity ${stat.color}`}>
@@ -1055,7 +1055,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
             <form onSubmit={handleSaveHabit} className="p-6 space-y-6 overflow-y-auto">
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Habit Name</label>
-                <input autoFocus required type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="e.g., Drink Water" className="w-full text-sm font-semibold bg-slate-50 border-none rounded p-3 focus:ring-2 focus:ring-[#0078d4]/20" />
+                <input autoFocus required type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="e.g., Drink Water" className="w-full text-sm font-semibold bg-slate-50 border-none rounded p-3 focus:ring-2 focus:ring-slate-400/20" />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -1087,7 +1087,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                   <button
                     type="button"
                     onClick={() => setFormUseCounter(!formUseCounter)}
-                    className={`w-full text-sm font-bold p-3 rounded border transition-all flex items-center justify-center gap-2 ${formUseCounter ? 'bg-[#eff6fc] text-[#0078d4] border-[#0078d4]' : 'bg-slate-50 text-slate-600 border-transparent'}`}
+                    className={`w-full text-sm font-bold p-3 rounded border transition-all flex items-center justify-center gap-2 ${formUseCounter ? 'bg-slate-100 text-slate-600 border-slate-600' : 'bg-slate-50 text-slate-600 border-transparent'}`}
                   >
                     {formUseCounter ? <RotateCcw className="w-4 h-4" /> : <Check className="w-4 h-4" />}
                     {formUseCounter ? 'Counter' : 'Checkbox'}
@@ -1119,7 +1119,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                           placeholder="Unit Name"
                           value={formUnit}
                           onChange={e => setFormUnit(e.target.value)}
-                          className="w-full h-full text-sm font-semibold bg-slate-50 border-none rounded p-3 pl-9 focus:ring-2 focus:ring-[#0078d4]/20"
+                          className="w-full h-full text-sm font-semibold bg-slate-50 border-none rounded p-3 pl-9 focus:ring-2 focus:ring-slate-400/20"
                         />
                         <Ruler className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       </div>
@@ -1143,7 +1143,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                           else setFormTags(prev => [...prev, tag.id]);
                         }}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition-all ${isActive
-                          ? 'ring-2 ring-offset-1 ring-[#0078d4] border-transparent'
+                          ? 'ring-2 ring-offset-1 ring-slate-400 border-transparent'
                           : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
                           }`}
                         style={isActive ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
@@ -1160,14 +1160,14 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                       placeholder="New Label..."
                       value={newTagInput}
                       onChange={(e) => setNewTagInput(e.target.value)}
-                      className="w-24 text-xs px-2 py-1.5 border border-slate-200 rounded focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                      className="w-24 text-xs px-2 py-1.5 border border-slate-200 rounded focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }}
                     />
                     <button
                       type="button"
                       onClick={handleInlineCreateTag}
                       disabled={!newTagInput.trim() || isCreatingTag}
-                      className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-[#eff6fc] hover:text-[#0078d4] disabled:opacity-50"
+                      className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 hover:text-slate-900 disabled:opacity-50"
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
@@ -1188,7 +1188,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                     placeholder="Search icons..."
                     value={iconSearch}
                     onChange={(e) => setIconSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded focus:ring-1 focus:ring-[#0078d4] placeholder:text-slate-400"
+                    className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded focus:ring-1 focus:ring-slate-400 placeholder:text-slate-400"
                   />
                 </div>
 
@@ -1198,7 +1198,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                       key={idx}
                       type="button"
                       onClick={() => setFormIcon(item.icon)}
-                      className={`h-10 rounded flex items-center justify-center text-xl transition-all ${formIcon === item.icon ? 'bg-[#eff6fc] border border-[#0078d4] shadow-sm' : 'bg-slate-50 border border-transparent hover:bg-slate-100'}`}
+                      className={`h-10 rounded flex items-center justify-center text-xl transition-all ${formIcon === item.icon ? 'bg-slate-100 border border-slate-400 shadow-sm' : 'bg-slate-50 border border-transparent hover:bg-slate-100'}`}
                       title={item.tags}
                     >
                       {item.icon}
@@ -1214,7 +1214,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
               <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
                 <button type="button" onClick={() => { setIsCreateModalOpen(false); setIsEditModalOpen(false); }} className="px-5 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded transition-colors">Cancel</button>
-                <button type="submit" className="px-8 py-2 text-sm font-bold bg-[#0078d4] text-white hover:bg-[#106ebe] rounded shadow-lg">{isEditModalOpen ? 'Save Changes' : 'Start Habit'}</button>
+                <button type="submit" className="px-8 py-2 text-sm font-bold bg-slate-600 text-white hover:bg-slate-700 rounded shadow-lg">{isEditModalOpen ? 'Save Changes' : 'Start Habit'}</button>
               </div>
             </form>
           </div>
@@ -1240,7 +1240,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
               <button
                 key={s}
                 onClick={() => { setSorting(s); setIsSettingsOpen(false); }}
-                className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${sorting === s ? 'text-[#0078d4] bg-blue-50' : 'text-slate-600 hover:bg-slate-50'}`}
+                className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${sorting === s ? 'text-slate-600 bg-slate-50' : 'text-slate-600 hover:bg-slate-50'}`}
               >
                 <span className="capitalize">{s}</span>
                 {sorting === s && <Check className="w-3 h-3" />}

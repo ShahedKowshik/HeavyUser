@@ -44,6 +44,14 @@ const PRESET_COLORS = [
   '#000000', '#ffffff'
 ];
 
+const DIVERSE_COLORS = [
+  '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16',
+  '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9',
+  '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef',
+  '#ec4899', '#f43f5e', '#b91c1c', '#15803d', '#1d4ed8',
+  '#7e22ce', '#334155', '#525252', '#000000', '#ffffff'
+];
+
 const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, onLogout, onNavigate, tags, setTags }) => {
   const [localName, setLocalName] = useState(settings.userName);
   const [localProfilePic, setLocalProfilePic] = useState(settings.profilePicture || '');
@@ -62,7 +70,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
 
   // Tag Management State
   const [newTagLabel, setNewTagLabel] = useState('');
-  const [newTagColor, setNewTagColor] = useState(PRESET_COLORS[0]);
+  const [newTagColor, setNewTagColor] = useState(DIVERSE_COLORS[0]);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [editTagLabel, setEditTagLabel] = useState('');
   const [editTagColor, setEditTagColor] = useState('');
@@ -214,7 +222,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
 
         {/* Labels Management */}
         <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center space-y-0 space-x-2 bg-muted/50 py-4">
+          <CardHeader className="flex flex-row items-center space-y-0 space-x-2 bg-muted/80 py-4 border-b">
             <TagIcon className="w-4 h-4 text-primary" />
             <CardTitle className="text-sm font-bold">Labels</CardTitle>
           </CardHeader>
@@ -233,17 +241,25 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                           className="h-8 text-xs font-bold"
                           autoFocus
                         />
-                        <input
-                          type="color"
-                          value={editTagColor}
-                          onChange={(e) => setEditTagColor(e.target.value)}
-                          className="w-8 h-8 rounded cursor-pointer border p-0"
-                        />
-                        <Button size="icon" className="h-8 w-8" onClick={saveEditingTag}><Check className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingTagId(null)}><X className="w-4 h-4" /></Button>
+                        <div className="flex items-center gap-1.5 min-w-fit">
+                          <Input
+                            value={editTagColor}
+                            onChange={(e) => setEditTagColor(e.target.value)}
+                            className="w-[70px] h-8 text-[10px] font-mono px-1.5 uppercase"
+                            placeholder="#000000"
+                          />
+                          <input
+                            type="color"
+                            value={editTagColor}
+                            onChange={(e) => setEditTagColor(e.target.value)}
+                            className="w-8 h-8 rounded cursor-pointer border p-0 shrink-0"
+                          />
+                        </div>
+                        <Button size="icon" className="h-8 w-8 shrink-0" onClick={saveEditingTag}><Check className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setEditingTagId(null)}><X className="w-4 h-4" /></Button>
                       </div>
                     ) : (
-                      <div key={tag.id} className="flex items-center justify-between p-2 rounded border hover:bg-muted/50 group transition-colors">
+                      <div key={tag.id} className="flex items-center justify-between p-2 rounded-lg border hover:bg-muted group transition-colors shadow-sm">
                         <div className="flex items-center gap-3">
                           <div className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: tag.color }} />
                           <span className="text-sm font-semibold">{tag.label}</span>
@@ -258,7 +274,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                 )}
               </div>
 
-              <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
+              <div className="space-y-3 p-4 bg-muted/50 rounded-xl border border-slate-300">
                 <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Create New Label</h4>
                 <div className="space-y-3">
                   <Input
@@ -267,18 +283,34 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                     placeholder="Label name..."
                     className="h-9 text-sm"
                   />
-                  <div className="flex items-center justify-between">
+                  <div className="space-y-2">
                     <div className="flex gap-1.5 flex-wrap">
-                      {PRESET_COLORS.slice(0, 8).map(color => (
+                      {DIVERSE_COLORS.map(color => (
                         <button
                           key={color}
                           onClick={() => setNewTagColor(color)}
-                          className={`w-5 h-5 rounded-full transition-transform hover:scale-110 ${newTagColor === color ? 'ring-2 ring-offset-1 ring-primary' : ''}`}
+                          className={`w-5 h-5 rounded-full transition-transform hover:scale-110 border border-slate-200 ${newTagColor.toLowerCase() === color.toLowerCase() ? 'ring-2 ring-offset-1 ring-primary' : ''}`}
                           style={{ backgroundColor: color }}
                         />
                       ))}
                     </div>
-                    <input type="color" value={newTagColor} onChange={e => setNewTagColor(e.target.value)} className="w-8 h-8 p-0 border-0 rounded cursor-pointer" />
+                    <div className="flex items-center gap-2 pt-1">
+                      <div className="flex-1 flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase">Hex Code:</span>
+                        <Input
+                          value={newTagColor}
+                          onChange={(e) => setNewTagColor(e.target.value)}
+                          className="h-8 text-[10px] font-mono uppercase w-24"
+                          placeholder="#000000"
+                        />
+                      </div>
+                      <input
+                        type="color"
+                        value={newTagColor}
+                        onChange={e => setNewTagColor(e.target.value)}
+                        className="w-8 h-8 p-0 border border-slate-300 rounded cursor-pointer overflow-hidden"
+                      />
+                    </div>
                   </div>
                   <Button onClick={handleAddTag} disabled={!newTagLabel.trim()} className="w-full h-8 text-xs">
                     <Plus className="w-3 h-3 mr-2" /> Add Label
@@ -291,7 +323,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
 
         {/* Profile */}
         <Card>
-          <CardHeader className="flex flex-row items-center space-y-0 space-x-2 bg-muted/50 py-4">
+          <CardHeader className="flex flex-row items-center space-y-0 space-x-2 bg-muted/80 py-4 border-b">
             <User className="w-4 h-4 text-primary" />
             <CardTitle className="text-sm font-bold">Account Profile</CardTitle>
           </CardHeader>
@@ -326,7 +358,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
 
         {/* Security */}
         <Card>
-          <CardHeader className="flex flex-row items-center space-y-0 space-x-2 bg-muted/50 py-4">
+          <CardHeader className="flex flex-row items-center space-y-0 space-x-2 bg-muted/80 py-4 border-b">
             <Lock className="w-4 h-4 text-primary" />
             <CardTitle className="text-sm font-bold">Security</CardTitle>
           </CardHeader>
@@ -381,7 +413,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                   Night Owl Mode lets you shift the start of your day, so late-night work counts for today.
                 </p>
               </div>
-              <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
+              <div className="space-y-3 p-4 bg-muted/50 rounded-xl border border-slate-300">
                 <label className="text-xs font-bold text-foreground flex items-center gap-1">
                   Start my "New Day" at:
                 </label>
@@ -406,7 +438,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
 
         {/* Data Zone */}
         <Card className="lg:col-span-2 border-destructive/20 mb-8">
-          <CardHeader className="flex flex-row items-center space-y-0 space-x-2 bg-destructive/10 py-4">
+          <CardHeader className="flex flex-row items-center space-y-0 space-x-2 bg-destructive/20 py-4 border-b border-destructive/30">
             <Trash2 className="w-4 h-4 text-destructive" />
             <CardTitle className="text-sm font-bold text-destructive">Data Management</CardTitle>
           </CardHeader>

@@ -53,23 +53,22 @@ const NavItem: React.FC<NavItemProps> = ({ id, label, icon: Icon, count, shortcu
   <button
     onClick={() => setActiveTab(id)}
     title={isSidebarCollapsed ? label : undefined}
-    className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2 rounded transition-all duration-200 group ${
-      activeTab === id 
-      ? 'bg-slate-100 text-[#0078d4] font-bold shadow-sm ring-1 ring-slate-200' 
-      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
-    }`}
+    className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2 rounded-lg transition-all duration-200 group ${activeTab === id
+      ? 'bg-slate-200 text-slate-900 font-bold shadow-sm ring-1 ring-slate-300'
+      : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950 font-medium'
+      }`}
   >
-    <Icon className={`w-4.5 h-4.5 transition-colors ${activeTab === id ? 'text-[#0078d4]' : 'text-slate-400 group-hover:text-slate-600'}`} />
+    <Icon className={`w-4.5 h-4.5 transition-colors ${activeTab === id ? 'text-slate-900' : 'text-slate-500 group-hover:text-slate-800'}`} />
     {!isSidebarCollapsed && (
-        <>
-          <span className="text-sm flex-1 text-left truncate">{label}</span>
-          {count !== undefined && count > 0 && (
-              <span className="text-[10px] font-bold bg-white text-slate-600 px-1.5 py-0.5 rounded-md border border-slate-200 tabular-nums shadow-sm">{count}</span>
-          )}
-          {shortcut && !count && (
-              <span className="text-[10px] font-medium text-slate-300 group-hover:text-slate-400 hidden lg:block border border-slate-100 px-1 rounded bg-slate-50">{shortcut}</span>
-          )}
-        </>
+      <>
+        <span className="text-sm flex-1 text-left truncate">{label}</span>
+        {count !== undefined && count > 0 && (
+          <span className="text-[10px] font-bold bg-white text-slate-600 px-1.5 py-0.5 rounded-md border border-slate-200 tabular-nums shadow-sm">{count}</span>
+        )}
+        {shortcut && !count && (
+          <span className="text-[10px] font-bold text-slate-400 group-hover:text-slate-600 hidden lg:block border border-slate-200 px-1 rounded bg-slate-50">{shortcut}</span>
+        )}
+      </>
     )}
   </button>
 );
@@ -85,11 +84,10 @@ interface MobileNavItemProps {
 const MobileNavItem: React.FC<MobileNavItemProps> = ({ id, label, icon: Icon, activeTab, setActiveTab }) => (
   <button
     onClick={() => setActiveTab(id)}
-    className={`flex flex-col items-center justify-center p-2 rounded transition-all duration-200 ${
-      activeTab === id 
-      ? 'text-[#0078d4]' 
-      : 'text-slate-400'
-    }`}
+    className={`flex flex-col items-center justify-center p-2 rounded-lg transition-all duration-200 ${activeTab === id
+      ? 'text-slate-900'
+      : 'text-slate-500 hover:text-slate-700'
+      }`}
   >
     <Icon className={`w-5 h-5 mb-1 ${activeTab === id ? 'fill-current' : ''}`} />
     <span className="text-[10px] font-bold">{label}</span>
@@ -149,7 +147,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const getLogicalDateStr = (date: Date = new Date()) => {
     const d = new Date(date);
     if (d.getHours() < (userSettings.dayStartHour || 0)) {
-        d.setDate(d.getDate() - 1);
+      d.setDate(d.getDate() - 1);
     }
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -161,10 +159,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const getLogicalDateOffset = (days: number) => {
     const d = new Date(); // Current Real Time
     if (d.getHours() < (userSettings.dayStartHour || 0)) {
-        d.setDate(d.getDate() - 1);
+      d.setDate(d.getDate() - 1);
     }
     d.setDate(d.getDate() + days);
-    
+
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
@@ -174,22 +172,22 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   // Countdown Logic - Updates every minute instead of every second to reduce re-renders
   useEffect(() => {
     const updateCountdown = () => {
-        const now = new Date();
-        const startHour = userSettings.dayStartHour || 0;
-        
-        let target = new Date();
-        if (now.getHours() < startHour) {
-            target.setHours(startHour, 0, 0, 0);
-        } else {
-            target.setDate(target.getDate() + 1);
-            target.setHours(startHour, 0, 0, 0);
-        }
+      const now = new Date();
+      const startHour = userSettings.dayStartHour || 0;
 
-        const diff = target.getTime() - now.getTime();
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        
-        setTimeLeft(`${hours}h ${minutes}m`);
+      let target = new Date();
+      if (now.getHours() < startHour) {
+        target.setHours(startHour, 0, 0, 0);
+      } else {
+        target.setDate(target.getDate() + 1);
+        target.setHours(startHour, 0, 0, 0);
+      }
+
+      const diff = target.getTime() - now.getTime();
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+      setTimeLeft(`${hours}h ${minutes}m`);
     };
 
     const timer = setInterval(updateCountdown, 60000);
@@ -205,7 +203,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         .from('tasks')
         .select('*')
         .eq('user_id', userId);
-      
+
       if (tasksData) {
         const mappedTasks: Task[] = tasksData.map((t: any) => ({
           id: t.id,
@@ -218,7 +216,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           subtasks: (t.subtasks || []).map((s: any) => ({
             ...s,
             title: decryptData(s.title)
-          })), 
+          })),
           tags: t.tags || [],
           recurrence: t.recurrence,
           notes: decryptData(t.notes),
@@ -233,7 +231,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         .from('tags')
         .select('*')
         .eq('user_id', userId);
-      
+
       if (tagsData) {
         const mappedTags: Tag[] = tagsData.map((t: any) => ({
           id: t.id,
@@ -254,10 +252,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         const mappedHabits: Habit[] = habitsData.map((h: any) => {
           let progressMap: Record<string, number> = h.progress || {};
           const target = h.target || 1;
-          
+
           if (Object.keys(progressMap).length === 0 && h.completed_dates && Array.isArray(h.completed_dates)) {
             h.completed_dates.forEach((date: string) => {
-              progressMap[date] = target; 
+              progressMap[date] = target;
             });
           }
 
@@ -265,7 +263,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
           return {
             id: h.id,
-            title: decryptData(h.title), 
+            title: decryptData(h.title),
             icon: h.icon,
             target: target,
             unit: h.unit || '',
@@ -328,7 +326,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           id: n.id,
           title: decryptData(n.title),
           content: decryptData(n.content),
-          folderId: n.folder_id, 
+          folderId: n.folder_id,
           createdAt: n.created_at,
           updatedAt: n.updated_at,
           tags: n.tags || []
@@ -343,8 +341,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const handleUpdateSettings = async (newSettings: UserSettings) => {
     setUserSettings(newSettings);
     await supabase.auth.updateUser({
-      data: { 
-        full_name: newSettings.userName, 
+      data: {
+        full_name: newSettings.userName,
         avatar_url: newSettings.profilePicture,
         day_start_hour: newSettings.dayStartHour
       }
@@ -356,11 +354,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     const activeDates = new Set<string>();
 
     const getLogicalDateFromISO = (isoString: string) => {
-        const d = new Date(isoString);
-        if (d.getHours() < (userSettings.dayStartHour || 0)) {
-            d.setDate(d.getDate() - 1);
-        }
-        return d.toISOString().split('T')[0];
+      const d = new Date(isoString);
+      if (d.getHours() < (userSettings.dayStartHour || 0)) {
+        d.setDate(d.getDate() - 1);
+      }
+      return d.toISOString().split('T')[0];
     };
 
     tasks.forEach(t => {
@@ -389,7 +387,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     const yesterday = getLogicalDateOffset(-1);
 
     let currentStreak = 0;
-    
+
     const hasActivityToday = sortedDates.includes(today);
     const hasActivityYesterday = sortedDates.includes(yesterday);
 
@@ -397,8 +395,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       currentStreak = 0;
     } else {
       const [y, m, d] = (hasActivityToday ? today : yesterday).split('-').map(Number);
-      let checkDate = new Date(y, m - 1, d); 
-      
+      let checkDate = new Date(y, m - 1, d);
+
       while (true) {
         const year = checkDate.getFullYear();
         const month = String(checkDate.getMonth() + 1).padStart(2, '0');
@@ -420,9 +418,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   // --- Urgent Tasks Alert Logic ---
   const urgentTasksTodayCount = useMemo(() => {
     const today = getLogicalDateOffset(0);
-    return tasks.filter(t => 
-      !t.completed && 
-      t.priority === 'Urgent' && 
+    return tasks.filter(t =>
+      !t.completed &&
+      t.priority === 'Urgent' &&
       t.dueDate === today
     ).length;
   }, [tasks, userSettings.dayStartHour]);
@@ -453,13 +451,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const isNotesTab = activeTab === 'notes';
 
   return (
-    <div className="flex h-screen bg-slate-100 text-slate-800 overflow-hidden font-sans selection:bg-[#0078d4]/20 selection:text-[#0078d4]">
+    <div className="flex h-screen bg-slate-100 text-slate-800 overflow-hidden font-sans selection:bg-slate-200 selection:text-slate-900">
       {/* Sidebar - Desktop */}
       <aside className={`hidden md:flex flex-col p-4 space-y-2 bg-white border-r border-slate-200 shrink-0 z-20 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20 items-center' : 'w-64'}`}>
         <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'space-x-3 px-3'} py-6 relative`}>
-          <CircleCheck className="w-7 h-7 text-[#0078d4] shrink-0" />
+          <CircleCheck className="w-7 h-7 text-slate-600 shrink-0" />
           {!isSidebarCollapsed && (
-             <h1 className="text-lg font-bold tracking-tight whitespace-nowrap overflow-hidden transition-opacity duration-300 text-slate-800">HeavyUser</h1>
+            <h1 className="text-lg font-bold tracking-tight whitespace-nowrap overflow-hidden transition-opacity duration-300 text-slate-800">HeavyUser</h1>
           )}
         </div>
 
@@ -471,62 +469,60 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         </nav>
 
         <div className={`pt-4 border-t border-slate-200 w-full flex flex-col gap-1`}>
-          
+
           <NavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
-          
+
           {/* Distinct Group for Feature/Bug */}
           <div className={`my-2 flex flex-col gap-1 ${!isSidebarCollapsed ? 'bg-slate-50 p-2 rounded-lg border border-slate-100' : ''}`}>
-             {!isSidebarCollapsed && (
-                 <div className="px-1 pb-1 text-[9px] font-black text-slate-400 uppercase tracking-widest">Feedback</div>
-             )}
-             
-             <button
-                onClick={() => setActiveTab('request_feature')}
-                title={isSidebarCollapsed ? "Request Feature" : undefined}
-                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-2'} py-1.5 rounded-md transition-all duration-200 group ${
-                    activeTab === 'request_feature' 
-                    ? 'bg-amber-100 text-amber-800 font-bold shadow-sm' 
-                    : 'text-slate-500 hover:bg-white hover:text-amber-700 hover:shadow-sm font-medium'
-                }`}
-             >
-                 <Lightbulb className={`w-4 h-4 transition-colors ${activeTab === 'request_feature' ? 'text-amber-700 fill-amber-700/20' : 'text-slate-400 group-hover:text-amber-600'}`} />
-                 {!isSidebarCollapsed && <span className="text-xs">Request Feature</span>}
-             </button>
+            {!isSidebarCollapsed && (
+              <div className="px-1 pb-1 text-[9px] font-black text-slate-400 uppercase tracking-widest">Feedback</div>
+            )}
 
-             <button
-                onClick={() => setActiveTab('report_bug')}
-                title={isSidebarCollapsed ? "Report Bug" : undefined}
-                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-2'} py-1.5 rounded-md transition-all duration-200 group ${
-                    activeTab === 'report_bug' 
-                    ? 'bg-rose-100 text-rose-800 font-bold shadow-sm' 
-                    : 'text-slate-500 hover:bg-white hover:text-rose-700 hover:shadow-sm font-medium'
+            <button
+              onClick={() => setActiveTab('request_feature')}
+              title={isSidebarCollapsed ? "Request Feature" : undefined}
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-2'} py-1.5 rounded-md transition-all duration-200 group ${activeTab === 'request_feature'
+                ? 'bg-amber-100 text-amber-800 font-bold shadow-sm'
+                : 'text-slate-500 hover:bg-white hover:text-amber-700 hover:shadow-sm font-medium'
                 }`}
-             >
-                 <Bug className={`w-4 h-4 transition-colors ${activeTab === 'report_bug' ? 'text-rose-700 fill-rose-700/20' : 'text-slate-400 group-hover:text-rose-600'}`} />
-                 {!isSidebarCollapsed && <span className="text-xs">Report Bug</span>}
-             </button>
+            >
+              <Lightbulb className={`w-4 h-4 transition-colors ${activeTab === 'request_feature' ? 'text-amber-700 fill-amber-700/20' : 'text-slate-400 group-hover:text-amber-600'}`} />
+              {!isSidebarCollapsed && <span className="text-xs">Request Feature</span>}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('report_bug')}
+              title={isSidebarCollapsed ? "Report Bug" : undefined}
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-2'} py-1.5 rounded-md transition-all duration-200 group ${activeTab === 'report_bug'
+                ? 'bg-rose-100 text-rose-800 font-bold shadow-sm'
+                : 'text-slate-500 hover:bg-white hover:text-rose-700 hover:shadow-sm font-medium'
+                }`}
+            >
+              <Bug className={`w-4 h-4 transition-colors ${activeTab === 'report_bug' ? 'text-rose-700 fill-rose-700/20' : 'text-slate-400 group-hover:text-rose-600'}`} />
+              {!isSidebarCollapsed && <span className="text-xs">Report Bug</span>}
+            </button>
           </div>
 
-          <button 
-             onClick={toggleSidebar}
-             className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-3 px-3'} py-2 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded transition-all`}
-             title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-           >
-              {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-              {!isSidebarCollapsed && <span className="text-xs font-bold whitespace-nowrap">Collapse</span>}
-           </button>
-          
+          <button
+            onClick={toggleSidebar}
+            className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-3 px-3'} py-2 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded transition-all`}
+            title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          >
+            {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            {!isSidebarCollapsed && <span className="text-xs font-bold whitespace-nowrap">Collapse</span>}
+          </button>
+
           <div className={`mt-2 p-2 rounded border border-slate-200 flex items-center ${isSidebarCollapsed ? 'justify-center bg-transparent border-transparent' : 'space-x-3 bg-white'} shadow-sm transition-all duration-300`}>
             {userSettings.profilePicture ? (
               <img src={userSettings.profilePicture} alt="Profile" className="w-9 h-9 rounded object-cover shadow-inner bg-slate-100 shrink-0" />
             ) : (
-              <div className="w-9 h-9 rounded bg-[#eff6fc] text-[#0078d4] flex items-center justify-center text-xs font-black shadow-inner shrink-0">
+              <div className="w-9 h-9 rounded bg-slate-200 text-slate-800 flex items-center justify-center text-xs font-black shadow-inner shrink-0">
                 {userSettings.userName.split(' ').map(n => n[0]).join('').toUpperCase()}
               </div>
             )}
-            
+
             {!isSidebarCollapsed && (
-               <div className="overflow-hidden">
+              <div className="overflow-hidden">
                 <p className="text-xs font-bold truncate text-slate-800">{userSettings.userName}</p>
                 <p className="text-[10px] text-slate-500 font-mono font-medium truncate">{user.email}</p>
               </div>
@@ -540,65 +536,64 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-8 py-4 bg-white/90 backdrop-blur-md border-b border-slate-200 shrink-0">
           <h2 className="text-xl font-black capitalize text-slate-800 tracking-tight">{activeTab === 'tasks' ? 'Tasks' : activeTab === 'habit' ? 'Habits' : activeTab.replace('_', ' ')}</h2>
           <div className="flex items-center space-x-4">
-            
+
             {/* Global Label Filter */}
             <div className="relative">
+              <button
+                onClick={() => setIsTagFilterOpen(!isTagFilterOpen)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition-all ${activeFilterTagId
+                  ? 'font-bold shadow-sm'
+                  : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'
+                  }`}
+                style={activeFilterTag ? {
+                  backgroundColor: `${activeFilterTag.color}15`,
+                  borderColor: activeFilterTag.color,
+                  color: activeFilterTag.color
+                } : {}}
+                title="Filter by Label"
+              >
+                <TagIcon className={`w-3.5 h-3.5 ${activeFilterTagId ? 'fill-current' : ''}`} />
+                {activeFilterTag && <span className="text-xs">{activeFilterTag.label}</span>}
+              </button>
+
+              {activeFilterTagId && (
                 <button
-                    onClick={() => setIsTagFilterOpen(!isTagFilterOpen)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition-all ${
-                        activeFilterTagId 
-                        ? 'font-bold shadow-sm' 
-                        : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'
-                    }`}
-                    style={activeFilterTag ? {
-                        backgroundColor: `${activeFilterTag.color}15`,
-                        borderColor: activeFilterTag.color,
-                        color: activeFilterTag.color
-                    } : {}}
-                    title="Filter by Label"
+                  onClick={() => setActiveFilterTagId(null)}
+                  className="absolute -top-2 -right-2 bg-slate-200 text-slate-500 rounded-full p-0.5 hover:bg-red-500 hover:text-white transition-colors"
+                  title="Clear Filter"
                 >
-                    <TagIcon className={`w-3.5 h-3.5 ${activeFilterTagId ? 'fill-current' : ''}`} />
-                    {activeFilterTag && <span className="text-xs">{activeFilterTag.label}</span>}
+                  <X className="w-3 h-3" />
                 </button>
+              )}
 
-                {activeFilterTagId && (
-                    <button
-                        onClick={() => setActiveFilterTagId(null)}
-                        className="absolute -top-2 -right-2 bg-slate-200 text-slate-500 rounded-full p-0.5 hover:bg-red-500 hover:text-white transition-colors"
-                        title="Clear Filter"
-                    >
-                        <X className="w-3 h-3" />
-                    </button>
-                )}
-
-                {isTagFilterOpen && (
-                    <>
-                        <div className="fixed inset-0 z-10" onClick={() => setIsTagFilterOpen(false)} />
-                        <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-lg shadow-xl z-20 p-2 animate-in zoom-in-95 origin-top-right">
-                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Select Label</h4>
-                            <div className="max-h-60 overflow-y-auto space-y-1">
-                                {tags.length === 0 && <p className="text-xs text-slate-400 italic px-1">No labels created.</p>}
-                                <button
-                                    onClick={() => { setActiveFilterTagId(null); setIsTagFilterOpen(false); }}
-                                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-bold transition-colors ${!activeFilterTagId ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
-                                >
-                                    <LayoutGrid className="w-3.5 h-3.5 text-slate-400" />
-                                    <span>All Items</span>
-                                </button>
-                                {tags.map(tag => (
-                                    <button
-                                        key={tag.id}
-                                        onClick={() => { setActiveFilterTagId(tag.id); setIsTagFilterOpen(false); }}
-                                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-bold transition-colors ${activeFilterTagId === tag.id ? 'bg-[#eff6fc] text-[#0078d4]' : 'text-slate-600 hover:bg-slate-50'}`}
-                                    >
-                                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
-                                        <span className="truncate">{tag.label}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </>
-                )}
+              {isTagFilterOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setIsTagFilterOpen(false)} />
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-lg shadow-xl z-20 p-2 animate-in zoom-in-95 origin-top-right">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Select Label</h4>
+                    <div className="max-h-60 overflow-y-auto space-y-1">
+                      {tags.length === 0 && <p className="text-xs text-slate-400 italic px-1">No labels created.</p>}
+                      <button
+                        onClick={() => { setActiveFilterTagId(null); setIsTagFilterOpen(false); }}
+                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-bold transition-colors ${!activeFilterTagId ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        <LayoutGrid className="w-3.5 h-3.5 text-slate-400" />
+                        <span>All Items</span>
+                      </button>
+                      {tags.map(tag => (
+                        <button
+                          key={tag.id}
+                          onClick={() => { setActiveFilterTagId(tag.id); setIsTagFilterOpen(false); }}
+                          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-bold transition-colors ${activeFilterTagId === tag.id ? 'bg-slate-100 text-slate-800' : 'text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                          <span className="truncate">{tag.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Urgent Tasks Alert */}
@@ -606,15 +601,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               <div className="relative group flex items-center">
                 {/* Prominent Ping Animation Layer */}
                 <span className="absolute inset-1 rounded bg-red-400 opacity-30 animate-ping" />
-                
-                <div className="relative px-3 py-1.5 bg-red-50 text-red-600 rounded border border-red-200 cursor-help flex items-center z-10">
+
+                <div className="relative px-3 py-1.5 bg-red-100 text-red-700 rounded border border-red-300 cursor-help flex items-center z-10">
                   <TriangleAlert className="w-4 h-4" />
                 </div>
                 {/* Tooltip */}
                 <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded shadow-xl p-3 z-50 hidden group-hover:block animate-in fade-in slide-in-from-top-2">
                   <div className="flex items-start gap-3">
                     <div className="p-1.5 bg-red-100 rounded text-red-600 shrink-0">
-                       <TriangleAlert className="w-4 h-4" />
+                      <TriangleAlert className="w-4 h-4" />
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-800 uppercase tracking-wide">Action Required</p>
@@ -628,13 +623,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             )}
 
             {/* Streak Badge */}
-            <button 
+            <button
               onClick={() => setIsStreakModalOpen(true)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition-all ${
-                streakData.activeToday 
-                  ? 'bg-amber-50 border-amber-200 text-amber-600 shadow-sm' 
-                  : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition-all ${streakData.activeToday
+                ? 'bg-amber-50 border-amber-200 text-amber-600 shadow-sm'
+                : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'
+                }`}
             >
               <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'fill-current' : ''}`} />
               <span className="text-xs font-bold tabular-nums">{streakData.count}</span>
@@ -651,130 +645,129 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
       {/* Streak Details Modal */}
       {isStreakModalOpen && (
-        <div 
-            onClick={(e) => {
-                // Close if clicking outside the modal content
-                if (e.target === e.currentTarget) setIsStreakModalOpen(false);
-            }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
+        <div
+          onClick={(e) => {
+            // Close if clicking outside the modal content
+            if (e.target === e.currentTarget) setIsStreakModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
         >
           <div className="bg-white w-[95%] md:w-full max-w-lg rounded shadow-2xl animate-in zoom-in duration-200 flex flex-col overflow-hidden">
-             {/* Modal Header */}
-             <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-6 text-white relative overflow-hidden">
-                <div className="relative z-10">
-                   <div className="flex justify-between items-start">
-                      <div>
-                        <h2 className="text-3xl font-black tracking-tight flex items-center gap-2">
-                           <Flame className="w-8 h-8 fill-current" />
-                           {streakData.count} Days
-                        </h2>
-                        <p className="text-amber-100 font-medium text-sm mt-1">
-                          {streakData.activeToday ? "You're on fire! 🔥" : "Keep the momentum going!"}
-                        </p>
-                      </div>
-                      <button onClick={() => setIsStreakModalOpen(false)} className="p-1.5 bg-white/20 hover:bg-white/30 rounded transition-colors">
-                        <X className="w-5 h-5 text-white" />
-                      </button>
-                   </div>
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-6 text-white relative overflow-hidden">
+              <div className="relative z-10">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h2 className="text-3xl font-black tracking-tight flex items-center gap-2">
+                      <Flame className="w-8 h-8 fill-current" />
+                      {streakData.count} Days
+                    </h2>
+                    <p className="text-amber-100 font-medium text-sm mt-1">
+                      {streakData.activeToday ? "You're on fire! 🔥" : "Keep the momentum going!"}
+                    </p>
+                  </div>
+                  <button onClick={() => setIsStreakModalOpen(false)} className="p-1.5 bg-white/20 hover:bg-white/30 rounded transition-colors">
+                    <X className="w-5 h-5 text-white" />
+                  </button>
                 </div>
-                {/* Background Pattern */}
-                <div className="absolute top-[-20%] right-[-10%] opacity-20">
-                   <Flame className="w-40 h-40" />
-                </div>
-             </div>
+              </div>
+              {/* Background Pattern */}
+              <div className="absolute top-[-20%] right-[-10%] opacity-20">
+                <Flame className="w-40 h-40" />
+              </div>
+            </div>
 
-             {/* Modal Body */}
-             <div className="p-6 space-y-6">
-                {/* Status Box */}
-                <div className={`p-4 rounded border flex items-center gap-3 ${streakData.activeToday ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
-                   {streakData.activeToday ? (
-                     <CircleCheck className="w-5 h-5 shrink-0" />
-                   ) : (
-                     <Activity className="w-5 h-5 shrink-0" />
-                   )}
-                   <div className="flex-1">
-                       <p className="text-sm font-bold">
-                         {streakData.activeToday 
-                           ? "Daily streak extended! Great work." 
-                           : "Complete an activity today to continue your streak."}
-                       </p>
-                       <div className="flex items-center gap-1.5 mt-1 text-xs font-medium opacity-80">
-                           <Clock className="w-3 h-3" />
-                           <span>
-                               {streakData.activeToday ? 'Next streak starts in: ' : 'Time left today: '}
-                               <span className="font-bold font-mono">{timeLeft}</span>
-                           </span>
-                       </div>
-                   </div>
+            {/* Modal Body */}
+            <div className="p-6 space-y-6">
+              {/* Status Box */}
+              <div className={`p-4 rounded border flex items-center gap-3 ${streakData.activeToday ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                {streakData.activeToday ? (
+                  <CircleCheck className="w-5 h-5 shrink-0" />
+                ) : (
+                  <Activity className="w-5 h-5 shrink-0" />
+                )}
+                <div className="flex-1">
+                  <p className="text-sm font-bold">
+                    {streakData.activeToday
+                      ? "Daily streak extended! Great work."
+                      : "Complete an activity today to continue your streak."}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1 text-xs font-medium opacity-80">
+                    <Clock className="w-3 h-3" />
+                    <span>
+                      {streakData.activeToday ? 'Next streak starts in: ' : 'Time left today: '}
+                      <span className="font-bold font-mono">{timeLeft}</span>
+                    </span>
+                  </div>
                 </div>
+              </div>
 
-                {/* Requirements */}
-                <div className="space-y-3">
-                   <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                     <Info className="w-3.5 h-3.5" /> How to extend streak
-                   </h3>
-                   <div className="grid grid-cols-1 gap-2">
-                      <div className="flex items-center gap-3 p-3 bg-slate-50 rounded border border-slate-200">
-                         <div className="w-8 h-8 rounded bg-blue-50 text-[#0078d4] flex items-center justify-center border border-blue-100">
-                           <CircleCheck className="w-4 h-4" />
-                         </div>
-                         <span className="text-sm font-semibold text-slate-800">Create or Complete a Task</span>
-                      </div>
-                      <div className="flex items-center gap-3 p-3 bg-slate-50 rounded border border-slate-200">
-                         <div className="w-8 h-8 rounded bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
-                           <Zap className="w-4 h-4 fill-current" />
-                         </div>
-                         <span className="text-sm font-semibold text-slate-800">Check or Skip a Habit</span>
-                      </div>
-                      <div className="flex items-center gap-3 p-3 bg-slate-50 rounded border border-slate-200">
-                         <div className="w-8 h-8 rounded bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100">
-                           <BookOpen className="w-4 h-4" />
-                         </div>
-                         <span className="text-sm font-semibold text-slate-800">Write a Journal Entry</span>
-                      </div>
-                      <div className="flex items-center gap-3 p-3 bg-slate-50 rounded border border-slate-200">
-                         <div className="w-8 h-8 rounded bg-slate-50 text-slate-600 flex items-center justify-center border border-slate-100">
-                           <Notebook className="w-4 h-4" />
-                         </div>
-                         <span className="text-sm font-semibold text-slate-800">Update a Note</span>
-                      </div>
-                   </div>
+              {/* Requirements */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <Info className="w-3.5 h-3.5" /> How to extend streak
+                </h3>
+                <div className="grid grid-cols-1 gap-2">
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded border border-slate-200">
+                    <div className="w-8 h-8 rounded bg-slate-100 text-slate-600 flex items-center justify-center border border-slate-200">
+                      <CircleCheck className="w-4 h-4" />
+                    </div>
+                    <span className="text-sm font-semibold text-slate-800">Create or Complete a Task</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded border border-slate-200">
+                    <div className="w-8 h-8 rounded bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
+                      <Zap className="w-4 h-4 fill-current" />
+                    </div>
+                    <span className="text-sm font-semibold text-slate-800">Check or Skip a Habit</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded border border-slate-200">
+                    <div className="w-8 h-8 rounded bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100">
+                      <BookOpen className="w-4 h-4" />
+                    </div>
+                    <span className="text-sm font-semibold text-slate-800">Write a Journal Entry</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded border border-slate-200">
+                    <div className="w-8 h-8 rounded bg-slate-50 text-slate-600 flex items-center justify-center border border-slate-100">
+                      <Notebook className="w-4 h-4" />
+                    </div>
+                    <span className="text-sm font-semibold text-slate-800">Update a Note</span>
+                  </div>
                 </div>
-                
-                {/* Recent History Mini-Cal */}
-                <div className="space-y-3 pt-2">
-                   <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                     <Calendar className="w-3.5 h-3.5" /> Recent Activity
-                   </h3>
-                   <div className="flex justify-between items-center gap-1 bg-slate-50 p-3 rounded border border-slate-200">
-                      {Array.from({ length: 7 }).map((_, i) => {
-                         // Use logical date calculation for history display
-                         const d = new Date();
-                         if (d.getHours() < (userSettings.dayStartHour || 0)) {
-                             d.setDate(d.getDate() - 1);
-                         }
-                         d.setDate(d.getDate() - (6 - i));
-                         
-                         const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                         const isActive = streakData.history.includes(dateStr);
-                         const isToday = i === 6;
+              </div>
 
-                         return (
-                            <div key={i} className="flex flex-col items-center gap-1.5">
-                               <span className="text-[10px] font-bold text-slate-400 uppercase">{d.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>
-                               <div className={`w-8 h-8 rounded flex items-center justify-center border text-xs font-bold transition-all ${
-                                  isActive 
-                                  ? 'bg-amber-500 border-amber-600 text-white shadow-sm' 
-                                  : (isToday ? 'bg-white border-[#0078d4] text-[#0078d4] border-dashed' : 'bg-white border-slate-200 text-slate-300')
-                               }`}>
-                                  {isActive ? <Flame className="w-3.5 h-3.5 fill-current" /> : (isToday ? 'Today' : '')}
-                               </div>
-                            </div>
-                         );
-                      })}
-                   </div>
+              {/* Recent History Mini-Cal */}
+              <div className="space-y-3 pt-2">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5" /> Recent Activity
+                </h3>
+                <div className="flex justify-between items-center gap-1 bg-slate-50 p-3 rounded border border-slate-200">
+                  {Array.from({ length: 7 }).map((_, i) => {
+                    // Use logical date calculation for history display
+                    const d = new Date();
+                    if (d.getHours() < (userSettings.dayStartHour || 0)) {
+                      d.setDate(d.getDate() - 1);
+                    }
+                    d.setDate(d.getDate() - (6 - i));
+
+                    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    const isActive = streakData.history.includes(dateStr);
+                    const isToday = i === 6;
+
+                    return (
+                      <div key={i} className="flex flex-col items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">{d.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>
+                        <div className={`w-8 h-8 rounded flex items-center justify-center border text-xs font-bold transition-all ${isActive
+                          ? 'bg-amber-500 border-amber-600 text-white shadow-sm'
+                          : (isToday ? 'bg-white border-slate-600 text-slate-600 border-dashed' : 'bg-white border-slate-200 text-slate-300')
+                          }`}>
+                          {isActive ? <Flame className="w-3.5 h-3.5 fill-current" /> : (isToday ? 'Today' : '')}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-             </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

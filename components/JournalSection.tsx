@@ -190,7 +190,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-3 py-2 text-[10px] font-black uppercase rounded-md transition-all ${filter === f ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
+                className={`px-3 py-2 text-[10px] font-black uppercase rounded-md transition-all ${filter === f ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-700 hover:bg-slate-50'}`}
               >
                 {f}
               </button>
@@ -213,12 +213,12 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
               placeholder="Search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-3 h-10 text-xs w-full font-bold bg-white border border-slate-200 rounded-lg transition-all focus:border-[#0078d4] focus:ring-2 focus:ring-[#0078d4]/10"
+              className="pl-9 pr-3 h-10 text-xs w-full font-bold bg-white border border-slate-200 rounded-lg transition-all focus:border-slate-400 focus:ring-2 focus:ring-slate-400/10"
             />
           </div>
         </div>
 
-        <button onClick={openCreateModal} className="flex items-center justify-center gap-2 px-6 h-10 bg-[#0078d4] text-white hover:bg-[#106ebe] rounded shadow-md active:scale-95 transition-transform">
+        <button onClick={openCreateModal} className="flex items-center justify-center gap-2 px-6 h-10 bg-slate-600 text-white hover:bg-slate-700 rounded shadow-md active:scale-95 transition-transform">
           <Plus className="w-4 h-4" />
           <span className="text-sm font-bold">New Journal</span>
         </button>
@@ -233,13 +233,13 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
         ) : (
           processedJournals.map(([date, entries]) => (
             <div key={date} className="space-y-3">
-              <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-1">{date}</h4>
+              <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-widest pl-1">{date}</h4>
               <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
                 {entries.map((entry) => (
                   <div key={entry.id} className="group bg-white rounded border border-slate-200 p-5 hover:shadow-lg hover:border-slate-300 transition-all flex flex-col justify-between relative">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex flex-wrap gap-2">
-                        <span className={`text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded ${entry.entryType === 'Gratitude' ? 'bg-orange-50 text-[#d83b01]' : 'bg-blue-50 text-[#0078d4]'}`}>
+                        <span className={`text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded-lg border ${entry.entryType === 'Gratitude' ? 'bg-orange-100 text-[#d83b01] border-orange-200' : 'bg-slate-200 text-slate-800 border-slate-300'}`}>
                           {entry.entryType}
                         </span>
                         {entry.tags?.map(tagId => {
@@ -248,8 +248,8 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
                           return (
                             <span
                               key={tagId}
-                              className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border border-transparent"
-                              style={{ backgroundColor: `${tag.color}15`, color: tag.color }}
+                              className="flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded-lg border border-transparent shadow-sm"
+                              style={{ backgroundColor: `${tag.color}25`, color: tag.color }}
                             >
                               <TagIcon className="w-2.5 h-2.5" />
                               {tag.label}
@@ -258,7 +258,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
                         })}
                       </div>
                       <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <button onClick={() => openEditModal(entry)} className="p-1.5 text-[#0078d4] hover:bg-blue-50 rounded transition-colors" title="Edit">
+                        <button onClick={() => openEditModal(entry)} className="p-1.5 text-slate-600 hover:bg-slate-100 rounded transition-colors" title="Edit">
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button onClick={() => deleteEntry(entry.id)} className="p-1.5 text-[#a4262c] hover:bg-red-50 rounded transition-colors" title="Delete">
@@ -269,7 +269,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
 
                     <div className="flex gap-4">
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-lg font-black text-slate-800 tracking-tight mb-2 group-hover:text-[#0078d4] transition-colors truncate">
+                        <h4 className="text-lg font-black text-slate-950 tracking-tight mb-2 group-hover:text-slate-700 transition-colors break-words">
                           {entry.title}
                         </h4>
                         <p className="text-sm text-slate-600 leading-relaxed font-medium whitespace-pre-line">
@@ -290,7 +290,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
           <div className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl animate-in zoom-in duration-200 overflow-hidden flex flex-col max-h-[95vh]">
             <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-[#eff6fc] rounded text-[#0078d4]">
+                <div className="p-2 bg-slate-100 rounded text-slate-600">
                   <BookOpen className="w-5 h-5" />
                 </div>
                 <h3 className="text-xl font-black text-slate-800 tracking-tight">Record Memory</h3>
@@ -308,7 +308,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
                       key={t}
                       type="button"
                       onClick={() => setEntryType(t)}
-                      className={`flex-1 py-2 text-xs font-bold rounded transition-all ${entryType === t ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
+                      className={`flex-1 py-2 text-xs font-bold rounded transition-all ${entryType === t ? 'bg-white text-slate-600 shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
                     >
                       {t}
                     </button>
@@ -318,7 +318,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
 
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Title</label>
-                <input autoFocus required type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Give this moment a name..." className="w-full text-base font-bold bg-slate-50 border-none rounded p-4 focus:ring-2 focus:ring-[#0078d4]/10" />
+                <input autoFocus required type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Give this moment a name..." className="w-full text-base font-bold bg-slate-50 border-none rounded p-4 focus:ring-2 focus:ring-slate-400/10" />
               </div>
 
               {/* Tag Selector */}
@@ -336,7 +336,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
                           else setEntryTags(prev => [...prev, tag.id]);
                         }}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition-all ${isActive
-                          ? 'ring-2 ring-offset-1 ring-[#0078d4] border-transparent'
+                          ? 'ring-2 ring-offset-1 ring-slate-400 border-transparent'
                           : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
                           }`}
                         style={isActive ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
@@ -353,14 +353,14 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
                       placeholder="New Label..."
                       value={newTagInput}
                       onChange={(e) => setNewTagInput(e.target.value)}
-                      className="w-24 text-xs px-2 py-1.5 border border-slate-200 rounded focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                      className="w-24 text-xs px-2 py-1.5 border border-slate-200 rounded focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }}
                     />
                     <button
                       type="button"
                       onClick={handleInlineCreateTag}
                       disabled={!newTagInput.trim() || isCreatingTag}
-                      className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-[#eff6fc] hover:text-[#0078d4] disabled:opacity-50"
+                      className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 hover:text-slate-900 disabled:opacity-50"
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
@@ -370,12 +370,12 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
 
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Narrative</label>
-                <textarea required rows={6} value={content} onChange={(e) => setContent(e.target.value)} placeholder="Describe the feeling..." className="w-full text-sm font-medium bg-slate-50 border-none rounded p-4 resize-none focus:ring-2 focus:ring-[#0078d4]/10" />
+                <textarea required rows={6} value={content} onChange={(e) => setContent(e.target.value)} placeholder="Describe the feeling..." className="w-full text-sm font-medium bg-slate-50 border-none rounded p-4 resize-none focus:ring-2 focus:ring-slate-400/10" />
               </div>
             </form>
             <div className="px-8 py-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-4">
               <button type="button" onClick={closeModal} className="px-6 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded transition-all">Cancel</button>
-              <button onClick={handleSave} type="submit" className="px-10 py-2.5 text-sm font-bold bg-[#0078d4] text-white hover:bg-[#106ebe] rounded shadow-lg active:scale-95 transition-transform">Store Memory</button>
+              <button onClick={handleSave} type="submit" className="px-10 py-2.5 text-sm font-bold bg-slate-600 text-white hover:bg-slate-700 rounded shadow-lg active:scale-95 transition-transform">Store Memory</button>
             </div>
           </div>
         </div>
@@ -402,7 +402,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
               <button
                 key={g}
                 onClick={() => { setGrouping(g); setIsSettingsOpen(false); }}
-                className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${grouping === g ? 'text-[#0078d4] bg-blue-50' : 'text-slate-600 hover:bg-slate-50'}`}
+                className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${grouping === g ? 'text-slate-600 bg-slate-50' : 'text-slate-600 hover:bg-slate-50'}`}
               >
                 <span className="capitalize">{g}</span>
                 {grouping === g && <Check className="w-3 h-3" />}
@@ -416,7 +416,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
               <button
                 key={s}
                 onClick={() => { setSorting(s); setIsSettingsOpen(false); }}
-                className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${sorting === s ? 'text-[#0078d4] bg-blue-50' : 'text-slate-600 hover:bg-slate-50'}`}
+                className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors flex items-center justify-between ${sorting === s ? 'text-slate-600 bg-slate-50' : 'text-slate-600 hover:bg-slate-50'}`}
               >
                 <span className="capitalize">{s}</span>
                 {sorting === s && <Check className="w-3 h-3" />}
