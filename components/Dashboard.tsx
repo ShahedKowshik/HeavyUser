@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book } from 'lucide-react';
+import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, History } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
@@ -10,6 +10,7 @@ import HabitSection from './HabitSection';
 import NotesSection from './NotesSection';
 import RequestFeatureSection from './RequestFeatureSection';
 import ReportBugSection from './ReportBugSection';
+import ChangelogSection from './ChangelogSection';
 import { supabase } from '../lib/supabase';
 import { decryptData } from '../lib/crypto';
 
@@ -441,6 +442,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         return <ReportBugSection userId={userId} />;
       case 'settings':
         return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} tags={tags} setTags={setTags} />;
+      case 'changelog':
+        return <ChangelogSection />;
       default:
         return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} activeFilterTagId={activeFilterTagId} />;
     }
@@ -472,35 +475,49 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
           <NavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
 
-          {/* Distinct Group for Feature/Bug */}
-          <div className={`my-2 flex flex-col gap-1 ${!isSidebarCollapsed ? 'bg-slate-50 p-2 rounded-lg border border-slate-100' : ''}`}>
+          {/* Distinct Group for Updates/Feedback */}
+          <div className={`my-2 flex flex-col gap-2 ${!isSidebarCollapsed ? 'bg-slate-50 p-2 rounded-lg border border-slate-100' : ''}`}>
             {!isSidebarCollapsed && (
-              <div className="px-1 pb-1 text-[9px] font-black text-slate-400 uppercase tracking-widest">Feedback</div>
+              <div className="px-1 pb-1 text-[9px] font-black text-slate-400 uppercase tracking-widest">Updates & Support</div>
             )}
 
             <button
-              onClick={() => setActiveTab('request_feature')}
-              title={isSidebarCollapsed ? "Request Feature" : undefined}
-              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-2'} py-1.5 rounded-md transition-all duration-200 group ${activeTab === 'request_feature'
-                ? 'bg-amber-100 text-amber-800 font-bold shadow-sm'
-                : 'text-slate-500 hover:bg-white hover:text-amber-700 hover:shadow-sm font-medium'
+              onClick={() => setActiveTab('changelog')}
+              title={isSidebarCollapsed ? "What's New" : undefined}
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2 rounded-md transition-all duration-200 group ${activeTab === 'changelog'
+                ? 'bg-blue-600 text-white font-bold shadow-md ring-1 ring-blue-700'
+                : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300 hover:text-blue-700 hover:shadow-sm font-bold'
                 }`}
             >
-              <Lightbulb className={`w-4 h-4 transition-colors ${activeTab === 'request_feature' ? 'text-amber-700 fill-amber-700/20' : 'text-slate-400 group-hover:text-amber-600'}`} />
-              {!isSidebarCollapsed && <span className="text-xs">Request Feature</span>}
+              <History className={`w-4 h-4 transition-colors ${activeTab === 'changelog' ? 'text-white' : 'text-blue-500 group-hover:text-blue-600'}`} />
+              {!isSidebarCollapsed && <span className="text-xs">What's New</span>}
             </button>
 
-            <button
-              onClick={() => setActiveTab('report_bug')}
-              title={isSidebarCollapsed ? "Report Bug" : undefined}
-              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-2'} py-1.5 rounded-md transition-all duration-200 group ${activeTab === 'report_bug'
-                ? 'bg-rose-100 text-rose-800 font-bold shadow-sm'
-                : 'text-slate-500 hover:bg-white hover:text-rose-700 hover:shadow-sm font-medium'
-                }`}
-            >
-              <Bug className={`w-4 h-4 transition-colors ${activeTab === 'report_bug' ? 'text-rose-700 fill-rose-700/20' : 'text-slate-400 group-hover:text-rose-600'}`} />
-              {!isSidebarCollapsed && <span className="text-xs">Report Bug</span>}
-            </button>
+            <div className={`grid ${isSidebarCollapsed ? 'grid-cols-1' : 'grid-cols-2'} gap-1`}>
+              <button
+                onClick={() => setActiveTab('request_feature')}
+                title={isSidebarCollapsed ? "Request Feature" : undefined}
+                className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-2 px-2'} py-1.5 rounded-md transition-all duration-200 group ${activeTab === 'request_feature'
+                  ? 'bg-amber-100 text-amber-800 font-bold shadow-sm'
+                  : 'text-slate-500 hover:bg-white hover:text-amber-700 hover:shadow-sm font-medium border border-transparent hover:border-amber-100'
+                  }`}
+              >
+                <Lightbulb className={`w-3.5 h-3.5 transition-colors ${activeTab === 'request_feature' ? 'text-amber-700 fill-amber-700/20' : 'text-slate-400 group-hover:text-amber-600'}`} />
+                {!isSidebarCollapsed && <span className="text-[10px] whitespace-nowrap">Feature</span>}
+              </button>
+
+              <button
+                onClick={() => setActiveTab('report_bug')}
+                title={isSidebarCollapsed ? "Report Bug" : undefined}
+                className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-2 px-2'} py-1.5 rounded-md transition-all duration-200 group ${activeTab === 'report_bug'
+                  ? 'bg-rose-100 text-rose-800 font-bold shadow-sm'
+                  : 'text-slate-500 hover:bg-white hover:text-rose-700 hover:shadow-sm font-medium border border-transparent hover:border-rose-100'
+                  }`}
+              >
+                <Bug className={`w-3.5 h-3.5 transition-colors ${activeTab === 'report_bug' ? 'text-rose-700 fill-rose-700/20' : 'text-slate-400 group-hover:text-rose-600'}`} />
+                {!isSidebarCollapsed && <span className="text-[10px] whitespace-nowrap">Bug</span>}
+              </button>
+            </div>
           </div>
 
           <button

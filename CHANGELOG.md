@@ -10,3 +10,4 @@ All notable changes to the HeavyUser project will be documented in this file.
 ### Changed
 - Increased sidebar branding icon size from `w-7` to `w-9` for better visual prominence.
 - Standardized the `git-push` workflow to include detailed summaries.
+- Reorganized sidebar: Moved 'What's New' to a prominent Updates section and placed 'Feature'/'Bug' buttons side-by-side for better visual hierarchy.
