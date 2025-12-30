@@ -60,7 +60,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
           case 'High': return 'bg-orange-50 text-orange-600 shadow-sm ring-1 ring-orange-200';
           case 'Normal': return 'bg-blue-50 text-blue-600 shadow-sm ring-1 ring-blue-200';
           case 'Low': return 'bg-slate-100 text-slate-600 shadow-sm ring-1 ring-slate-300';
-          default: return 'bg-white text-[#0078d4] shadow-sm';
+          default: return 'bg-white text-[#334155] shadow-sm';
       }
   };
 
@@ -68,7 +68,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
     <div className="animate-in fade-in duration-500 pb-20 max-w-2xl mx-auto">
       <div className="mb-8 text-center">
         <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-100">
-             <Lightbulb className="w-6 h-6 text-[#0078d4]" />
+             <Lightbulb className="w-6 h-6 text-[#334155]" />
         </div>
         <h3 className="text-2xl font-black text-slate-800 tracking-tight">
             Request a Feature
@@ -88,7 +88,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                 <p className="text-slate-500">Thank you for your feedback. We're on it.</p>
                 <button 
                     onClick={() => setIsSuccess(false)}
-                    className="mt-6 text-[#0078d4] font-bold text-sm hover:underline"
+                    className="mt-6 text-[#334155] font-bold text-sm hover:underline"
                 >
                     Submit another request
                 </button>
@@ -112,7 +112,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         placeholder="e.g., Dark Mode, Calendar View..."
-                        className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4] transition-all placeholder:text-slate-400"
+                        className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-[#334155] focus:ring-1 focus:ring-[#334155] transition-all placeholder:text-slate-400"
                         required
                     />
                 </div>
@@ -126,7 +126,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         placeholder="Describe what you want to achieve and how it helps..."
-                        className="w-full text-sm font-medium bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4] transition-all placeholder:text-slate-400 min-h-[120px] resize-y"
+                        className="w-full text-sm font-medium bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-[#334155] focus:ring-1 focus:ring-[#334155] transition-all placeholder:text-slate-400 min-h-[120px] resize-y"
                         required
                     />
                 </div>
@@ -153,7 +153,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                     <button
                         type="submit"
                         disabled={isSubmitting || !title.trim() || !description.trim()}
-                        className="flex items-center gap-2 px-8 py-3 bg-[#0078d4] text-white font-bold rounded-lg hover:bg-[#106ebe] transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+                        className="flex items-center gap-2 px-8 py-3 bg-[#334155] text-white font-bold rounded-lg hover:bg-[#1e293b] transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
                     >
                         {isSubmitting ? (
                             <>

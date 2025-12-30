@@ -22,7 +22,7 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     const newTag: Tag = {
         id: crypto.randomUUID(),
         label: label.trim(),
-        color: '#3b82f6', // Default blue
+        color: '#334155', // Default Slate
     };
     
     await supabase.from('tags').insert({
@@ -474,7 +474,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
           <div className="flex items-center justify-between">
              <div className="flex items-center gap-2">
                 <button 
-                    className="md:hidden p-2 -ml-2 text-slate-400 hover:text-[#0078d4]"
+                    className="md:hidden p-2 -ml-2 text-slate-400 hover:text-[#334155]"
                     onClick={() => setMobileView('sidebar')}
                 >
                     <Menu className="w-5 h-5" />
@@ -486,7 +486,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
              <div className="relative">
                  <button 
                     onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
-                    className="w-8 h-8 flex items-center justify-center bg-[#0078d4] text-white rounded-md shadow-sm hover:bg-[#106ebe] transition-all"
+                    className="w-8 h-8 flex items-center justify-center bg-[#334155] text-white rounded-md shadow-sm hover:bg-[#1e293b] transition-all"
                     title="Add"
                  >
                     <Plus className="w-5 h-5" />
@@ -521,7 +521,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                 placeholder="Search notes..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-100 border-transparent rounded-md text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-[#0078d4] focus:ring-2 focus:ring-[#0078d4]/10 transition-all"
+                className="w-full pl-9 pr-3 py-2 bg-slate-100 border-transparent rounded-md text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-[#334155] focus:ring-2 focus:ring-[#334155]/10 transition-all"
              />
           </div>
        </div>
@@ -544,7 +544,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                    <div key={folder.id} className="select-none">
                        {isEditing ? (
                              <form onSubmit={handleRenameFolder} className="px-2 py-1 mb-1">
-                                <div className="flex gap-1 items-center bg-white p-1 rounded border border-[#0078d4] shadow-sm">
+                                <div className="flex gap-1 items-center bg-white p-1 rounded border border-[#334155] shadow-sm">
                                     <input 
                                         autoFocus
                                         type="text" 
@@ -553,7 +553,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                                         className="flex-1 text-xs px-2 py-1.5 border-none outline-none bg-transparent font-semibold"
                                         onBlur={() => { if(!editFolderName.trim()) setEditingFolderId(null); }}
                                     />
-                                    <button type="submit" className="p-1 bg-[#0078d4] text-white rounded hover:bg-[#106ebe]"><Check className="w-3 h-3" /></button>
+                                    <button type="submit" className="p-1 bg-[#334155] text-white rounded hover:bg-[#1e293b]"><Check className="w-3 h-3" /></button>
                                     <button type="button" onClick={() => setEditingFolderId(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded"><X className="w-3 h-3" /></button>
                                 </div>
                              </form>
@@ -564,13 +564,13 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                                     onClick={() => toggleFolderExpand(folder.id)}
                                >
                                    <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
-                                   <Folder className={`w-4 h-4 ${isExpanded ? 'text-[#0078d4] fill-[#0078d4]/10' : 'text-slate-400'}`} />
+                                   <Folder className={`w-4 h-4 ${isExpanded ? 'text-[#334155] fill-[#334155]/10' : 'text-slate-400'}`} />
                                    <span className="text-sm font-medium text-slate-700 flex-1 truncate">{folder.name}</span>
                                    
                                    {/* Quick Add Note to Folder */}
                                    <button 
                                       onClick={(e) => { e.stopPropagation(); handleCreateNote(folder.id); }}
-                                      className="p-1 text-slate-400 hover:text-[#0078d4] hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                      className="p-1 text-slate-400 hover:text-[#334155] hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                                       title="New Note in Folder"
                                    >
                                        <Plus className="w-3.5 h-3.5" />
@@ -606,9 +606,9 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                                            <div 
                                                key={note.id}
                                                onClick={() => { setSelectedNoteId(note.id); setMobileView('editor'); }}
-                                               className={`px-2 py-1.5 rounded-md text-sm cursor-pointer truncate transition-colors flex items-center gap-2 group/note ${selectedNoteId === note.id ? 'bg-[#eff6fc] text-[#0078d4] font-medium' : 'text-slate-600 hover:bg-slate-50'}`}
+                                               className={`px-2 py-1.5 rounded-md text-sm cursor-pointer truncate transition-colors flex items-center gap-2 group/note ${selectedNoteId === note.id ? 'bg-[#f1f5f9] text-[#334155] font-medium' : 'text-slate-600 hover:bg-slate-50'}`}
                                            >
-                                               <FileText className={`w-3.5 h-3.5 shrink-0 ${selectedNoteId === note.id ? 'text-[#0078d4]' : 'text-slate-300'}`} />
+                                               <FileText className={`w-3.5 h-3.5 shrink-0 ${selectedNoteId === note.id ? 'text-[#334155]' : 'text-slate-300'}`} />
                                                <span className="truncate">{note.title || 'Untitled'}</span>
                                            </div>
                                        ))}
@@ -622,7 +622,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
 
            {isCreatingFolder && (
              <form onSubmit={handleCreateFolder} className="mt-1 px-2 animate-in fade-in slide-in-from-top-2">
-                 <div className="flex gap-2 items-center bg-white p-1 rounded-lg border border-[#0078d4] shadow-sm">
+                 <div className="flex gap-2 items-center bg-white p-1 rounded-lg border border-[#334155] shadow-sm">
                     <input 
                         autoFocus
                         type="text" 
@@ -632,7 +632,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                         className="flex-1 text-xs px-2 py-1.5 border-none outline-none bg-transparent font-semibold"
                         onBlur={() => !newFolderName && setIsCreatingFolder(false)}
                     />
-                    <button type="submit" disabled={!newFolderName} className="p-1.5 bg-[#0078d4] text-white rounded-md"><Plus className="w-3 h-3" /></button>
+                    <button type="submit" disabled={!newFolderName} className="p-1.5 bg-[#334155] text-white rounded-md"><Plus className="w-3 h-3" /></button>
                  </div>
              </form>
            )}
@@ -647,9 +647,9 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                    <div 
                         key={note.id}
                         onClick={() => { setSelectedNoteId(note.id); setMobileView('editor'); }}
-                        className={`px-2 py-2 rounded-md text-sm cursor-pointer truncate transition-colors flex items-center gap-2 ${selectedNoteId === note.id ? 'bg-[#eff6fc] text-[#0078d4] font-medium' : 'text-slate-600 hover:bg-slate-50'}`}
+                        className={`px-2 py-2 rounded-md text-sm cursor-pointer truncate transition-colors flex items-center gap-2 ${selectedNoteId === note.id ? 'bg-[#f1f5f9] text-[#334155] font-medium' : 'text-slate-600 hover:bg-slate-50'}`}
                     >
-                        <FileText className={`w-3.5 h-3.5 shrink-0 ${selectedNoteId === note.id ? 'text-[#0078d4]' : 'text-slate-300'}`} />
+                        <FileText className={`w-3.5 h-3.5 shrink-0 ${selectedNoteId === note.id ? 'text-[#334155]' : 'text-slate-300'}`} />
                         <span className="truncate">{note.title || 'Untitled'}</span>
                     </div>
                ))}
@@ -679,7 +679,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
            {/* ... existing toolbar code ... */}
            <div className="flex items-center gap-2">
               <button 
-                  className="md:hidden p-2 -ml-2 text-slate-400 hover:text-[#0078d4]"
+                  className="md:hidden p-2 -ml-2 text-slate-400 hover:text-[#334155]"
                   onClick={() => setMobileView('sidebar')}
               >
                   <ChevronLeft className="w-5 h-5" />
@@ -704,7 +704,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                             <div className="px-2 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Move to...</div>
                             <button
                                 onClick={() => handleMoveNote(null)}
-                                className={`w-full text-left px-3 py-2 text-xs font-medium rounded flex items-center gap-2 ${!selectedNote.folderId ? 'bg-slate-100 text-[#0078d4]' : 'text-slate-700 hover:bg-slate-50'}`}
+                                className={`w-full text-left px-3 py-2 text-xs font-medium rounded flex items-center gap-2 ${!selectedNote.folderId ? 'bg-slate-100 text-[#334155]' : 'text-slate-700 hover:bg-slate-50'}`}
                             >
                                 <File className="w-3.5 h-3.5 opacity-50" /> Uncategorized
                             </button>
@@ -712,7 +712,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                                 <button
                                     key={f.id}
                                     onClick={() => handleMoveNote(f.id)}
-                                    className={`w-full text-left px-3 py-2 text-xs font-medium rounded flex items-center gap-2 ${selectedNote.folderId === f.id ? 'bg-slate-100 text-[#0078d4]' : 'text-slate-700 hover:bg-slate-50'}`}
+                                    className={`w-full text-left px-3 py-2 text-xs font-medium rounded flex items-center gap-2 ${selectedNote.folderId === f.id ? 'bg-slate-100 text-[#334155]' : 'text-slate-700 hover:bg-slate-50'}`}
                                 >
                                     <Folder className="w-3.5 h-3.5 opacity-50" /> {f.name}
                                 </button>
@@ -725,7 +725,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
               <div className="hidden sm:flex items-center text-xs text-slate-400 gap-2 ml-2 border-l border-slate-200 pl-3">
                   <Clock className="w-3 h-3" />
                   <span>{formatDateDetail(selectedNote.updatedAt)}</span>
-                  {isSaving && <span className="text-[#0078d4] font-bold animate-pulse">Saving...</span>}
+                  {isSaving && <span className="text-[#334155] font-bold animate-pulse">Saving...</span>}
               </div>
            </div>
            
@@ -734,7 +734,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                <div className="relative">
                    <button 
                        onClick={() => setIsTagPopoverOpen(!isTagPopoverOpen)}
-                       className={`p-2 rounded hover:bg-slate-100 transition-colors ${editorTags.length > 0 ? 'text-[#0078d4]' : 'text-slate-400'}`}
+                       className={`p-2 rounded hover:bg-slate-100 transition-colors ${editorTags.length > 0 ? 'text-[#334155]' : 'text-slate-400'}`}
                        title="Manage Labels"
                    >
                        <TagIcon className="w-4 h-4" />
@@ -766,14 +766,14 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                                         placeholder="New Label..." 
                                         value={newTagInput}
                                         onChange={(e) => setNewTagInput(e.target.value)}
-                                        className="w-full text-xs px-2 py-1.5 border border-slate-200 rounded focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                                        className="w-full text-xs px-2 py-1.5 border border-slate-200 rounded focus:border-[#334155] focus:ring-1 focus:ring-[#334155]"
                                         onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }}
                                     />
                                     <button 
                                         type="button"
                                         onClick={handleInlineCreateTag}
                                         disabled={!newTagInput.trim() || isCreatingTag}
-                                        className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-[#eff6fc] hover:text-[#0078d4] disabled:opacity-50"
+                                        className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-[#f1f5f9] hover:text-[#334155] disabled:opacity-50"
                                     >
                                         <Plus className="w-3.5 h-3.5" />
                                     </button>

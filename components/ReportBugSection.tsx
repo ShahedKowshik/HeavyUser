@@ -46,25 +46,26 @@ const ReportBugSection: React.FC<ReportBugSectionProps> = ({ userId }) => {
     setError(null);
 
     try {
-      let attachmentUrl = null;
+      let fileUrl = null;
 
+      // Handle File Upload if exists
       if (file) {
         const fileExt = file.name.split('.').pop();
-        // Use user ID and timestamp to prevent collisions
-        const fileName = `${userId}/${Date.now()}.${fileExt}`;
+        const fileName = `${userId}/${crypto.randomUUID()}.${fileExt}`;
         
         const { error: uploadError } = await supabase.storage
-          .from('bug-attachments')
+          .from('bug-reports') // Assuming a bucket named 'bug-reports' exists
           .upload(fileName, file);
 
-        if (uploadError) throw uploadError;
-
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('bug-attachments')
-          .getPublicUrl(fileName);
-          
-        attachmentUrl = publicUrl;
+        if (uploadError) {
+           console.warn("File upload failed:", uploadError);
+           // We continue without attachment if upload fails, or you could throw error
+        } else {
+           const { data: { publicUrl } } = supabase.storage
+             .from('bug-reports')
+             .getPublicUrl(fileName);
+           fileUrl = publicUrl;
+        }
       }
 
       const { error: insertError } = await supabase
@@ -74,7 +75,7 @@ const ReportBugSection: React.FC<ReportBugSectionProps> = ({ userId }) => {
           title: title.trim(),
           description: description.trim(),
           priority: priority,
-          attachment_url: attachmentUrl
+          attachment_url: fileUrl
         });
 
       if (insertError) throw insertError;
@@ -83,8 +84,7 @@ const ReportBugSection: React.FC<ReportBugSectionProps> = ({ userId }) => {
       setTitle('');
       setDescription('');
       setPriority('Normal');
-      setFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      removeFile();
 
       // Reset success message after 3 seconds
       setTimeout(() => setIsSuccess(false), 3000);
@@ -104,21 +104,21 @@ const ReportBugSection: React.FC<ReportBugSectionProps> = ({ userId }) => {
           case 'High': return 'bg-orange-50 text-orange-600 shadow-sm ring-1 ring-orange-200';
           case 'Normal': return 'bg-blue-50 text-blue-600 shadow-sm ring-1 ring-blue-200';
           case 'Low': return 'bg-slate-100 text-slate-600 shadow-sm ring-1 ring-slate-300';
-          default: return 'bg-white text-[#0078d4] shadow-sm';
+          default: return 'bg-white text-[#334155] shadow-sm';
       }
   };
 
   return (
     <div className="animate-in fade-in duration-500 pb-20 max-w-2xl mx-auto">
       <div className="mb-8 text-center">
-        <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-100">
-             <Bug className="w-6 h-6 text-[#a4262c]" />
+        <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-100">
+             <Bug className="w-6 h-6 text-rose-600" />
         </div>
         <h3 className="text-2xl font-black text-slate-800 tracking-tight">
             Report a Bug
         </h3>
         <p className="text-sm font-medium text-slate-500 mt-2 max-w-md mx-auto">
-            Found something broken? Let us know so we can fix it.
+            Found something broken? Help us fix it by providing details below.
         </p>
       </div>
 
@@ -129,12 +129,12 @@ const ReportBugSection: React.FC<ReportBugSectionProps> = ({ userId }) => {
                     <CircleCheck className="w-8 h-8" />
                 </div>
                 <h4 className="text-xl font-bold text-slate-800 mb-2">Report Sent!</h4>
-                <p className="text-slate-500">Thanks for helping us improve.</p>
+                <p className="text-slate-500">Thanks for the heads up. We'll investigate ASAP.</p>
                 <button 
                     onClick={() => setIsSuccess(false)}
-                    className="mt-6 text-[#0078d4] font-bold text-sm hover:underline"
+                    className="mt-6 text-[#334155] font-bold text-sm hover:underline"
                 >
-                    Report another bug
+                    Submit another report
                 </button>
             </div>
         ) : (
@@ -148,36 +148,36 @@ const ReportBugSection: React.FC<ReportBugSectionProps> = ({ userId }) => {
 
                 <div className="space-y-2">
                     <label htmlFor="title" className="text-xs font-black text-slate-500 uppercase tracking-widest">
-                        Bug Title <span className="text-red-500">*</span>
+                        Issue Summary <span className="text-red-500">*</span>
                     </label>
                     <input
                         id="title"
                         type="text"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        placeholder="e.g., App crashes when clicking save..."
-                        className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4] transition-all placeholder:text-slate-400"
+                        placeholder="e.g., App crashes when clicking..."
+                        className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-[#334155] focus:ring-1 focus:ring-[#334155] transition-all placeholder:text-slate-400"
                         required
                     />
                 </div>
 
                 <div className="space-y-2">
                     <label htmlFor="description" className="text-xs font-black text-slate-500 uppercase tracking-widest">
-                        Description <span className="text-red-500">*</span>
+                        Details & Steps <span className="text-red-500">*</span>
                     </label>
                     <textarea
                         id="description"
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Describe what happened and how to reproduce it..."
-                        className="w-full text-sm font-medium bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4] transition-all placeholder:text-slate-400 min-h-[120px] resize-y"
+                        placeholder="1. Go to settings... 2. Click on..."
+                        className="w-full text-sm font-medium bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-[#334155] focus:ring-1 focus:ring-[#334155] transition-all placeholder:text-slate-400 min-h-[120px] resize-y"
                         required
                     />
                 </div>
 
-                <div className="space-y-2">
+                 <div className="space-y-2">
                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
-                        Priority <span className="text-red-500">*</span>
+                        Severity <span className="text-red-500">*</span>
                     </label>
                     <div className="flex flex-wrap gap-2 p-1 bg-slate-50 rounded-lg border border-slate-200">
                         {(['Urgent', 'High', 'Normal', 'Low'] as Priority[]).map((p) => (
@@ -194,60 +194,53 @@ const ReportBugSection: React.FC<ReportBugSectionProps> = ({ userId }) => {
                 </div>
 
                 <div className="space-y-2">
-                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
                         Attachment (Optional)
                     </label>
-                    {!file ? (
-                        <div 
+                    <div className="flex items-center gap-3">
+                         <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileChange}
+                            accept="image/*,.pdf,.txt,.log"
+                            className="hidden"
+                        />
+                        <button
+                            type="button"
                             onClick={() => fileInputRef.current?.click()}
-                            className="border-2 border-dashed border-slate-200 rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:border-[#0078d4] hover:bg-slate-50 transition-all text-center"
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors border border-slate-200"
                         >
-                            <UploadCloud className="w-8 h-8 text-slate-300 mb-2" />
-                            <p className="text-sm font-bold text-slate-600">Click to upload screenshot</p>
-                            <p className="text-xs text-slate-400 mt-1">Max 2MB (Images only)</p>
-                            <input 
-                                ref={fileInputRef}
-                                type="file" 
-                                accept="image/*" 
-                                onChange={handleFileChange}
-                                className="hidden"
-                            />
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                            <div className="p-2 bg-white rounded border border-slate-100">
-                                <FileText className="w-5 h-5 text-[#0078d4]" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold text-slate-700 truncate">{file.name}</p>
-                                <p className="text-xs text-slate-400">{(file.size / 1024).toFixed(0)} KB</p>
-                            </div>
-                            <button 
-                                type="button" 
-                                onClick={removeFile}
-                                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-                    )}
+                            <UploadCloud className="w-4 h-4" />
+                            Upload Screenshot/Log
+                        </button>
+                        {file && (
+                             <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                                 <FileText className="w-3.5 h-3.5 text-slate-500" />
+                                 <span className="text-xs font-medium text-slate-700 truncate max-w-[150px]">{file.name}</span>
+                                 <button type="button" onClick={removeFile} className="p-0.5 hover:bg-red-100 text-slate-400 hover:text-red-500 rounded ml-1">
+                                     <X className="w-3 h-3" />
+                                 </button>
+                             </div>
+                        )}
+                    </div>
+                    <p className="text-[10px] text-slate-400">Max size 2MB. Images or logs only.</p>
                 </div>
 
                 <div className="pt-4 flex justify-end">
                     <button
                         type="submit"
                         disabled={isSubmitting || !title.trim() || !description.trim()}
-                        className="flex items-center gap-2 px-8 py-3 bg-[#0078d4] text-white font-bold rounded-lg hover:bg-[#106ebe] transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+                        className="flex items-center gap-2 px-8 py-3 bg-rose-600 text-white font-bold rounded-lg hover:bg-rose-700 transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
                     >
                         {isSubmitting ? (
                             <>
                                 <Loader2 className="w-5 h-5 animate-spin" />
-                                <span>Sending...</span>
+                                <span>Submitting...</span>
                             </>
                         ) : (
                             <>
                                 <Send className="w-5 h-5" />
-                                <span>Submit Bug Report</span>
+                                <span>Submit Report</span>
                             </>
                         )}
                     </button>

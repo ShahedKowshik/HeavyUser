@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import AuthPage from './components/AuthPage';
 import Dashboard from './components/Dashboard';
@@ -51,7 +49,7 @@ const App: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#faf9f8] flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-[#0078d4] border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-4 border-[#334155] border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }

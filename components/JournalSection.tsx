@@ -22,7 +22,7 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     const newTag: Tag = {
         id: crypto.randomUUID(),
         label: label.trim(),
-        color: '#3b82f6', // Default blue
+        color: '#334155', // Default Slate
     };
     
     await supabase.from('tags').insert({
@@ -169,7 +169,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
               <button 
                 key={f} 
                 onClick={() => setFilter(f)} 
-                className={`flex-1 sm:flex-none px-3 py-1.5 text-[10px] font-black uppercase rounded transition-all ${filter === f ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
+                className={`flex-1 sm:flex-none px-3 py-1.5 text-[10px] font-black uppercase rounded transition-all ${filter === f ? 'bg-white text-[#334155] shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
               >
                 {f}
               </button>
@@ -179,7 +179,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 pr-3 py-2 text-xs w-full sm:w-32 md:focus:w-48 font-bold bg-white border border-slate-200 rounded transition-all" />
           </div>
-          <button onClick={openCreateModal} className="flex items-center justify-center gap-2 px-6 py-2.5 bg-[#0078d4] text-white hover:bg-[#106ebe] rounded shadow-md active:scale-95 transition-transform">
+          <button onClick={openCreateModal} className="flex items-center justify-center gap-2 px-6 py-2.5 bg-[#334155] text-white hover:bg-[#1e293b] rounded shadow-md active:scale-95 transition-transform">
             <Plus className="w-4 h-4" />
             <span className="text-sm font-bold">New Journal</span>
           </button>
@@ -201,7 +201,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
                   <div key={entry.id} className="group bg-white rounded border border-slate-200 p-5 hover:shadow-lg hover:border-slate-300 transition-all flex flex-col justify-between relative">
                     <div className="flex items-start justify-between mb-3">
                        <div className="flex flex-wrap gap-2">
-                           <span className={`text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded ${entry.entryType === 'Gratitude' ? 'bg-orange-50 text-[#d83b01]' : 'bg-blue-50 text-[#0078d4]'}`}>
+                           <span className={`text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded ${entry.entryType === 'Gratitude' ? 'bg-orange-50 text-[#d83b01]' : 'bg-slate-50 text-[#334155]'}`}>
                               {entry.entryType}
                            </span>
                            {entry.tags?.map(tagId => {
@@ -220,7 +220,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
                             })}
                        </div>
                        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                          <button onClick={() => openEditModal(entry)} className="p-1.5 text-[#0078d4] hover:bg-blue-50 rounded transition-colors" title="Edit">
+                          <button onClick={() => openEditModal(entry)} className="p-1.5 text-[#334155] hover:bg-slate-100 rounded transition-colors" title="Edit">
                              <Pencil className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={() => deleteEntry(entry.id)} className="p-1.5 text-[#a4262c] hover:bg-red-50 rounded transition-colors" title="Delete">
@@ -231,7 +231,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
 
                     <div className="flex gap-4">
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-lg font-black text-slate-800 tracking-tight mb-2 group-hover:text-[#0078d4] transition-colors truncate">
+                        <h4 className="text-lg font-black text-slate-800 tracking-tight mb-2 group-hover:text-[#334155] transition-colors truncate">
                           {entry.title}
                         </h4>
                         <p className="text-sm text-slate-600 leading-relaxed font-medium whitespace-pre-line">
@@ -252,7 +252,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
           <div className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl animate-in zoom-in duration-200 overflow-hidden flex flex-col max-h-[95vh]">
             <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-[#eff6fc] rounded text-[#0078d4]">
+                <div className="p-2 bg-[#f1f5f9] rounded text-[#334155]">
                   <BookOpen className="w-5 h-5" />
                 </div>
                 <h3 className="text-xl font-black text-slate-800 tracking-tight">Record Memory</h3>
@@ -270,7 +270,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
                       key={t} 
                       type="button" 
                       onClick={() => setEntryType(t)} 
-                      className={`flex-1 py-2 text-xs font-bold rounded transition-all ${entryType === t ? 'bg-white text-[#0078d4] shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
+                      className={`flex-1 py-2 text-xs font-bold rounded transition-all ${entryType === t ? 'bg-white text-[#334155] shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
                     >
                       {t}
                     </button>
@@ -280,7 +280,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
               
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Title</label>
-                <input autoFocus required type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Give this moment a name..." className="w-full text-base font-bold bg-slate-50 border-none rounded p-4 focus:ring-2 focus:ring-[#0078d4]/10" />
+                <input autoFocus required type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Give this moment a name..." className="w-full text-base font-bold bg-slate-50 border-none rounded p-4 focus:ring-2 focus:ring-[#334155]/10" />
               </div>
 
               {/* Tag Selector */}
@@ -299,7 +299,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
                                   }}
                                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition-all ${
                                       isActive 
-                                      ? 'ring-2 ring-offset-1 ring-[#0078d4] border-transparent' 
+                                      ? 'ring-2 ring-offset-1 ring-[#334155] border-transparent' 
                                       : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
                                   }`}
                                   style={isActive ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
@@ -316,14 +316,14 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
                              placeholder="New Label..." 
                              value={newTagInput}
                              onChange={(e) => setNewTagInput(e.target.value)}
-                             className="w-24 text-xs px-2 py-1.5 border border-slate-200 rounded focus:border-[#0078d4] focus:ring-1 focus:ring-[#0078d4]"
+                             className="w-24 text-xs px-2 py-1.5 border border-slate-200 rounded focus:border-[#334155] focus:ring-1 focus:ring-[#334155]"
                              onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }}
                           />
                           <button 
                              type="button"
                              onClick={handleInlineCreateTag}
                              disabled={!newTagInput.trim() || isCreatingTag}
-                             className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-[#eff6fc] hover:text-[#0078d4] disabled:opacity-50"
+                             className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-[#f1f5f9] hover:text-[#334155] disabled:opacity-50"
                           >
                              <Plus className="w-3.5 h-3.5" />
                           </button>
@@ -333,12 +333,12 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
 
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Narrative</label>
-                <textarea required rows={6} value={content} onChange={(e) => setContent(e.target.value)} placeholder="Describe the feeling..." className="w-full text-sm font-medium bg-slate-50 border-none rounded p-4 resize-none focus:ring-2 focus:ring-[#0078d4]/10" />
+                <textarea required rows={6} value={content} onChange={(e) => setContent(e.target.value)} placeholder="Describe the feeling..." className="w-full text-sm font-medium bg-slate-50 border-none rounded p-4 resize-none focus:ring-2 focus:ring-[#334155]/10" />
               </div>
             </form>
             <div className="px-8 py-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-4">
               <button type="button" onClick={closeModal} className="px-6 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded transition-all">Cancel</button>
-              <button onClick={handleSave} type="submit" className="px-10 py-2.5 text-sm font-bold bg-[#0078d4] text-white hover:bg-[#106ebe] rounded shadow-lg active:scale-95 transition-transform">Store Memory</button>
+              <button onClick={handleSave} type="submit" className="px-10 py-2.5 text-sm font-bold bg-[#334155] text-white hover:bg-[#1e293b] rounded shadow-lg active:scale-95 transition-transform">Store Memory</button>
             </div>
           </div>
         </div>

@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder } from '../types';
@@ -55,11 +53,11 @@ const NavItem: React.FC<NavItemProps> = ({ id, label, icon: Icon, count, shortcu
     title={isSidebarCollapsed ? label : undefined}
     className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2 rounded transition-all duration-200 group ${
       activeTab === id 
-      ? 'bg-slate-100 text-[#0078d4] font-bold shadow-sm ring-1 ring-slate-200' 
+      ? 'bg-slate-100 text-[#334155] font-bold shadow-sm ring-1 ring-slate-200' 
       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
     }`}
   >
-    <Icon className={`w-4.5 h-4.5 transition-colors ${activeTab === id ? 'text-[#0078d4]' : 'text-slate-400 group-hover:text-slate-600'}`} />
+    <Icon className={`w-4.5 h-4.5 transition-colors ${activeTab === id ? 'text-[#334155]' : 'text-slate-400 group-hover:text-slate-600'}`} />
     {!isSidebarCollapsed && (
         <>
           <span className="text-sm flex-1 text-left truncate">{label}</span>
@@ -87,7 +85,7 @@ const MobileNavItem: React.FC<MobileNavItemProps> = ({ id, label, icon: Icon, ac
     onClick={() => setActiveTab(id)}
     className={`flex flex-col items-center justify-center p-2 rounded transition-all duration-200 ${
       activeTab === id 
-      ? 'text-[#0078d4]' 
+      ? 'text-[#334155]' 
       : 'text-slate-400'
     }`}
   >
@@ -453,11 +451,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const isNotesTab = activeTab === 'notes';
 
   return (
-    <div className="flex h-screen bg-slate-100 text-slate-800 overflow-hidden font-sans selection:bg-[#0078d4]/20 selection:text-[#0078d4]">
+    <div className="flex h-screen bg-slate-100 text-slate-800 overflow-hidden font-sans selection:bg-[#334155]/20 selection:text-[#334155]">
       {/* Sidebar - Desktop */}
       <aside className={`hidden md:flex flex-col p-4 space-y-2 bg-white border-r border-slate-200 shrink-0 z-20 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20 items-center' : 'w-64'}`}>
         <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'space-x-3 px-3'} py-6 relative`}>
-          <CircleCheck className="w-7 h-7 text-[#0078d4] shrink-0" />
+          <CircleCheck className="w-7 h-7 text-[#334155] shrink-0" />
           {!isSidebarCollapsed && (
              <h1 className="text-lg font-bold tracking-tight whitespace-nowrap overflow-hidden transition-opacity duration-300 text-slate-800">HeavyUser</h1>
           )}
@@ -520,7 +518,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             {userSettings.profilePicture ? (
               <img src={userSettings.profilePicture} alt="Profile" className="w-9 h-9 rounded object-cover shadow-inner bg-slate-100 shrink-0" />
             ) : (
-              <div className="w-9 h-9 rounded bg-[#eff6fc] text-[#0078d4] flex items-center justify-center text-xs font-black shadow-inner shrink-0">
+              <div className="w-9 h-9 rounded bg-[#f1f5f9] text-[#334155] flex items-center justify-center text-xs font-black shadow-inner shrink-0">
                 {userSettings.userName.split(' ').map(n => n[0]).join('').toUpperCase()}
               </div>
             )}
@@ -589,7 +587,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                     <button
                                         key={tag.id}
                                         onClick={() => { setActiveFilterTagId(tag.id); setIsTagFilterOpen(false); }}
-                                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-bold transition-colors ${activeFilterTagId === tag.id ? 'bg-[#eff6fc] text-[#0078d4]' : 'text-slate-600 hover:bg-slate-50'}`}
+                                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-bold transition-colors ${activeFilterTagId === tag.id ? 'bg-[#eff6fc] text-[#334155]' : 'text-slate-600 hover:bg-slate-50'}`}
                                     >
                                         <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
                                         <span className="truncate">{tag.label}</span>
@@ -715,7 +713,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                    </h3>
                    <div className="grid grid-cols-1 gap-2">
                       <div className="flex items-center gap-3 p-3 bg-slate-50 rounded border border-slate-200">
-                         <div className="w-8 h-8 rounded bg-blue-50 text-[#0078d4] flex items-center justify-center border border-blue-100">
+                         <div className="w-8 h-8 rounded bg-blue-50 text-[#334155] flex items-center justify-center border border-blue-100">
                            <CircleCheck className="w-4 h-4" />
                          </div>
                          <span className="text-sm font-semibold text-slate-800">Create or Complete a Task</span>
@@ -765,7 +763,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                <div className={`w-8 h-8 rounded flex items-center justify-center border text-xs font-bold transition-all ${
                                   isActive 
                                   ? 'bg-amber-500 border-amber-600 text-white shadow-sm' 
-                                  : (isToday ? 'bg-white border-[#0078d4] text-[#0078d4] border-dashed' : 'bg-white border-slate-200 text-slate-300')
+                                  : (isToday ? 'bg-white border-[#334155] text-[#334155] border-dashed' : 'bg-white border-slate-200 text-slate-300')
                                }`}>
                                   {isActive ? <Flame className="w-3.5 h-3.5 fill-current" /> : (isToday ? 'Today' : '')}
                                </div>
