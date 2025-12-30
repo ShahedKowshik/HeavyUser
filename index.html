@@ -75,7 +75,7 @@
       --card-foreground: 222.2 84% 4.9%;
       --popover: 0 0% 100%;
       --popover-foreground: 222.2 84% 4.9%;
-      --primary: 215 25% 27%; /* Slate 700 #334155 */
+      --primary: 240 5% 26%; /* Zinc 700 #3f3f46 (Neutral Grey) */
       --primary-foreground: 210 40% 98%;
       --secondary: 210 40% 96.1%;
       --secondary-foreground: 222.2 47.4% 11.2%;
@@ -87,7 +87,7 @@
       --destructive-foreground: 210 40% 98%;
       --border: 214.3 31.8% 91.4%;
       --input: 214.3 31.8% 91.4%;
-      --ring: 215 25% 27%; /* Slate 700 */
+      --ring: 240 5% 26%; /* Zinc 700 */
       --radius: 0.5rem;
     }
     .dark {
@@ -113,6 +113,10 @@
     }
     body {
       @apply bg-background text-foreground font-sans antialiased;
+    }
+    /* Fix for mobile blue/black tap highlight */
+    * {
+      -webkit-tap-highlight-color: transparent;
     }
     .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }

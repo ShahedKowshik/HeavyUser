@@ -29,7 +29,7 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     const newTag: Tag = {
         id: crypto.randomUUID(),
         label: label.trim(),
-        color: '#334155', // Default Slate
+        color: '#3f3f46', // Zinc 700
     };
     
     await supabase.from('tags').insert({
@@ -142,23 +142,23 @@ const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRef
                 left: coords.left,
                 zIndex: 9999 
             }}
-            className="bg-white rounded-lg shadow-xl border border-slate-200 p-4 w-72 animate-in zoom-in-95 origin-top-left"
+            className="bg-white rounded-lg shadow-xl border border-zinc-200 p-4 w-72 animate-in zoom-in-95 origin-top-left"
         >
-            <div className="grid grid-cols-2 gap-2 mb-4 border-b border-slate-100 pb-4">
-                <button type="button" onClick={() => handleQuickSelect(0)} className="text-xs font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 hover:text-[#334155] py-1.5 rounded transition-colors">Today</button>
-                <button type="button" onClick={() => handleQuickSelect(1)} className="text-xs font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 hover:text-[#334155] py-1.5 rounded transition-colors">Tomorrow</button>
-                <button type="button" onClick={() => handleQuickSelect(7)} className="text-xs font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 hover:text-[#334155] py-1.5 rounded transition-colors">+7 Days</button>
-                <button type="button" onClick={() => handleQuickSelect(30)} className="text-xs font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 hover:text-[#334155] py-1.5 rounded transition-colors">+30 Days</button>
+            <div className="grid grid-cols-2 gap-2 mb-4 border-b border-zinc-100 pb-4">
+                <button type="button" onClick={() => handleQuickSelect(0)} className="text-xs font-bold text-zinc-600 bg-zinc-50 hover:bg-zinc-100 hover:text-[#3f3f46] py-1.5 rounded transition-colors">Today</button>
+                <button type="button" onClick={() => handleQuickSelect(1)} className="text-xs font-bold text-zinc-600 bg-zinc-50 hover:bg-zinc-100 hover:text-[#3f3f46] py-1.5 rounded transition-colors">Tomorrow</button>
+                <button type="button" onClick={() => handleQuickSelect(7)} className="text-xs font-bold text-zinc-600 bg-zinc-50 hover:bg-zinc-100 hover:text-[#3f3f46] py-1.5 rounded transition-colors">+7 Days</button>
+                <button type="button" onClick={() => handleQuickSelect(30)} className="text-xs font-bold text-zinc-600 bg-zinc-50 hover:bg-zinc-100 hover:text-[#3f3f46] py-1.5 rounded transition-colors">+30 Days</button>
             </div>
 
             <div className="flex items-center justify-between mb-2">
-                <button type="button" onClick={() => changeMonth(-1)} className="p-1 text-slate-400 hover:bg-slate-100 rounded"><ChevronLeft className="w-4 h-4" /></button>
-                <span className="text-sm font-bold text-slate-800">{monthName}</span>
-                <button type="button" onClick={() => changeMonth(1)} className="p-1 text-slate-400 hover:bg-slate-100 rounded"><ChevronRight className="w-4 h-4" /></button>
+                <button type="button" onClick={() => changeMonth(-1)} className="p-1 text-zinc-400 hover:bg-zinc-100 rounded"><ChevronLeft className="w-4 h-4" /></button>
+                <span className="text-sm font-bold text-zinc-800">{monthName}</span>
+                <button type="button" onClick={() => changeMonth(1)} className="p-1 text-zinc-400 hover:bg-zinc-100 rounded"><ChevronRight className="w-4 h-4" /></button>
             </div>
 
             <div className="grid grid-cols-7 gap-1 text-center mb-1">
-                {WEEKDAYS.map(d => <div key={d} className="text-[10px] font-bold text-slate-400 uppercase">{d.slice(0, 2)}</div>)}
+                {WEEKDAYS.map(d => <div key={d} className="text-[10px] font-bold text-zinc-400 uppercase">{d.slice(0, 2)}</div>)}
             </div>
             <div className="grid grid-cols-7 gap-1">
                 {Array.from({ length: firstDayOfWeek }).map((_, i) => <div key={`empty-${i}`} />)}
@@ -171,9 +171,9 @@ const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRef
                             key={day}
                             type="button"
                             onClick={() => handleDayClick(day)}
-                            className={`w-8 h-8 flex items-center justify-center text-xs font-medium rounded hover:bg-slate-100 transition-colors ${
-                                selected ? 'bg-[#334155] text-white hover:bg-[#1e293b]' : 
-                                today ? 'text-[#334155] font-bold ring-1 ring-inset ring-[#334155]' : 'text-slate-700'
+                            className={`w-8 h-8 flex items-center justify-center text-xs font-medium rounded hover:bg-zinc-100 transition-colors ${
+                                selected ? 'bg-[#3f3f46] text-white hover:bg-[#27272a]' : 
+                                today ? 'text-[#3f3f46] font-bold ring-1 ring-inset ring-[#3f3f46]' : 'text-zinc-700'
                             }`}
                         >
                             {day}
@@ -254,8 +254,8 @@ const RecurrenceButton = ({ value, onChange, openModal }: { value: Recurrence | 
      onClick={() => openModal(value, onChange)}
      className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded border transition-all ${
         value 
-        ? 'bg-[#f1f5f9] text-[#334155] border-[#334155]' 
-        : 'text-slate-600 bg-slate-50 border-slate-200 hover:bg-slate-100'
+        ? 'bg-[#f4f4f5] text-[#3f3f46] border-[#3f3f46]' 
+        : 'text-zinc-600 bg-zinc-50 border-zinc-200 hover:bg-zinc-100'
      }`}
   >
      <Repeat className="w-3.5 h-3.5" />
@@ -479,15 +479,15 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     if (diff < 0) return 'text-red-600';
     if (diff === 0) return 'text-green-600';
     if (diff === 1) return 'text-amber-600';
-    return 'text-slate-400';
+    return 'text-zinc-400';
   };
 
   const getPriorityStyle = (p: Priority) => {
     switch (p) {
       case 'Urgent': return { bar: 'bg-[#a4262c]', text: 'text-[#a4262c] bg-red-50 border-red-100' };
       case 'High': return { bar: 'bg-[#d83b01]', text: 'text-[#d83b01] bg-orange-50 border-orange-100' };
-      case 'Normal': return { bar: 'bg-[#107c10]', text: 'text-slate-700 bg-slate-100 border-slate-200' };
-      default: return { bar: 'bg-slate-500', text: 'text-slate-500 bg-slate-50 border-slate-200' };
+      case 'Normal': return { bar: 'bg-[#107c10]', text: 'text-zinc-700 bg-zinc-100 border-zinc-200' };
+      default: return { bar: 'bg-zinc-500', text: 'text-zinc-500 bg-zinc-50 border-zinc-200' };
     }
   };
   
@@ -495,8 +495,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
      switch(p) {
         case 'Urgent': return <Flame className={`${className} text-red-500 fill-red-100`} />;
         case 'High': return <ArrowUp className={`${className} text-orange-500`} />;
-        case 'Normal': return <Circle className={`${className} text-slate-500`} />;
-        case 'Low': return <ArrowDown className={`${className} text-slate-400`} />;
+        case 'Normal': return <Circle className={`${className} text-zinc-500`} />;
+        case 'Low': return <ArrowDown className={`${className} text-zinc-400`} />;
         default: return <Circle className={className} />;
      }
   };
@@ -563,27 +563,27 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     <div className="space-y-4 pb-20">
       {groups.length === 0 && (
          <div className="text-center py-20 opacity-50">
-             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                 <CircleCheck className="w-8 h-8 text-slate-400" />
+             <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                 <CircleCheck className="w-8 h-8 text-zinc-400" />
              </div>
-             <p className="font-bold text-slate-500">No tasks found</p>
+             <p className="font-bold text-zinc-500">No tasks found</p>
          </div>
       )}
       {groups.map((group, gIdx) => (
         <div key={group.title + gIdx} className="space-y-2">
           {group.title && (
             <div className="px-1 py-2 flex items-center gap-2">
-              <span className={`text-[10px] font-black uppercase tracking-[0.1em] ${group.title === 'Overdue' ? 'text-red-600' : 'text-slate-400'}`}>
+              <span className={`text-[10px] font-black uppercase tracking-[0.1em] ${group.title === 'Overdue' ? 'text-red-600' : 'text-zinc-400'}`}>
                 {group.title}
               </span>
               {showNightOwlIcon && (group.title === 'Today' || group.title === 'Tomorrow') && (
                 <div className="group/owl relative flex items-center cursor-help">
                     <Moon className="w-3 h-3 text-indigo-400" />
-                    <div className="absolute left-6 top-1/2 -translate-y-1/2 w-64 p-3 bg-slate-800 text-white rounded shadow-xl z-50 hidden group-hover/owl:block animate-in fade-in zoom-in-95 origin-left">
+                    <div className="absolute left-6 top-1/2 -translate-y-1/2 w-64 p-3 bg-zinc-800 text-white rounded shadow-xl z-50 hidden group-hover/owl:block animate-in fade-in zoom-in-95 origin-left">
                         <div className="flex items-center gap-1.5 mb-1 text-indigo-300 font-bold text-xs">
                             <Moon className="w-3 h-3" /> Night Owl Mode Active
                         </div>
-                        <p className="text-[10px] leading-relaxed text-slate-300">
+                        <p className="text-[10px] leading-relaxed text-zinc-300">
                             Tasks in <strong>{group.title}</strong> will stay here until {startHourLabel}. 
                         </p>
                     </div>
@@ -603,7 +603,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                 <div 
                   key={task.id}
                   onClick={() => setSelectedTaskId(task.id)}
-                  className={`rounded border border-slate-200 px-4 py-3 transition-all hover:shadow-md hover:border-slate-300 group cursor-pointer ${task.completed ? 'opacity-70 bg-slate-50' : (isFocus ? 'bg-white' : 'bg-slate-50')}`}
+                  className={`rounded border border-zinc-200 px-4 py-3 transition-all hover:shadow-md hover:border-zinc-300 group cursor-pointer ${task.completed ? 'opacity-70 bg-zinc-50' : (isFocus ? 'bg-white' : 'bg-zinc-50')}`}
                 >
                   <div className="flex items-start gap-3">
                     <div className="shrink-0 relative">
@@ -612,14 +612,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all mt-0.5 ${
                           task.completed 
                             ? 'bg-[#107c10] border-[#107c10] text-white shadow-sm' 
-                            : 'border-slate-300 hover:border-[#334155] bg-white'
+                            : 'border-zinc-300 hover:border-[#3f3f46] bg-white'
                         }`}
                       >
                         {task.completed && <CircleCheck className="w-3 h-3" />}
                       </button>
                       {task.recurrence && !task.completed && (
-                          <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-slate-200 shadow-sm">
-                             <Repeat className="w-2 h-2 text-slate-400" />
+                          <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-zinc-200 shadow-sm">
+                             <Repeat className="w-2 h-2 text-zinc-400" />
                           </div>
                       )}
                     </div>
@@ -629,27 +629,27 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                              <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
                                 <div className="flex items-center gap-2 shrink-0 max-w-full">
                                     <span 
-                                        className={`text-sm font-semibold transition-colors break-words whitespace-normal ${task.completed ? 'text-slate-400 line-through' : 'text-slate-800 hover:text-[#334155]'}`}
+                                        className={`text-sm font-semibold transition-colors break-words whitespace-normal ${task.completed ? 'text-zinc-400 line-through' : 'text-zinc-800 hover:text-[#3f3f46]'}`}
                                     >
                                         {task.title}
                                     </span>
                                     
                                     <button 
                                         onClick={(e) => toggleExpand(task.id, e)}
-                                        className={`p-0.5 rounded transition-all shrink-0 ${isExpanded ? 'bg-slate-200 text-[#334155]' : 'text-slate-300 hover:text-[#334155]'}`}
+                                        className={`p-0.5 rounded transition-all shrink-0 ${isExpanded ? 'bg-zinc-200 text-[#3f3f46]' : 'text-zinc-300 hover:text-[#3f3f46]'}`}
                                     >
                                         <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
                                     </button>
                                 </div>
                                 
                                 {task.subtasks.length > 0 && (
-                                    <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1 py-0.5 rounded border border-slate-200 shrink-0">
+                                    <span className="text-[9px] font-bold text-zinc-500 bg-zinc-100 px-1 py-0.5 rounded border border-zinc-200 shrink-0">
                                         {task.subtasks.filter(s=>s.completed).length}/{task.subtasks.length}
                                     </span>
                                 )}
 
                                 {task.tags && task.tags.length > 0 && (
-                                    <div className="flex flex-wrap gap-1">
+                                    <div className="hidden md:flex flex-wrap gap-1">
                                         {task.tags.map(tagId => {
                                             const tag = tags.find(t => t.id === tagId);
                                             if (!tag) return null;
@@ -663,7 +663,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                 )}
                              </div>
                              
-                             <div className="flex items-center gap-3 shrink-0 text-xs">
+                             <div className="flex items-center gap-2 shrink-0 text-xs flex-row-reverse md:flex-row justify-end w-full md:w-auto">
                                   <div className={`w-[100px] flex items-center gap-1.5 font-medium text-left ${relativeColor}`}>
                                      {task.dueDate ? (
                                         <>
@@ -671,14 +671,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                             <span>{formatRelativeDate(task.dueDate)}</span>
                                         </>
                                      ) : (
-                                        <span className="text-slate-300">-</span>
+                                        <span className="text-zinc-300">-</span>
                                      )}
                                   </div>
 
-                                  <div className="w-px h-3 bg-slate-200 mx-1" />
+                                  <div className="w-px h-3 bg-zinc-200 mx-1" />
 
-                                  <div className="w-[75px] flex justify-start">
-                                     <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border ${pStyle.text}`}>
+                                  <div className="w-[75px]">
+                                     <div className={`flex w-full justify-center items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border ${pStyle.text}`}>
                                         {renderPriorityIcon(task.priority)}
                                         <span>{task.priority}</span>
                                      </div>
@@ -691,26 +691,26 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                   {isExpanded && (
                     <div className="mt-4 pl-9 animate-in fade-in slide-in-from-top-1 duration-200">
                       <div className="space-y-1 relative">
-                        <div className="absolute left-[-18px] top-0 bottom-2 w-px bg-slate-200" />
+                        <div className="absolute left-[-18px] top-0 bottom-2 w-px bg-zinc-200" />
                         {task.subtasks?.map(st => (
                           <div key={st.id} className="flex items-center gap-3 relative group/sub py-1">
-                            <div className="absolute left-[-18px] top-1/2 w-3 h-px bg-slate-200" />
-                            <button onClick={(e) => { e.stopPropagation(); toggleSubtaskInTask(task.id, st.id); }} className="text-slate-400 hover:text-[#334155] transition-colors z-10 bg-white">
+                            <div className="absolute left-[-18px] top-1/2 w-3 h-px bg-zinc-200" />
+                            <button onClick={(e) => { e.stopPropagation(); toggleSubtaskInTask(task.id, st.id); }} className="text-zinc-400 hover:text-[#3f3f46] transition-colors z-10 bg-white">
                               {st.completed ? <CheckSquare className="w-3.5 h-3.5 text-[#107c10]" /> : <Square className="w-3.5 h-3.5 rounded" />}
                             </button>
-                            <span className={`text-xs font-medium transition-colors ${st.completed ? 'line-through opacity-50 text-slate-500' : 'text-slate-800'}`}>
+                            <span className={`text-xs font-medium transition-colors ${st.completed ? 'line-through opacity-50 text-zinc-500' : 'text-zinc-800'}`}>
                               {st.title}
                             </span>
                           </div>
                         ))}
                         
                         <div className="flex items-center gap-3 pt-1 group/input relative">
-                           <div className="absolute left-[-18px] top-1/2 w-3 h-px bg-slate-200" />
-                          <Plus className="w-3.5 h-3.5 text-[#334155] shrink-0" />
+                           <div className="absolute left-[-18px] top-1/2 w-3 h-px bg-zinc-200" />
+                          <Plus className="w-3.5 h-3.5 text-[#3f3f46] shrink-0" />
                           <input 
                             type="text"
                             placeholder="Add another subtask..."
-                            className="flex-1 bg-transparent border-none p-0 text-xs font-medium focus:ring-0 focus:outline-none placeholder:text-slate-400"
+                            className="flex-1 bg-transparent border-none p-0 text-xs font-medium focus:ring-0 focus:outline-none placeholder:text-zinc-400"
                             onClick={(e) => e.stopPropagation()}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
@@ -737,16 +737,16 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     <div className="animate-in fade-in duration-500">
          {/* Header Controls */}
          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg border border-slate-200 self-start">
+            <div className="flex items-center gap-2 bg-zinc-100 p-1 rounded-lg border border-zinc-200 self-start">
                 <button 
                 onClick={() => setViewMode('active')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'active' ? 'bg-white text-[#334155] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'active' ? 'bg-white text-[#3f3f46] shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
                 >
                 My Tasks
                 </button>
                 <button 
                 onClick={() => setViewMode('completed')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'completed' ? 'bg-white text-[#334155] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'completed' ? 'bg-white text-[#3f3f46] shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
                 >
                 Completed
                 </button>
@@ -754,14 +754,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
             
              {/* Sort/Group Options */}
              <div className="flex items-center gap-2">
-                 <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
-                    <button onClick={() => setGrouping(g => g === 'date' ? 'priority' : 'date')} className="px-2 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-white rounded transition-all">
+                 <div className="flex items-center bg-zinc-100 p-1 rounded-lg border border-zinc-200">
+                    <button onClick={() => setGrouping(g => g === 'date' ? 'priority' : 'date')} className="px-2 py-1.5 text-[10px] font-bold text-zinc-600 hover:bg-white rounded transition-all">
                        Group: {grouping === 'date' ? 'Date' : 'Priority'}
                     </button>
                  </div>
                  <button 
                     onClick={openCreateModal}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#334155] text-white hover:bg-[#1e293b] rounded shadow-sm active:scale-95 transition-all text-sm font-bold"
+                    className="flex items-center gap-2 px-4 py-2 bg-[#3f3f46] text-white hover:bg-[#27272a] rounded shadow-sm active:scale-95 transition-all text-sm font-bold"
                  >
                     <Plus className="w-4 h-4" />
                     <span>Add Task</span>
@@ -781,9 +781,9 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                     onClick={(e) => e.stopPropagation()} 
                     className="bg-white w-full max-w-lg rounded-xl shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[90vh]"
                 >
-                   <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                      <h3 className="text-lg font-black text-slate-800">New Task</h3>
-                      <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full"><X className="w-5 h-5"/></button>
+                   <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+                      <h3 className="text-lg font-black text-[#555555]">New Task</h3>
+                      <button onClick={() => setIsModalOpen(false)} className="p-2 text-zinc-400 hover:bg-zinc-100 rounded-full"><X className="w-5 h-5"/></button>
                    </div>
                    
                    <div className="p-6 overflow-y-auto">
@@ -794,17 +794,17 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                               placeholder="What needs to be done?" 
                               value={title}
                               onChange={e => setTitle(e.target.value)}
-                              className="w-full text-lg font-semibold placeholder:text-slate-300 border-none focus:ring-0 p-0"
+                              className="w-full text-lg font-semibold text-[#444444] bg-white placeholder:text-zinc-300 border-none focus:ring-0 p-0"
                            />
                            
                            <div className="flex flex-wrap gap-2">
-                              <div className="flex items-center bg-slate-50 rounded border border-slate-200 p-1">
+                              <div className="flex items-center bg-zinc-50 rounded border border-zinc-200 p-1">
                                  {priorities.map(p => (
                                     <button
                                        key={p}
                                        type="button"
                                        onClick={() => setPriority(p)}
-                                       className={`px-2 py-1 text-[10px] font-bold uppercase rounded transition-colors ${priority === p ? getPriorityStyle(p).text + ' shadow-sm bg-white' : 'text-slate-400 hover:text-slate-600'}`}
+                                       className={`px-2 py-1 text-[10px] font-bold uppercase rounded transition-colors ${priority === p ? getPriorityStyle(p).text + ' shadow-sm bg-white' : 'text-zinc-400 hover:text-zinc-600'}`}
                                     >
                                        {p}
                                     </button>
@@ -816,7 +816,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                      type="button"
                                      ref={newTaskDateButtonRef}
                                      onClick={() => setIsNewTaskDatePickerOpen(!isNewTaskDatePickerOpen)}
-                                     className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded border transition-all ${dueDate ? 'bg-slate-100 text-[#334155] border-slate-200' : 'text-slate-600 bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
+                                     className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded border transition-all ${dueDate ? 'bg-zinc-100 text-[#3f3f46] border-zinc-200' : 'text-zinc-600 bg-zinc-50 border-zinc-200 hover:bg-zinc-100'}`}
                                   >
                                      <Calendar className="w-3.5 h-3.5" />
                                      {dueDate ? formatRelativeDate(dueDate) : 'Set Date'}
@@ -848,8 +848,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                            onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
                                            className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold border transition-all ${
                                                selectedTags.includes(tag.id)
-                                               ? 'ring-1 ring-offset-1 ring-[#334155] border-transparent' 
-                                               : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                               ? 'ring-1 ring-offset-1 ring-[#3f3f46] border-transparent' 
+                                               : 'bg-white border-zinc-200 text-zinc-500 hover:bg-zinc-50'
                                            }`}
                                            style={selectedTags.includes(tag.id) ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
                                        >
@@ -863,14 +863,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                             placeholder="New Label..." 
                                             value={newTagInput}
                                             onChange={(e) => setNewTagInput(e.target.value)}
-                                            className="w-20 text-[10px] px-1.5 py-1 border border-slate-200 rounded focus:border-[#334155] focus:ring-1 focus:ring-[#334155]"
+                                            className="w-20 text-[10px] px-1.5 py-1 border border-zinc-200 rounded focus:border-[#3f3f46] focus:ring-1 focus:ring-[#3f3f46]"
                                             onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }}
                                         />
                                         <button 
                                             type="button"
                                             onClick={handleInlineCreateTag}
                                             disabled={!newTagInput.trim() || isCreatingTag}
-                                            className="p-1 bg-slate-100 text-slate-600 rounded hover:bg-[#f1f5f9] hover:text-[#334155] disabled:opacity-50"
+                                            className="p-1 bg-zinc-100 text-zinc-600 rounded hover:bg-[#f4f4f5] hover:text-[#3f3f46] disabled:opacity-50"
                                         >
                                             <Plus className="w-3 h-3" />
                                         </button>
@@ -882,14 +882,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                placeholder="Add notes..."
                                value={createNotes}
                                onChange={e => setCreateNotes(e.target.value)}
-                               className="w-full text-sm bg-slate-50 border-none rounded p-3 min-h-[80px]"
+                               className="w-full text-sm bg-zinc-50 border-none rounded p-3 min-h-[80px]"
                            />
                        </form>
                    </div>
                    
-                   <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
-                       <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded">Cancel</button>
-                       <button type="submit" form="create-task-form" className="px-6 py-2 text-sm font-bold bg-[#334155] text-white rounded hover:bg-[#1e293b]">Create Task</button>
+                   <div className="p-4 border-t border-zinc-100 bg-zinc-50 flex justify-end gap-2">
+                       <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-bold text-zinc-600 hover:bg-zinc-100 rounded">Cancel</button>
+                       <button type="submit" form="create-task-form" className="px-6 py-2 text-sm font-bold bg-[#3f3f46] text-white rounded hover:bg-[#27272a]">Create Task</button>
                    </div>
                 </div>
              </div>
@@ -905,8 +905,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                     onClick={(e) => e.stopPropagation()} 
                     className="bg-white w-full max-w-lg rounded-xl shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[90vh]"
                 >
-                   <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                      <h3 className="text-lg font-black text-slate-800">Edit Task</h3>
+                   <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+                      <h3 className="text-lg font-black text-[#555555]">Edit Task</h3>
                       <div className="flex items-center gap-2">
                           <button 
                               onClick={() => deleteTask(selectedTask.id)}
@@ -915,7 +915,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                           >
                               <Trash2 className="w-5 h-5"/>
                           </button>
-                          <button onClick={() => setSelectedTaskId(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full"><X className="w-5 h-5"/></button>
+                          <button onClick={() => setSelectedTaskId(null)} className="p-2 text-zinc-400 hover:bg-zinc-100 rounded-full"><X className="w-5 h-5"/></button>
                       </div>
                    </div>
                    
@@ -924,17 +924,17 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                           type="text" 
                           value={selectedTask.title}
                           onChange={(e) => updateSelectedTask({ title: e.target.value })}
-                          className="w-full text-lg font-semibold placeholder:text-slate-300 border-none focus:ring-0 p-0"
+                          className="w-full text-lg font-semibold text-[#444444] bg-white placeholder:text-zinc-300 border-none focus:ring-0 p-0"
                        />
                        
                        <div className="flex flex-wrap gap-2">
-                          <div className="flex items-center bg-slate-50 rounded border border-slate-200 p-1">
+                          <div className="flex items-center bg-zinc-50 rounded border border-zinc-200 p-1">
                              {priorities.map(p => (
                                 <button
                                    key={p}
                                    type="button"
                                    onClick={() => updateSelectedTask({ priority: p })}
-                                   className={`px-2 py-1 text-[10px] font-bold uppercase rounded transition-colors ${selectedTask.priority === p ? getPriorityStyle(p).text + ' shadow-sm bg-white' : 'text-slate-400 hover:text-slate-600'}`}
+                                   className={`px-2 py-1 text-[10px] font-bold uppercase rounded transition-colors ${selectedTask.priority === p ? getPriorityStyle(p).text + ' shadow-sm bg-white' : 'text-zinc-400 hover:text-zinc-600'}`}
                                 >
                                    {p}
                                 </button>
@@ -946,7 +946,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                  type="button"
                                  ref={editTaskDateButtonRef}
                                  onClick={() => setIsEditTaskDatePickerOpen(!isEditTaskDatePickerOpen)}
-                                 className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded border transition-all ${selectedTask.dueDate ? 'bg-slate-100 text-[#334155] border-slate-200' : 'text-slate-600 bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
+                                 className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded border transition-all ${selectedTask.dueDate ? 'bg-zinc-100 text-[#3f3f46] border-zinc-200' : 'text-zinc-600 bg-zinc-50 border-zinc-200 hover:bg-zinc-100'}`}
                               >
                                  <Calendar className="w-3.5 h-3.5" />
                                  {selectedTask.dueDate ? formatRelativeDate(selectedTask.dueDate) : 'Set Date'}
@@ -971,15 +971,15 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
                        {/* Subtasks Section */}
                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><ListChecks className="w-3 h-3"/> Subtasks</label>
+                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-1.5"><ListChecks className="w-3 h-3"/> Subtasks</label>
                             <div className="space-y-2">
                                 {selectedTask.subtasks?.map((st, i) => (
                                     <div key={st.id} className="flex items-center gap-2 group/st">
                                         <button
                                             onClick={() => toggleSubtaskInTask(selectedTask.id, st.id)}
-                                            className="shrink-0 text-slate-400 hover:text-[#334155] transition-colors"
+                                            className="shrink-0 text-zinc-400 hover:text-[#3f3f46] transition-colors"
                                         >
-                                            {st.completed ? <CheckSquare className="w-3.5 h-3.5 text-[#107c10]" /> : <Square className="w-3.5 h-3.5 text-slate-300" />}
+                                            {st.completed ? <CheckSquare className="w-3.5 h-3.5 text-[#107c10]" /> : <Square className="w-3.5 h-3.5 text-zinc-300" />}
                                         </button>
                                         <input 
                                             type="text" 
@@ -989,12 +989,12 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                                 newSubtasks[i] = { ...st, title: e.target.value };
                                                 updateSelectedTask({ subtasks: newSubtasks });
                                             }}
-                                            className={`flex-1 text-xs border-none bg-transparent p-0 focus:ring-0 ${st.completed ? 'line-through text-slate-400' : 'font-medium text-slate-700'}`}
+                                            className={`flex-1 text-xs border-none bg-transparent p-0 focus:ring-0 ${st.completed ? 'line-through text-zinc-400' : 'font-medium text-zinc-700'}`}
                                         />
                                         <button 
                                             type="button" 
                                             onClick={() => deleteSubtaskInTask(selectedTask.id, st.id)} 
-                                            className="opacity-0 group-hover/st:opacity-100 p-1 text-slate-400 hover:text-red-500 transition-all"
+                                            className="opacity-0 group-hover/st:opacity-100 p-1 text-zinc-400 hover:text-red-500 transition-all"
                                         >
                                             <X className="w-3 h-3" />
                                         </button>
@@ -1002,11 +1002,11 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                 ))}
                                 {/* Add Subtask Input */}
                                 <div className="flex items-center gap-2">
-                                    <Plus className="w-3.5 h-3.5 text-[#334155] shrink-0" />
+                                    <Plus className="w-3.5 h-3.5 text-[#3f3f46] shrink-0" />
                                     <input 
                                         type="text"
                                         placeholder="Add subtask..."
-                                        className="flex-1 text-xs border-none bg-transparent p-0 focus:ring-0 placeholder:text-slate-400"
+                                        className="flex-1 text-xs border-none bg-transparent p-0 focus:ring-0 placeholder:text-zinc-400"
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter') {
                                                 e.preventDefault();
@@ -1035,8 +1035,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                        }}
                                        className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold border transition-all ${
                                            selectedTask.tags?.includes(tag.id)
-                                           ? 'ring-1 ring-offset-1 ring-[#334155] border-transparent' 
-                                           : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                           ? 'ring-1 ring-offset-1 ring-[#3f3f46] border-transparent' 
+                                           : 'bg-white border-zinc-200 text-zinc-500 hover:bg-zinc-50'
                                        }`}
                                        style={selectedTask.tags?.includes(tag.id) ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
                                    >
@@ -1050,14 +1050,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                         placeholder="New Label..." 
                                         value={newTagInput}
                                         onChange={(e) => setNewTagInput(e.target.value)}
-                                        className="w-20 text-[10px] px-1.5 py-1 border border-slate-200 rounded focus:border-[#334155] focus:ring-1 focus:ring-[#334155]"
+                                        className="w-20 text-[10px] px-1.5 py-1 border border-zinc-200 rounded focus:border-[#3f3f46] focus:ring-1 focus:ring-[#3f3f46]"
                                         onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }}
                                     />
                                     <button 
                                         type="button"
                                         onClick={handleInlineCreateTag}
                                         disabled={!newTagInput.trim() || isCreatingTag}
-                                        className="p-1 bg-slate-100 text-slate-600 rounded hover:bg-[#f1f5f9] hover:text-[#334155] disabled:opacity-50"
+                                        className="p-1 bg-zinc-100 text-zinc-600 rounded hover:bg-[#f4f4f5] hover:text-[#3f3f46] disabled:opacity-50"
                                     >
                                         <Plus className="w-3 h-3" />
                                     </button>
@@ -1069,7 +1069,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                            placeholder="Add notes..."
                            value={selectedTask.notes || ''}
                            onChange={(e) => updateSelectedTask({ notes: e.target.value })}
-                           className="w-full text-sm bg-slate-50 border-none rounded p-3 min-h-[120px]"
+                           className="w-full text-sm bg-zinc-50 border-none rounded p-3 min-h-[120px]"
                        />
                    </div>
                 </div>
@@ -1086,10 +1086,10 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                     onClick={(e) => e.stopPropagation()}
                     className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm space-y-4"
                 >
-                    <h4 className="font-bold text-slate-800">Repeat Task</h4>
+                    <h4 className="font-bold text-zinc-800">Repeat Task</h4>
                     <div className="space-y-3">
                         <div className="flex items-center gap-2">
-                            <span className="text-sm text-slate-600">Every</span>
+                            <span className="text-sm text-zinc-600">Every</span>
                             <input 
                                 type="number" 
                                 min="1" 
@@ -1120,7 +1120,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                             const next = current.includes(i) ? current.filter(x => x !== i) : [...current, i];
                                             setRecurrenceEditValue({ ...recurrenceEditValue, weekDays: next });
                                         }}
-                                        className={`w-8 h-8 rounded text-xs font-bold ${recurrenceEditValue.weekDays?.includes(i) ? 'bg-[#334155] text-white' : 'bg-slate-100 text-slate-500'}`}
+                                        className={`w-8 h-8 rounded text-xs font-bold ${recurrenceEditValue.weekDays?.includes(i) ? 'bg-[#3f3f46] text-white' : 'bg-zinc-100 text-zinc-500'}`}
                                     >
                                         {d}
                                     </button>
@@ -1129,9 +1129,9 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         )}
                     </div>
                     <div className="flex justify-end gap-2 pt-2">
-                        <button onClick={() => { setIsRecurrenceModalOpen(false); setRecurrenceCallback(null); }} className="px-3 py-1.5 text-xs font-bold text-slate-500">Cancel</button>
+                        <button onClick={() => { setIsRecurrenceModalOpen(false); setRecurrenceCallback(null); }} className="px-3 py-1.5 text-xs font-bold text-zinc-500">Cancel</button>
                         <button onClick={() => { if(recurrenceCallback) recurrenceCallback(null); setIsRecurrenceModalOpen(false); }} className="px-3 py-1.5 text-xs font-bold text-red-500">Don't Repeat</button>
-                        <button onClick={handleSaveRecurrence} className="px-3 py-1.5 text-xs font-bold bg-[#334155] text-white rounded">Save</button>
+                        <button onClick={handleSaveRecurrence} className="px-3 py-1.5 text-xs font-bold bg-[#3f3f46] text-white rounded">Save</button>
                     </div>
                 </div>
             </div>

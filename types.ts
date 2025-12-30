@@ -73,6 +73,7 @@ export interface Habit {
   /** @deprecated kept for backward compatibility if needed during migration, prefer progress */
   completedDates?: string[];
   tags?: string[];
+  goalType?: 'positive' | 'negative'; // 'positive' = Build habit, 'negative' = Quit/Limit habit
 }
 
 export interface Folder {

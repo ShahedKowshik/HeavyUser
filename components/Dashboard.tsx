@@ -272,7 +272,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             startDate: h.start_date || createdDate,
             useCounter: h.use_counter !== false,
             completedDates: [],
-            tags: h.tags || []
+            tags: h.tags || [],
+            goalType: h.goal_type || 'positive'
           };
         });
         setHabits(mappedHabits);
@@ -374,7 +375,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
     habits.forEach(h => {
       Object.keys(h.progress).forEach(date => {
-        if (h.progress[date] > 0) activeDates.add(date);
+        const count = h.progress[date];
+        // For positive habits, active if count >= target
+        // For negative habits, active if count < target
+        const isMet = h.goalType === 'negative' ? count < h.target : count >= h.target;
+        if (isMet) activeDates.add(date);
       });
       h.skippedDates.forEach(date => activeDates.add(date));
     });
@@ -589,7 +594,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                         onClick={() => { setActiveFilterTagId(tag.id); setIsTagFilterOpen(false); }}
                                         className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-bold transition-colors ${activeFilterTagId === tag.id ? 'bg-[#eff6fc] text-[#334155]' : 'text-slate-600 hover:bg-slate-50'}`}
                                     >
-                                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
                                         <span className="truncate">{tag.label}</span>
                                     </button>
                                 ))}
