@@ -20,7 +20,7 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     const newTag: Tag = {
         id: crypto.randomUUID(),
         label: label.trim(),
-        color: '#334155', // Default Slate
+        color: '#3f3f46', // Zinc 700 to match Tasks
     };
     
     await supabase.from('tags').insert({
@@ -395,21 +395,28 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
   return (
     <div className="animate-in fade-in duration-500 pb-20">
-      <div className="flex justify-end mb-6">
-        <button 
-            onClick={openCreateModal}
-            className="flex items-center gap-2 px-4 py-2 bg-[#334155] text-white hover:bg-[#1e293b] rounded shadow-sm active:scale-95 transition-all text-sm font-bold"
-        >
-            <Plus className="w-4 h-4" />
-            <span>New Habit</span>
-        </button>
+      {/* Header Controls - Matched with TaskSection */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-2 self-start hidden md:block">
+            {/* Spacer to maintain layout consistency if we add filters later */}
+        </div>
+        
+        <div className="flex items-center justify-end w-full md:w-auto">
+            <button 
+                onClick={openCreateModal}
+                className="flex items-center gap-2 px-4 py-2 bg-[#3f3f46] text-white hover:bg-[#27272a] rounded shadow-sm active:scale-95 transition-all text-sm font-bold w-full md:w-auto justify-center"
+            >
+                <Plus className="w-4 h-4" />
+                <span>New Habit</span>
+            </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredHabits.length === 0 ? (
-           <div className="col-span-full text-center py-20 opacity-50 border-2 border-dashed border-slate-200 rounded-xl">
-               <Zap className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-               <p className="font-bold text-slate-400">No habits tracked</p>
+           <div className="col-span-full text-center py-20 opacity-50 border-2 border-dashed border-zinc-200 rounded-xl">
+               <Zap className="w-12 h-12 text-zinc-300 mx-auto mb-2" />
+               <p className="font-bold text-zinc-400">No habits tracked</p>
            </div>
         ) : (
             filteredHabits.map(habit => {
@@ -430,22 +437,22 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                     <div 
                         key={habit.id} 
                         onClick={() => setDetailHabitId(habit.id)}
-                        className={`group bg-white rounded-xl border shadow-sm hover:shadow-md transition-all cursor-pointer relative overflow-hidden ${isFailedToday ? 'border-rose-200' : 'border-slate-200 hover:border-slate-300'}`}
+                        className={`group bg-white rounded-xl border shadow-sm hover:shadow-md transition-all cursor-pointer relative overflow-hidden ${isFailedToday ? 'border-rose-200' : 'border-zinc-200 hover:border-zinc-300'}`}
                     >
                          <div className="p-5 flex items-center gap-4">
                              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm border ${
                                  isFailedToday 
                                     ? 'bg-rose-50 border-rose-100' 
-                                    : (isCompletedToday && progressToday > 0 && habit.goalType === 'positive' ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100')
+                                    : (isCompletedToday && progressToday > 0 && habit.goalType === 'positive' ? 'bg-emerald-50 border-emerald-100' : 'bg-zinc-50 border-zinc-100')
                              }`}>
                                  {habit.icon}
                              </div>
                              
                              <div className="flex-1 min-w-0">
-                                 <h4 className={`font-bold truncate text-lg transition-colors ${isFailedToday ? 'text-rose-600' : 'text-slate-800'}`}>{habit.title}</h4>
-                                 <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5">
+                                 <h4 className={`font-bold truncate text-lg transition-colors ${isFailedToday ? 'text-rose-600' : 'text-zinc-800'}`}>{habit.title}</h4>
+                                 <div className="flex items-center gap-2 text-xs font-medium text-zinc-500 mt-0.5">
                                      <div className="flex items-center gap-1">
-                                         <Flame className={`w-3.5 h-3.5 ${stats.streak > 0 ? 'text-orange-500 fill-orange-500' : 'text-slate-300'}`} />
+                                         <Flame className={`w-3.5 h-3.5 ${stats.streak > 0 ? 'text-orange-500 fill-orange-500' : 'text-zinc-300'}`} />
                                          <span className={stats.streak > 0 ? 'text-orange-600 font-bold' : ''}>{stats.streak} Day Streak</span>
                                      </div>
                                  </div>
@@ -459,12 +466,12 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                              className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all shadow-sm ${
                                                 isFailedToday 
                                                 ? 'bg-rose-500 text-white hover:bg-rose-600'
-                                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                                : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
                                              }`}
                                          >
                                              <Plus className="w-5 h-5"/>
                                          </button>
-                                         <span className={`text-[9px] font-bold ${isFailedToday ? 'text-rose-500' : 'text-slate-400'}`}>{progressToday}/{habit.target}</span>
+                                         <span className={`text-[9px] font-bold ${isFailedToday ? 'text-rose-500' : 'text-zinc-400'}`}>{progressToday}/{habit.target}</span>
                                      </div>
                                  ) : (
                                      <button
@@ -477,8 +484,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                          }}
                                          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-sm ${
                                              habit.goalType === 'negative'
-                                                ? (progressToday > habit.target ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-300 hover:bg-slate-200')
-                                                : (isCompletedToday ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-300 hover:bg-slate-200')
+                                                ? (progressToday > habit.target ? 'bg-rose-500 text-white' : 'bg-zinc-100 text-zinc-300 hover:bg-zinc-200')
+                                                : (isCompletedToday ? 'bg-emerald-500 text-white' : 'bg-zinc-100 text-zinc-300 hover:bg-zinc-200')
                                          }`}
                                      >
                                          {habit.goalType === 'negative' ? <X className="w-5 h-5" /> : <Check className="w-5 h-5" />}
@@ -487,12 +494,12 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                              </div>
                          </div>
                          
-                         <div className="h-1 w-full bg-slate-50">
+                         <div className="h-1 w-full bg-zinc-50">
                              <div 
                                 className={`h-full transition-all duration-500 ${
                                     isFailedToday 
                                     ? 'bg-rose-500' 
-                                    : (habit.goalType === 'negative' ? 'bg-emerald-500' : (isCompletedToday ? 'bg-emerald-500' : 'bg-slate-200'))
+                                    : (habit.goalType === 'negative' ? 'bg-emerald-500' : (isCompletedToday ? 'bg-emerald-500' : 'bg-zinc-200'))
                                 }`} 
                                 style={{ width: `${Math.min(100, (progressToday / habit.target) * 100)}%` }}
                              />
@@ -506,13 +513,13 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
       {detailHabit && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
               <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[90vh]">
-                  <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                  <div className="px-6 py-4 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
                       <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-xl shadow-sm">
+                          <div className="w-10 h-10 rounded-xl bg-white border border-zinc-200 flex items-center justify-center text-xl shadow-sm">
                               {detailHabit.icon}
                           </div>
                           <div>
-                              <h3 className="text-lg font-black text-slate-800">{detailHabit.title}</h3>
+                              <h3 className="text-lg font-black text-zinc-800">{detailHabit.title}</h3>
                               <div className="flex flex-wrap gap-2 mt-0.5">
                                   <span className={`px-1.5 py-0.5 rounded font-bold uppercase text-[9px] ${detailHabit.goalType === 'negative' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
                                         {detailHabit.goalType === 'negative' ? 'Limit Habit' : 'Build Habit'}
@@ -521,10 +528,10 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                           </div>
                       </div>
                       <div className="flex items-center gap-2">
-                           <button onClick={() => openEditModal(detailHabit)} className="p-2 text-slate-400 hover:bg-white hover:text-slate-700 rounded-lg transition-colors border border-transparent hover:border-slate-200 hover:shadow-sm">
+                           <button onClick={() => openEditModal(detailHabit)} className="p-2 text-zinc-400 hover:bg-white hover:text-zinc-700 rounded-lg transition-colors border border-transparent hover:border-zinc-200 hover:shadow-sm">
                                 <Settings className="w-5 h-5" />
                            </button>
-                           <button onClick={() => setDetailHabitId(null)} className="p-2 text-slate-400 hover:bg-slate-200 rounded-lg transition-colors">
+                           <button onClick={() => setDetailHabitId(null)} className="p-2 text-zinc-400 hover:bg-zinc-200 rounded-lg transition-colors">
                                 <X className="w-5 h-5" />
                            </button>
                       </div>
@@ -563,14 +570,14 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                       </div>
 
                       <div className="space-y-2">
-                           <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                           <h4 className="text-xs font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
                                <CalendarIcon className="w-4 h-4" /> History
                            </h4>
                            {renderCalendar()}
                       </div>
                   </div>
                   
-                  <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+                  <div className="p-4 bg-zinc-50 border-t border-zinc-100 flex justify-between items-center">
                       <button 
                           onClick={() => handleDelete(detailHabit.id)}
                           className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-red-500 hover:bg-red-50 rounded-lg transition-colors"
@@ -579,7 +586,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                       </button>
                       <button 
                           onClick={() => setDetailHabitId(null)}
-                          className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-bold text-sm rounded-lg hover:bg-slate-50 shadow-sm"
+                          className="px-6 py-2 bg-white border border-zinc-200 text-zinc-700 font-bold text-sm rounded-lg hover:bg-zinc-50 shadow-sm"
                       >
                           Close
                       </button>
@@ -591,9 +598,9 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
             <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[90vh]">
-                <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100">
-                    <h3 className="text-xl font-black text-slate-800 tracking-tight">{editingHabitId ? 'Edit Habit' : 'New Habit'}</h3>
-                    <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors"><X className="w-5 h-5"/></button>
+                <div className="flex items-center justify-between px-8 py-6 border-b border-zinc-100">
+                    <h3 className="text-xl font-black text-zinc-800 tracking-tight">{editingHabitId ? 'Edit Habit' : 'New Habit'}</h3>
+                    <button onClick={() => setIsModalOpen(false)} className="p-2 text-zinc-400 hover:bg-zinc-100 rounded-full transition-colors"><X className="w-5 h-5"/></button>
                 </div>
                 
                 <div className="p-8 overflow-y-auto custom-scrollbar">
@@ -601,29 +608,29 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                         
                         <div className="flex gap-4 items-end">
                             <div className="space-y-1.5 shrink-0">
-                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">Icon</label>
+                                <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest block">Icon</label>
                                 <input 
                                     type="text" 
                                     value={icon}
                                     onChange={(e) => setIcon(e.target.value)}
-                                    className="w-14 h-11 text-center text-2xl bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all shadow-sm"
+                                    className="w-14 h-11 text-center text-2xl bg-white border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all shadow-sm"
                                 />
                             </div>
                             <div className="space-y-1.5 flex-1">
-                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">Title</label>
+                                <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest block">Title</label>
                                 <input 
                                     type="text" 
                                     value={title}
                                     onChange={(e) => setTitle(e.target.value)}
                                     placeholder="e.g. Drink Water"
-                                    className="w-full h-11 px-4 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all font-semibold text-slate-800 shadow-sm placeholder:text-slate-300"
+                                    className="w-full h-11 px-4 bg-white border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all font-semibold text-zinc-800 shadow-sm placeholder:text-zinc-300"
                                     autoFocus
                                 />
                             </div>
                         </div>
 
                         <div className="space-y-2">
-                             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Habit Goal</label>
+                             <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">Habit Goal</label>
                              <div className="grid grid-cols-2 gap-3">
                                  <button
                                     type="button"
@@ -631,16 +638,16 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                     className={`p-3 rounded-lg border text-left transition-all ${
                                         goalType === 'positive' 
                                         ? 'bg-emerald-50 border-emerald-200 ring-1 ring-emerald-200' 
-                                        : 'bg-white border-slate-200 hover:border-slate-300'
+                                        : 'bg-white border-zinc-200 hover:border-zinc-300'
                                     }`}
                                  >
                                     <div className="flex items-center gap-2 mb-1">
-                                        <div className={`p-1 rounded-full ${goalType === 'positive' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                        <div className={`p-1 rounded-full ${goalType === 'positive' ? 'bg-emerald-100 text-emerald-600' : 'bg-zinc-100 text-zinc-400'}`}>
                                             <Smile className="w-4 h-4" />
                                         </div>
-                                        <span className={`text-sm font-bold ${goalType === 'positive' ? 'text-emerald-900' : 'text-slate-700'}`}>Build Habit</span>
+                                        <span className={`text-sm font-bold ${goalType === 'positive' ? 'text-emerald-900' : 'text-zinc-700'}`}>Build Habit</span>
                                     </div>
-                                    <p className="text-[10px] text-slate-500 leading-tight">
+                                    <p className="text-[10px] text-zinc-500 leading-tight">
                                         I want to do this more often (e.g. Exercise, Read).
                                     </p>
                                  </button>
@@ -651,16 +658,16 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                     className={`p-3 rounded-lg border text-left transition-all ${
                                         goalType === 'negative' 
                                         ? 'bg-rose-50 border-rose-200 ring-1 ring-rose-200' 
-                                        : 'bg-white border-slate-200 hover:border-slate-300'
+                                        : 'bg-white border-zinc-200 hover:border-zinc-300'
                                     }`}
                                  >
                                     <div className="flex items-center gap-2 mb-1">
-                                        <div className={`p-1 rounded-full ${goalType === 'negative' ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-400'}`}>
+                                        <div className={`p-1 rounded-full ${goalType === 'negative' ? 'bg-rose-100 text-rose-600' : 'bg-zinc-100 text-zinc-400'}`}>
                                             <Ban className="w-4 h-4" />
                                         </div>
-                                        <span className={`text-sm font-bold ${goalType === 'negative' ? 'text-rose-900' : 'text-slate-700'}`}>Quit Habit</span>
+                                        <span className={`text-sm font-bold ${goalType === 'negative' ? 'text-rose-900' : 'text-zinc-700'}`}>Quit Habit</span>
                                     </div>
-                                    <p className="text-[10px] text-slate-500 leading-tight">
+                                    <p className="text-[10px] text-zinc-500 leading-tight">
                                         I want to limit or stop this (e.g. Smoking, Sugar).
                                     </p>
                                  </button>
@@ -668,7 +675,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                         </div>
 
                         <div className="space-y-2">
-                             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Tracking Method</label>
+                             <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">Tracking Method</label>
                              <div className="grid grid-cols-2 gap-3">
                                  <button
                                     type="button"
@@ -676,14 +683,14 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                     className={`p-3 rounded-lg border text-left transition-all ${
                                         !useCounter 
                                         ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-200' 
-                                        : 'bg-white border-slate-200 hover:border-slate-300'
+                                        : 'bg-white border-zinc-200 hover:border-zinc-300'
                                     }`}
                                  >
                                     <div className="flex items-center gap-2 mb-1">
-                                        <Check className={`w-4 h-4 ${!useCounter ? 'text-blue-600' : 'text-slate-400'}`} />
-                                        <span className={`text-sm font-bold ${!useCounter ? 'text-blue-900' : 'text-slate-700'}`}>Yes / No</span>
+                                        <Check className={`w-4 h-4 ${!useCounter ? 'text-blue-600' : 'text-zinc-400'}`} />
+                                        <span className={`text-sm font-bold ${!useCounter ? 'text-blue-900' : 'text-zinc-700'}`}>Yes / No</span>
                                     </div>
-                                    <p className="text-[10px] text-slate-500 leading-tight">
+                                    <p className="text-[10px] text-zinc-500 leading-tight">
                                         Simple completion. Did you do it today?
                                     </p>
                                  </button>
@@ -694,14 +701,14 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                     className={`p-3 rounded-lg border text-left transition-all ${
                                         useCounter 
                                         ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-200' 
-                                        : 'bg-white border-slate-200 hover:border-slate-300'
+                                        : 'bg-white border-zinc-200 hover:border-zinc-300'
                                     }`}
                                  >
                                     <div className="flex items-center gap-2 mb-1">
-                                        <Target className={`w-4 h-4 ${useCounter ? 'text-blue-600' : 'text-slate-400'}`} />
-                                        <span className={`text-sm font-bold ${useCounter ? 'text-blue-900' : 'text-slate-700'}`}>Numeric Count</span>
+                                        <Target className={`w-4 h-4 ${useCounter ? 'text-blue-600' : 'text-zinc-400'}`} />
+                                        <span className={`text-sm font-bold ${useCounter ? 'text-blue-900' : 'text-zinc-700'}`}>Numeric Count</span>
                                     </div>
-                                    <p className="text-[10px] text-slate-500 leading-tight">
+                                    <p className="text-[10px] text-zinc-500 leading-tight">
                                         Track specific numbers (e.g. 8 cups, 20 mins).
                                     </p>
                                  </button>
@@ -711,7 +718,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                         {useCounter && (
                             <div className="grid grid-cols-2 gap-6 animate-in slide-in-from-top-2 fade-in duration-300">
                                 <div className="space-y-1.5">
-                                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                                    <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">
                                         {goalType === 'negative' ? 'Daily Limit' : 'Daily Target'}
                                     </label>
                                     <input 
@@ -719,24 +726,24 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                         min="0"
                                         value={target}
                                         onChange={(e) => setTarget(parseInt(e.target.value) || 0)}
-                                        className="w-full h-11 px-4 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all font-semibold text-slate-800 shadow-sm"
+                                        className="w-full h-11 px-4 bg-white border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all font-semibold text-zinc-800 shadow-sm"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Unit</label>
+                                    <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">Unit</label>
                                     <input 
                                         type="text" 
                                         placeholder="e.g. cups, mins"
                                         value={unit}
                                         onChange={(e) => setUnit(e.target.value)}
-                                        className="w-full h-11 px-4 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all font-semibold text-slate-800 shadow-sm placeholder:text-slate-300"
+                                        className="w-full h-11 px-4 bg-white border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all font-semibold text-zinc-800 shadow-sm placeholder:text-zinc-300"
                                     />
                                 </div>
                             </div>
                         )}
 
                         <div className="space-y-2 pt-2">
-                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
                                 <TagIcon className="w-3 h-3"/> Labels
                             </label>
                             <div className="flex flex-wrap gap-2">
@@ -747,8 +754,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                         onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                                             selectedTags.includes(tag.id)
-                                            ? 'ring-1 ring-offset-1 ring-slate-400' 
-                                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                            ? 'ring-1 ring-offset-1 ring-zinc-400' 
+                                            : 'bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50'
                                         }`}
                                         style={selectedTags.includes(tag.id) ? { backgroundColor: `${tag.color}15`, color: tag.color, borderColor: tag.color } : {}}
                                     >
@@ -762,14 +769,14 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                         placeholder="New Label..." 
                                         value={newTagInput}
                                         onChange={(e) => setNewTagInput(e.target.value)}
-                                        className="w-28 text-xs h-8 px-2 border border-slate-200 rounded-md focus:border-slate-800 focus:ring-1 focus:ring-slate-800 outline-none transition-all"
+                                        className="w-28 text-xs h-8 px-2 border border-zinc-200 rounded-md focus:border-zinc-800 focus:ring-1 focus:ring-zinc-800 outline-none transition-all"
                                         onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }}
                                     />
                                     <button 
                                         type="button"
                                         onClick={handleInlineCreateTag}
                                         disabled={!newTagInput.trim() || isCreatingTag}
-                                        className="h-8 w-8 flex items-center justify-center bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200 hover:text-slate-800 disabled:opacity-50 transition-colors"
+                                        className="h-8 w-8 flex items-center justify-center bg-zinc-100 text-zinc-600 rounded-md hover:bg-zinc-200 hover:text-zinc-800 disabled:opacity-50 transition-colors"
                                     >
                                         <Plus className="w-4 h-4" />
                                     </button>
@@ -779,18 +786,18 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                     </form>
                 </div>
                 
-                <div className="px-8 py-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+                <div className="px-8 py-6 border-t border-zinc-100 bg-zinc-50/50 flex justify-end gap-3">
                     <button 
                         type="button" 
                         onClick={() => setIsModalOpen(false)} 
-                        className="px-6 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-all"
+                        className="px-6 py-2.5 text-sm font-bold text-zinc-600 hover:text-zinc-800 hover:bg-zinc-100 rounded-lg transition-all"
                     >
                         Cancel
                     </button>
                     <button 
                         type="submit" 
                         form="habit-form" 
-                        className="px-8 py-2.5 text-sm font-bold bg-[#334155] text-white rounded-lg hover:bg-[#1e293b] shadow-lg shadow-slate-200 hover:shadow-xl transition-all active:scale-95"
+                        className="px-8 py-2.5 text-sm font-bold bg-[#3f3f46] text-white rounded-lg hover:bg-[#27272a] shadow-lg shadow-zinc-200 hover:shadow-xl transition-all active:scale-95"
                     >
                         Save Habit
                     </button>
