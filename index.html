@@ -1,11 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HeavyUser - Fluent Productivity</title>
-  <link rel="icon" type="image/png" href="favicon.png?v=4">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -62,10 +60,8 @@
           },
           borderRadius: {
             lg: "var(--radius)",
-            md: "var(--radius)",
-            sm: "calc(var(--radius) - 2px)",
-            xl: "var(--radius)",
-            "2xl": "var(--radius)",
+            md: "calc(var(--radius) - 2px)",
+            sm: "calc(var(--radius) - 4px)",
           },
         },
       },
@@ -79,24 +75,21 @@
       --card-foreground: 222.2 84% 4.9%;
       --popover: 0 0% 100%;
       --popover-foreground: 222.2 84% 4.9%;
-      --primary: 206 100% 41.6%;
-      /* Changed from slate-600 to blue (#0078d4) */
+      --primary: 210 100% 42%; /* #0078d4 */
       --primary-foreground: 210 40% 98%;
       --secondary: 210 40% 96.1%;
       --secondary-foreground: 222.2 47.4% 11.2%;
       --muted: 210 40% 96.1%;
-      --muted-foreground: 215.4 19.3% 38.9%;
-      /* dark muted text */
+      --muted-foreground: 215.4 16.3% 46.9%;
       --accent: 210 40% 96.1%;
       --accent-foreground: 222.2 47.4% 11.2%;
       --destructive: 0 84.2% 60.2%;
       --destructive-foreground: 210 40% 98%;
-      --border: 214.3 20.8% 80.4%;
-      --input: 214.3 20.8% 80.4%;
-      --ring: 206 100% 41.6%;
+      --border: 214.3 31.8% 91.4%;
+      --input: 214.3 31.8% 91.4%;
+      --ring: 210 100% 42%;
       --radius: 0.5rem;
     }
-
     .dark {
       --background: 222.2 84% 4.9%;
       --foreground: 210 40% 98%;
@@ -118,37 +111,18 @@
       --input: 217.2 32.6% 17.5%;
       --ring: 212.7 26.8% 83.9%;
     }
-
     body {
-      background-color: hsl(var(--background));
-      color: hsl(var(--foreground));
-      font-family: ui-sans-serif, system-ui, sans-serif;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
+      @apply bg-background text-foreground font-sans antialiased;
     }
-
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: hsl(var(--muted-foreground) / 0.3);
-      border-radius: 3px;
-    }
-
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-      background: hsl(var(--muted-foreground) / 0.5);
-    }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.3); border-radius: 3px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); }
   </style>
   <script>
     if (typeof process === 'undefined') { window.process = { env: {} }; }
   </script>
-  <script type="importmap">
+<script type="importmap">
 {
   "imports": {
     "@google/genai": "https://esm.sh/@google/genai",
@@ -176,10 +150,8 @@
 }
 </script>
 </head>
-
 <body>
   <div id="root"></div>
   <script type="module" src="index.tsx"></script>
 </body>
-
 </html>

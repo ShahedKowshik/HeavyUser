@@ -1,5 +1,5 @@
 
-export type AppTab = 'tasks' | 'habit' | 'journal' | 'notes' | 'settings' | 'request_feature' | 'report_bug' | 'changelog';
+export type AppTab = 'tasks' | 'habit' | 'journal' | 'notes' | 'settings' | 'request_feature' | 'report_bug';
 
 export type Priority = 'Urgent' | 'High' | 'Normal' | 'Low';
 
@@ -88,31 +88,6 @@ export interface Note {
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
   tags?: string[];
-}
-
-export type SubmissionStatus = 'pending' | 'in_progress' | 'completed' | 'rejected';
-
-export interface BugReport {
-  id: string;
-  user_id: string;
-  title: string;
-  description: string;
-  priority: Priority;
-  attachment_url?: string | null;
-  status: SubmissionStatus;
-  created_at: string;
-  updated_at?: string;
-}
-
-export interface FeatureRequest {
-  id: string;
-  user_id: string;
-  title: string;
-  description: string;
-  priority: Priority;
-  status: SubmissionStatus;
-  created_at: string;
-  updated_at?: string;
 }
 
 export interface UserSettings {
