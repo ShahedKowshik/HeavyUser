@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Pencil } from 'lucide-react';
+
+import React, { useState, useMemo } from 'react';
+import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info } from 'lucide-react';
 import { Habit, Tag } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -32,19 +33,102 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     return newTag;
 };
 
-const formatDateFriendly = (dateStr: string) => {
-    // Append T00:00:00 to ensure local timezone interpretation of YYYY-MM-DD
-    const date = new Date(dateStr + 'T00:00:00');
-    return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+const getLogicalDate = (dayStartHour: number = 0) => {
+    const d = new Date();
+    if (d.getHours() < dayStartHour) {
+        d.setDate(d.getDate() - 1);
+    }
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+};
+
+const getHabitStats = (habit: Habit, today: string) => {
+    // Helper to determine success based on goal type
+    const isSuccess = (count: number) => {
+        if (habit.goalType === 'negative') return count <= habit.target;
+        return count >= habit.target;
+    };
+
+    const d = new Date(today);
+    d.setDate(d.getDate() - 1);
+    const yesterday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    
+    const countToday = habit.progress[today] || 0;
+    const countYesterday = habit.progress[yesterday] || 0;
+
+    const successToday = isSuccess(countToday);
+    const successYesterday = isSuccess(countYesterday);
+    
+    let streak = 0;
+    
+    // Determine where to start checking backwards
+    // If successful today, start from today.
+    // If not successful today but successful yesterday, start from yesterday (streak kept alive).
+    // Otherwise streak is broken (0).
+    
+    let checkDateStr = successToday ? today : (successYesterday ? yesterday : null);
+
+    if (checkDateStr) {
+        let currentCheckDate = new Date(checkDateStr);
+        // We must check against startDate to prevent infinite loops for negative habits (where 0 is success)
+        const startDate = new Date(habit.startDate);
+        startDate.setHours(0,0,0,0);
+
+        while (true) {
+             const dateStr = `${currentCheckDate.getFullYear()}-${String(currentCheckDate.getMonth() + 1).padStart(2, '0')}-${String(currentCheckDate.getDate()).padStart(2, '0')}`;
+             
+             const checkTime = new Date(dateStr);
+             checkTime.setHours(0,0,0,0);
+             if (checkTime < startDate) break;
+
+             const count = habit.progress[dateStr] || 0;
+             const skipped = habit.skippedDates.includes(dateStr);
+             
+             if (isSuccess(count) || skipped) {
+                 streak++;
+                 currentCheckDate.setDate(currentCheckDate.getDate() - 1);
+             } else {
+                 break;
+             }
+        }
+    }
+
+    // Calculate Total Success Days & Rate (last 30 days or since start)
+    let totalDays = 0;
+    let successfulDays = 0;
+    
+    // Check last 30 days
+    for(let i=0; i<30; i++) {
+        const tempD = new Date(today);
+        tempD.setDate(tempD.getDate() - i);
+        const dateStr = `${tempD.getFullYear()}-${String(tempD.getMonth() + 1).padStart(2, '0')}-${String(tempD.getDate()).padStart(2, '0')}`;
+        
+        // Only count if date is >= startDate
+        if (new Date(dateStr) >= new Date(habit.startDate)) {
+            totalDays++;
+            const count = habit.progress[dateStr] || 0;
+            const skipped = habit.skippedDates.includes(dateStr);
+            if (isSuccess(count) || skipped) {
+                successfulDays++;
+            }
+        }
+    }
+
+    const rate = totalDays > 0 ? Math.round((successfulDays / totalDays) * 100) : 0;
+    const totalCompletions = successfulDays; 
+
+    return { streak, totalCompletions, rate };
 };
 
 const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, dayStartHour, tags, setTags, activeFilterTagId }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
   
-  // Interaction State
-  const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
-  const [editingDay, setEditingDay] = useState<string | null>(null);
+  // Detail View State
+  const [detailHabitId, setDetailHabitId] = useState<string | null>(null);
+  const [calendarViewDate, setCalendarViewDate] = useState(new Date());
 
   // Form State
   const [title, setTitle] = useState('');
@@ -59,39 +143,9 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
   const [newTagInput, setNewTagInput] = useState('');
   const [isCreatingTag, setIsCreatingTag] = useState(false);
 
-  // View State
-  const [viewOffset, setViewOffset] = useState(0);
+  const today = getLogicalDate(dayStartHour);
 
-  const getLogicalDate = () => {
-    const d = new Date();
-    if (d.getHours() < (dayStartHour || 0)) {
-        d.setDate(d.getDate() - 1);
-    }
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  };
-
-  const today = getLogicalDate();
-
-  // Generate last 7 days based on viewOffset
-  const dateRange = useMemo(() => {
-    const dates = [];
-    const baseDate = new Date(today + 'T00:00:00'); // Use T00:00:00 to fix to local start of day
-    // Shift base date by viewOffset * 7 days
-    baseDate.setDate(baseDate.getDate() - (viewOffset * 7));
-
-    for (let i = 6; i >= 0; i--) {
-        const d = new Date(baseDate);
-        d.setDate(d.getDate() - i);
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        dates.push(`${y}-${m}-${day}`);
-    }
-    return dates;
-  }, [today, viewOffset]);
+  const detailHabit = useMemo(() => habits.find(h => h.id === detailHabitId), [habits, detailHabitId]);
 
   const resetForm = () => {
     setTitle('');
@@ -106,7 +160,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
   const openCreateModal = () => {
     resetForm();
-    // Pre-fill with active global filter tag if present
     if (activeFilterTagId) setSelectedTags([activeFilterTagId]);
     setIsModalOpen(true);
   };
@@ -121,6 +174,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     setGoalType(h.goalType || 'positive');
     setSelectedTags(h.tags || []);
     setIsModalOpen(true);
+    setDetailHabitId(null); // Close detail view if open
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -179,7 +233,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
   const handleDelete = async (id: string) => {
       if(!confirm("Delete this habit?")) return;
       setHabits(prev => prev.filter(h => h.id !== id));
-      if(selectedHabitId === id) setSelectedHabitId(null);
+      setDetailHabitId(null);
       await supabase.from('habits').delete().eq('id', id);
   };
 
@@ -189,7 +243,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
         
         const newProgress = { ...h.progress };
         if (count > 0) newProgress[date] = count;
-        else delete newProgress[date];
+        else delete newProgress[date]; 
         
         let newSkipped = h.skippedDates || [];
         if (skipped && !newSkipped.includes(date)) newSkipped = [...newSkipped, date];
@@ -198,11 +252,10 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
         return { ...h, progress: newProgress, skippedDates: newSkipped };
     }));
 
-    // For DB update, we need the latest state. We can reconstruct it or use the updated local logic.
     const habit = habits.find(h => h.id === habitId);
     if (!habit) return;
     
-    // Calculate new state for DB
+    // DB Update Logic
     const newProgress = { ...habit.progress };
     if (count > 0) newProgress[date] = count;
     else delete newProgress[date];
@@ -239,31 +292,110 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     return habits.filter(h => h.tags?.includes(activeFilterTagId));
   }, [habits, activeFilterTagId]);
 
+  // Calendar Helpers
+  const renderCalendar = () => {
+    if (!detailHabit) return null;
+    
+    const year = calendarViewDate.getFullYear();
+    const month = calendarViewDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDay = new Date(year, month, 1).getDay(); // 0 = Sun
+    
+    const monthName = calendarViewDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+    
+    const changeMonth = (delta: number) => {
+        const d = new Date(calendarViewDate);
+        d.setMonth(d.getMonth() + delta);
+        setCalendarViewDate(d);
+    };
+
+    const days = [];
+    for (let i = 0; i < firstDay; i++) {
+        days.push(<div key={`empty-${i}`} className="h-10"></div>);
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const count = detailHabit.progress[dateStr] || 0;
+        const isSkipped = detailHabit.skippedDates.includes(dateStr);
+        const isFuture = new Date(dateStr) > new Date(today);
+        
+        // Determine status logic
+        let isSuccess = false;
+        let isFail = false;
+        
+        if (detailHabit.goalType === 'negative') {
+            isSuccess = count <= detailHabit.target;
+            isFail = count > detailHabit.target;
+        } else {
+            isSuccess = count >= detailHabit.target;
+            isFail = false;
+        }
+
+        let bgClass = "bg-slate-50 text-slate-400";
+        
+        if (isSkipped) {
+            bgClass = "bg-slate-100 text-slate-400 border border-slate-200";
+        } else if (isSuccess) {
+            if (detailHabit.goalType === 'negative') {
+                // Only color if data exists (count > 0) OR if it is today?
+                if (count > 0) bgClass = "bg-emerald-100 text-emerald-700";
+            } else {
+                 bgClass = "bg-emerald-500 text-white";
+            }
+        }
+        
+        // Overrides
+        if (isFail) {
+             bgClass = "bg-rose-500 text-white";
+        } else if (!isFail && !isSkipped && count > 0 && detailHabit.goalType === 'positive' && count < detailHabit.target) {
+             bgClass = "bg-blue-100 text-blue-600";
+        }
+
+        if (dateStr === today) bgClass += " ring-2 ring-slate-800 ring-offset-1";
+
+        days.push(
+            <button
+                key={d}
+                disabled={isFuture}
+                onClick={() => {
+                   if (detailHabit.goalType === 'negative') {
+                       if (count > 0) updateDayStatus(detailHabit.id, dateStr, 0, false);
+                       else updateDayStatus(detailHabit.id, dateStr, detailHabit.target + 1, false); 
+                   } else {
+                       if (isSuccess) updateDayStatus(detailHabit.id, dateStr, 0, false);
+                       else updateDayStatus(detailHabit.id, dateStr, detailHabit.target, false);
+                   }
+                }}
+                className={`h-9 w-9 mx-auto rounded-lg flex items-center justify-center text-xs font-bold transition-all ${bgClass} ${isFuture ? 'opacity-30 cursor-not-allowed' : 'hover:scale-105 active:scale-95'}`}
+            >
+                {isSkipped ? <Ban className="w-4 h-4" /> : d}
+            </button>
+        );
+    }
+
+    return (
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+                <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-slate-100 rounded"><ChevronLeft className="w-5 h-5 text-slate-500"/></button>
+                <h4 className="font-bold text-slate-800">{monthName}</h4>
+                <button onClick={() => changeMonth(1)} disabled={month >= new Date().getMonth() && year >= new Date().getFullYear()} className="p-1 hover:bg-slate-100 rounded disabled:opacity-30"><ChevronRight className="w-5 h-5 text-slate-500"/></button>
+            </div>
+            <div className="grid grid-cols-7 text-center mb-2">
+                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                    <div key={day} className="text-[10px] font-black text-slate-400 uppercase">{day}</div>
+                ))}
+            </div>
+            <div className="grid grid-cols-7 gap-y-2">
+                {days}
+            </div>
+        </div>
+    );
+  };
+
   return (
     <div className="animate-in fade-in duration-500 pb-20">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-2">
-            <button 
-                onClick={() => setViewOffset(v => v + 1)} 
-                className="p-1 text-slate-400 hover:bg-slate-200 rounded"
-                title="Previous Week"
-            >
-                <ChevronLeft className="w-5 h-5" />
-            </button>
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                {viewOffset === 0 ? 'Current Week' : `${viewOffset} Week${viewOffset > 1 ? 's' : ''} Ago`}
-            </span>
-            <button 
-                onClick={() => setViewOffset(v => Math.max(0, v - 1))} 
-                disabled={viewOffset === 0}
-                className={`p-1 rounded ${viewOffset === 0 ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:bg-slate-200'}`}
-                title="Next Week"
-            >
-                <ChevronRight className="w-5 h-5" />
-            </button>
-        </div>
-        
+      <div className="flex justify-end mb-6">
         <button 
             onClick={openCreateModal}
             className="flex items-center gap-2 px-4 py-2 bg-[#334155] text-white hover:bg-[#1e293b] rounded shadow-sm active:scale-95 transition-all text-sm font-bold"
@@ -273,194 +405,189 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
         </button>
       </div>
 
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredHabits.length === 0 ? (
-           <div className="text-center py-20 opacity-50 border-2 border-dashed border-slate-200 rounded-xl">
+           <div className="col-span-full text-center py-20 opacity-50 border-2 border-dashed border-slate-200 rounded-xl">
                <Zap className="w-12 h-12 text-slate-300 mx-auto mb-2" />
                <p className="font-bold text-slate-400">No habits tracked</p>
            </div>
         ) : (
             filteredHabits.map(habit => {
-                const selectedHabit = habit; // Alias for the snippet compatibility
-                const isSelected = selectedHabitId === habit.id;
+                const stats = getHabitStats(habit, today);
+                const progressToday = habit.progress[today] || 0;
+                
+                let isCompletedToday = false;
+                let isFailedToday = false;
+
+                if (habit.goalType === 'negative') {
+                    isCompletedToday = progressToday <= habit.target;
+                    isFailedToday = progressToday > habit.target;
+                } else {
+                    isCompletedToday = progressToday >= habit.target;
+                }
                 
                 return (
-                    <div key={habit.id} className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden transition-all">
-                        <div className="p-4 flex flex-col md:flex-row gap-4 items-start md:items-center">
-                            <div className="flex items-center gap-4 min-w-0 flex-1">
-                                <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-lg shrink-0">
-                                    {habit.icon}
-                                </div>
-                                <div className="min-w-0">
-                                    <h4 className="font-bold text-slate-800 truncate">{habit.title}</h4>
-                                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                                        <span className={`px-1.5 py-0.5 rounded font-bold uppercase text-[9px] ${habit.goalType === 'negative' ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                            {habit.goalType === 'negative' ? 'Limit' : 'Build'}
-                                        </span>
-                                        <span>
-                                            Target: {habit.target} {habit.unit}
-                                        </span>
-                                    </div>
-                                    {habit.tags && habit.tags.length > 0 && (
-                                        <div className="flex flex-wrap gap-1 mt-1.5">
-                                            {habit.tags.map(tagId => {
-                                                const tag = tags.find(t => t.id === tagId);
-                                                if (!tag) return null;
-                                                return (
-                                                    <span key={tagId} className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: `${tag.color}15`, color: tag.color }}>
-                                                        <TagIcon className="w-2.5 h-2.5" /> {tag.label}
-                                                    </span>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                    <div 
+                        key={habit.id} 
+                        onClick={() => setDetailHabitId(habit.id)}
+                        className={`group bg-white rounded-xl border shadow-sm hover:shadow-md transition-all cursor-pointer relative overflow-hidden ${isFailedToday ? 'border-rose-200' : 'border-slate-200 hover:border-slate-300'}`}
+                    >
+                         <div className="p-5 flex items-center gap-4">
+                             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm border ${
+                                 isFailedToday 
+                                    ? 'bg-rose-50 border-rose-100' 
+                                    : (isCompletedToday && progressToday > 0 && habit.goalType === 'positive' ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100')
+                             }`}>
+                                 {habit.icon}
+                             </div>
+                             
+                             <div className="flex-1 min-w-0">
+                                 <h4 className={`font-bold truncate text-lg transition-colors ${isFailedToday ? 'text-rose-600' : 'text-slate-800'}`}>{habit.title}</h4>
+                                 <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5">
+                                     <div className="flex items-center gap-1">
+                                         <Flame className={`w-3.5 h-3.5 ${stats.streak > 0 ? 'text-orange-500 fill-orange-500' : 'text-slate-300'}`} />
+                                         <span className={stats.streak > 0 ? 'text-orange-600 font-bold' : ''}>{stats.streak} Day Streak</span>
+                                     </div>
+                                 </div>
+                             </div>
 
-                            {/* Weekly Grid */}
-                            <div className="flex items-center justify-between md:justify-end gap-1 w-full md:w-auto overflow-x-auto no-scrollbar">
-                                {dateRange.map((date) => {
-                                    const progress = habit.progress[date] || 0;
-                                    const isSkipped = habit.skippedDates.includes(date);
-                                    
-                                    const isCompleted = habit.goalType === 'negative' 
-                                        ? progress < habit.target // Technically always true if 0, but usually we mark 'failures' in negative habits
-                                        : progress >= habit.target;
-                                    
-                                    const isFailure = habit.goalType === 'negative' && progress >= habit.target;
-                                    const isSuccess = habit.goalType === 'positive' && progress >= habit.target;
-
-                                    let bgColor = 'bg-slate-50';
-                                    let borderColor = 'border-slate-200';
-                                    let textColor = 'text-slate-300';
-                                    
-                                    if (isSkipped) {
-                                        bgColor = 'bg-slate-100';
-                                        textColor = 'text-slate-400';
-                                        borderColor = 'border-slate-200';
-                                    } else if (isSuccess) {
-                                        bgColor = 'bg-emerald-500';
-                                        borderColor = 'border-emerald-600';
-                                        textColor = 'text-white';
-                                    } else if (isFailure) {
-                                        bgColor = 'bg-red-500';
-                                        borderColor = 'border-red-600';
-                                        textColor = 'text-white';
-                                    } else if (progress > 0) {
-                                        // In progress (positive) or warning (negative)
-                                        bgColor = habit.goalType === 'negative' ? 'bg-orange-100' : 'bg-blue-100';
-                                        borderColor = habit.goalType === 'negative' ? 'border-orange-200' : 'border-blue-200';
-                                        textColor = habit.goalType === 'negative' ? 'text-orange-600' : 'text-blue-600';
-                                    }
-                                    
-                                    const dayLetter = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'narrow' });
-                                    const isToday = date === today;
-
-                                    return (
-                                        <div key={date} className="flex flex-col items-center gap-1 min-w-[32px]">
-                                            <span className={`text-[9px] font-bold uppercase ${isToday ? 'text-slate-800' : 'text-slate-400'}`}>{dayLetter}</span>
-                                            <button
-                                                onClick={() => {
-                                                    if (isSelected && editingDay === date) {
-                                                        // Toggle off
-                                                        setEditingDay(null);
-                                                        setSelectedHabitId(null);
-                                                    } else {
-                                                        setSelectedHabitId(habit.id);
-                                                        setEditingDay(date);
-                                                    }
-                                                }}
-                                                className={`w-8 h-8 rounded-md border flex items-center justify-center text-xs font-bold transition-all ${bgColor} ${borderColor} ${textColor} ${editingDay === date && isSelected ? 'ring-2 ring-slate-800 ring-offset-1' : ''}`}
-                                            >
-                                                {isSkipped ? <Ban className="w-3.5 h-3.5" /> : (
-                                                    isSuccess || isFailure ? (habit.useCounter ? progress : <Check className="w-4 h-4" />) : (progress > 0 ? progress : '')
-                                                )}
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            <div className="hidden md:flex flex-col gap-1 border-l border-slate-100 pl-4 ml-2">
-                                <button onClick={() => openEditModal(habit)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded">
-                                    <Settings className="w-4 h-4" />
-                                </button>
-                                <button onClick={() => handleDelete(habit.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded">
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Detail/Edit Panel */}
-                        {isSelected && editingDay && (
-                            <div className="border-t border-slate-200 p-4 bg-slate-50 animate-in slide-in-from-top-2">
-                                <div className="flex items-center justify-between mb-3">
-                                <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
-                                    Edit {formatDateFriendly(editingDay)}
-                                </span>
-                                <button onClick={() => { setEditingDay(null); setSelectedHabitId(null); }} className="p-1 text-slate-400 hover:bg-slate-100 rounded"><X className="w-3 h-3" /></button>
-                                </div>
-                                <div className="flex items-center gap-4 flex-wrap">
-                                <div className="flex items-center gap-2 flex-1 min-w-[150px] bg-white border border-slate-200 p-1 rounded">
-                                    {selectedHabit.useCounter ? (
-                                    <>
-                                        <button 
-                                        onClick={() => updateDayStatus(selectedHabit.id, editingDay, Math.max(0, (selectedHabit.progress[editingDay] || 0) - 1), false)}
-                                        className="w-8 h-8 flex items-center justify-center bg-slate-50 rounded text-slate-600 hover:text-[#334155] hover:bg-slate-100 transition-colors"
-                                        >
-                                        <Minus className="w-4 h-4" />
-                                        </button>
-                                        <div className="flex-1 text-center font-bold text-lg text-slate-800 flex items-center justify-center gap-1">
-                                        {selectedHabit.progress[editingDay] || 0}
-                                        <span className="text-xs text-slate-400 font-medium">/{selectedHabit.target}</span>
-                                        <span className="text-xs text-slate-600 font-normal">{selectedHabit.unit}</span>
-                                        </div>
-                                        <button 
-                                        onClick={() => updateDayStatus(selectedHabit.id, editingDay, (selectedHabit.progress[editingDay] || 0) + 1, false)}
-                                        className="w-8 h-8 flex items-center justify-center bg-slate-50 rounded text-slate-600 hover:text-[#334155] hover:bg-slate-100 transition-colors"
-                                        >
-                                        <Plus className="w-4 h-4" />
-                                        </button>
-                                    </>
-                                    ) : (
-                                    <button 
-                                        onClick={() => updateDayStatus(selectedHabit.id, editingDay, selectedHabit.progress[editingDay] ? 0 : 1, false)}
-                                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded font-bold transition-all shadow-sm ${selectedHabit.progress[editingDay] ? 'bg-emerald-600 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
-                                    >
-                                        {selectedHabit.progress[editingDay] ? 'Completed' : 'Mark Complete'}
-                                    </button>
-                                    )}
-                                </div>
-                                {/* Remove 'Achieve All' for negative habits as it doesn't make sense to fill up to limit */}
-                                {selectedHabit.useCounter && selectedHabit.goalType !== 'negative' && (
-                                    <button 
-                                    onClick={() => updateDayStatus(selectedHabit.id, editingDay, selectedHabit.target, false)}
-                                    className="p-2.5 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200"
-                                    title="Achieve All"
-                                    >
-                                    <Target className="w-5 h-5" />
-                                    </button>
-                                )}
-                                <button 
-                                    onClick={() => {
-                                    const isSkipped = selectedHabit.skippedDates.includes(editingDay);
-                                    updateDayStatus(selectedHabit.id, editingDay, 0, !isSkipped);
-                                    }}
-                                    className={`flex items-center gap-2 px-4 py-2.5 rounded font-bold border transition-colors ${selectedHabit.skippedDates.includes(editingDay) ? 'bg-slate-600 text-white border-slate-600 hover:bg-slate-700' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
-                                >
-                                    <Ban className="w-4 h-4" />
-                                    <span className="text-sm">{selectedHabit.skippedDates.includes(editingDay) ? 'Unskip Day' : 'Skip Day'}</span>
-                                </button>
-                                </div>
-                            </div>
-                        )}
+                             <div onClick={(e) => e.stopPropagation()}>
+                                 {habit.useCounter ? (
+                                     <div className="flex flex-col items-center gap-1">
+                                         <button
+                                             onClick={() => updateDayStatus(habit.id, today, progressToday + 1, false)}
+                                             className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all shadow-sm ${
+                                                isFailedToday 
+                                                ? 'bg-rose-500 text-white hover:bg-rose-600'
+                                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                             }`}
+                                         >
+                                             <Plus className="w-5 h-5"/>
+                                         </button>
+                                         <span className={`text-[9px] font-bold ${isFailedToday ? 'text-rose-500' : 'text-slate-400'}`}>{progressToday}/{habit.target}</span>
+                                     </div>
+                                 ) : (
+                                     <button
+                                         onClick={() => {
+                                             if (habit.goalType === 'negative') {
+                                                 updateDayStatus(habit.id, today, progressToday === 0 ? 1 : 0, false);
+                                             } else {
+                                                 updateDayStatus(habit.id, today, isCompletedToday ? 0 : 1, false);
+                                             }
+                                         }}
+                                         className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-sm ${
+                                             habit.goalType === 'negative'
+                                                ? (progressToday > habit.target ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-300 hover:bg-slate-200')
+                                                : (isCompletedToday ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-300 hover:bg-slate-200')
+                                         }`}
+                                     >
+                                         {habit.goalType === 'negative' ? <X className="w-5 h-5" /> : <Check className="w-5 h-5" />}
+                                     </button>
+                                 )}
+                             </div>
+                         </div>
+                         
+                         <div className="h-1 w-full bg-slate-50">
+                             <div 
+                                className={`h-full transition-all duration-500 ${
+                                    isFailedToday 
+                                    ? 'bg-rose-500' 
+                                    : (habit.goalType === 'negative' ? 'bg-emerald-500' : (isCompletedToday ? 'bg-emerald-500' : 'bg-slate-200'))
+                                }`} 
+                                style={{ width: `${Math.min(100, (progressToday / habit.target) * 100)}%` }}
+                             />
+                         </div>
                     </div>
                 );
             })
         )}
       </div>
 
-      {/* Modal */}
+      {detailHabit && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+              <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[90vh]">
+                  <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                      <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-xl shadow-sm">
+                              {detailHabit.icon}
+                          </div>
+                          <div>
+                              <h3 className="text-lg font-black text-slate-800">{detailHabit.title}</h3>
+                              <div className="flex flex-wrap gap-2 mt-0.5">
+                                  <span className={`px-1.5 py-0.5 rounded font-bold uppercase text-[9px] ${detailHabit.goalType === 'negative' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                        {detailHabit.goalType === 'negative' ? 'Limit Habit' : 'Build Habit'}
+                                  </span>
+                              </div>
+                          </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                           <button onClick={() => openEditModal(detailHabit)} className="p-2 text-slate-400 hover:bg-white hover:text-slate-700 rounded-lg transition-colors border border-transparent hover:border-slate-200 hover:shadow-sm">
+                                <Settings className="w-5 h-5" />
+                           </button>
+                           <button onClick={() => setDetailHabitId(null)} className="p-2 text-slate-400 hover:bg-slate-200 rounded-lg transition-colors">
+                                <X className="w-5 h-5" />
+                           </button>
+                      </div>
+                  </div>
+
+                  <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
+                      <div className="grid grid-cols-3 gap-4">
+                          {(() => {
+                              const stats = getHabitStats(detailHabit, today);
+                              return (
+                                  <>
+                                      <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 flex flex-col items-center text-center">
+                                          <div className="p-2 bg-white rounded-full text-orange-500 mb-2 shadow-sm">
+                                              <Flame className="w-5 h-5 fill-current" />
+                                          </div>
+                                          <span className="text-2xl font-black text-orange-600">{stats.streak}</span>
+                                          <span className="text-xs font-bold text-orange-400 uppercase tracking-wide">Current Streak</span>
+                                      </div>
+                                      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex flex-col items-center text-center">
+                                          <div className="p-2 bg-white rounded-full text-blue-500 mb-2 shadow-sm">
+                                              <Trophy className="w-5 h-5" />
+                                          </div>
+                                          <span className="text-2xl font-black text-blue-600">{stats.totalCompletions}</span>
+                                          <span className="text-xs font-bold text-blue-400 uppercase tracking-wide">{detailHabit.goalType === 'negative' ? 'Safe Days' : 'Done Days'}</span>
+                                      </div>
+                                      <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex flex-col items-center text-center">
+                                          <div className="p-2 bg-white rounded-full text-emerald-500 mb-2 shadow-sm">
+                                              <Activity className="w-5 h-5" />
+                                          </div>
+                                          <span className="text-2xl font-black text-emerald-600">{stats.rate}%</span>
+                                          <span className="text-xs font-bold text-emerald-400 uppercase tracking-wide">Success Rate</span>
+                                      </div>
+                                  </>
+                              );
+                          })()}
+                      </div>
+
+                      <div className="space-y-2">
+                           <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                               <CalendarIcon className="w-4 h-4" /> History
+                           </h4>
+                           {renderCalendar()}
+                      </div>
+                  </div>
+                  
+                  <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+                      <button 
+                          onClick={() => handleDelete(detailHabit.id)}
+                          className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                          <Trash2 className="w-4 h-4" /> Delete Habit
+                      </button>
+                      <button 
+                          onClick={() => setDetailHabitId(null)}
+                          className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-bold text-sm rounded-lg hover:bg-slate-50 shadow-sm"
+                      >
+                          Close
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
             <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[90vh]">
@@ -472,10 +599,9 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                 <div className="p-8 overflow-y-auto custom-scrollbar">
                     <form id="habit-form" onSubmit={handleSave} className="space-y-6">
                         
-                        {/* Icon & Title Row */}
-                        <div className="flex gap-4">
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Icon</label>
+                        <div className="flex gap-4 items-end">
+                            <div className="space-y-1.5 shrink-0">
+                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">Icon</label>
                                 <input 
                                     type="text" 
                                     value={icon}
@@ -484,7 +610,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                 />
                             </div>
                             <div className="space-y-1.5 flex-1">
-                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Title</label>
+                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">Title</label>
                                 <input 
                                     type="text" 
                                     value={title}
@@ -496,60 +622,103 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-6">
-                            {/* Goal Type */}
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Goal Type</label>
-                                <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setGoalType('positive')}
-                                        className={`flex-1 h-9 text-xs font-bold rounded-md flex items-center justify-center gap-1.5 transition-all ${goalType === 'positive' ? 'bg-white text-slate-800 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}
-                                    >
-                                        <Smile className={`w-3.5 h-3.5 ${goalType === 'positive' ? 'text-emerald-500' : ''}`} /> Build
-                                    </button>
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setGoalType('negative')}
-                                        className={`flex-1 h-9 text-xs font-bold rounded-md flex items-center justify-center gap-1.5 transition-all ${goalType === 'negative' ? 'bg-white text-slate-800 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}
-                                    >
-                                        <Frown className={`w-3.5 h-3.5 ${goalType === 'negative' ? 'text-rose-500' : ''}`} /> Limit
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            {/* Tracking */}
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Tracking</label>
-                                <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setUseCounter(false)}
-                                        className={`flex-1 h-9 text-xs font-bold rounded-md transition-all ${!useCounter ? 'bg-white text-slate-800 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}
-                                    >
-                                        Check
-                                    </button>
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setUseCounter(true)}
-                                        className={`flex-1 h-9 text-xs font-bold rounded-md transition-all ${useCounter ? 'bg-white text-slate-800 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}
-                                    >
-                                        Count
-                                    </button>
-                                </div>
-                            </div>
+                        <div className="space-y-2">
+                             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Habit Goal</label>
+                             <div className="grid grid-cols-2 gap-3">
+                                 <button
+                                    type="button"
+                                    onClick={() => setGoalType('positive')}
+                                    className={`p-3 rounded-lg border text-left transition-all ${
+                                        goalType === 'positive' 
+                                        ? 'bg-emerald-50 border-emerald-200 ring-1 ring-emerald-200' 
+                                        : 'bg-white border-slate-200 hover:border-slate-300'
+                                    }`}
+                                 >
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <div className={`p-1 rounded-full ${goalType === 'positive' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                            <Smile className="w-4 h-4" />
+                                        </div>
+                                        <span className={`text-sm font-bold ${goalType === 'positive' ? 'text-emerald-900' : 'text-slate-700'}`}>Build Habit</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 leading-tight">
+                                        I want to do this more often (e.g. Exercise, Read).
+                                    </p>
+                                 </button>
+
+                                 <button
+                                    type="button"
+                                    onClick={() => setGoalType('negative')}
+                                    className={`p-3 rounded-lg border text-left transition-all ${
+                                        goalType === 'negative' 
+                                        ? 'bg-rose-50 border-rose-200 ring-1 ring-rose-200' 
+                                        : 'bg-white border-slate-200 hover:border-slate-300'
+                                    }`}
+                                 >
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <div className={`p-1 rounded-full ${goalType === 'negative' ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-400'}`}>
+                                            <Ban className="w-4 h-4" />
+                                        </div>
+                                        <span className={`text-sm font-bold ${goalType === 'negative' ? 'text-rose-900' : 'text-slate-700'}`}>Quit Habit</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 leading-tight">
+                                        I want to limit or stop this (e.g. Smoking, Sugar).
+                                    </p>
+                                 </button>
+                             </div>
                         </div>
 
-                        {/* Target & Unit (Conditional) */}
+                        <div className="space-y-2">
+                             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Tracking Method</label>
+                             <div className="grid grid-cols-2 gap-3">
+                                 <button
+                                    type="button"
+                                    onClick={() => setUseCounter(false)}
+                                    className={`p-3 rounded-lg border text-left transition-all ${
+                                        !useCounter 
+                                        ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-200' 
+                                        : 'bg-white border-slate-200 hover:border-slate-300'
+                                    }`}
+                                 >
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Check className={`w-4 h-4 ${!useCounter ? 'text-blue-600' : 'text-slate-400'}`} />
+                                        <span className={`text-sm font-bold ${!useCounter ? 'text-blue-900' : 'text-slate-700'}`}>Yes / No</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 leading-tight">
+                                        Simple completion. Did you do it today?
+                                    </p>
+                                 </button>
+
+                                 <button
+                                    type="button"
+                                    onClick={() => setUseCounter(true)}
+                                    className={`p-3 rounded-lg border text-left transition-all ${
+                                        useCounter 
+                                        ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-200' 
+                                        : 'bg-white border-slate-200 hover:border-slate-300'
+                                    }`}
+                                 >
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Target className={`w-4 h-4 ${useCounter ? 'text-blue-600' : 'text-slate-400'}`} />
+                                        <span className={`text-sm font-bold ${useCounter ? 'text-blue-900' : 'text-slate-700'}`}>Numeric Count</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 leading-tight">
+                                        Track specific numbers (e.g. 8 cups, 20 mins).
+                                    </p>
+                                 </button>
+                             </div>
+                        </div>
+
                         {useCounter && (
                             <div className="grid grid-cols-2 gap-6 animate-in slide-in-from-top-2 fade-in duration-300">
                                 <div className="space-y-1.5">
-                                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Daily Target</label>
+                                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                                        {goalType === 'negative' ? 'Daily Limit' : 'Daily Target'}
+                                    </label>
                                     <input 
                                         type="number" 
-                                        min="1"
+                                        min="0"
                                         value={target}
-                                        onChange={(e) => setTarget(parseInt(e.target.value) || 1)}
+                                        onChange={(e) => setTarget(parseInt(e.target.value) || 0)}
                                         className="w-full h-11 px-4 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all font-semibold text-slate-800 shadow-sm"
                                     />
                                 </div>
@@ -566,7 +735,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                             </div>
                         )}
 
-                        {/* Labels */}
                         <div className="space-y-2 pt-2">
                             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                                 <TagIcon className="w-3 h-3"/> Labels
