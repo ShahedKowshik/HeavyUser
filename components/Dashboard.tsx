@@ -822,7 +822,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           </div>
         </header>
 
-        <div className={`mx-auto w-full h-full ${isFullWidthView ? 'max-w-none h-full flex flex-col' : 'p-4 md:p-8 max-w-7xl'}`}>
+        <div className={`mx-auto w-full ${isFullWidthView ? 'max-w-none flex-1 min-h-0 flex flex-col' : 'p-4 md:p-8 max-w-7xl'}`}>
           {renderContent()}
         </div>
       </main>
