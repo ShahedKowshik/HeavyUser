@@ -947,9 +947,9 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   return (
-    <div className="flex h-full animate-in fade-in duration-500">
+    <div className="flex flex-col h-full animate-in fade-in duration-500">
       {/* Main Content Area */}
-      <div className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">
+      <div className="flex-1 min-w-0 overflow-hidden flex flex-col relative">
          {/* Internal Scrolling Container */}
          <div className={`flex-1 overflow-y-auto custom-scrollbar ${viewLayout === 'list' ? 'p-4 md:p-8' : 'py-4 md:py-8'}`}>
              
@@ -997,23 +997,23 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
          </div>
       </div>
 
-      {/* Right Sidebar */}
-      <div className="w-14 border-l border-zinc-200 bg-white flex flex-col items-center py-4 gap-4 shrink-0 z-10 shadow-sm">
+      {/* Bottom Tabs (Spreadsheet Style) */}
+      <div className="w-full bg-white border-t border-zinc-200 flex items-center justify-start px-4 shrink-0 z-10 h-12 gap-2">
             <button 
                 onClick={() => setViewLayout('list')}
-                className={`p-2.5 rounded-lg transition-all group relative ${viewLayout === 'list' ? 'bg-zinc-100 text-[#3f3f46]' : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50'}`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewLayout === 'list' ? 'bg-zinc-100 text-[#3f3f46]' : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50'}`}
                 title="List View"
             >
-                <AlignJustify className="w-5 h-5" />
-                {viewLayout === 'list' && <div className="absolute right-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[#3f3f46] rounded-l-full" />}
+                <AlignJustify className="w-4 h-4" />
+                <span>List</span>
             </button>
             <button 
                 onClick={() => setViewLayout('kanban')}
-                className={`p-2.5 rounded-lg transition-all group relative ${viewLayout === 'kanban' ? 'bg-zinc-100 text-[#3f3f46]' : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50'}`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewLayout === 'kanban' ? 'bg-zinc-100 text-[#3f3f46]' : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50'}`}
                 title="Kanban View"
             >
-                <LayoutTemplate className="w-5 h-5" />
-                {viewLayout === 'kanban' && <div className="absolute right-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[#3f3f46] rounded-l-full" />}
+                <LayoutTemplate className="w-4 h-4" />
+                <span>Board</span>
             </button>
       </div>
 
