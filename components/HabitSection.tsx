@@ -246,7 +246,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     } catch (err: any) {
         console.error("Error saving habit:", err);
         setHabits(previousHabits);
-        alert(`Failed to save habit: ${err.message || 'Unknown error'}. Check that your database schema includes 'goal_type' and 'tags' columns.`);
+        alert(`Failed to save habit: ${err.message || 'Unknown error'}. Please run the SQL migration to add missing columns.`);
     }
   };
 
