@@ -199,11 +199,22 @@ const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRef
             }}
             className="bg-white rounded-lg shadow-xl border border-zinc-200 p-4 w-72 animate-in zoom-in-95 origin-top-left"
         >
-            <div className="grid grid-cols-2 gap-2 mb-4 border-b border-zinc-100 pb-4">
-                <button type="button" onClick={() => handleQuickSelect(0)} className="text-xs font-bold text-zinc-600 bg-zinc-50 hover:bg-zinc-100 hover:text-[#3f3f46] py-1.5 rounded transition-colors">Today</button>
-                <button type="button" onClick={() => handleQuickSelect(1)} className="text-xs font-bold text-zinc-600 bg-zinc-50 hover:bg-zinc-100 hover:text-[#3f3f46] py-1.5 rounded transition-colors">Tomorrow</button>
-                <button type="button" onClick={() => handleQuickSelect(7)} className="text-xs font-bold text-zinc-600 bg-zinc-50 hover:bg-zinc-100 hover:text-[#3f3f46] py-1.5 rounded transition-colors">+7 Days</button>
-                <button type="button" onClick={() => handleQuickSelect(30)} className="text-xs font-bold text-zinc-600 bg-zinc-50 hover:bg-zinc-100 hover:text-[#3f3f46] py-1.5 rounded transition-colors">+30 Days</button>
+            <div className="space-y-2 mb-4 border-b border-zinc-100 pb-4">
+                <div className="grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => handleQuickSelect(0)} className="text-xs font-bold text-zinc-600 bg-zinc-50 hover:bg-zinc-100 hover:text-[#3f3f46] py-1.5 rounded transition-colors">Today</button>
+                    <button type="button" onClick={() => handleQuickSelect(1)} className="text-xs font-bold text-zinc-600 bg-zinc-50 hover:bg-zinc-100 hover:text-[#3f3f46] py-1.5 rounded transition-colors">Tomorrow</button>
+                    <button type="button" onClick={() => handleQuickSelect(7)} className="text-xs font-bold text-zinc-600 bg-zinc-50 hover:bg-zinc-100 hover:text-[#3f3f46] py-1.5 rounded transition-colors">+7 Days</button>
+                    <button type="button" onClick={() => handleQuickSelect(30)} className="text-xs font-bold text-zinc-600 bg-zinc-50 hover:bg-zinc-100 hover:text-[#3f3f46] py-1.5 rounded transition-colors">+30 Days</button>
+                </div>
+                {value && (
+                    <button 
+                        type="button" 
+                        onClick={() => { onChange(''); onClose(); }} 
+                        className="w-full text-xs font-bold text-red-500 bg-red-50 hover:bg-red-100 py-1.5 rounded transition-colors flex items-center justify-center gap-1"
+                    >
+                        <Trash2 className="w-3 h-3" /> Remove Date
+                    </button>
+                )}
             </div>
 
             <div className="flex items-center justify-between mb-2">
@@ -648,7 +659,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
   // --- Grouping Logic ---
   const getGroupingKey = (dateStr: string) => {
-    if (!dateStr) return 'No Date';
+    if (!dateStr) return 'Backlog';
     const diffDays = getDayDiff(dateStr);
     if (diffDays < 0) return 'Overdue';
     if (diffDays === 0) return 'Today';
@@ -672,7 +683,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
     if (grouping === 'none') return [{ title: '', tasks: base }];
 
-    const groupOrder = ['Overdue', 'Yesterday', 'Today', 'Tomorrow', 'Upcoming', 'No Date'];
+    const groupOrder = ['Overdue', 'Yesterday', 'Today', 'Tomorrow', 'Upcoming', 'Backlog'];
     const groups: Record<string, Task[]> = {};
     
     base.forEach(t => {
