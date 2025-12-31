@@ -800,37 +800,36 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           {enabledModules.includes('notes') && <NavItem id="notes" label="Notes" icon={File} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
         </nav>
 
-        <div className={`pt-4 border-t border-slate-200 w-full flex flex-col gap-1`}>
-          
-          {/* Progress Box in Sidebar */}
-          {!isSidebarCollapsed && (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-2 animate-in fade-in slide-in-from-left-2">
-                  <div className="flex items-center gap-2 mb-2 text-slate-800 font-bold text-xs uppercase tracking-wide">
-                      <BarChart3 className="w-3.5 h-3.5" /> Daily Progress
-                  </div>
-                  <div className="space-y-2">
-                      <div className="flex justify-between items-end">
-                          <div>
-                              <div className="text-[10px] text-slate-400 font-semibold uppercase">Tracked</div>
-                              <div className="text-sm font-black text-slate-700">{formatTimeSimple(sidebarStats.totalTrackedSeconds)}</div>
-                          </div>
-                          <div className="text-right">
-                              <div className="text-[10px] text-slate-400 font-semibold uppercase">Remaining</div>
-                              <div className="text-sm font-black text-slate-700">{formatTimeSimple(sidebarStats.remainingMinutes * 60)}</div>
-                          </div>
-                      </div>
-                      
-                      {/* Bar */}
-                      <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
-                          <div 
-                              className="h-full bg-blue-500 transition-all duration-500" 
-                              style={{ width: `${(sidebarStats.totalTrackedSeconds / Math.max(1, sidebarStats.totalTrackedSeconds + (sidebarStats.remainingMinutes * 60))) * 100}%` }}
-                          />
-                      </div>
-                  </div>
-              </div>
-          )}
+        {/* Progress Box in Sidebar - MOVED HERE (Above Divider) */}
+        {!isSidebarCollapsed && (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-1 animate-in fade-in slide-in-from-left-2 shrink-0">
+                <div className="flex items-center gap-2 mb-2 text-slate-800 font-bold text-xs uppercase tracking-wide">
+                    <BarChart3 className="w-3.5 h-3.5" /> Daily Progress
+                </div>
+                <div className="space-y-2">
+                    <div className="flex justify-between items-end">
+                        <div>
+                            <div className="text-[10px] text-slate-400 font-semibold uppercase">Tracked</div>
+                            <div className="text-sm font-black text-slate-700">{formatTimeSimple(sidebarStats.totalTrackedSeconds)}</div>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-[10px] text-slate-400 font-semibold uppercase">Remaining</div>
+                            <div className="text-sm font-black text-slate-700">{formatTimeSimple(sidebarStats.remainingMinutes * 60)}</div>
+                        </div>
+                    </div>
+                    
+                    {/* Bar */}
+                    <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
+                        <div 
+                            className="h-full bg-blue-500 transition-all duration-500" 
+                            style={{ width: `${(sidebarStats.totalTrackedSeconds / Math.max(1, sidebarStats.totalTrackedSeconds + (sidebarStats.remainingMinutes * 60))) * 100}%` }}
+                        />
+                    </div>
+                </div>
+            </div>
+        )}
 
+        <div className={`pt-4 border-t border-slate-200 w-full flex flex-col gap-1`}>
           <NavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
           
           {/* Distinct Group for Feature/Bug */}
@@ -896,6 +895,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
       {/* Main Content */}
       <main className={`flex-1 relative flex flex-col ${isFullWidthView ? 'overflow-hidden' : 'overflow-y-auto'} bg-slate-50/50 pb-20 md:pb-0`}>
+        {/* ... (rest of main content) */}
         <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-8 py-4 bg-white/90 backdrop-blur-md border-b border-slate-200 shrink-0">
           <h2 className="text-xl font-black capitalize text-slate-800 tracking-tight">{activeTab === 'tasks' ? 'Tasks' : activeTab === 'habit' ? 'Habits' : activeTab.replace('_', ' ')}</h2>
           <div className="flex items-center space-x-4">

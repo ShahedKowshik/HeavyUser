@@ -714,215 +714,246 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
              <p className="font-bold text-zinc-500">No tasks found</p>
          </div>
       )}
-      {groups.map((group, gIdx) => (
-        <div key={group.title + gIdx} className="space-y-2">
-          {group.title && (
-            <div className="px-1 py-2 flex items-center gap-2">
-              <span className={`text-[10px] font-black uppercase tracking-[0.1em] ${group.title === 'Overdue' ? 'text-red-600' : 'text-zinc-400'}`}>
-                {group.title}
-              </span>
-              {showNightOwlIcon && (group.title === 'Today' || group.title === 'Tomorrow') && (
-                <div className="group/owl relative flex items-center cursor-help">
-                    <Moon className="w-3 h-3 text-indigo-400" />
-                    <div className="absolute left-6 top-1/2 -translate-y-1/2 w-64 p-3 bg-zinc-800 text-white rounded shadow-xl z-50 hidden group-hover/owl:block animate-in fade-in zoom-in-95 origin-left">
-                        <div className="flex items-center gap-1.5 mb-1 text-indigo-300 font-bold text-xs">
-                            <Moon className="w-3 h-3" /> Night Owl Mode Active
-                        </div>
-                        <p className="text-[10px] leading-relaxed text-zinc-300">
-                            Tasks in <strong>{group.title}</strong> will stay here until {startHourLabel}. 
-                        </p>
-                    </div>
-                </div>
-              )}
-            </div>
-          )}
-          <div className="grid grid-cols-1 gap-2">
-            {group.tasks.map((task) => {
-              const isExpanded = expandedTasks.has(task.id);
-              const pStyle = getPriorityStyle(task.priority);
-              const relativeColor = getRelativeTimeColor(task.dueDate);
-              const diffDays = getDayDiff(task.dueDate);
-              const isFocus = diffDays <= 0; // Overdue or Today
-
-              // Time Calculations
-              const isTimerRunning = !!task.timerStart;
-              let currentSessionSeconds = 0;
-              if (isTimerRunning && task.timerStart) {
-                  currentSessionSeconds = Math.floor((now - new Date(task.timerStart).getTime()) / 1000);
+      {groups.map((group, gIdx) => {
+          // Calculate Group Stats
+          const groupTrackedMinutes = group.tasks.reduce((acc, t) => {
+              let activeDuration = 0;
+              if (t.timerStart) {
+                  activeDuration = (now - new Date(t.timerStart).getTime()) / 1000 / 60;
               }
-              
-              const displayTime = isTimerRunning 
-                  ? formatTimer((task.actualTime || 0) * 60 + currentSessionSeconds) 
-                  : formatDuration(task.actualTime || 0);
+              return acc + (t.actualTime || 0) + activeDuration;
+          }, 0);
 
-              return (
-                <div 
-                  key={task.id}
-                  onClick={() => setSelectedTaskId(task.id)}
-                  className={`rounded border border-zinc-200 px-4 py-3 transition-all hover:shadow-md hover:border-zinc-300 group cursor-pointer ${task.completed ? 'opacity-70 bg-zinc-50' : (isFocus ? 'bg-white' : 'bg-zinc-50')}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="shrink-0 relative">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }}
-                        className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all mt-0.5 ${
-                          task.completed 
-                            ? 'bg-[#107c10] border-[#107c10] text-white shadow-sm' 
-                            : 'border-zinc-300 hover:border-[#3f3f46] bg-white'
-                        }`}
-                      >
-                        {task.completed && <CircleCheck className="w-3 h-3" />}
-                      </button>
-                      {task.recurrence && !task.completed && (
-                          <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-zinc-200 shadow-sm">
-                             <Repeat className="w-2 h-2 text-zinc-400" />
-                          </div>
-                      )}
-                    </div>
+          const groupRemainingMinutes = group.tasks.reduce((acc, t) => {
+              let activeDuration = 0;
+              if (t.timerStart) {
+                  activeDuration = (now - new Date(t.timerStart).getTime()) / 1000 / 60;
+              }
+              const totalSpent = (t.actualTime || 0) + activeDuration;
+              return acc + Math.max(0, (t.plannedTime || 0) - totalSpent);
+          }, 0);
 
-                    <div className="flex-1 min-w-0">
-                        <div className="flex flex-col md:flex-row md:items-center gap-y-2 md:gap-x-6 w-full justify-between">
-                             <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
-                                <div className="flex items-center gap-2 shrink-0 max-w-full">
-                                    <span 
-                                        className={`text-sm font-semibold transition-colors break-words whitespace-normal ${task.completed ? 'text-zinc-400 line-through' : 'text-zinc-800 hover:text-[#3f3f46]'}`}
-                                    >
-                                        {task.title}
-                                    </span>
-                                    
-                                    <button 
-                                        onClick={(e) => toggleExpand(task.id, e)}
-                                        className={`p-0.5 rounded transition-all shrink-0 ${isExpanded ? 'bg-zinc-200 text-[#3f3f46]' : 'text-zinc-300 hover:text-[#3f3f46]'}`}
-                                    >
-                                        <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
-                                    </button>
+          return (
+            <div key={group.title + gIdx} className="space-y-2">
+              {group.title && (
+                <div className="px-1 py-2 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-black uppercase tracking-[0.1em] ${group.title === 'Overdue' ? 'text-red-600' : 'text-zinc-400'}`}>
+                        {group.title}
+                      </span>
+                      {showNightOwlIcon && (group.title === 'Today' || group.title === 'Tomorrow') && (
+                        <div className="group/owl relative flex items-center cursor-help">
+                            <Moon className="w-3 h-3 text-indigo-400" />
+                            <div className="absolute left-6 top-1/2 -translate-y-1/2 w-64 p-3 bg-zinc-800 text-white rounded shadow-xl z-50 hidden group-hover/owl:block animate-in fade-in zoom-in-95 origin-left">
+                                <div className="flex items-center gap-1.5 mb-1 text-indigo-300 font-bold text-xs">
+                                    <Moon className="w-3 h-3" /> Night Owl Mode Active
                                 </div>
-                                
-                                {task.subtasks.length > 0 && (
-                                    <span className="text-[9px] font-bold text-zinc-500 bg-zinc-100 px-1 py-0.5 rounded border border-zinc-200 shrink-0">
-                                        {task.subtasks.filter(s=>s.completed).length}/{task.subtasks.length}
-                                    </span>
-                                )}
-
-                                {task.tags && task.tags.length > 0 && (
-                                    <div className="hidden md:flex flex-wrap gap-1">
-                                        {task.tags.map(tagId => {
-                                            const tag = tags.find(t => t.id === tagId);
-                                            if (!tag) return null;
-                                            return (
-                                                <span key={tagId} className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border border-transparent" style={{ backgroundColor: `${tag.color}15`, color: tag.color }}>
-                                                    <TagIcon className="w-3 h-3" /> {tag.label}
-                                                </span>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                             </div>
-                             
-                             <div className="flex items-center gap-2 shrink-0 text-xs flex-row-reverse md:flex-row justify-end w-full md:w-auto">
-                                  {/* Play Button & Planned Time Pill */}
-                                  <div className="flex items-center gap-1">
-                                      {/* Play Button - Visible on hover or if running or if time logged */}
-                                      <button 
-                                          onClick={(e) => onToggleTimer(task.id, e)}
-                                          className={`p-1 rounded-full transition-all border shrink-0 ${
-                                              isTimerRunning 
-                                              ? 'bg-amber-100 text-amber-600 border-amber-200 animate-pulse' 
-                                              : (task.actualTime || 0) > 0 
-                                                ? 'bg-zinc-100 text-zinc-500 border-zinc-200 opacity-70 hover:opacity-100 hover:bg-zinc-200'
-                                                : 'opacity-0 group-hover:opacity-100 text-zinc-400 hover:bg-zinc-100 border-transparent hover:border-zinc-200'
-                                          }`}
-                                      >
-                                          {isTimerRunning ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
-                                      </button>
-                                      
-                                      {/* Time Pill */}
-                                      {(task.plannedTime || task.actualTime || isTimerRunning) && (
-                                          <div className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-                                              isTimerRunning 
-                                                ? 'bg-amber-50 text-amber-700 border-amber-100' 
-                                                : (task.actualTime || 0) > (task.plannedTime || 0) && task.plannedTime
-                                                    ? 'bg-red-50 text-red-700 border-red-100'
-                                                    : 'bg-zinc-50 text-zinc-500 border-zinc-100'
-                                          }`}>
-                                              {isTimerRunning ? (
-                                                  <span className="tabular-nums">{displayTime}</span>
-                                              ) : (
-                                                  <>
-                                                      {(task.actualTime || 0) > 0 && <span>{formatDuration(task.actualTime || 0)}</span>}
-                                                      {(task.actualTime || 0) > 0 && task.plannedTime && <span className="text-zinc-300">/</span>}
-                                                      {task.plannedTime && <span className="text-zinc-400">{formatDuration(task.plannedTime)}</span>}
-                                                  </>
-                                              )}
-                                          </div>
-                                      )}
-                                  </div>
-
-                                  <div className={`w-[100px] flex items-center gap-1.5 font-medium text-left ${relativeColor}`}>
-                                     {task.dueDate ? (
-                                        <>
-                                            <Calendar className="w-3.5 h-3.5 shrink-0" />
-                                            <span>{formatRelativeDate(task.dueDate)}</span>
-                                        </>
-                                     ) : (
-                                        <span className="text-zinc-300">-</span>
-                                     )}
-                                  </div>
-
-                                  <div className="w-px h-3 bg-zinc-200 mx-1" />
-
-                                  <div className="w-[75px]">
-                                     <div className={`flex w-full justify-center items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border ${pStyle.text}`}>
-                                        {renderPriorityIcon(task.priority)}
-                                        <span>{task.priority}</span>
-                                     </div>
-                                  </div>
-                             </div>
+                                <p className="text-[10px] leading-relaxed text-zinc-300">
+                                    Tasks in <strong>{group.title}</strong> will stay here until {startHourLabel}. 
+                                </p>
+                            </div>
                         </div>
-                    </div>
+                      )}
                   </div>
-
-                  {isExpanded && (
-                    <div className="mt-4 pl-9 animate-in fade-in slide-in-from-top-1 duration-200">
-                      <div className="space-y-1 relative">
-                        <div className="absolute left-[-18px] top-0 bottom-2 w-px bg-zinc-200" />
-                        {task.subtasks?.map(st => (
-                          <div key={st.id} className="flex items-center gap-3 relative group/sub py-1">
-                            <div className="absolute left-[-18px] top-1/2 w-3 h-px bg-zinc-200" />
-                            <button onClick={(e) => { e.stopPropagation(); toggleSubtaskInTask(task.id, st.id); }} className="text-zinc-400 hover:text-[#3f3f46] transition-colors z-10 bg-white">
-                              {st.completed ? <CheckSquare className="w-3.5 h-3.5 text-[#107c10]" /> : <Square className="w-3.5 h-3.5 rounded" />}
-                            </button>
-                            <span className={`text-xs font-medium transition-colors ${st.completed ? 'line-through opacity-50 text-zinc-500' : 'text-zinc-800'}`}>
-                              {st.title}
-                            </span>
-                          </div>
-                        ))}
-                        
-                        <div className="flex items-center gap-3 pt-1 group/input relative">
-                           <div className="absolute left-[-18px] top-1/2 w-3 h-px bg-zinc-200" />
-                          <Plus className="w-3.5 h-3.5 text-[#3f3f46] shrink-0" />
-                          <input 
-                            type="text"
-                            placeholder="Add another subtask..."
-                            className="flex-1 bg-transparent border-none p-0 text-xs font-medium focus:ring-0 focus:outline-none placeholder:text-zinc-400"
-                            onClick={(e) => e.stopPropagation()}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                const val = e.currentTarget.value.trim();
-                                if (val) { addSubtaskToTask(task.id, val); e.currentTarget.value = ''; }
-                              }
-                            }}
-                          />
-                        </div>
+                  
+                  {/* Group Stats Display */}
+                  {(groupTrackedMinutes > 0 || groupRemainingMinutes > 0) && (
+                      <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-400 tabular-nums">
+                          {groupTrackedMinutes > 0 && <span title="Total Tracked">Tracked: {formatDuration(groupTrackedMinutes)}</span>}
+                          {groupTrackedMinutes > 0 && groupRemainingMinutes > 0 && <span className="opacity-50">•</span>}
+                          {groupRemainingMinutes > 0 && <span title="Total Remaining">Left: {formatDuration(groupRemainingMinutes)}</span>}
                       </div>
-                    </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
+              )}
+              <div className="grid grid-cols-1 gap-2">
+                {group.tasks.map((task) => {
+                  const isExpanded = expandedTasks.has(task.id);
+                  const pStyle = getPriorityStyle(task.priority);
+                  const relativeColor = getRelativeTimeColor(task.dueDate);
+                  const diffDays = getDayDiff(task.dueDate);
+                  const isFocus = diffDays <= 0; // Overdue or Today
+
+                  // Time Calculations
+                  const isTimerRunning = !!task.timerStart;
+                  let currentSessionSeconds = 0;
+                  if (isTimerRunning && task.timerStart) {
+                      currentSessionSeconds = Math.floor((now - new Date(task.timerStart).getTime()) / 1000);
+                  }
+                  
+                  const displayTime = isTimerRunning 
+                      ? formatTimer((task.actualTime || 0) * 60 + currentSessionSeconds) 
+                      : formatDuration(task.actualTime || 0);
+
+                  return (
+                    <div 
+                      key={task.id}
+                      onClick={() => setSelectedTaskId(task.id)}
+                      className={`rounded border border-zinc-200 px-4 py-3 transition-all hover:shadow-md hover:border-zinc-300 group cursor-pointer ${task.completed ? 'opacity-70 bg-zinc-50' : (isFocus ? 'bg-white' : 'bg-zinc-50')}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="shrink-0 relative">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }}
+                            className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all mt-0.5 ${
+                              task.completed 
+                                ? 'bg-[#107c10] border-[#107c10] text-white shadow-sm' 
+                                : 'border-zinc-300 hover:border-[#3f3f46] bg-white'
+                            }`}
+                          >
+                            {task.completed && <CircleCheck className="w-3 h-3" />}
+                          </button>
+                          {task.recurrence && !task.completed && (
+                              <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-zinc-200 shadow-sm">
+                                <Repeat className="w-2 h-2 text-zinc-400" />
+                              </div>
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                            <div className="flex flex-col md:flex-row md:items-center gap-y-2 md:gap-x-6 w-full justify-between">
+                                <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 shrink-0 max-w-full">
+                                        <span 
+                                            className={`text-sm font-semibold transition-colors break-words whitespace-normal ${task.completed ? 'text-zinc-400 line-through' : 'text-zinc-800 hover:text-[#3f3f46]'}`}
+                                        >
+                                            {task.title}
+                                        </span>
+                                        
+                                        <button 
+                                            onClick={(e) => toggleExpand(task.id, e)}
+                                            className={`p-0.5 rounded transition-all shrink-0 ${isExpanded ? 'bg-zinc-200 text-[#3f3f46]' : 'text-zinc-300 hover:text-[#3f3f46]'}`}
+                                        >
+                                            <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+                                        </button>
+                                    </div>
+                                    
+                                    {task.subtasks.length > 0 && (
+                                        <span className="text-[9px] font-bold text-zinc-500 bg-zinc-100 px-1 py-0.5 rounded border border-zinc-200 shrink-0">
+                                            {task.subtasks.filter(s=>s.completed).length}/{task.subtasks.length}
+                                        </span>
+                                    )}
+
+                                    {task.tags && task.tags.length > 0 && (
+                                        <div className="hidden md:flex flex-wrap gap-1">
+                                            {task.tags.map(tagId => {
+                                                const tag = tags.find(t => t.id === tagId);
+                                                if (!tag) return null;
+                                                return (
+                                                    <span key={tagId} className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border border-transparent" style={{ backgroundColor: `${tag.color}15`, color: tag.color }}>
+                                                        <TagIcon className="w-3 h-3" /> {tag.label}
+                                                    </span>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                <div className="flex items-center gap-2 shrink-0 text-xs flex-row-reverse md:flex-row justify-end w-full md:w-auto">
+                                      {/* Play Button & Planned Time Pill */}
+                                      <div className="flex items-center gap-1">
+                                          {/* Play Button - Visible on hover or if running or if time logged */}
+                                          <button 
+                                              onClick={(e) => onToggleTimer(task.id, e)}
+                                              className={`p-1 rounded-full transition-all border shrink-0 ${
+                                                  isTimerRunning 
+                                                  ? 'bg-amber-100 text-amber-600 border-amber-200 animate-pulse' 
+                                                  : (task.actualTime || 0) > 0 
+                                                    ? 'bg-zinc-100 text-zinc-500 border-zinc-200 opacity-70 hover:opacity-100 hover:bg-zinc-200'
+                                                    : 'opacity-0 group-hover:opacity-100 text-zinc-400 hover:bg-zinc-100 border-transparent hover:border-zinc-200'
+                                              }`}
+                                          >
+                                              {isTimerRunning ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
+                                          </button>
+                                          
+                                          {/* Time Pill */}
+                                          {(task.plannedTime || task.actualTime || isTimerRunning) && (
+                                              <div className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                                                  isTimerRunning 
+                                                    ? 'bg-amber-50 text-amber-700 border-amber-100' 
+                                                    : (task.actualTime || 0) > (task.plannedTime || 0) && task.plannedTime
+                                                        ? 'bg-red-50 text-red-700 border-red-100'
+                                                        : 'bg-zinc-50 text-zinc-500 border-zinc-100'
+                                              }`}>
+                                                  {isTimerRunning ? (
+                                                      <span className="tabular-nums">{displayTime}</span>
+                                                  ) : (
+                                                      <>
+                                                          {(task.actualTime || 0) > 0 && <span>{formatDuration(task.actualTime || 0)}</span>}
+                                                          {(task.actualTime || 0) > 0 && task.plannedTime && <span className="text-zinc-300">/</span>}
+                                                          {task.plannedTime && <span className="text-zinc-400">{formatDuration(task.plannedTime)}</span>}
+                                                      </>
+                                                  )}
+                                              </div>
+                                          )}
+                                      </div>
+
+                                      <div className={`w-[100px] flex items-center gap-1.5 font-medium text-left ${relativeColor}`}>
+                                        {task.dueDate ? (
+                                            <>
+                                                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                                                <span>{formatRelativeDate(task.dueDate)}</span>
+                                            </>
+                                        ) : (
+                                            <span className="text-zinc-300">-</span>
+                                        )}
+                                      </div>
+
+                                      <div className="w-px h-3 bg-zinc-200 mx-1" />
+
+                                      <div className="w-[75px]">
+                                        <div className={`flex w-full justify-center items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border ${pStyle.text}`}>
+                                            {renderPriorityIcon(task.priority)}
+                                            <span>{task.priority}</span>
+                                        </div>
+                                      </div>
+                                </div>
+                            </div>
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="mt-4 pl-9 animate-in fade-in slide-in-from-top-1 duration-200">
+                          <div className="space-y-1 relative">
+                            <div className="absolute left-[-18px] top-0 bottom-2 w-px bg-zinc-200" />
+                            {task.subtasks?.map(st => (
+                              <div key={st.id} className="flex items-center gap-3 relative group/sub py-1">
+                                <div className="absolute left-[-18px] top-1/2 w-3 h-px bg-zinc-200" />
+                                <button onClick={(e) => { e.stopPropagation(); toggleSubtaskInTask(task.id, st.id); }} className="text-zinc-400 hover:text-[#3f3f46] transition-colors z-10 bg-white">
+                                  {st.completed ? <CheckSquare className="w-3.5 h-3.5 text-[#107c10]" /> : <Square className="w-3.5 h-3.5 rounded" />}
+                                </button>
+                                <span className={`text-xs font-medium transition-colors ${st.completed ? 'line-through opacity-50 text-zinc-500' : 'text-zinc-800'}`}>
+                                  {st.title}
+                                </span>
+                              </div>
+                            ))}
+                            
+                            <div className="flex items-center gap-3 pt-1 group/input relative">
+                              <div className="absolute left-[-18px] top-1/2 w-3 h-px bg-zinc-200" />
+                              <Plus className="w-3.5 h-3.5 text-[#3f3f46] shrink-0" />
+                              <input 
+                                type="text"
+                                placeholder="Add another subtask..."
+                                className="flex-1 bg-transparent border-none p-0 text-xs font-medium focus:ring-0 focus:outline-none placeholder:text-zinc-400"
+                                onClick={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    const val = e.currentTarget.value.trim();
+                                    if (val) { addSubtaskToTask(task.id, val); e.currentTarget.value = ''; }
+                                  }
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+      })}
     </div>
   );
   };
