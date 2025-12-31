@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info } from 'lucide-react';
+import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save } from 'lucide-react';
 import { Habit, Tag } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -64,10 +64,6 @@ const getHabitStats = (habit: Habit, today: string) => {
     let streak = 0;
     
     // Determine where to start checking backwards
-    // If successful today, start from today.
-    // If not successful today but successful yesterday, start from yesterday (streak kept alive).
-    // Otherwise streak is broken (0).
-    
     let checkDateStr = successToday ? today : (successYesterday ? yesterday : null);
 
     if (checkDateStr) {
@@ -123,12 +119,17 @@ const getHabitStats = (habit: Habit, today: string) => {
 };
 
 const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, dayStartHour, tags, setTags, activeFilterTagId }) => {
+  const today = getLogicalDate(dayStartHour);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
   
   // Detail View State
   const [detailHabitId, setDetailHabitId] = useState<string | null>(null);
   const [calendarViewDate, setCalendarViewDate] = useState(new Date());
+
+  // Edit Day Count State
+  const [dayEdit, setDayEdit] = useState<{ date: string, count: number } | null>(null);
 
   // Form State
   const [title, setTitle] = useState('');
@@ -138,12 +139,11 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
   const [useCounter, setUseCounter] = useState(false);
   const [goalType, setGoalType] = useState<'positive' | 'negative'>('positive');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [formStartDate, setFormStartDate] = useState('');
   
   // Tag Creation State
   const [newTagInput, setNewTagInput] = useState('');
   const [isCreatingTag, setIsCreatingTag] = useState(false);
-
-  const today = getLogicalDate(dayStartHour);
 
   const detailHabit = useMemo(() => habits.find(h => h.id === detailHabitId), [habits, detailHabitId]);
 
@@ -155,6 +155,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     setUseCounter(false);
     setGoalType('positive');
     setSelectedTags([]);
+    setFormStartDate(today);
     setEditingHabitId(null);
   };
 
@@ -173,6 +174,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     setUseCounter(h.useCounter);
     setGoalType(h.goalType || 'positive');
     setSelectedTags(h.tags || []);
+    setFormStartDate(h.startDate || today);
     setIsModalOpen(true);
     setDetailHabitId(null); // Close detail view if open
   };
@@ -183,7 +185,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
     if (editingHabitId) {
         setHabits(prev => prev.map(h => h.id === editingHabitId ? { 
-            ...h, title, target, unit, icon, useCounter, goalType, tags: selectedTags 
+            ...h, title, target, unit, icon, useCounter, goalType, tags: selectedTags, startDate: formStartDate 
         } : h));
         
         await supabase.from('habits').update({
@@ -193,7 +195,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
             icon,
             use_counter: useCounter,
             goal_type: goalType,
-            tags: selectedTags
+            tags: selectedTags,
+            start_date: formStartDate
         }).eq('id', editingHabitId);
     } else {
         const newHabit: Habit = {
@@ -202,7 +205,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
             icon,
             target,
             unit,
-            startDate: today,
+            startDate: formStartDate || today,
             useCounter,
             progress: {},
             skippedDates: [],
@@ -218,7 +221,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
             target,
             unit,
             icon,
-            start_date: today,
+            start_date: formStartDate || today,
             use_counter: useCounter,
             progress: {},
             skipped_dates: [],
@@ -287,6 +290,22 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     }
   };
 
+  const getProgressBarColor = (habit: Habit, count: number) => {
+      const ratio = count / (habit.target || 1);
+      
+      if (habit.goalType === 'negative') {
+          // Green -> Yellow -> Red
+          if (ratio > 1) return 'bg-rose-500'; // Exceeded
+          if (ratio >= 0.5) return 'bg-amber-500'; // Warning
+          return 'bg-emerald-500'; // Good
+      } else {
+          // Red -> Yellow -> Green
+          if (ratio >= 1) return 'bg-emerald-500'; // Completed
+          if (ratio >= 0.5) return 'bg-amber-500'; // Progressing
+          return 'bg-rose-500'; // Not Started/Low
+      }
+  };
+
   const filteredHabits = useMemo(() => {
     if (!activeFilterTagId) return habits;
     return habits.filter(h => h.tags?.includes(activeFilterTagId));
@@ -319,37 +338,29 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
         const count = detailHabit.progress[dateStr] || 0;
         const isSkipped = detailHabit.skippedDates.includes(dateStr);
         const isFuture = new Date(dateStr) > new Date(today);
+        const isBeforeStart = new Date(dateStr) < new Date(detailHabit.startDate);
         
-        // Determine status logic
-        let isSuccess = false;
-        let isFail = false;
-        
-        if (detailHabit.goalType === 'negative') {
-            isSuccess = count <= detailHabit.target;
-            isFail = count > detailHabit.target;
-        } else {
-            isSuccess = count >= detailHabit.target;
-            isFail = false;
-        }
-
         let bgClass = "bg-slate-50 text-slate-400";
         
         if (isSkipped) {
             bgClass = "bg-slate-100 text-slate-400 border border-slate-200";
-        } else if (isSuccess) {
+        } else if (!isFuture && !isBeforeStart) {
             if (detailHabit.goalType === 'negative') {
-                // Only color if data exists (count > 0) OR if it is today?
-                if (count > 0) bgClass = "bg-emerald-100 text-emerald-700";
+                if (count === 0) {
+                     bgClass = "bg-emerald-500 text-white";
+                } else if (count <= detailHabit.target) {
+                     bgClass = "bg-amber-500 text-white";
+                } else {
+                     bgClass = "bg-rose-500 text-white";
+                }
             } else {
-                 bgClass = "bg-emerald-500 text-white";
+                // Positive
+                if (count >= detailHabit.target) {
+                     bgClass = "bg-emerald-500 text-white";
+                } else if (count > 0) {
+                     bgClass = "bg-blue-100 text-blue-600";
+                }
             }
-        }
-        
-        // Overrides
-        if (isFail) {
-             bgClass = "bg-rose-500 text-white";
-        } else if (!isFail && !isSkipped && count > 0 && detailHabit.goalType === 'positive' && count < detailHabit.target) {
-             bgClass = "bg-blue-100 text-blue-600";
         }
 
         if (dateStr === today) bgClass += " ring-2 ring-slate-800 ring-offset-1";
@@ -357,17 +368,24 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
         days.push(
             <button
                 key={d}
-                disabled={isFuture}
+                disabled={isFuture || isBeforeStart}
                 onClick={() => {
+                   if (detailHabit.useCounter) {
+                       setDayEdit({ date: dateStr, count: count });
+                       return;
+                   }
+
+                   // Boolean toggle behavior if not numeric counter
                    if (detailHabit.goalType === 'negative') {
                        if (count > 0) updateDayStatus(detailHabit.id, dateStr, 0, false);
                        else updateDayStatus(detailHabit.id, dateStr, detailHabit.target + 1, false); 
                    } else {
+                       const isSuccess = count >= detailHabit.target;
                        if (isSuccess) updateDayStatus(detailHabit.id, dateStr, 0, false);
                        else updateDayStatus(detailHabit.id, dateStr, detailHabit.target, false);
                    }
                 }}
-                className={`h-9 w-9 mx-auto rounded-lg flex items-center justify-center text-xs font-bold transition-all ${bgClass} ${isFuture ? 'opacity-30 cursor-not-allowed' : 'hover:scale-105 active:scale-95'}`}
+                className={`h-9 w-9 mx-auto rounded-lg flex items-center justify-center text-xs font-bold transition-all ${bgClass} ${isFuture || isBeforeStart ? 'opacity-30 cursor-not-allowed' : 'hover:scale-105 active:scale-95'}`}
             >
                 {isSkipped ? <Ban className="w-4 h-4" /> : d}
             </button>
@@ -433,6 +451,9 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                     isCompletedToday = progressToday >= habit.target;
                 }
                 
+                // Get dynamic bar color
+                const barColorClass = getProgressBarColor(habit, progressToday);
+
                 return (
                     <div 
                         key={habit.id} 
@@ -496,11 +517,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                          
                          <div className="h-1 w-full bg-zinc-50">
                              <div 
-                                className={`h-full transition-all duration-500 ${
-                                    isFailedToday 
-                                    ? 'bg-rose-500' 
-                                    : (habit.goalType === 'negative' ? 'bg-emerald-500' : (isCompletedToday ? 'bg-emerald-500' : 'bg-zinc-200'))
-                                }`} 
+                                className={`h-full transition-all duration-500 ${barColorClass}`} 
                                 style={{ width: `${Math.min(100, (progressToday / habit.target) * 100)}%` }}
                              />
                          </div>
@@ -595,6 +612,66 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
           </div>
       )}
 
+      {/* Edit Day Modal */}
+      {dayEdit && detailHabit && (
+        <div 
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4"
+            onClick={() => setDayEdit(null)}
+        >
+            <div 
+                className="bg-white p-6 rounded-xl shadow-xl w-full max-w-xs space-y-5 animate-in zoom-in-95"
+                onClick={e => e.stopPropagation()}
+            >
+                <div className="text-center">
+                    <h4 className="font-bold text-zinc-800 text-lg">Edit Count</h4>
+                    <p className="text-xs text-zinc-500 font-medium mt-1">{dayEdit.date}</p>
+                </div>
+                
+                <div className="flex items-center justify-center gap-4">
+                     <button 
+                        onClick={() => setDayEdit(prev => ({ ...prev!, count: Math.max(0, prev!.count - 1) }))}
+                        className="w-12 h-12 rounded-full bg-zinc-100 flex items-center justify-center hover:bg-zinc-200 text-zinc-600 active:scale-95 transition-all"
+                     >
+                         <Minus className="w-6 h-6" />
+                     </button>
+                     <div className="w-20 text-center">
+                         <input 
+                            type="number" 
+                            min="0"
+                            value={dayEdit.count}
+                            onChange={(e) => setDayEdit(prev => ({ ...prev!, count: parseInt(e.target.value) || 0 }))}
+                            className="w-full text-center text-3xl font-black text-zinc-800 border-none focus:ring-0 p-0"
+                         />
+                     </div>
+                     <button 
+                        onClick={() => setDayEdit(prev => ({ ...prev!, count: prev!.count + 1 }))}
+                        className="w-12 h-12 rounded-full bg-zinc-100 flex items-center justify-center hover:bg-zinc-200 text-zinc-600 active:scale-95 transition-all"
+                     >
+                         <Plus className="w-6 h-6" />
+                     </button>
+                </div>
+
+                <div className="flex justify-between gap-3 pt-2">
+                    <button 
+                        onClick={() => setDayEdit(null)}
+                        className="flex-1 py-2.5 text-sm font-bold text-zinc-500 hover:bg-zinc-100 rounded-lg transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        onClick={() => {
+                            updateDayStatus(detailHabit.id, dayEdit.date, dayEdit.count, false);
+                            setDayEdit(null);
+                        }}
+                        className="flex-1 py-2.5 bg-[#3f3f46] text-white font-bold rounded-lg hover:bg-[#27272a] shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                        <Save className="w-4 h-4" /> Save
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
             <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[90vh]">
@@ -627,6 +704,20 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                     autoFocus
                                 />
                             </div>
+                        </div>
+
+                        {/* Start Date Input */}
+                        <div className="space-y-1.5">
+                             <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest block">Start Date</label>
+                             <div className="relative">
+                                 <CalendarIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                                 <input 
+                                    type="date"
+                                    value={formStartDate}
+                                    onChange={(e) => setFormStartDate(e.target.value)}
+                                    className="w-full h-11 pl-10 pr-4 bg-white border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all font-medium text-zinc-700 shadow-sm"
+                                 />
+                             </div>
                         </div>
 
                         <div className="space-y-2">
