@@ -1,5 +1,6 @@
 
 
+
 export type AppTab = 'tasks' | 'habit' | 'journal' | 'notes' | 'settings' | 'request_feature' | 'report_bug';
 
 export type Priority = 'Urgent' | 'High' | 'Normal' | 'Low';
@@ -52,6 +53,14 @@ export interface Task {
   plannedTime?: number; // In minutes
   actualTime?: number; // In minutes
   timerStart?: string | null; // ISO string if currently running
+}
+
+export interface TaskSession {
+  id: string;
+  taskId: string;
+  startTime: string; // ISO
+  endTime: string | null; // ISO
+  duration: number; // seconds
 }
 
 export type EntryType = 'Log' | 'Gratitude';

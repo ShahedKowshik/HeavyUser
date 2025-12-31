@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause } from 'lucide-react';
-import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder } from '../types';
+import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause, BarChart3 } from 'lucide-react';
+import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
 import JournalSection from './JournalSection';
@@ -177,8 +177,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [sessions, setSessions] = useState<TaskSession[]>([]);
   const [isStreakModalOpen, setIsStreakModalOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState('');
+  
+  // Stats Ticker for Live Updates
+  const [statsTicker, setStatsTicker] = useState(0);
 
   // Global Label Filter
   const [activeFilterTagId, setActiveFilterTagId] = useState<string | null>(null);
@@ -222,6 +226,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         }
     }
   }, [enabledModules, activeTab]);
+
+  // Stats Ticker
+  useEffect(() => {
+      const interval = setInterval(() => {
+          setStatsTicker(prev => prev + 1);
+      }, 60000); // Update every minute
+      return () => clearInterval(interval);
+  }, []);
 
   // Toggle Sidebar Helper
   const toggleSidebar = () => {
@@ -308,51 +320,129 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       const nowIso = new Date().toISOString();
       const nowTime = new Date(nowIso).getTime();
 
-      // If we are starting a timer
-      if (!task.timerStart) {
-          // Find any other running task to stop
-          const otherRunningTask = tasks.find(t => !!t.timerStart && t.id !== id);
+      // Optimistic updates
+      let updatedTasks = [...tasks];
+      let updatedSessions = [...sessions];
+
+      // 1. Check if ANY task is running (could be this one or another)
+      const runningTask = tasks.find(t => !!t.timerStart);
+      
+      if (runningTask) {
+          // We must stop the running task first
+          const startTime = new Date(runningTask.timerStart!).getTime();
+          const diffSeconds = Math.floor((nowTime - startTime) / 1000);
+          const diffMinutes = diffSeconds / 60;
+          const newActual = (runningTask.actualTime || 0) + diffMinutes;
+
+          // Update Task State
+          updatedTasks = updatedTasks.map(t => t.id === runningTask.id ? { 
+              ...t, timerStart: null, actualTime: newActual 
+          } : t);
+
+          // Update Session State (Find open session for this task)
+          // Look for session with no end time that matches task ID
+          const openSessionIndex = updatedSessions.findIndex(s => s.taskId === runningTask.id && !s.endTime);
           
-          let updatedTasks = [...tasks];
-
-          // Pause the other active task if exists
-          if (otherRunningTask && otherRunningTask.timerStart) {
-              const otherStartTime = new Date(otherRunningTask.timerStart).getTime();
-              const diffMinutes = (nowTime - otherStartTime) / 60000;
-              const newActual = (otherRunningTask.actualTime || 0) + diffMinutes;
+          if (openSessionIndex !== -1) {
+              updatedSessions[openSessionIndex] = {
+                  ...updatedSessions[openSessionIndex],
+                  endTime: nowIso,
+                  duration: diffSeconds
+              };
               
-              updatedTasks = updatedTasks.map(t => t.id === otherRunningTask.id ? { 
-                  ...t, timerStart: null, actualTime: newActual 
-              } : t);
-
-              // Async update for the stopped task
-              supabase.from('tasks').update({
-                  timer_start: null,
-                  actual_time: newActual
-              }).eq('id', otherRunningTask.id).then();
+              // DB Update for Session
+              supabase.from('task_sessions')
+                  .update({ end_time: nowIso, duration: diffSeconds })
+                  .eq('id', updatedSessions[openSessionIndex].id)
+                  .then();
+          } else {
+              // Fallback: Create closed session record if not found (keeps history intact)
+              const newSession: TaskSession = {
+                  id: crypto.randomUUID(),
+                  taskId: runningTask.id,
+                  startTime: runningTask.timerStart!,
+                  endTime: nowIso,
+                  duration: diffSeconds
+              };
+              updatedSessions = [newSession, ...updatedSessions];
+              supabase.from('task_sessions').insert({
+                  id: newSession.id,
+                  user_id: userId,
+                  task_id: newSession.taskId,
+                  start_time: newSession.startTime,
+                  end_time: newSession.endTime,
+                  duration: newSession.duration
+              }).then();
           }
 
-          // Start the selected task
-          updatedTasks = updatedTasks.map(t => t.id === id ? { ...t, timerStart: nowIso } : t);
-          setTasks(updatedTasks);
-          // Note: trackedTaskId update is handled by the useEffect watching tasks state
-
-          await supabase.from('tasks').update({
-              timer_start: nowIso
-          }).eq('id', id);
-
-      } else {
-          // Stop currently running timer
-          const startTime = new Date(task.timerStart).getTime();
-          const diffMinutes = (nowTime - startTime) / 60000;
-          const newActual = (task.actualTime || 0) + diffMinutes;
-          
-          setTasks(prev => prev.map(t => t.id === id ? { ...t, timerStart: null, actualTime: newActual } : t));
-          await supabase.from('tasks').update({
+          // DB Update for Task
+          supabase.from('tasks').update({
               timer_start: null,
               actual_time: newActual
-          }).eq('id', id);
+          }).eq('id', runningTask.id).then();
       }
+
+      // 2. If we are starting a NEW timer (i.e. the clicked task was not the running one, OR no task was running)
+      if (runningTask?.id !== id) {
+          // Start the selected task
+          updatedTasks = updatedTasks.map(t => t.id === id ? { ...t, timerStart: nowIso } : t);
+          
+          // Create new Session
+          const newSession: TaskSession = {
+              id: crypto.randomUUID(),
+              taskId: id,
+              startTime: nowIso,
+              endTime: null,
+              duration: 0
+          };
+          updatedSessions = [newSession, ...updatedSessions];
+
+          // DB Updates
+          supabase.from('tasks').update({ timer_start: nowIso }).eq('id', id).then();
+          supabase.from('task_sessions').insert({
+              id: newSession.id,
+              user_id: userId,
+              task_id: newSession.taskId,
+              start_time: newSession.startTime
+          }).then();
+      }
+
+      setTasks(updatedTasks);
+      setSessions(updatedSessions);
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+      if(!window.confirm("Delete this time entry?")) return;
+      
+      const session = sessions.find(s => s.id === sessionId);
+      if(!session) return;
+
+      // Optimistically remove session
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+
+      // If the session has a duration (i.e. it wasn't just 0 seconds), deduct from task
+      const durationSeconds = session.duration || 0;
+      
+      // If it's a running session (no endTime), the duration in DB/state is 0, but we should clear the timer on the task
+      const isRunning = !session.endTime;
+
+      if (isRunning) {
+          // It's the running session. Stop the task timer without adding time.
+          setTasks(prev => prev.map(t => t.id === session.taskId ? { ...t, timerStart: null } : t));
+          await supabase.from('tasks').update({ timer_start: null }).eq('id', session.taskId);
+      } else if (durationSeconds > 0) {
+          // Deduct time from task
+          const durationMin = durationSeconds / 60;
+          const task = tasks.find(t => t.id === session.taskId);
+          if (task) {
+              const newActual = Math.max(0, (task.actualTime || 0) - durationMin);
+              setTasks(prev => prev.map(t => t.id === task.id ? { ...t, actualTime: newActual } : t));
+              await supabase.from('tasks').update({ actual_time: newActual }).eq('id', task.id);
+          }
+      }
+
+      const { error } = await supabase.from('task_sessions').delete().eq('id', sessionId);
+      if(error) console.error("Error deleting session", error);
   };
 
   // Fetch Data from Supabase
@@ -497,6 +587,25 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         }));
         setNotes(mappedNotes);
       }
+
+      // 7. Fetch Task Sessions
+      const { data: sessionsData } = await supabase
+        .from('task_sessions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('start_time', { ascending: false })
+        .limit(1000); // Fetch recent history for performance
+
+      if (sessionsData) {
+          const mappedSessions: TaskSession[] = sessionsData.map((s: any) => ({
+              id: s.id,
+              taskId: s.task_id,
+              startTime: s.start_time,
+              endTime: s.end_time,
+              duration: s.duration
+          }));
+          setSessions(mappedSessions);
+      }
     };
 
     fetchData();
@@ -513,6 +622,48 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       }
     });
   };
+
+  // --- Sidebar Stats Logic ---
+  const sidebarStats = useMemo(() => {
+      const today = getLogicalDateOffset(0);
+      const nowTs = Date.now();
+
+      // 1. Total Tracked Today (Seconds)
+      const todaySessions = sessions.filter(s => {
+          const sDate = new Date(s.startTime);
+          if (sDate.getHours() < (userSettings.dayStartHour || 0)) sDate.setDate(sDate.getDate() - 1);
+          const sDateStr = `${sDate.getFullYear()}-${String(sDate.getMonth() + 1).padStart(2, '0')}-${String(sDate.getDate()).padStart(2, '0')}`;
+          return sDateStr === today;
+      });
+
+      const totalTrackedSeconds = todaySessions.reduce((acc, s) => {
+          if (s.endTime) return acc + (s.duration || 0);
+          // If active, add current duration
+          const diff = Math.floor((nowTs - new Date(s.startTime).getTime()) / 1000);
+          return acc + diff;
+      }, 0);
+
+      // 2. Remaining Time (Minutes)
+      // Active tasks that are Today OR Overdue
+      const activeTasks = tasks.filter(t => {
+          if (t.completed) return false;
+          if (!t.dueDate) return false;
+          // Simple date check
+          const d = new Date(); // now
+          if (d.getHours() < (userSettings.dayStartHour || 0)) d.setDate(d.getDate() - 1);
+          const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          
+          return t.dueDate === todayStr || t.dueDate < todayStr;
+      });
+
+      const remainingMinutes = activeTasks.reduce((acc, t) => {
+          const planned = t.plannedTime || 0;
+          const actual = t.actualTime || 0;
+          return acc + Math.max(0, planned - actual);
+      }, 0);
+
+      return { totalTrackedSeconds, remainingMinutes };
+  }, [sessions, tasks, userSettings.dayStartHour, statsTicker]);
 
   // --- Streak Calculation Logic ---
   const streakData = useMemo(() => {
@@ -597,7 +748,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const renderContent = () => {
     switch (activeTab) {
       case 'tasks':
-        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} />;
+        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} />;
       case 'habit':
         return <HabitSection habits={habits} setHabits={setHabits} userId={userId} dayStartHour={userSettings.dayStartHour} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'journal':
@@ -611,7 +762,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       case 'settings':
         return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} tags={tags} setTags={setTags} />;
       default:
-        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} />;
+        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} />;
     }
   };
 
@@ -622,6 +773,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const isNotesTab = activeTab === 'notes';
   const isTasksTab = activeTab === 'tasks';
   const isFullWidthView = isNotesTab || isTasksTab;
+
+  // Format Helper
+  const formatTimeSimple = (totalSeconds: number) => {
+      const h = Math.floor(totalSeconds / 3600);
+      const m = Math.floor((totalSeconds % 3600) / 60);
+      if (h > 0) return `${h}h ${m}m`;
+      return `${m}m`;
+  };
 
   return (
     <div className="flex h-screen bg-slate-100 text-slate-800 overflow-hidden font-sans selection:bg-[#334155]/20 selection:text-[#334155]">
@@ -634,7 +793,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           )}
         </div>
 
-        <nav className="flex-1 space-y-1 w-full">
+        <nav className="flex-1 space-y-1 w-full overflow-y-auto custom-scrollbar">
           {enabledModules.includes('tasks') && <NavItem id="tasks" label="Tasks" icon={ListTodo} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
           {enabledModules.includes('habit') && <NavItem id="habit" label="Habits" icon={Zap} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
           {enabledModules.includes('journal') && <NavItem id="journal" label="Journal" icon={Book} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
@@ -643,6 +802,35 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
         <div className={`pt-4 border-t border-slate-200 w-full flex flex-col gap-1`}>
           
+          {/* Progress Box in Sidebar */}
+          {!isSidebarCollapsed && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-2 animate-in fade-in slide-in-from-left-2">
+                  <div className="flex items-center gap-2 mb-2 text-slate-800 font-bold text-xs uppercase tracking-wide">
+                      <BarChart3 className="w-3.5 h-3.5" /> Daily Progress
+                  </div>
+                  <div className="space-y-2">
+                      <div className="flex justify-between items-end">
+                          <div>
+                              <div className="text-[10px] text-slate-400 font-semibold uppercase">Tracked</div>
+                              <div className="text-sm font-black text-slate-700">{formatTimeSimple(sidebarStats.totalTrackedSeconds)}</div>
+                          </div>
+                          <div className="text-right">
+                              <div className="text-[10px] text-slate-400 font-semibold uppercase">Remaining</div>
+                              <div className="text-sm font-black text-slate-700">{formatTimeSimple(sidebarStats.remainingMinutes * 60)}</div>
+                          </div>
+                      </div>
+                      
+                      {/* Bar */}
+                      <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
+                          <div 
+                              className="h-full bg-blue-500 transition-all duration-500" 
+                              style={{ width: `${(sidebarStats.totalTrackedSeconds / Math.max(1, sidebarStats.totalTrackedSeconds + (sidebarStats.remainingMinutes * 60))) * 100}%` }}
+                          />
+                      </div>
+                  </div>
+              </div>
+          )}
+
           <NavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
           
           {/* Distinct Group for Feature/Bug */}
@@ -699,7 +887,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             {!isSidebarCollapsed && (
                <div className="overflow-hidden">
                 <p className="text-xs font-bold truncate text-slate-800">{userSettings.userName}</p>
-                <p className="text-[10px] text-slate-500 font-mono font-medium truncate">{user.email}</p>
+                <p className="text-xs text-slate-500 font-mono font-medium truncate">{user.email}</p>
               </div>
             )}
           </div>

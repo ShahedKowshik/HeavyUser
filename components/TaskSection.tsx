@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Square, Repeat, ChevronDown, Moon, Circle, Flame, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, LayoutTemplate, AlignJustify } from 'lucide-react';
-import { Task, Priority, Subtask, Tag, Recurrence } from '../types';
+import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Square, Repeat, ChevronDown, Moon, Circle, Flame, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, LayoutTemplate, AlignJustify, History, BarChart3 } from 'lucide-react';
+import { Task, Priority, Subtask, Tag, Recurrence, TaskSession } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
 import { cn } from '../lib/utils';
@@ -17,6 +17,8 @@ interface TaskSectionProps {
   onTaskComplete?: () => void;
   activeFilterTagId?: string | null;
   onToggleTimer: (id: string, e?: React.MouseEvent) => void;
+  sessions: TaskSession[];
+  onDeleteSession: (sessionId: string) => void;
 }
 
 type Grouping = 'none' | 'date' | 'priority';
@@ -64,6 +66,17 @@ const formatTimer = (totalSeconds: number) => {
         return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+};
+
+const formatTimeRange = (startIso: string, endIso: string | null) => {
+    const start = new Date(startIso);
+    const end = endIso ? new Date(endIso) : null;
+    
+    const timeOptions: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
+    const startStr = start.toLocaleTimeString([], timeOptions);
+    const endStr = end ? end.toLocaleTimeString([], timeOptions) : 'Now';
+    
+    return `${startStr} - ${endStr}`;
 };
 
 // Helper to create a new tag inline
@@ -179,7 +192,7 @@ const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRef
         <div 
             ref={containerRef} 
             style={{ 
-                position: 'fixed',
+                position: 'fixed', 
                 top: coords.top, 
                 left: coords.left,
                 zIndex: 9999 
@@ -314,12 +327,12 @@ const RecurrenceButton = ({ value, onChange, openModal }: { value: Recurrence | 
   </button>
 );
 
-export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, onTaskComplete, activeFilterTagId, onToggleTimer }) => {
+export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, onTaskComplete, activeFilterTagId, onToggleTimer, sessions, onDeleteSession }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'active' | 'completed'>('active');
-  const [viewLayout, setViewLayout] = useState<'list' | 'kanban'>('list');
+  const [viewLayout, setViewLayout] = useState<'list' | 'kanban' | 'tracker'>('list');
   const [grouping, setGrouping] = useState<Grouping>(() => {
       const saved = localStorage.getItem('heavyuser_task_grouping');
       return (saved as Grouping) || 'date';
@@ -333,13 +346,9 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   // Global Timer Tick for Active Tasks
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
-      // Only tick if there is at least one running timer
-      const hasRunningTimer = tasks.some(t => !!t.timerStart);
-      if (!hasRunningTimer) return;
-
       const interval = setInterval(() => setNow(Date.now()), 1000);
       return () => clearInterval(interval);
-  }, [tasks]);
+  }, []);
 
   // New Task Form State
   const [title, setTitle] = useState('');
@@ -363,6 +372,84 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const [recurrenceCallback, setRecurrenceCallback] = useState<((r: Recurrence | null) => void) | null>(null);
 
   const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId), [tasks, selectedTaskId]);
+
+  // --- Display Helpers ---
+  const getDayDiff = (dateStr: string) => {
+    if (!dateStr) return 9999;
+    const now = new Date();
+    if (now.getHours() < (dayStartHour || 0)) now.setDate(now.getDate() - 1);
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (dateStr === todayStr) return 0;
+    const target = new Date(dateStr); 
+    const today = new Date(todayStr); 
+    return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  const formatRelativeDate = (dateStr: string) => {
+    if (!dateStr) return 'No Date';
+    const diff = getDayDiff(dateStr);
+    if (diff === 0) return 'Today';
+    if (diff === 1) return 'Tomorrow';
+    if (diff === -1) return 'Yesterday';
+    const parts = dateStr.split('-').map(Number);
+    const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  // --- Tracker Data Calculation (Hoisted) ---
+  const todayForTracker = new Date();
+  if (todayForTracker.getHours() < (dayStartHour || 0)) todayForTracker.setDate(todayForTracker.getDate() - 1);
+  const todayStrForTracker = getLocalDateString(todayForTracker);
+
+  const todaysSessions = sessions.filter(s => {
+      const sDate = new Date(s.startTime);
+      if (sDate.getHours() < (dayStartHour || 0)) sDate.setDate(sDate.getDate() - 1);
+      return getLocalDateString(sDate) === todayStrForTracker;
+  });
+
+  const totalTrackedSeconds = todaysSessions.reduce((acc, s) => {
+      if (s.endTime) return acc + (s.duration || 0);
+      // If active, add current duration
+      const diff = (now - new Date(s.startTime).getTime()) / 1000;
+      return acc + diff;
+  }, 0);
+
+  // Estimate Remaining: Active tasks that are Today OR Overdue
+  const activeTasks = tasks.filter(t => {
+      if (t.completed) return false;
+      if (!t.dueDate) return false;
+      const diff = getDayDiff(t.dueDate);
+      return diff <= 0; // Today (0) or Overdue (<0)
+  });
+
+  const remainingMinutes = activeTasks.reduce((acc, t) => {
+      const planned = t.plannedTime || 0;
+      const actual = t.actualTime || 0;
+      return acc + Math.max(0, planned - actual);
+  }, 0);
+
+  const groupedSessions = useMemo(() => {
+      const groups: Record<string, TaskSession[]> = {};
+      
+      sessions.forEach(s => {
+          const d = new Date(s.startTime);
+          if (d.getHours() < (dayStartHour || 0)) d.setDate(d.getDate() - 1);
+          
+          const diff = getDayDiff(getLocalDateString(d));
+          let key = 'Earlier';
+          if (diff === 0) key = 'Today';
+          else if (diff === -1) key = 'Yesterday';
+          else if (diff === 1) key = 'Tomorrow';
+          
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(s);
+      });
+      
+      return Object.entries(groups).sort((a, b) => {
+          const order = ['Today', 'Yesterday', 'Earlier'];
+          return order.indexOf(a[0]) - order.indexOf(b[0]);
+      });
+  }, [sessions, dayStartHour, now]); // Depends on now to update "Today/Yesterday" relative labels correctly
 
   const openCreateModal = () => {
     setTitle('');
@@ -532,29 +619,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     setExpandedTasks(next);
   };
 
-  // --- Display Helpers ---
-  const getDayDiff = (dateStr: string) => {
-    if (!dateStr) return 9999;
-    const now = new Date();
-    if (now.getHours() < (dayStartHour || 0)) now.setDate(now.getDate() - 1);
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    if (dateStr === todayStr) return 0;
-    const target = new Date(dateStr); 
-    const today = new Date(todayStr); 
-    return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  };
-
-  const formatRelativeDate = (dateStr: string) => {
-    if (!dateStr) return 'No Date';
-    const diff = getDayDiff(dateStr);
-    if (diff === 0) return 'Today';
-    if (diff === 1) return 'Tomorrow';
-    if (diff === -1) return 'Yesterday';
-    const parts = dateStr.split('-').map(Number);
-    const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
   const getRelativeTimeColor = (dateStr: string) => {
     const diff = getDayDiff(dateStr);
     if (diff < 0) return 'text-red-600';
@@ -633,7 +697,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const activeTasksGroups = useMemo(() => processList(tasks.filter(t => !t.completed)), [tasks, grouping, sorting, activeFilterTagId, dayStartHour]);
   const completedTasksGroups = useMemo(() => processList(tasks.filter(t => t.completed)), [tasks, grouping, sorting, activeFilterTagId]);
 
-  // --- Render Function ---
+  // --- Render Functions ---
   const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => {
     const currentHour = new Date().getHours();
     const startHour = dayStartHour || 0;
@@ -946,15 +1010,97 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     );
   };
 
+  const renderTrackerView = () => {
+      return (
+          <div className="space-y-6 pb-20 px-4 md:px-2">
+              {/* Analytics Header */}
+              <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-white border border-zinc-200 rounded-lg p-3 text-center shadow-sm">
+                      <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide mb-1">Total Tracked</div>
+                      <div className="text-xl font-black text-zinc-800 tabular-nums">
+                          {formatTimer(totalTrackedSeconds)}
+                      </div>
+                  </div>
+                  <div className="bg-white border border-zinc-200 rounded-lg p-3 text-center shadow-sm">
+                      <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide mb-1">Sessions</div>
+                      <div className="text-xl font-black text-blue-600 tabular-nums">
+                          {todaysSessions.length}
+                      </div>
+                  </div>
+                  <div className="bg-white border border-zinc-200 rounded-lg p-3 text-center shadow-sm">
+                      <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide mb-1">Remaining</div>
+                      <div className="text-xl font-black text-orange-600 tabular-nums">
+                          {formatDuration(remainingMinutes)}
+                      </div>
+                  </div>
+              </div>
+
+              {/* Feed */}
+              <div className="space-y-4">
+                  {groupedSessions.length === 0 && (
+                      <div className="text-center py-12 opacity-50">
+                          <History className="w-10 h-10 text-zinc-300 mx-auto mb-2" />
+                          <p className="text-sm font-bold text-zinc-400">No time tracked yet</p>
+                      </div>
+                  )}
+                  {groupedSessions.map(([title, sessionList]) => (
+                      <div key={title} className="space-y-2">
+                          <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest pl-1">{title}</h4>
+                          <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm">
+                              {sessionList.map((session, i) => {
+                                  const task = tasks.find(t => t.id === session.taskId);
+                                  const isRunning = !session.endTime;
+                                  const duration = isRunning 
+                                      ? Math.floor((now - new Date(session.startTime).getTime()) / 1000)
+                                      : session.duration;
+
+                                  return (
+                                      <div key={session.id} className={`p-4 flex items-center justify-between group ${i !== sessionList.length - 1 ? 'border-b border-zinc-100' : ''} ${isRunning ? 'bg-amber-50/50' : ''}`}>
+                                          <div className="flex items-center gap-3 min-w-0">
+                                              <div className={`w-1.5 h-10 rounded-full shrink-0 ${isRunning ? 'bg-amber-500 animate-pulse' : 'bg-zinc-200'}`} />
+                                              <div className="min-w-0">
+                                                  <div className="flex items-center gap-2 mb-0.5">
+                                                      <span className="text-xs font-bold text-zinc-800 truncate">{task?.title || 'Unknown Task'}</span>
+                                                      {isRunning && <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 rounded uppercase tracking-wider">Active</span>}
+                                                  </div>
+                                                  <div className="text-[10px] font-medium text-zinc-400 flex items-center gap-1.5">
+                                                      <Clock className="w-3 h-3" />
+                                                      {formatTimeRange(session.startTime, session.endTime)}
+                                                  </div>
+                                              </div>
+                                          </div>
+                                          <div className="flex items-center gap-4">
+                                              <div className={`text-sm font-black font-mono tabular-nums ${isRunning ? 'text-amber-600' : 'text-zinc-600'}`}>
+                                                  {formatTimer(duration)}
+                                              </div>
+                                              <button 
+                                                  onClick={() => onDeleteSession(session.id)}
+                                                  className="p-1.5 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded transition-all opacity-0 group-hover:opacity-100"
+                                                  title="Delete Entry"
+                                              >
+                                                  <Trash2 className="w-4 h-4" />
+                                              </button>
+                                          </div>
+                                      </div>
+                                  );
+                              })}
+                          </div>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      );
+  };
+
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-500">
       {/* Main Content Area */}
       <div className="flex-1 min-w-0 overflow-hidden flex flex-col relative">
          {/* Internal Scrolling Container */}
-         <div className={`flex-1 overflow-y-auto custom-scrollbar ${viewLayout === 'list' ? 'p-4 md:p-8' : 'py-4 md:py-8'}`}>
+         <div className={`flex-1 overflow-y-auto custom-scrollbar ${viewLayout === 'kanban' ? 'py-4 md:py-8' : 'p-4 md:p-8'}`}>
              
              {/* Header Controls */}
-             <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 ${viewLayout === 'kanban' ? 'px-4 md:px-8' : ''}`}>
+             <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 ${viewLayout === 'kanban' || viewLayout === 'tracker' ? 'px-4 md:px-2' : ''}`}>
                 <div className="flex items-center gap-2 bg-zinc-100 p-1 rounded-lg border border-zinc-200 self-start">
                     <button 
                     onClick={() => setViewMode('active')}
@@ -989,10 +1135,12 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
              {/* Content */}
              {viewLayout === 'list' ? (
                  viewMode === 'active' ? renderListGroups(activeTasksGroups) : renderListGroups(completedTasksGroups)
-             ) : (
+             ) : viewLayout === 'kanban' ? (
                  <div className="h-[calc(100%-80px)]">
                     {viewMode === 'active' ? renderKanbanBoard(activeTasksGroups) : renderKanbanBoard(completedTasksGroups)}
                  </div>
+             ) : (
+                 renderTrackerView()
              )}
          </div>
       </div>
@@ -1014,6 +1162,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
             >
                 <LayoutTemplate className="w-4 h-4" />
                 <span>Board</span>
+            </button>
+            <button 
+                onClick={() => setViewLayout('tracker')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewLayout === 'tracker' ? 'bg-zinc-100 text-[#3f3f46]' : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50'}`}
+                title="Tracker View"
+            >
+                <History className="w-4 h-4" />
+                <span>Tracker</span>
             </button>
       </div>
 
