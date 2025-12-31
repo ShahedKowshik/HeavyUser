@@ -47,6 +47,11 @@ export interface Task {
   recurrence?: Recurrence | null;
   createdAt?: string; // ISO string
   updatedAt?: string; // ISO string
+  
+  // Time Tracking
+  plannedTime?: number; // In minutes
+  actualTime?: number; // In minutes
+  timerStart?: string | null; // ISO string if currently running
 }
 
 export type EntryType = 'Log' | 'Gratitude';

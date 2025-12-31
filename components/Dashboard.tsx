@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book } from 'lucide-react';
+import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
@@ -12,29 +13,6 @@ import { supabase } from '../lib/supabase';
 import { decryptData } from '../lib/crypto';
 
 // --- Sub-components extracted to prevent re-renders ---
-
-const ClockDisplay = React.memo(() => {
-  const [time, setTime] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const formattedDate = time.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  const formattedTime = time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-
-  return (
-    <>
-      <div className="text-xs text-slate-600 font-bold px-3 py-1.5 bg-slate-100 rounded border border-slate-200 tabular-nums hidden sm:block">
-        {formattedDate} • {formattedTime}
-      </div>
-      <div className="text-xs text-slate-600 font-bold px-3 py-1.5 bg-slate-100 rounded border border-slate-200 tabular-nums sm:hidden">
-        {formattedTime}
-      </div>
-    </>
-  );
-});
 
 interface NavItemProps {
   id: AppTab;
@@ -94,6 +72,79 @@ const MobileNavItem: React.FC<MobileNavItemProps> = ({ id, label, icon: Icon, ac
   </button>
 );
 
+const TaskTrackerWidget = ({ task, onToggle, onClose }: { task: Task, onToggle: (id: string, e?: React.MouseEvent) => void, onClose: () => void }) => {
+    const [seconds, setSeconds] = useState(0);
+    
+    useEffect(() => {
+        const calculateSeconds = () => {
+             let total = (task.actualTime || 0) * 60;
+             if (task.timerStart) {
+                 total += Math.floor((Date.now() - new Date(task.timerStart).getTime()) / 1000);
+             }
+             return total;
+        };
+        
+        setSeconds(calculateSeconds());
+
+        if (!task.timerStart) return;
+
+        const interval = setInterval(() => {
+            setSeconds(calculateSeconds());
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [task]);
+
+    const format = (totalSec: number) => {
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = Math.floor(totalSec % 60);
+        return `${h > 0 ? h + ':' : ''}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    };
+
+    return (
+        <div className="hidden md:flex h-9 items-center gap-3 bg-white border border-zinc-200 rounded-lg shadow-sm px-3 animate-in fade-in slide-in-from-top-2">
+            <div className={`w-2 h-2 rounded-full ${task.timerStart ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`} />
+            
+            <div className="flex flex-col justify-center h-full min-w-[100px] max-w-[200px]">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider leading-none">
+                    {task.timerStart ? 'Running' : 'Paused'}
+                </span>
+                <span className="text-xs font-bold text-zinc-800 truncate leading-none mt-0.5" title={task.title}>
+                    {task.title}
+                </span>
+            </div>
+
+            <div className="text-sm font-mono font-bold text-zinc-700 min-w-[60px] text-right">
+                {format(seconds)}
+            </div>
+
+            <div className="h-4 w-px bg-zinc-200 mx-1" />
+
+            <div className="flex items-center gap-1">
+                <button 
+                    onClick={(e) => onToggle(task.id, e)}
+                    className={`p-1 rounded-md transition-all ${
+                        task.timerStart 
+                        ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' 
+                        : 'bg-green-100 text-green-600 hover:bg-green-200'
+                    }`}
+                >
+                    {task.timerStart ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
+                </button>
+                
+                {!task.timerStart && (
+                    <button 
+                        onClick={onClose}
+                        className="p-1 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                    >
+                        <X className="w-3 h-3" />
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+};
+
 // --- Main Component ---
 
 interface DashboardProps {
@@ -132,6 +183,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   // Global Label Filter
   const [activeFilterTagId, setActiveFilterTagId] = useState<string | null>(null);
   const [isTagFilterOpen, setIsTagFilterOpen] = useState(false);
+
+  // Task Tracker State
+  const [trackedTaskId, setTrackedTaskId] = useState<string | null>(null);
 
   // Sidebar Collapse State with Persistence
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -230,6 +284,77 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     return () => clearInterval(timer);
   }, [userSettings.dayStartHour]);
 
+  // Sync Tracked Task ID
+  useEffect(() => {
+      const running = tasks.find(t => !!t.timerStart);
+      if (running) {
+          if (trackedTaskId !== running.id) setTrackedTaskId(running.id);
+      } else {
+          // If the tracked task is completed, clear it
+          if (trackedTaskId) {
+              const tracked = tasks.find(t => t.id === trackedTaskId);
+              if (!tracked || tracked.completed) {
+                  setTrackedTaskId(null);
+              }
+          }
+      }
+  }, [tasks, trackedTaskId]);
+
+  const handleToggleTimer = async (id: string, e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+
+      const nowIso = new Date().toISOString();
+      const nowTime = new Date(nowIso).getTime();
+
+      // If we are starting a timer
+      if (!task.timerStart) {
+          // Find any other running task to stop
+          const otherRunningTask = tasks.find(t => !!t.timerStart && t.id !== id);
+          
+          let updatedTasks = [...tasks];
+
+          // Pause the other active task if exists
+          if (otherRunningTask && otherRunningTask.timerStart) {
+              const otherStartTime = new Date(otherRunningTask.timerStart).getTime();
+              const diffMinutes = (nowTime - otherStartTime) / 60000;
+              const newActual = (otherRunningTask.actualTime || 0) + diffMinutes;
+              
+              updatedTasks = updatedTasks.map(t => t.id === otherRunningTask.id ? { 
+                  ...t, timerStart: null, actualTime: newActual 
+              } : t);
+
+              // Async update for the stopped task
+              supabase.from('tasks').update({
+                  timer_start: null,
+                  actual_time: newActual
+              }).eq('id', otherRunningTask.id).then();
+          }
+
+          // Start the selected task
+          updatedTasks = updatedTasks.map(t => t.id === id ? { ...t, timerStart: nowIso } : t);
+          setTasks(updatedTasks);
+          // Note: trackedTaskId update is handled by the useEffect watching tasks state
+
+          await supabase.from('tasks').update({
+              timer_start: nowIso
+          }).eq('id', id);
+
+      } else {
+          // Stop currently running timer
+          const startTime = new Date(task.timerStart).getTime();
+          const diffMinutes = (nowTime - startTime) / 60000;
+          const newActual = (task.actualTime || 0) + diffMinutes;
+          
+          setTasks(prev => prev.map(t => t.id === id ? { ...t, timerStart: null, actualTime: newActual } : t));
+          await supabase.from('tasks').update({
+              timer_start: null,
+              actual_time: newActual
+          }).eq('id', id);
+      }
+  };
+
   // Fetch Data from Supabase
   useEffect(() => {
     const fetchData = async () => {
@@ -256,7 +381,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           recurrence: t.recurrence,
           notes: decryptData(t.notes),
           createdAt: t.created_at,
-          updatedAt: t.updated_at
+          updatedAt: t.updated_at,
+          plannedTime: t.planned_time,
+          actualTime: t.actual_time,
+          timerStart: t.timer_start
         }));
         setTasks(mappedTasks);
       }
@@ -469,7 +597,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const renderContent = () => {
     switch (activeTab) {
       case 'tasks':
-        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} activeFilterTagId={activeFilterTagId} />;
+        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} />;
       case 'habit':
         return <HabitSection habits={habits} setHabits={setHabits} userId={userId} dayStartHour={userSettings.dayStartHour} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'journal':
@@ -483,13 +611,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       case 'settings':
         return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} tags={tags} setTags={setTags} />;
       default:
-        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} activeFilterTagId={activeFilterTagId} />;
+        return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} />;
     }
   };
 
   const activeFilterTag = useMemo(() => tags.find(t => t.id === activeFilterTagId), [tags, activeFilterTagId]);
+  
+  const trackedTask = useMemo(() => tasks.find(t => t.id === trackedTaskId), [tasks, trackedTaskId]);
 
   const isNotesTab = activeTab === 'notes';
+  const isTasksTab = activeTab === 'tasks';
+  const isFullWidthView = isNotesTab || isTasksTab;
 
   return (
     <div className="flex h-screen bg-slate-100 text-slate-800 overflow-hidden font-sans selection:bg-[#334155]/20 selection:text-[#334155]">
@@ -575,16 +707,25 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       </aside>
 
       {/* Main Content */}
-      <main className={`flex-1 relative flex flex-col ${isNotesTab ? 'overflow-hidden' : 'overflow-y-auto'} bg-slate-50/50 pb-20 md:pb-0`}>
+      <main className={`flex-1 relative flex flex-col ${isFullWidthView ? 'overflow-hidden' : 'overflow-y-auto'} bg-slate-50/50 pb-20 md:pb-0`}>
         <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-8 py-4 bg-white/90 backdrop-blur-md border-b border-slate-200 shrink-0">
           <h2 className="text-xl font-black capitalize text-slate-800 tracking-tight">{activeTab === 'tasks' ? 'Tasks' : activeTab === 'habit' ? 'Habits' : activeTab.replace('_', ' ')}</h2>
           <div className="flex items-center space-x-4">
             
+            {/* Task Tracker Widget - REORDERED: Placed First */}
+            {trackedTask && (
+                <TaskTrackerWidget 
+                    task={trackedTask} 
+                    onToggle={handleToggleTimer} 
+                    onClose={() => setTrackedTaskId(null)} 
+                />
+            )}
+
             {/* Global Label Filter */}
             <div className="relative">
                 <button
                     onClick={() => setIsTagFilterOpen(!isTagFilterOpen)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 h-9 rounded border transition-all box-border ${
                         activeFilterTagId 
                         ? 'font-bold shadow-sm' 
                         : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'
@@ -646,7 +787,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                 {/* Prominent Ping Animation Layer */}
                 <span className="absolute inset-1 rounded bg-red-400 opacity-30 animate-ping" />
                 
-                <div className="relative px-3 py-1.5 bg-red-50 text-red-600 rounded border border-red-200 cursor-help flex items-center z-10">
+                <div className="relative px-3 py-1.5 h-9 bg-red-50 text-red-600 rounded border border-red-200 cursor-help flex items-center z-10 box-border">
                   <TriangleAlert className="w-4 h-4" />
                 </div>
                 {/* Tooltip */}
@@ -669,7 +810,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             {/* Streak Badge */}
             <button 
               onClick={() => setIsStreakModalOpen(true)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 h-9 rounded border transition-all box-border ${
                 streakData.activeToday 
                   ? 'bg-amber-50 border-amber-200 text-amber-600 shadow-sm' 
                   : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'
@@ -678,12 +819,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'fill-current' : ''}`} />
               <span className="text-xs font-bold tabular-nums">{streakData.count}</span>
             </button>
-
-            <ClockDisplay />
           </div>
         </header>
 
-        <div className={`mx-auto w-full h-full ${isNotesTab ? 'max-w-none h-full flex flex-col' : 'p-4 md:p-8 max-w-7xl'}`}>
+        <div className={`mx-auto w-full h-full ${isFullWidthView ? 'max-w-none h-full flex flex-col' : 'p-4 md:p-8 max-w-7xl'}`}>
           {renderContent()}
         </div>
       </main>
