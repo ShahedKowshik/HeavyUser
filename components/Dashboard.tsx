@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder } from '../types';
@@ -102,7 +103,12 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
-  const [activeTab, setActiveTab] = useState<AppTab>('tasks');
+  const [activeTab, setActiveTab] = useState<AppTab>(() => {
+    // Determine default tab based on enabled features
+    const enabled = user.enabledFeatures || ['tasks', 'habit', 'journal', 'notes'];
+    if (enabled.includes('tasks')) return 'tasks';
+    return (enabled[0] as AppTab) || 'settings';
+  });
   const userId = user.id;
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -131,8 +137,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     userId: user.id,
     email: user.email,
     profilePicture: user.profilePicture,
-    dayStartHour: user.dayStartHour
+    dayStartHour: user.dayStartHour,
+    enabledFeatures: user.enabledFeatures || ['tasks', 'habit', 'journal', 'notes']
   });
+
+  const enabledModules = userSettings.enabledFeatures || ['tasks', 'habit', 'journal', 'notes'];
+
+  // Effect to redirect if activeTab is disabled
+  useEffect(() => {
+    const isModuleTab = ['tasks', 'habit', 'journal', 'notes'].includes(activeTab);
+    if (isModuleTab && !enabledModules.includes(activeTab)) {
+        if (enabledModules.length > 0) {
+            setActiveTab(enabledModules[0] as AppTab);
+        } else {
+            setActiveTab('settings');
+        }
+    }
+  }, [enabledModules, activeTab]);
 
   // Toggle Sidebar Helper
   const toggleSidebar = () => {
@@ -345,7 +366,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       data: { 
         full_name: newSettings.userName, 
         avatar_url: newSettings.profilePicture,
-        day_start_hour: newSettings.dayStartHour
+        day_start_hour: newSettings.dayStartHour,
+        enabled_features: newSettings.enabledFeatures
       }
     });
   };
@@ -467,10 +489,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         </div>
 
         <nav className="flex-1 space-y-1 w-full">
-          <NavItem id="tasks" label="Tasks" icon={ListTodo} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
-          <NavItem id="habit" label="Habits" icon={Zap} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
-          <NavItem id="journal" label="Journal" icon={Book} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
-          <NavItem id="notes" label="Notes" icon={File} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
+          {enabledModules.includes('tasks') && <NavItem id="tasks" label="Tasks" icon={ListTodo} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
+          {enabledModules.includes('habit') && <NavItem id="habit" label="Habits" icon={Zap} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
+          {enabledModules.includes('journal') && <NavItem id="journal" label="Journal" icon={Book} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
+          {enabledModules.includes('notes') && <NavItem id="notes" label="Notes" icon={File} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
         </nav>
 
         <div className={`pt-4 border-t border-slate-200 w-full flex flex-col gap-1`}>
@@ -784,10 +806,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
       {/* Bottom Navigation - Mobile */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 flex justify-around py-2 px-2 pb-safe overflow-x-auto no-scrollbar">
-        <MobileNavItem id="tasks" label="Tasks" icon={ListTodo} activeTab={activeTab} setActiveTab={setActiveTab} />
-        <MobileNavItem id="habit" label="Habits" icon={Zap} activeTab={activeTab} setActiveTab={setActiveTab} />
-        <MobileNavItem id="journal" label="Journal" icon={Book} activeTab={activeTab} setActiveTab={setActiveTab} />
-        <MobileNavItem id="notes" label="Notes" icon={File} activeTab={activeTab} setActiveTab={setActiveTab} />
+        {enabledModules.includes('tasks') && <MobileNavItem id="tasks" label="Tasks" icon={ListTodo} activeTab={activeTab} setActiveTab={setActiveTab} />}
+        {enabledModules.includes('habit') && <MobileNavItem id="habit" label="Habits" icon={Zap} activeTab={activeTab} setActiveTab={setActiveTab} />}
+        {enabledModules.includes('journal') && <MobileNavItem id="journal" label="Journal" icon={Book} activeTab={activeTab} setActiveTab={setActiveTab} />}
+        {enabledModules.includes('notes') && <MobileNavItem id="notes" label="Notes" icon={File} activeTab={activeTab} setActiveTab={setActiveTab} />}
         <MobileNavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} />
       </nav>
     </div>

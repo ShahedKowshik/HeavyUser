@@ -1,13 +1,16 @@
 
 import React, { useState } from 'react';
-import { User, Trash2, TriangleAlert, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, Lock, Mail, AlertCircle, Moon, Tag as TagIcon, Plus, Pencil, Code } from 'lucide-react';
+import { 
+  User, Trash2, TriangleAlert, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, 
+  Lock, Mail, AlertCircle, Moon, Tag as TagIcon, Plus, Pencil, Code, LayoutGrid, 
+  ListTodo, Zap, Book, File, Shield, Database, ChevronRight, Info
+} from 'lucide-react';
 import { UserSettings, AppTab, Tag } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from './ui/card';
-import { Badge } from './ui/badge';
 
 interface SettingsSectionProps {
   settings: UserSettings;
@@ -19,35 +22,38 @@ interface SettingsSectionProps {
 }
 
 const PRESET_COLORS = [
-  '#ef4444', '#dc2626', '#b91c1c', '#991b1b', // Reds
-  '#f97316', '#ea580c', '#c2410c', '#9a3412', // Oranges
-  '#f59e0b', '#d97706', '#b45309', '#92400e', // Ambers
-  '#eab308', '#ca8a04', '#a16207', '#854d0e', // Yellows
-  '#84cc16', '#65a30d', '#4d7c0f', '#3f6212', // Limes
-  '#22c55e', '#16a34a', '#15803d', '#14532d', // Greens
-  '#10b981', '#059669', '#047857', '#064e3b', // Emeralds
-  '#14b8a6', '#0d9488', '#0f766e', '#115e59', // Teals
-  '#06b6d4', '#0891b2', '#0e7490', '#164e63', // Cyans
-  '#0ea5e9', '#0284c7', '#0369a1', '#075985', // Sky
-  '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', // Blue
-  '#6366f1', '#4f46e5', '#4338ca', '#3730a3', // Indigo
-  '#8b5cf6', '#7c3aed', '#6d28d9', '#5b21b6', // Violet
-  '#a855f7', '#9333ea', '#7e22ce', '#6b21a8', // Purple
-  '#d946ef', '#c026d3', '#a21caf', '#86198f', // Fuchsia
-  '#ec4899', '#db2777', '#be185d', '#9d174d', // Pink
-  '#f43f5e', '#e11d48', '#be123c', '#9f1239', // Rose
-  '#64748b', '#475569', '#334155', '#1e293b', // Slate
-  '#78716c', '#57534e', '#44403c', '#292524', // Stone
-  '#71717a', '#52525b', '#3f3f46', '#27272a', // Zinc
-  '#737373', '#525252', '#404040', '#262626', // Neutral
-  '#a1a1aa', '#d4d4d8', '#e4e4e7', '#f4f4f5', // Light Greys
-  '#000000', '#ffffff'
+  // Reds & Pinks
+  '#fee2e2', '#fca5a5', '#f87171', '#ef4444', '#dc2626', '#b91c1c', '#991b1b',
+  '#fce7f3', '#f9a8d4', '#f472b6', '#ec4899', '#db2777', '#be185d', '#9d174d',
+  '#ffe4e6', '#fda4af', '#fb7185', '#f43f5e', '#e11d48', '#be123c', '#9f1239',
+  // Oranges & Yellows
+  '#ffedd5', '#fdba74', '#fb923c', '#f97316', '#ea580c', '#c2410c', '#9a3412',
+  '#fef9c3', '#fde047', '#facc15', '#eab308', '#ca8a04', '#a16207', '#854d0e',
+  // Greens & Teals
+  '#dcfce7', '#86efac', '#4ade80', '#22c55e', '#16a34a', '#15803d', '#14532d',
+  '#ccfbf1', '#99f6e4', '#5eead4', '#2dd4bf', '#14b8a6', '#0d9488', '#0f766e',
+  // Blues & Cyans
+  '#cffafe', '#67e8f9', '#22d3ee', '#06b6d4', '#0891b2', '#0e7490', '#155e75',
+  '#dbeafe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af',
+  // Purples & Violets
+  '#e0e7ff', '#a5b4fc', '#818cf8', '#6366f1', '#4f46e5', '#4338ca', '#3730a3',
+  '#f3e8ff', '#d8b4fe', '#c084fc', '#a855f7', '#9333ea', '#7e22ce', '#6b21a8',
 ];
 
+type SettingsTab = 'profile' | 'modules' | 'labels' | 'preferences' | 'security' | 'data';
+
 const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, onLogout, onNavigate, tags, setTags }) => {
+  const [activeTab, setActiveTab] = useState<SettingsTab>('modules');
+  
+  // Profile State
   const [localName, setLocalName] = useState(settings.userName);
   const [localProfilePic, setLocalProfilePic] = useState(settings.profilePicture || '');
+  
+  // Modules & Prefs State
   const [localDayStartHour, setLocalDayStartHour] = useState(settings.dayStartHour || 0);
+  const [localEnabledFeatures, setLocalEnabledFeatures] = useState<string[]>(settings.enabledFeatures || ['tasks', 'habit', 'journal', 'notes']);
+
+  // Data Management State
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [deleteKeyword, setDeleteKeyword] = useState('');
   const [isCopied, setIsCopied] = useState(false);
@@ -62,7 +68,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
 
   // Tag Management State
   const [newTagLabel, setNewTagLabel] = useState('');
-  const [newTagColor, setNewTagColor] = useState(PRESET_COLORS[0]);
+  const [newTagColor, setNewTagColor] = useState(PRESET_COLORS[3]); // Default to a red
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [editTagLabel, setEditTagLabel] = useState('');
   const [editTagColor, setEditTagColor] = useState('');
@@ -72,9 +78,10 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
         ...settings, 
         userName: localName, 
         profilePicture: localProfilePic.trim() || undefined,
-        dayStartHour: localDayStartHour
+        dayStartHour: localDayStartHour,
+        enabledFeatures: localEnabledFeatures
     });
-    setToast('Preferences updated successfully');
+    setToast('Settings saved successfully');
     setTimeout(() => setToast(null), 3000);
   };
 
@@ -189,273 +196,440 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
     }).eq('id', updatedTag.id);
   };
 
+  const toggleFeature = (feature: string) => {
+    if (localEnabledFeatures.includes(feature)) {
+        if (localEnabledFeatures.length === 1) {
+            setToast("At least one module must be enabled.");
+            setTimeout(() => setToast(null), 3000);
+            return;
+        }
+        const newFeatures = localEnabledFeatures.filter(f => f !== feature);
+        setLocalEnabledFeatures(newFeatures);
+        
+        // Auto-save for modules specifically for better UX
+        onUpdate({ ...settings, enabledFeatures: newFeatures });
+    } else {
+        const newFeatures = [...localEnabledFeatures, feature];
+        setLocalEnabledFeatures(newFeatures);
+        onUpdate({ ...settings, enabledFeatures: newFeatures });
+    }
+  };
+
+  const TABS: { id: SettingsTab, label: string, icon: any, description: string }[] = [
+    { id: 'modules', label: 'Modules', icon: LayoutGrid, description: 'Turn features on/off' },
+    { id: 'labels', label: 'Labels', icon: TagIcon, description: 'Manage global tags' },
+    { id: 'profile', label: 'Profile', icon: User, description: 'Personal details' },
+    { id: 'preferences', label: 'Preferences', icon: Moon, description: 'Night mode & time' },
+    { id: 'security', label: 'Security', icon: Shield, description: 'Password & Email' },
+    { id: 'data', label: 'Data', icon: Database, description: 'Reset or delete' },
+  ];
+
+  const renderContent = () => {
+      switch (activeTab) {
+        case 'modules':
+            return (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div>
+                        <h3 className="text-lg font-black text-slate-800">App Modules</h3>
+                        <p className="text-sm text-slate-500">Enable only the features you need to keep your workspace simple.</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4">
+                         {[
+                             { id: 'tasks', label: 'Tasks', desc: 'Track daily to-dos, priorities, and deadlines.', icon: ListTodo, color: 'text-blue-600', bg: 'bg-blue-50' },
+                             { id: 'habit', label: 'Habits', desc: 'Build streaks and track daily routines.', icon: Zap, color: 'text-amber-600', bg: 'bg-amber-50' },
+                             { id: 'journal', label: 'Journal', desc: 'Log thoughts, gratitude, and memories.', icon: Book, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                             { id: 'notes', label: 'Notes', desc: 'Write down ideas and organize information.', icon: File, color: 'text-purple-600', bg: 'bg-purple-50' }
+                         ].map(module => {
+                             const isEnabled = localEnabledFeatures.includes(module.id);
+                             const Icon = module.icon;
+                             
+                             return (
+                                 <div 
+                                    key={module.id} 
+                                    onClick={() => toggleFeature(module.id)}
+                                    className={`cursor-pointer rounded-xl border p-4 transition-all duration-200 flex items-start sm:items-center gap-4 group ${isEnabled ? 'border-slate-300 bg-white shadow-sm' : 'border-slate-100 bg-slate-50'}`}
+                                 >
+                                     <div className={`p-3 rounded-lg shrink-0 transition-colors ${isEnabled ? module.bg : 'bg-slate-100 group-hover:bg-slate-200'}`}>
+                                         <Icon className={`w-6 h-6 ${isEnabled ? module.color : 'text-slate-400'}`} />
+                                     </div>
+                                     <div className="flex-1">
+                                         <div className="flex items-center gap-2">
+                                            <h4 className={`font-bold text-base ${isEnabled ? 'text-slate-900' : 'text-slate-500'}`}>{module.label}</h4>
+                                            {isEnabled && <span className="text-[10px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Active</span>}
+                                         </div>
+                                         <p className="text-sm text-slate-500 mt-1 leading-relaxed">{module.desc}</p>
+                                     </div>
+                                     <div className={`relative w-12 h-6 rounded-full transition-colors shrink-0 my-auto ${isEnabled ? 'bg-slate-800' : 'bg-slate-300'}`}>
+                                         <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${isEnabled ? 'left-7' : 'left-1'}`} />
+                                     </div>
+                                 </div>
+                             );
+                         })}
+                    </div>
+                </div>
+            );
+
+        case 'labels':
+            return (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div>
+                        <h3 className="text-lg font-black text-slate-800">Global Labels</h3>
+                        <p className="text-sm text-slate-500">Create color-coded tags to organize items across all modules.</p>
+                    </div>
+
+                    <Card>
+                        <CardContent className="p-6">
+                            <div className="space-y-4">
+                                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
+                                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">Create New Label</h4>
+                                    <div className="flex flex-col sm:flex-row gap-3">
+                                        <Input 
+                                            value={newTagLabel} 
+                                            onChange={(e) => setNewTagLabel(e.target.value)} 
+                                            placeholder="e.g., Work, Personal, Health" 
+                                            className="flex-1"
+                                        />
+                                        <div className="flex items-center gap-2">
+                                            <input 
+                                                type="color" 
+                                                value={newTagColor} 
+                                                onChange={e => setNewTagColor(e.target.value)} 
+                                                className="w-10 h-10 p-1 border rounded cursor-pointer bg-white" 
+                                            />
+                                            <Button onClick={handleAddTag} disabled={!newTagLabel.trim()} className="shrink-0 bg-slate-800 hover:bg-slate-900">
+                                                <Plus className="w-4 h-4 mr-2" /> Add
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-1.5 flex-wrap pt-1">
+                                        {PRESET_COLORS.map(color => (
+                                            <button 
+                                                key={color} 
+                                                onClick={() => setNewTagColor(color)}
+                                                className={`w-6 h-6 rounded-full transition-transform hover:scale-110 ${newTagColor === color ? 'ring-2 ring-offset-1 ring-slate-800' : ''}`}
+                                                style={{ backgroundColor: color }}
+                                                title={color}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mt-4">Existing Labels</h4>
+                                    {tags.length === 0 ? (
+                                        <div className="text-center py-8 text-slate-400 italic bg-slate-50 rounded-lg border border-dashed">
+                                            No labels created yet.
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {tags.map(tag => (
+                                                editingTagId === tag.id ? (
+                                                    <div key={tag.id} className="p-2 bg-slate-50 rounded border border-slate-300 flex gap-2 items-center">
+                                                        <Input 
+                                                            value={editTagLabel} 
+                                                            onChange={(e) => setEditTagLabel(e.target.value)} 
+                                                            className="h-8 text-xs font-bold" 
+                                                            autoFocus
+                                                        />
+                                                        <input 
+                                                            type="color" 
+                                                            value={editTagColor} 
+                                                            onChange={(e) => setEditTagColor(e.target.value)} 
+                                                            className="w-8 h-8 rounded cursor-pointer border p-0 shrink-0" 
+                                                        />
+                                                        <Button size="icon" className="h-8 w-8 shrink-0 bg-green-600 hover:bg-green-700" onClick={saveEditingTag}><Check className="w-4 h-4" /></Button>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setEditingTagId(null)}><X className="w-4 h-4" /></Button>
+                                                    </div>
+                                                ) : (
+                                                    <div key={tag.id} className="flex items-center justify-between p-3 rounded border bg-white hover:border-slate-300 transition-all group shadow-sm">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-4 h-4 rounded-full shadow-sm" style={{ backgroundColor: tag.color }} />
+                                                            <span className="text-sm font-bold text-slate-700">{tag.label}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600" onClick={() => startEditingTag(tag)}><Pencil className="w-3.5 h-3.5" /></Button>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600" onClick={() => handleDeleteTag(tag.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            );
+
+        case 'profile':
+            return (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div>
+                        <h3 className="text-lg font-black text-slate-800">Your Profile</h3>
+                        <p className="text-sm text-slate-500">Manage how you appear in the app.</p>
+                    </div>
+                    
+                    <Card>
+                        <CardContent className="p-6 space-y-6">
+                            <div className="flex flex-col sm:flex-row gap-6 items-start">
+                                <div className="shrink-0">
+                                    <div className="w-24 h-24 rounded-full bg-slate-100 border-4 border-white shadow-md flex items-center justify-center overflow-hidden">
+                                        {localProfilePic ? (
+                                            <img src={localProfilePic} alt="Avatar" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <User className="w-10 h-10 text-slate-300" />
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex-1 space-y-4 w-full">
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-bold text-slate-500">Display Name</label>
+                                        <Input value={localName} onChange={(e) => setLocalName(e.target.value)} />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                                            <Camera className="w-3.5 h-3.5" /> Avatar URL
+                                        </label>
+                                        <Input value={localProfilePic} onChange={(e) => setLocalProfilePic(e.target.value)} placeholder="https://image-url.com/me.jpg" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="pt-4 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
+                                <div className="text-xs text-slate-400 font-mono bg-slate-50 px-3 py-1.5 rounded border flex items-center gap-2 max-w-full overflow-hidden">
+                                    <Fingerprint className="w-3 h-3 shrink-0" />
+                                    <span className="truncate">ID: {settings.userId}</span>
+                                    <button onClick={copyToClipboard} className="ml-2 hover:text-slate-600"><Copy className="w-3 h-3" /></button>
+                                </div>
+                                <Button onClick={handleSaveProfile} className="bg-slate-800 text-white w-full sm:w-auto">Save Changes</Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            );
+
+        case 'preferences':
+            return (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div>
+                        <h3 className="text-lg font-black text-slate-800">Preferences</h3>
+                        <p className="text-sm text-slate-500">Customize the app's behavior to match your workflow.</p>
+                    </div>
+
+                    <Card className="border-indigo-100 bg-indigo-50/30">
+                        <CardHeader className="flex flex-row items-center gap-3 pb-2">
+                             <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
+                                <Moon className="w-5 h-5" />
+                             </div>
+                             <div>
+                                 <CardTitle className="text-base font-bold text-slate-800">Night Owl Mode</CardTitle>
+                                 <CardDescription>Adjust when your "new day" starts.</CardDescription>
+                             </div>
+                        </CardHeader>
+                        <CardContent className="p-6 pt-2">
+                             <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+                                Most apps reset at midnight. If you work late (e.g., until 2 AM), tasks you complete after midnight should count for "today", not tomorrow.
+                                Use this setting to shift your day's start time.
+                             </p>
+                             <div className="flex items-end gap-3">
+                                 <div className="flex-1 space-y-1.5">
+                                     <label className="text-xs font-bold text-indigo-900">Start my day at:</label>
+                                     <select
+                                        value={localDayStartHour}
+                                        onChange={(e) => setLocalDayStartHour(parseInt(e.target.value))}
+                                        className="w-full px-3 py-2 text-sm bg-white border border-indigo-200 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow"
+                                    >
+                                        {Array.from({ length: 13 }).map((_, i) => (
+                                            <option key={i} value={i}>
+                                                {i === 0 ? '12:00 AM (Midnight - Default)' : i === 12 ? '12:00 PM (Noon)' : `${i}:00 AM`}
+                                            </option>
+                                        ))}
+                                    </select>
+                                 </div>
+                                 <Button onClick={handleSaveProfile} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                                     Save
+                                 </Button>
+                             </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            );
+
+        case 'security':
+            return (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div>
+                        <h3 className="text-lg font-black text-slate-800">Security</h3>
+                        <p className="text-sm text-slate-500">Update your login credentials.</p>
+                    </div>
+
+                    <Card>
+                        <CardContent className="p-6 space-y-6">
+                            {securityMessage && (
+                                <div className={`p-4 rounded-lg flex items-start gap-3 text-sm ${
+                                    securityMessage.type === 'success' 
+                                    ? 'bg-green-50 text-green-800 border border-green-200' 
+                                    : 'bg-red-50 text-red-800 border border-red-200'
+                                }`}>
+                                    {securityMessage.type === 'success' ? <Check className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
+                                    <span className="font-medium">{securityMessage.text}</span>
+                                </div>
+                            )}
+
+                            <div className="space-y-3">
+                                <label className="text-sm font-bold text-slate-700">Update Email</label>
+                                <div className="flex gap-2">
+                                    <Input value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className="bg-slate-50" />
+                                    <Button variant="outline" onClick={handleUpdateEmail} disabled={securityLoading === 'email' || newEmail === settings.email}>
+                                        {securityLoading === 'email' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update'}
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="pt-4 border-t space-y-3">
+                                <label className="text-sm font-bold text-slate-700">Change Password</label>
+                                <div className="flex gap-2">
+                                    <Input type="password" placeholder="New password (min 6 chars)" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="bg-slate-50" />
+                                    <Button variant="outline" onClick={handleUpdatePassword} disabled={securityLoading === 'password' || !newPassword}>
+                                        {securityLoading === 'password' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update'}
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            );
+
+        case 'data':
+            return (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                     <div>
+                        <h3 className="text-lg font-black text-red-600">Danger Zone</h3>
+                        <p className="text-sm text-slate-500">Irreversible actions regarding your data.</p>
+                    </div>
+
+                    <Card className="border-red-100 bg-red-50/30">
+                        <CardContent className="p-6">
+                            <div className="flex items-start gap-4">
+                                <div className="p-3 bg-red-100 text-red-600 rounded-full shrink-0">
+                                    <Trash2 className="w-6 h-6" />
+                                </div>
+                                <div className="space-y-4 flex-1">
+                                    <div>
+                                        <h4 className="font-bold text-slate-800">Delete Account & Data</h4>
+                                        <p className="text-sm text-slate-600 mt-1">
+                                            This will permanently delete your tasks, habits, journals, notes, and account information. 
+                                            This action cannot be undone.
+                                        </p>
+                                    </div>
+                                    
+                                    {!isConfirmingDelete ? (
+                                        <Button variant="destructive" onClick={() => setIsConfirmingDelete(true)}>
+                                            Begin Deletion Process
+                                        </Button>
+                                    ) : (
+                                        <div className="p-4 bg-white border border-red-200 rounded-lg space-y-3 animate-in fade-in slide-in-from-top-2">
+                                            <p className="text-sm font-bold text-red-600 flex items-center gap-2">
+                                                <TriangleAlert className="w-4 h-4" /> Final Confirmation
+                                            </p>
+                                            <p className="text-xs text-slate-600">
+                                                Please type <span className="font-bold select-all">delete</span> to confirm.
+                                            </p>
+                                            <Input 
+                                                value={deleteKeyword} 
+                                                onChange={(e) => setDeleteKeyword(e.target.value)} 
+                                                placeholder='Type "delete"' 
+                                                className="border-red-200 focus-visible:ring-red-500"
+                                            />
+                                            <div className="flex gap-2">
+                                                <Button 
+                                                    variant="destructive" 
+                                                    disabled={deleteKeyword.toLowerCase() !== 'delete' || isDeleting}
+                                                    onClick={handleFinalDelete}
+                                                    className="flex-1"
+                                                >
+                                                    {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Permanently Delete'}
+                                                </Button>
+                                                <Button variant="ghost" onClick={() => setIsConfirmingDelete(false)}>Cancel</Button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            );
+          
+        default: return null;
+      }
+  };
+
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 relative pb-24 md:pb-0 space-y-6">
+    <div className="animate-in fade-in duration-500 pb-20 md:pb-0">
+      {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-4 py-3 rounded-lg shadow-xl z-50 flex items-center gap-3">
-           <Check className="w-4 h-4" />
+        <div className="fixed bottom-6 right-6 bg-slate-800 text-white px-4 py-3 rounded-lg shadow-xl z-50 flex items-center gap-3 animate-in slide-in-from-bottom-5">
+           <Check className="w-4 h-4 text-green-400" />
            <span className="text-sm font-bold">{toast}</span>
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-         <h3 className="text-2xl font-black text-foreground tracking-tight">Configuration</h3>
-         <div className="flex items-center gap-2">
-             <Button variant="outline" size="sm" onClick={() => window.open("https://github.com/ShahedKowshik/HeavyUser", "_blank")}>
-               <Code className="w-4 h-4 mr-2" /> GitHub
-             </Button>
-             <Button variant="outline" size="sm" onClick={onLogout}>
-               <LogOut className="w-4 h-4 mr-2" /> Sign Out
-             </Button>
-         </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Labels Management */}
-        <Card className="lg:col-span-2">
-            <CardHeader className="flex flex-row items-center space-y-0 space-x-2 bg-muted/50 py-4">
-                <TagIcon className="w-4 h-4 text-primary" />
-                <CardTitle className="text-sm font-bold">Labels</CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                        {tags.length === 0 ? (
-                            <p className="text-sm text-muted-foreground italic">No labels created yet.</p>
-                        ) : (
-                            tags.map(tag => (
-                                editingTagId === tag.id ? (
-                                    <div key={tag.id} className="p-2 bg-accent/20 rounded border border-primary flex gap-2 items-center">
-                                        <Input 
-                                            value={editTagLabel} 
-                                            onChange={(e) => setEditTagLabel(e.target.value)} 
-                                            className="h-8 text-xs font-bold" 
-                                            autoFocus
-                                        />
-                                        <input 
-                                            type="color" 
-                                            value={editTagColor} 
-                                            onChange={(e) => setEditTagColor(e.target.value)} 
-                                            className="w-8 h-8 rounded cursor-pointer border p-0" 
-                                        />
-                                        <Button size="icon" className="h-8 w-8" onClick={saveEditingTag}><Check className="w-4 h-4" /></Button>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingTagId(null)}><X className="w-4 h-4" /></Button>
-                                    </div>
-                                ) : (
-                                    <div key={tag.id} className="flex items-center justify-between p-2 rounded border hover:bg-muted/50 group transition-colors">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: tag.color }} />
-                                            <span className="text-sm font-semibold">{tag.label}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEditingTag(tag)}><Pencil className="w-3 h-3" /></Button>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteTag(tag.id)}><Trash2 className="w-3 h-3" /></Button>
-                                        </div>
-                                    </div>
-                                )
-                            ))
-                        )}
-                    </div>
-
-                    <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
-                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Create New Label</h4>
-                        <div className="space-y-3">
-                            <Input 
-                                value={newTagLabel} 
-                                onChange={(e) => setNewTagLabel(e.target.value)} 
-                                placeholder="Label name..." 
-                                className="h-9 text-sm"
-                            />
-                            <div className="flex items-center justify-between">
-                                <div className="flex gap-1.5 flex-wrap">
-                                    {PRESET_COLORS.slice(0, 8).map(color => (
-                                        <button 
-                                            key={color} 
-                                            onClick={() => setNewTagColor(color)}
-                                            className={`w-5 h-5 rounded-full transition-transform hover:scale-110 ${newTagColor === color ? 'ring-2 ring-offset-1 ring-primary' : ''}`}
-                                            style={{ backgroundColor: color }}
-                                        />
-                                    ))}
-                                </div>
-                                <input type="color" value={newTagColor} onChange={e => setNewTagColor(e.target.value)} className="w-8 h-8 p-0 border-0 rounded cursor-pointer" />
-                            </div>
-                            <Button onClick={handleAddTag} disabled={!newTagLabel.trim()} className="w-full h-8 text-xs">
-                                <Plus className="w-3 h-3 mr-2" /> Add Label
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-
-        {/* Profile */}
-        <Card>
-          <CardHeader className="flex flex-row items-center space-y-0 space-x-2 bg-muted/50 py-4">
-            <User className="w-4 h-4 text-primary" />
-            <CardTitle className="text-sm font-bold">Account Profile</CardTitle>
-          </CardHeader>
-          <CardContent className="p-6 space-y-4">
-               <div className="space-y-2">
-                <label className="text-xs font-bold text-muted-foreground">Display Name</label>
-                <Input value={localName} onChange={(e) => setLocalName(e.target.value)} />
+      {/* Main Layout */}
+      <div className="flex flex-col lg:flex-row gap-8 max-w-6xl mx-auto items-start">
+          
+          {/* Sidebar Navigation */}
+          <nav className="w-full lg:w-64 shrink-0 space-y-1 lg:sticky lg:top-8">
+              {/* Mobile Horizontal Scroll / Desktop Vertical List */}
+              <div className="flex lg:flex-col overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 gap-1 no-scrollbar -mx-4 px-4 lg:mx-0 lg:px-0">
+                  {TABS.map(tab => {
+                      const isActive = activeTab === tab.id;
+                      const Icon = tab.icon;
+                      return (
+                          <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-bold transition-all whitespace-nowrap lg:whitespace-normal flex-shrink-0 ${
+                                isActive 
+                                ? 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200' 
+                                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                            }`}
+                          >
+                              <Icon className={`w-4 h-4 ${isActive ? 'text-slate-800' : 'text-slate-400'}`} />
+                              <span>{tab.label}</span>
+                              {isActive && <ChevronRight className="w-4 h-4 ml-auto text-slate-300 hidden lg:block" />}
+                          </button>
+                      );
+                  })}
               </div>
-               <div className="space-y-2">
-                <label className="text-xs font-bold text-muted-foreground flex items-center gap-1">
-                  <Camera className="w-3 h-3" /> Profile Picture URL
-                </label>
-                <Input value={localProfilePic} onChange={(e) => setLocalProfilePic(e.target.value)} placeholder="https://..." />
-              </div>
-              <Button onClick={handleSaveProfile} className="w-full">Save Changes</Button>
 
-            <div className="space-y-2 pt-4 border-t">
-              <label className="text-xs font-bold text-muted-foreground flex items-center gap-1">
-                <Fingerprint className="w-3 h-3" /> User ID
-              </label>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 bg-muted px-3 py-2 rounded text-xs font-mono text-primary truncate">
-                  {settings.userId}
-                </code>
-                <Button variant="outline" size="icon" onClick={copyToClipboard}>
-                  {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Security */}
-        <Card>
-          <CardHeader className="flex flex-row items-center space-y-0 space-x-2 bg-muted/50 py-4">
-            <Lock className="w-4 h-4 text-primary" />
-            <CardTitle className="text-sm font-bold">Security</CardTitle>
-          </CardHeader>
-          <CardContent className="p-6 space-y-4">
-            {securityMessage && (
-              <div className={`p-3 rounded-md border text-xs font-bold flex items-start gap-2 ${
-                securityMessage.type === 'success' 
-                  ? 'bg-green-500/10 border-green-500/20 text-green-600' 
-                  : 'bg-destructive/10 border-destructive/20 text-destructive'
-              }`}>
-                {securityMessage.type === 'success' ? <Check className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
-                <span>{securityMessage.text}</span>
-              </div>
-            )}
-
-            <div className="space-y-2">
-                <label className="text-xs font-bold text-muted-foreground flex items-center gap-1">
-                  <Mail className="w-3 h-3" /> Email Address
-                </label>
-                <div className="flex gap-2">
-                  <Input value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
-                  <Button variant="outline" onClick={handleUpdateEmail} disabled={securityLoading === 'email' || newEmail === settings.email}>
-                    {securityLoading === 'email' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update'}
-                  </Button>
-                </div>
-            </div>
-
-            <div className="space-y-2">
-                <label className="text-xs font-bold text-muted-foreground flex items-center gap-1">
-                  <Lock className="w-3 h-3" /> New Password
-                </label>
-                <div className="flex gap-2">
-                  <Input type="password" placeholder="Min 6 chars" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-                  <Button variant="outline" onClick={handleUpdatePassword} disabled={securityLoading === 'password' || !newPassword}>
-                    {securityLoading === 'password' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update'}
-                  </Button>
-                </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Night Owl */}
-        <Card className="lg:col-span-2 border-indigo-200 dark:border-indigo-900">
-            <CardHeader className="flex flex-row items-center space-y-0 space-x-2 bg-indigo-50/50 dark:bg-indigo-950/20 py-4">
-                <Moon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                <CardTitle className="text-sm font-bold text-indigo-900 dark:text-indigo-100">Night Owl Mode</CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                            Standard productivity apps reset your "Today" list at midnight. 
-                            Night Owl Mode lets you shift the start of your day, so late-night work counts for today.
-                        </p>
-                    </div>
-                    <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
-                        <label className="text-xs font-bold text-foreground flex items-center gap-1">
-                            Start my "New Day" at:
-                        </label>
-                        <select
-                            value={localDayStartHour}
-                            onChange={(e) => setLocalDayStartHour(parseInt(e.target.value))}
-                            className="w-full px-3 py-2 text-sm bg-background border border-input rounded-md focus:ring-1 focus:ring-ring"
-                        >
-                            {Array.from({ length: 13 }).map((_, i) => (
-                                <option key={i} value={i}>
-                                    {i === 0 ? '12:00 AM (Midnight)' : i === 12 ? '12:00 PM (Noon)' : `${i}:00 AM`}
-                                </option>
-                            ))}
-                        </select>
-                        <Button onClick={handleSaveProfile} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
-                            Update Preferences
-                        </Button>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-
-        {/* Data Zone */}
-        <Card className="lg:col-span-2 border-destructive/20">
-          <CardHeader className="flex flex-row items-center space-y-0 space-x-2 bg-destructive/10 py-4">
-            <Trash2 className="w-4 h-4 text-destructive" />
-            <CardTitle className="text-sm font-bold text-destructive">Data Management</CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-              <div className="flex flex-col gap-2">
-                <p className="text-sm font-bold">Danger Zone</p>
-                <p className="text-xs text-muted-foreground">
-                    Permanently remove all local data or delete your account reference.
-                </p>
-                
-                {!isConfirmingDelete ? (
-                  <div className="flex gap-2 mt-2">
-                    <Button variant="outline" className="border-destructive text-destructive hover:bg-destructive/10" onClick={() => setIsConfirmingDelete(true)}>
-                      Reset Data
+              <div className="pt-6 mt-6 border-t border-slate-200 px-2 hidden lg:block">
+                  <div className="space-y-2">
+                    <Button variant="outline" size="sm" className="w-full justify-start text-slate-600" onClick={() => window.open("https://github.com/ShahedKowshik/HeavyUser", "_blank")}>
+                        <Code className="w-4 h-4 mr-2" /> GitHub
                     </Button>
-                     <Button variant="destructive" onClick={() => setIsConfirmingDelete(true)}>
-                      Delete Account
+                    <Button variant="ghost" size="sm" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50" onClick={onLogout}>
+                        <LogOut className="w-4 h-4 mr-2" /> Sign Out
                     </Button>
                   </div>
-                ) : (
-                  <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-md mt-2 space-y-3">
-                    <p className="text-xs font-bold text-destructive flex items-center gap-1">
-                        <TriangleAlert className="w-4 h-4" /> Warning
-                    </p>
-                    <p className="text-xs text-foreground">Type <span className="font-bold text-destructive">delete</span> to confirm.</p>
-                    <Input 
-                        value={deleteKeyword} 
-                        onChange={(e) => setDeleteKeyword(e.target.value)} 
-                        placeholder='Type "delete"' 
-                        className="bg-background"
-                    />
-                    <div className="flex gap-2">
-                        <Button 
-                            variant="destructive" 
-                            disabled={deleteKeyword.toLowerCase() !== 'delete' || isDeleting}
-                            onClick={handleFinalDelete}
-                            className="flex-1"
-                        >
-                            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Delete'}
-                        </Button>
-                        <Button variant="ghost" onClick={() => setIsConfirmingDelete(false)}>Cancel</Button>
-                    </div>
-                  </div>
-                )}
               </div>
-          </CardContent>
-        </Card>
+          </nav>
 
+          {/* Content Area */}
+          <div className="flex-1 min-w-0 w-full">
+              {renderContent()}
+
+              {/* Mobile Footer Actions */}
+              <div className="mt-12 pt-8 border-t border-slate-200 lg:hidden space-y-3">
+                    <Button variant="outline" className="w-full" onClick={() => window.open("https://github.com/ShahedKowshik/HeavyUser", "_blank")}>
+                        <Code className="w-4 h-4 mr-2" /> GitHub Repo
+                    </Button>
+                    <Button variant="destructive" className="w-full" onClick={onLogout}>
+                        <LogOut className="w-4 h-4 mr-2" /> Sign Out
+                    </Button>
+              </div>
+          </div>
       </div>
     </div>
   );
