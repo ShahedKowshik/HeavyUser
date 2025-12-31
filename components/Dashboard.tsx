@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder } from '../types';
@@ -106,6 +105,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState<AppTab>(() => {
     // Determine default tab based on enabled features
     const enabled = user.enabledFeatures || ['tasks', 'habit', 'journal', 'notes'];
+    
+    // Check local storage first
+    if (typeof window !== 'undefined') {
+        const savedTab = localStorage.getItem('heavyuser_active_tab') as AppTab;
+        const utilityTabs = ['settings', 'request_feature', 'report_bug'];
+        if (savedTab && (enabled.includes(savedTab) || utilityTabs.includes(savedTab))) {
+            return savedTab;
+        }
+    }
+
     if (enabled.includes('tasks')) return 'tasks';
     return (enabled[0] as AppTab) || 'settings';
   });
@@ -142,6 +151,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   });
 
   const enabledModules = userSettings.enabledFeatures || ['tasks', 'habit', 'journal', 'notes'];
+
+  // Persist active tab
+  useEffect(() => {
+    localStorage.setItem('heavyuser_active_tab', activeTab);
+  }, [activeTab]);
 
   // Effect to redirect if activeTab is disabled
   useEffect(() => {
