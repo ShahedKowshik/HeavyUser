@@ -184,61 +184,85 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     e.preventDefault();
     if (!title.trim()) return;
 
-    if (editingHabitId) {
-        setHabits(prev => prev.map(h => h.id === editingHabitId ? { 
-            ...h, title, target, unit, icon, useCounter, goalType, tags: selectedTags, startDate: formStartDate 
-        } : h));
-        
-        await supabase.from('habits').update({
-            title: encryptData(title),
-            target,
-            unit,
-            icon,
-            use_counter: useCounter,
-            goal_type: goalType,
-            tags: selectedTags,
-            start_date: formStartDate
-        }).eq('id', editingHabitId);
-    } else {
-        const newHabit: Habit = {
-            id: crypto.randomUUID(),
-            title,
-            icon,
-            target,
-            unit,
-            startDate: formStartDate || today,
-            useCounter,
-            progress: {},
-            skippedDates: [],
-            tags: selectedTags,
-            goalType
-        };
-        setHabits(prev => [...prev, newHabit]);
-        
-        await supabase.from('habits').insert({
-            id: newHabit.id,
-            user_id: userId,
-            title: encryptData(title),
-            target,
-            unit,
-            icon,
-            start_date: formStartDate || today,
-            use_counter: useCounter,
-            progress: {},
-            skipped_dates: [],
-            tags: selectedTags,
-            goal_type: goalType
-        });
+    // Capture previous state for rollback
+    const previousHabits = [...habits];
+
+    try {
+        if (editingHabitId) {
+            // Optimistic Update
+            setHabits(prev => prev.map(h => h.id === editingHabitId ? { 
+                ...h, title, target, unit, icon, useCounter, goalType, tags: selectedTags, startDate: formStartDate 
+            } : h));
+            
+            const { error } = await supabase.from('habits').update({
+                title: encryptData(title),
+                target,
+                unit,
+                icon,
+                use_counter: useCounter,
+                goal_type: goalType,
+                tags: selectedTags,
+                start_date: formStartDate
+            }).eq('id', editingHabitId);
+
+            if (error) throw error;
+        } else {
+            const newHabit: Habit = {
+                id: crypto.randomUUID(),
+                title,
+                icon,
+                target,
+                unit,
+                startDate: formStartDate || today,
+                useCounter,
+                progress: {},
+                skippedDates: [],
+                tags: selectedTags,
+                goalType
+            };
+            
+            // Optimistic Update
+            setHabits(prev => [...prev, newHabit]);
+            
+            const { error } = await supabase.from('habits').insert({
+                id: newHabit.id,
+                user_id: userId,
+                title: encryptData(title),
+                target,
+                unit,
+                icon,
+                start_date: formStartDate || today,
+                use_counter: useCounter,
+                progress: {},
+                skipped_dates: [],
+                tags: selectedTags,
+                goal_type: goalType
+            });
+
+            if (error) throw error;
+        }
+        setIsModalOpen(false);
+        resetForm();
+    } catch (err: any) {
+        console.error("Error saving habit:", err);
+        setHabits(previousHabits);
+        alert(`Failed to save habit: ${err.message || 'Unknown error'}. Check that your database schema includes 'goal_type' and 'tags' columns.`);
     }
-    setIsModalOpen(false);
-    resetForm();
   };
 
   const handleDelete = async (id: string) => {
       if(!confirm("Delete this habit?")) return;
+      
+      const previousHabits = [...habits];
       setHabits(prev => prev.filter(h => h.id !== id));
       setDetailHabitId(null);
-      await supabase.from('habits').delete().eq('id', id);
+      
+      const { error } = await supabase.from('habits').delete().eq('id', id);
+      if (error) {
+          console.error("Error deleting habit:", error);
+          setHabits(previousHabits);
+          alert("Failed to delete habit.");
+      }
   };
 
   const updateDayStatus = async (habitId: string, date: string, count: number, skipped: boolean) => {
@@ -268,10 +292,14 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     if (skipped && !newSkipped.includes(date)) newSkipped = [...newSkipped, date];
     if (!skipped && newSkipped.includes(date)) newSkipped = newSkipped.filter(d => d !== date);
 
-    await supabase.from('habits').update({
+    const { error } = await supabase.from('habits').update({
         progress: newProgress,
         skipped_dates: newSkipped
     }).eq('id', habitId);
+
+    if (error) {
+        console.error("Failed to update habit progress", error);
+    }
   };
 
   const handleInlineCreateTag = async (e: React.FormEvent) => {
