@@ -123,6 +123,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'all' | 'positive' | 'negative'>('all');
   
   // Detail View State
   const [detailHabitId, setDetailHabitId] = useState<string | null>(null);
@@ -294,11 +295,13 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
       const ratio = count / (habit.target || 1);
       
       if (habit.goalType === 'negative') {
-          // Green -> Yellow -> Red
-          if (ratio > 1) return 'bg-rose-500'; // Exceeded
-          if (ratio >= 0.5) return 'bg-amber-500'; // Warning
-          return 'bg-emerald-500'; // Good
+          // Negative Goal: The bar represents "Bad things done"
+          // If exceeded limit (ratio > 1), Dark Red.
+          // Otherwise Red (User requested Red instead of Yellow for progress)
+          if (ratio > 1) return 'bg-rose-700'; // Exceeded limit heavily
+          return 'bg-rose-500'; // Any progress is "bad", so Red.
       } else {
+          // Positive Goal: The bar represents "Good things done"
           // Red -> Yellow -> Green
           if (ratio >= 1) return 'bg-emerald-500'; // Completed
           if (ratio >= 0.5) return 'bg-amber-500'; // Progressing
@@ -307,9 +310,14 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
   };
 
   const filteredHabits = useMemo(() => {
-    if (!activeFilterTagId) return habits;
-    return habits.filter(h => h.tags?.includes(activeFilterTagId));
-  }, [habits, activeFilterTagId]);
+    let res = habits;
+    if (activeFilterTagId) {
+        res = res.filter(h => h.tags?.includes(activeFilterTagId));
+    }
+    if (filter === 'positive') res = res.filter(h => h.goalType !== 'negative');
+    if (filter === 'negative') res = res.filter(h => h.goalType === 'negative');
+    return res;
+  }, [habits, activeFilterTagId, filter]);
 
   // Calendar Helpers
   const renderCalendar = () => {
@@ -413,10 +421,27 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
   return (
     <div className="animate-in fade-in duration-500 pb-20">
-      {/* Header Controls - Matched with TaskSection */}
+      {/* Header Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-2 self-start hidden md:block">
-            {/* Spacer to maintain layout consistency if we add filters later */}
+        <div className="flex items-center gap-2 bg-zinc-100 p-1 rounded-lg border border-zinc-200 self-start">
+            <button 
+                onClick={() => setFilter('all')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${filter === 'all' ? 'bg-white text-[#3f3f46] shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
+            >
+                All
+            </button>
+            <button 
+                onClick={() => setFilter('positive')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${filter === 'positive' ? 'bg-white text-[#3f3f46] shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
+            >
+                Build
+            </button>
+            <button 
+                onClick={() => setFilter('negative')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${filter === 'negative' ? 'bg-white text-[#3f3f46] shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
+            >
+                Quit
+            </button>
         </div>
         
         <div className="flex items-center justify-end w-full md:w-auto">
@@ -434,7 +459,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
         {filteredHabits.length === 0 ? (
            <div className="col-span-full text-center py-20 opacity-50 border-2 border-dashed border-zinc-200 rounded-xl">
                <Zap className="w-12 h-12 text-zinc-300 mx-auto mb-2" />
-               <p className="font-bold text-zinc-400">No habits tracked</p>
+               <p className="font-bold text-zinc-400">No habits filtered</p>
            </div>
         ) : (
             filteredHabits.map(habit => {
@@ -472,9 +497,15 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                              <div className="flex-1 min-w-0">
                                  <h4 className={`font-bold truncate text-lg transition-colors ${isFailedToday ? 'text-rose-600' : 'text-zinc-800'}`}>{habit.title}</h4>
                                  <div className="flex items-center gap-2 text-xs font-medium text-zinc-500 mt-0.5">
+                                     <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wide shrink-0 ${
+                                         habit.goalType === 'negative' ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'
+                                     }`}>
+                                         {habit.goalType === 'negative' ? 'Quit' : 'Build'}
+                                     </span>
+                                     <div className="w-px h-3 bg-zinc-200"></div>
                                      <div className="flex items-center gap-1">
                                          <Flame className={`w-3.5 h-3.5 ${stats.streak > 0 ? 'text-orange-500 fill-orange-500' : 'text-zinc-300'}`} />
-                                         <span className={stats.streak > 0 ? 'text-orange-600 font-bold' : ''}>{stats.streak} Day Streak</span>
+                                         <span className={stats.streak > 0 ? 'text-orange-600 font-bold' : ''}>{stats.streak} Streak</span>
                                      </div>
                                  </div>
                              </div>
