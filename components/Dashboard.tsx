@@ -1,5 +1,4 @@
 
-// ... imports ... (keep existing)
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause, BarChart3 } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession } from '../types';
@@ -460,7 +459,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           if (task) {
               const newActual = Math.max(0, (task.actualTime || 0) - durationMin);
               setTasks(prev => prev.map(t => t.id === task.id ? { ...t, actualTime: newActual } : t));
-              await supabase.from('tasks').update({ actual_time: newActual }).eq('id', task.id);
+              
+              const updates: any = { actual_time: newActual };
+              // Ensure DB reflects the paused state if local state is paused.
+              // This fixes the bug where deleting a paused session leaves a stale timer_start in DB.
+              if (!task.timerStart) {
+                  updates.timer_start = null;
+              }
+              await supabase.from('tasks').update(updates).eq('id', task.id);
           }
       }
 
