@@ -443,7 +443,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   };
 
   const handleDeleteSession = async (sessionId: string) => {
-      if(!window.confirm("Delete this time entry?")) return;
+      // Confirmation removed to prevent browser blocking issue on "Don't show again"
       
       const session = sessions.find(s => s.id === sessionId);
       if(!session) return;
