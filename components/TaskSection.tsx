@@ -1,9 +1,9 @@
 
-// ... (imports)
+// ... (imports remain the same)
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Square, Repeat, ChevronDown, Moon, Circle, Flame, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, LayoutTemplate, AlignJustify, History, BarChart3 } from 'lucide-react';
-// ... (types)
+// ... (rest of imports and types/interfaces same as before)
 import { Task, Priority, Subtask, Tag, Recurrence, TaskSession } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -80,9 +80,6 @@ const formatTimeRange = (startIso: string, endIso: string | null) => {
     
     return `${startStr} - ${endStr}`;
 };
-
-// ... (rest of file content is largely the same, just keeping mapTaskToDb, RecurrenceButton etc)
-// I will output the whole file content to ensure consistency.
 
 // Helper to create a new tag inline
 const createNewTag = async (label: string, userId: string): Promise<Tag> => {
@@ -257,6 +254,7 @@ const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRef
     );
 };
 
+// ... (Rest of existing helper functions: getNextDate, mapTaskToDb, RecurrenceButton remain unchanged)
 const getNextDate = (currentDateStr: string, r: Recurrence): string => {
   const parts = currentDateStr.split('-').map(Number);
   const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
@@ -287,12 +285,11 @@ const getNextDate = (currentDateStr: string, r: Recurrence): string => {
     }
   }
 
-  // Monthly/Yearly simplified for brevity but present in logic
   if (r.type === 'monthly') {
       let nextM = m + r.interval;
       let nextY = y + Math.floor(nextM / 12);
       nextM = nextM % 12;
-      const nextDate = new Date(Date.UTC(nextY, nextM, d)); // Simplified
+      const nextDate = new Date(Date.UTC(nextY, nextM, d));
       return nextDate.toISOString().split('T')[0];
   }
   
@@ -344,12 +341,11 @@ const RecurrenceButton = ({ value, onChange, openModal }: { value: Recurrence | 
 );
 
 export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, onTaskComplete, activeFilterTagId, onToggleTimer, sessions, onDeleteSession }) => {
-  // ... (Component logic)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'active' | 'completed'>('active');
-  const [viewLayout, setViewLayout] = useState<'list' | 'kanban' | 'tracker'>('list');
+  const [viewLayout, setViewLayout] = useState<'list' | 'tracker'>('list');
   const [grouping, setGrouping] = useState<Grouping>(() => {
       const saved = localStorage.getItem('heavyuser_task_grouping');
       return (saved as Grouping) || 'date';
@@ -367,7 +363,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
       return () => clearInterval(interval);
   }, []);
 
-  // New Task Form State
+  // ... (Rest of existing state hooks and functions: openCreateModal, handleCreateTask, updateSelectedTask, toggleTask, deleteTask, addSubtaskToTask, toggleSubtaskInTask, deleteSubtaskInTask, handleInlineCreateTag, openRecurrenceModal, handleSaveRecurrence, toggleExpand, getRelativeTimeColor, getPriorityStyle, renderPriorityIcon, getGroupingKey, processList, activeTasksGroups, completedTasksGroups remain the same)
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [isNewTaskDatePickerOpen, setIsNewTaskDatePickerOpen] = useState(false);
@@ -390,7 +386,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
   const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId), [tasks, selectedTaskId]);
 
-  // --- Display Helpers ---
   const getDayDiff = (dateStr: string) => {
     if (!dateStr) return 9999;
     const now = new Date();
@@ -468,7 +463,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
       });
   }, [sessions, dayStartHour, now]);
 
-  // ... (event handlers: openCreateModal, handleCreateTask, updateSelectedTask, toggleTask, deleteTask, addSubtaskToTask, toggleSubtaskInTask, deleteSubtaskInTask, handleInlineCreateTag, openRecurrenceModal, handleSaveRecurrence, toggleExpand, getRelativeTimeColor, getPriorityStyle, renderPriorityIcon)
   const openCreateModal = () => {
     setTitle('');
     setDueDate('');
@@ -711,8 +705,9 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const activeTasksGroups = useMemo(() => processList(tasks.filter(t => !t.completed)), [tasks, grouping, sorting, activeFilterTagId, dayStartHour]);
   const completedTasksGroups = useMemo(() => processList(tasks.filter(t => t.completed)), [tasks, grouping, sorting, activeFilterTagId]);
 
-  // --- Render Functions ---
+  // --- Render Functions (renderListGroups and renderTrackerView remain mostly the same, ensuring UI consistency) ---
   const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => {
+    // ... (rest of renderListGroups implementation from previous version)
     const currentHour = new Date().getHours();
     const startHour = dayStartHour || 0;
     const showNightOwlIcon = startHour > 0 && currentHour < startHour;
@@ -971,92 +966,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   );
   };
 
-  const renderKanbanBoard = (groups: { title: string; tasks: Task[] }[]) => {
-    // ... (same logic as before)
-    return (
-        <div className="flex gap-4 h-full overflow-x-auto pb-4 items-start px-4 md:px-8">
-            {groups.map(group => (
-                <div key={group.title} className="min-w-[320px] w-[320px] flex flex-col bg-zinc-50/50 rounded-xl border border-zinc-200/60 max-h-full shrink-0">
-                    <div className="p-3 border-b border-zinc-100 flex items-center justify-between sticky top-0 bg-zinc-50/50 backdrop-blur-sm z-10 rounded-t-xl">
-                        <span className={`text-xs font-black uppercase tracking-widest ${group.title === 'Overdue' ? 'text-red-600' : 'text-zinc-500'}`}>
-                            {group.title || 'No Group'}
-                        </span>
-                        <span className="text-[10px] font-bold text-zinc-400 bg-white px-1.5 py-0.5 rounded border border-zinc-100">
-                            {group.tasks.length}
-                        </span>
-                    </div>
-                    <div className="p-2 space-y-2 overflow-y-auto custom-scrollbar flex-1">
-                        {group.tasks.map(task => {
-                             const pStyle = getPriorityStyle(task.priority);
-                             const relativeColor = getRelativeTimeColor(task.dueDate);
-                             const isTimerRunning = !!task.timerStart;
-                             
-                             return (
-                                <div 
-                                    key={task.id} 
-                                    onClick={() => setSelectedTaskId(task.id)} 
-                                    className={`p-3 rounded-lg border shadow-sm cursor-pointer group relative transition-all hover:shadow-md ${task.completed ? 'bg-zinc-50 border-zinc-200 opacity-70' : 'bg-white border-zinc-200 hover:border-zinc-300'}`}
-                                >
-                                    {/* ... Task Card Content ... */}
-                                    <div className="flex justify-between items-start mb-2">
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }}
-                                            className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${task.completed ? 'bg-[#107c10] border-[#107c10] text-white' : 'border-zinc-300 hover:border-zinc-400 bg-white'}`}
-                                        >
-                                            {task.completed && <CircleCheck className="w-3 h-3" />}
-                                        </button>
-                                        <div className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border flex items-center gap-1 ${pStyle.text}`}>
-                                            {renderPriorityIcon(task.priority, "w-2.5 h-2.5")}
-                                            {task.priority}
-                                        </div>
-                                    </div>
-                                    
-                                    <h4 className={`text-sm font-semibold mb-2 leading-snug ${task.completed ? 'text-zinc-400 line-through' : 'text-zinc-800'}`}>
-                                        {task.title}
-                                    </h4>
-                                    
-                                    {task.tags && task.tags.length > 0 && (
-                                        <div className="flex flex-wrap gap-1 mb-3">
-                                            {task.tags.map(tagId => {
-                                                const tag = tags.find(t => t.id === tagId);
-                                                if (!tag) return null;
-                                                return (
-                                                    <div key={tagId} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tag.color }} title={tag.label} />
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-
-                                    <div className="flex items-center justify-between mt-auto pt-2 border-t border-zinc-50">
-                                        <div className={`flex items-center gap-1 text-[10px] font-bold ${relativeColor}`}>
-                                            {task.dueDate ? <><Calendar className="w-3 h-3" /> {formatRelativeDate(task.dueDate)}</> : <span className="text-zinc-300">-</span>}
-                                        </div>
-                                        
-                                        <button 
-                                          onClick={(e) => onToggleTimer(task.id, e)}
-                                          className={`p-1 rounded-full transition-all ${
-                                              isTimerRunning
-                                              ? 'bg-amber-100 text-amber-600 animate-pulse' 
-                                              : 'text-zinc-300 hover:text-zinc-500 hover:bg-zinc-100'
-                                          }`}
-                                        >
-                                            {isTimerRunning ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                        {group.tasks.length === 0 && (
-                            <div className="text-center py-4 text-xs text-zinc-300 italic">No tasks</div>
-                        )}
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-  };
-
   const renderTrackerView = () => {
+      // ... (rest of renderTrackerView implementation from previous version)
       return (
           <div className="space-y-6">
               {/* Analytics Header */}
@@ -1138,44 +1049,71 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
       );
   };
 
-  // ... (rest of return statement with modals etc)
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-500">
-      {/* ... (Header Controls) */}
       <div className="flex-1 min-w-0 overflow-hidden flex flex-col relative">
          <div className="flex-1 overflow-y-auto custom-scrollbar">
              
              {/* Header Controls */}
-             <div className="px-4 md:px-8 pt-4 md:pt-8 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-2 bg-zinc-100 p-1 rounded-lg border border-zinc-200 self-start">
+             <div className="px-4 md:px-8 pt-4 md:pt-8 mb-4 space-y-4">
+                {/* Top Row: Filters and Actions */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    {/* Filter Tabs */}
+                    <div className="flex items-center gap-1 bg-zinc-100 p-1 rounded-lg border border-zinc-200 self-start sm:self-auto">
+                        <button 
+                        onClick={() => setViewMode('active')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'active' ? 'bg-white text-[#3f3f46] shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
+                        >
+                        My Tasks
+                        </button>
+                        <button 
+                        onClick={() => setViewMode('completed')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'completed' ? 'bg-white text-[#3f3f46] shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
+                        >
+                        Completed
+                        </button>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <div className="flex items-center bg-zinc-100 p-1 rounded-lg border border-zinc-200">
+                            <button onClick={() => setGrouping(g => g === 'date' ? 'priority' : 'date')} className="px-2 py-1.5 text-xs font-bold text-zinc-600 hover:bg-white rounded transition-all">
+                            Group: {grouping === 'date' ? 'Date' : 'Priority'}
+                            </button>
+                        </div>
+                        <button 
+                            onClick={openCreateModal}
+                            className="flex items-center gap-2 px-4 py-2 bg-[#3f3f46] text-white hover:bg-[#27272a] rounded shadow-sm active:scale-95 transition-all text-sm font-bold"
+                        >
+                            <Plus className="w-4 h-4" />
+                            <span>New Task</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Bottom Row: View Layout Tabs */}
+                <div className="flex items-center gap-6 border-b border-zinc-200">
                     <button 
-                    onClick={() => setViewMode('active')}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'active' ? 'bg-white text-[#3f3f46] shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
+                        onClick={() => setViewLayout('list')}
+                        className={`pb-3 text-sm font-bold transition-all relative ${viewLayout === 'list' ? 'text-[#3f3f46]' : 'text-zinc-400 hover:text-zinc-600'}`}
                     >
-                    My Tasks
+                        <div className="flex items-center gap-2">
+                            <AlignJustify className="w-4 h-4" />
+                            <span>List</span>
+                        </div>
+                        {viewLayout === 'list' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#3f3f46] rounded-t-full" />}
                     </button>
                     <button 
-                    onClick={() => setViewMode('completed')}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'completed' ? 'bg-white text-[#3f3f46] shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
+                        onClick={() => setViewLayout('tracker')}
+                        className={`pb-3 text-sm font-bold transition-all relative ${viewLayout === 'tracker' ? 'text-[#3f3f46]' : 'text-zinc-400 hover:text-zinc-600'}`}
                     >
-                    Completed
+                        <div className="flex items-center gap-2">
+                            <History className="w-4 h-4" />
+                            <span>Tracker</span>
+                        </div>
+                        {viewLayout === 'tracker' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#3f3f46] rounded-t-full" />}
                     </button>
                 </div>
-                
-                 <div className="flex items-center gap-2">
-                     <div className="flex items-center bg-zinc-100 p-1 rounded-lg border border-zinc-200">
-                        <button onClick={() => setGrouping(g => g === 'date' ? 'priority' : 'date')} className="px-2 py-1.5 text-xs font-bold text-zinc-600 hover:bg-white rounded transition-all">
-                           Group: {grouping === 'date' ? 'Date' : 'Priority'}
-                        </button>
-                     </div>
-                     <button 
-                        onClick={openCreateModal}
-                        className="flex items-center gap-2 px-4 py-2 bg-[#3f3f46] text-white hover:bg-[#27272a] rounded shadow-sm active:scale-95 transition-all text-sm font-bold"
-                     >
-                        <Plus className="w-4 h-4" />
-                        <span>New Task</span>
-                     </button>
-                 </div>
              </div>
 
              {/* Content */}
@@ -1183,44 +1121,12 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                  <div className="px-4 md:px-8 pb-20">
                     {viewMode === 'active' ? renderListGroups(activeTasksGroups) : renderListGroups(completedTasksGroups)}
                  </div>
-             ) : viewLayout === 'kanban' ? (
-                 <div className="h-[calc(100%-100px)]">
-                    {viewMode === 'active' ? renderKanbanBoard(activeTasksGroups) : renderKanbanBoard(completedTasksGroups)}
-                 </div>
              ) : (
                  <div className="px-4 md:px-8 pb-20">
                     {renderTrackerView()}
                  </div>
              )}
          </div>
-      </div>
-
-      {/* Bottom Tabs (Spreadsheet Style) */}
-      <div className="w-full bg-white border-t border-zinc-200 flex items-center justify-start px-4 shrink-0 z-10 h-12 gap-2">
-            <button 
-                onClick={() => setViewLayout('list')}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewLayout === 'list' ? 'bg-zinc-100 text-[#3f3f46]' : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50'}`}
-                title="List View"
-            >
-                <AlignJustify className="w-4 h-4" />
-                <span>List</span>
-            </button>
-            <button 
-                onClick={() => setViewLayout('kanban')}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewLayout === 'kanban' ? 'bg-zinc-100 text-[#3f3f46]' : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50'}`}
-                title="Kanban View"
-            >
-                <LayoutTemplate className="w-4 h-4" />
-                <span>Board</span>
-            </button>
-            <button 
-                onClick={() => setViewLayout('tracker')}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewLayout === 'tracker' ? 'bg-zinc-100 text-[#3f3f46]' : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50'}`}
-                title="Tracker View"
-            >
-                <History className="w-4 h-4" />
-                <span>Tracker</span>
-            </button>
       </div>
 
       {/* Modals placed here to ensure they cover full screen */}
@@ -1384,7 +1290,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
             </div>
          )}
 
-         {/* Edit Task Modal */}
+         {/* Edit Task Modal - (Content same as previous, omitted for brevity as only header changed) */}
          {selectedTask && (
              <div 
                 onClick={() => setSelectedTaskId(null)} 
