@@ -1057,14 +1057,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
              {/* Header Controls */}
              <div className="px-4 md:px-8 pt-4 md:pt-8 mb-4 space-y-4">
                 {/* Top Row: Filters and Actions */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex flex-row items-center justify-between gap-2 sm:gap-4">
                     {/* Filter Tabs */}
-                    <div className="flex items-center gap-1 bg-zinc-100 p-1 rounded-lg border border-zinc-200 self-start sm:self-auto">
+                    <div className="flex items-center gap-1 bg-zinc-100 p-1 rounded-lg border border-zinc-200 shrink-0">
                         <button 
                         onClick={() => setViewMode('active')}
                         className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'active' ? 'bg-white text-[#3f3f46] shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
                         >
-                        My Tasks
+                        <span className="hidden sm:inline">My </span>Tasks
                         </button>
                         <button 
                         onClick={() => setViewMode('completed')}
@@ -1075,18 +1075,25 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-2 self-start sm:self-auto">
-                        <div className="flex items-center bg-zinc-100 p-1 rounded-lg border border-zinc-200">
+                    <div className="flex items-center gap-2">
+                        <div className="hidden sm:flex items-center bg-zinc-100 p-1 rounded-lg border border-zinc-200">
                             <button onClick={() => setGrouping(g => g === 'date' ? 'priority' : 'date')} className="px-2 py-1.5 text-xs font-bold text-zinc-600 hover:bg-white rounded transition-all">
                             Group: {grouping === 'date' ? 'Date' : 'Priority'}
                             </button>
                         </div>
+                        {/* Mobile Group Toggle */}
+                        <div className="flex sm:hidden items-center bg-zinc-100 p-1 rounded-lg border border-zinc-200">
+                            <button onClick={() => setGrouping(g => g === 'date' ? 'priority' : 'date')} className="px-2 py-1.5 text-xs font-bold text-zinc-600 hover:bg-white rounded transition-all">
+                                {grouping === 'date' ? 'Date' : 'Prio'}
+                            </button>
+                        </div>
+
                         <button 
                             onClick={openCreateModal}
-                            className="flex items-center gap-2 px-4 py-2 bg-[#3f3f46] text-white hover:bg-[#27272a] rounded shadow-sm active:scale-95 transition-all text-sm font-bold"
+                            className="flex items-center gap-2 px-3 py-2 bg-[#3f3f46] text-white hover:bg-[#27272a] rounded shadow-sm active:scale-95 transition-all text-sm font-bold shrink-0"
                         >
                             <Plus className="w-4 h-4" />
-                            <span>New Task</span>
+                            <span className="hidden md:inline">New Task</span>
                         </button>
                     </div>
                 </div>

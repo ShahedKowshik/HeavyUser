@@ -470,27 +470,28 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
 
   const renderSidebar = () => (
     <div className="flex flex-col h-full bg-slate-50 border-r border-slate-200 w-full md:w-80 shrink-0">
-        {/* Header & Search */}
-       <div className="p-4 flex flex-col gap-4 shrink-0 bg-white border-b border-slate-200">
-          <div className="flex items-center justify-between">
-             <div className="flex items-center gap-2">
-                <button 
-                    className="md:hidden p-2 -ml-2 text-slate-400 hover:text-[#3f3f46]"
-                    onClick={() => setMobileView('sidebar')}
-                >
-                    <Menu className="w-5 h-5" />
-                </button>
-                <h2 className="text-lg font-bold text-slate-800 tracking-tight">Notes</h2>
-             </div>
-             
-             {/* Global Add Button */}
-             <div className="relative">
+       {/* Header & Search */}
+       <div className="px-4 md:px-8 py-4 flex items-center justify-between gap-2 shrink-0 bg-white border-b border-slate-200">
+          {/* Search Bar (Left aligned like filters) */}
+          <div className="relative flex-1 max-w-md">
+             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+             <input 
+                type="text" 
+                placeholder="Search..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-lg text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-[#3f3f46] focus:ring-1 focus:ring-[#3f3f46] transition-all"
+             />
+          </div>
+
+          {/* Global Add Button (Right aligned) */}
+          <div className="relative shrink-0">
                  <button 
                     onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
-                    className="w-8 h-8 flex items-center justify-center bg-[#3f3f46] text-white rounded-md shadow-sm hover:bg-[#27272a] transition-all"
-                    title="Add"
+                    className="flex items-center justify-center gap-2 px-3 py-2 bg-[#3f3f46] text-white rounded-md shadow-sm hover:bg-[#27272a] transition-all text-sm font-bold"
                  >
-                    <Plus className="w-5 h-5" />
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden md:inline">New Note</span>
                  </button>
                  
                  {isAddMenuOpen && (
@@ -512,18 +513,6 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                         </div>
                      </>
                  )}
-             </div>
-          </div>
-
-          <div className="relative group">
-             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-             <input 
-                type="text" 
-                placeholder="Search notes..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-md text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-[#3f3f46] focus:ring-2 focus:ring-[#3f3f46]/10 transition-all"
-             />
           </div>
        </div>
 

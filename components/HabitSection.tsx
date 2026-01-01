@@ -450,8 +450,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
   return (
     <div className="animate-in fade-in duration-500 pb-20">
       {/* Header Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-2 bg-zinc-100 p-1 rounded-lg border border-zinc-200 self-start">
+      <div className="flex items-center justify-between gap-2 mb-6">
+        <div className="flex items-center gap-2 bg-zinc-100 p-1 rounded-lg border border-zinc-200 shrink-0">
             <button 
                 onClick={() => setFilter('all')}
                 className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${filter === 'all' ? 'bg-white text-[#3f3f46] shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
@@ -472,13 +472,13 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
             </button>
         </div>
         
-        <div className="flex items-center justify-end w-full md:w-auto">
+        <div className="flex items-center justify-end">
             <button 
                 onClick={openCreateModal}
-                className="flex items-center gap-2 px-4 py-2 bg-[#3f3f46] text-white hover:bg-[#27272a] rounded shadow-sm active:scale-95 transition-all text-sm font-bold w-full md:w-auto justify-center"
+                className="flex items-center gap-2 px-3 py-2 bg-[#3f3f46] text-white hover:bg-[#27272a] rounded shadow-sm active:scale-95 transition-all text-sm font-bold shrink-0"
             >
                 <Plus className="w-4 h-4" />
-                <span>New Habit</span>
+                <span className="hidden md:inline">New Habit</span>
             </button>
         </div>
       </div>

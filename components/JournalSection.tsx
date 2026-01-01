@@ -158,8 +158,8 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-2 bg-zinc-100 p-1 rounded-lg border border-zinc-200 self-start order-1">
+      <div className="flex items-center justify-between gap-2 mb-6">
+          <div className="flex items-center gap-2 bg-zinc-100 p-1 rounded-lg border border-zinc-200 shrink-0">
             {(['All', 'Log', 'Gratitude'] as JournalFilter[]).map((f) => (
               <button 
                 key={f} 
@@ -171,23 +171,23 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
             ))}
           </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-2 order-2 w-full md:w-auto">
-          <div className="relative flex-1 sm:flex-none w-full sm:w-auto">
+        <div className="flex items-center gap-2">
+          <div className="relative hidden sm:block">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input 
                 type="text" 
                 placeholder="Search..." 
                 value={searchQuery} 
                 onChange={(e) => setSearchQuery(e.target.value)} 
-                className="pl-9 pr-3 py-2 text-xs w-full sm:w-32 md:focus:w-48 font-bold bg-white border border-zinc-200 rounded transition-all focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-300" 
+                className="pl-9 pr-3 py-2 text-xs w-24 md:focus:w-48 font-bold bg-white border border-zinc-200 rounded transition-all focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-300" 
             />
           </div>
           <button 
             onClick={openCreateModal} 
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-[#3f3f46] text-white hover:bg-[#27272a] rounded shadow-sm active:scale-95 transition-all w-full sm:w-auto text-sm font-bold"
+            className="flex items-center justify-center gap-2 px-3 py-2 bg-[#3f3f46] text-white hover:bg-[#27272a] rounded shadow-sm active:scale-95 transition-all text-sm font-bold shrink-0"
           >
             <Plus className="w-4 h-4" />
-            <span>New Journal</span>
+            <span className="hidden md:inline">New Journal</span>
           </button>
         </div>
       </div>
