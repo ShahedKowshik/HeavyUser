@@ -471,7 +471,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
   const renderSidebar = () => (
     <div className="flex flex-col h-full bg-slate-50 border-r border-slate-200 w-full md:w-80 shrink-0">
        {/* Header & Search */}
-       <div className="px-4 md:px-8 py-4 flex items-center justify-between gap-2 shrink-0 bg-white border-b border-slate-200">
+       <div className="p-4 flex items-center justify-between gap-2 shrink-0 bg-white border-b border-slate-200">
           {/* Search Bar (Left aligned like filters) */}
           <div className="relative flex-1 max-w-md">
              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />

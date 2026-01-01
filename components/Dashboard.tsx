@@ -950,7 +950,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 relative flex flex-col overflow-hidden bg-slate-50/50">
+      <main className={`flex-1 relative flex flex-col ${isFullWidthView ? 'overflow-hidden' : 'overflow-y-auto'} bg-slate-50/50 pb-20 md:pb-0`}>
+        {/* ... (rest of main content) */}
         <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-8 py-4 bg-white/90 backdrop-blur-md border-b border-slate-200 shrink-0">
           <h2 className="text-xl font-black capitalize text-slate-800 tracking-tight">{activeTab === 'tasks' ? 'Tasks' : activeTab === 'habit' ? 'Habits' : activeTab.replace('_', ' ')}</h2>
           <div className="flex items-center space-x-4">
@@ -1065,18 +1066,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           </div>
         </header>
 
-        <div className="flex-1 min-h-0 overflow-hidden flex flex-col w-full">
-            {isFullWidthView ? (
-                // Full width views (Tasks, Notes) handle their own scrolling internally
-                renderContent()
-            ) : (
-                // Standard views (Habits, Journal, Settings) need a scroll container and layout constraints
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 pb-24 md:pb-8">
-                    <div className="max-w-7xl mx-auto">
-                        {renderContent()}
-                    </div>
-                </div>
-            )}
+        <div className={`mx-auto w-full ${isFullWidthView ? 'max-w-none flex-1 min-h-0 flex flex-col' : 'p-4 md:p-8 max-w-7xl'}`}>
+          {renderContent()}
         </div>
       </main>
 
