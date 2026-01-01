@@ -1,4 +1,5 @@
 
+// ... imports ... (keep existing)
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause, BarChart3 } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession } from '../types';
@@ -74,6 +75,7 @@ const MobileNavItem: React.FC<MobileNavItemProps> = ({ id, label, icon: Icon, ac
 
 const TaskTrackerWidget = ({ task, onToggle, onClose }: { task: Task, onToggle: (id: string, e?: React.MouseEvent) => void, onClose: () => void }) => {
     const [seconds, setSeconds] = useState(0);
+    const [tick, setTick] = useState(0); // Force update for 'Finish by' even if paused
     
     useEffect(() => {
         const calculateSeconds = () => {
@@ -86,10 +88,11 @@ const TaskTrackerWidget = ({ task, onToggle, onClose }: { task: Task, onToggle: 
         
         setSeconds(calculateSeconds());
 
-        if (!task.timerStart) return;
-
         const interval = setInterval(() => {
-            setSeconds(calculateSeconds());
+            if (task.timerStart) {
+                setSeconds(calculateSeconds());
+            }
+            setTick(t => t + 1); // Updates the "Finish By" relative to current time
         }, 1000);
         return () => clearInterval(interval);
     }, [task]);
@@ -101,14 +104,34 @@ const TaskTrackerWidget = ({ task, onToggle, onClose }: { task: Task, onToggle: 
         return `${h > 0 ? h + ':' : ''}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     };
 
+    // Calculate Estimated Finish Time
+    const getEstimatedFinishTime = () => {
+        if (!task.plannedTime || task.plannedTime <= 0) return null;
+        const plannedSeconds = task.plannedTime * 60;
+        // Remaining work time
+        const remainingSeconds = Math.max(0, plannedSeconds - seconds);
+        // If paused, we assume starting NOW, so finish time shifts. If running, assumes continuous work.
+        // Logic: Finish Time = Now + Remaining Duration
+        const finishTime = new Date(Date.now() + remainingSeconds * 1000);
+        return finishTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+    };
+
+    const finishTime = getEstimatedFinishTime();
+
     return (
         <div className="hidden md:flex h-9 items-center gap-3 bg-white border border-zinc-200 rounded-lg shadow-sm px-3 animate-in fade-in slide-in-from-top-2">
             <div className={`w-2 h-2 rounded-full ${task.timerStart ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`} />
             
             <div className="flex flex-col justify-center h-full min-w-[100px] max-w-[200px]">
-                <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider leading-none">
-                    {task.timerStart ? 'Running' : 'Paused'}
-                </span>
+                {finishTime ? (
+                     <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider leading-none">
+                        Finish by {finishTime}
+                    </span>
+                ) : (
+                    <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider leading-none">
+                        {task.timerStart ? 'Running' : 'Paused'}
+                    </span>
+                )}
                 <span className="text-xs font-bold text-zinc-800 truncate leading-none mt-0.5" title={task.title}>
                     {task.title}
                 </span>
@@ -659,10 +682,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       const remainingMinutes = activeTasks.reduce((acc, t) => {
           const planned = t.plannedTime || 0;
           const actual = t.actualTime || 0;
-          return acc + Math.max(0, planned - actual);
+          
+          let currentSessionMinutes = 0;
+          if (t.timerStart) {
+              const diffMs = nowTs - new Date(t.timerStart).getTime();
+              currentSessionMinutes = diffMs / 1000 / 60;
+          }
+
+          const totalSpent = actual + currentSessionMinutes;
+
+          return acc + Math.max(0, planned - totalSpent);
       }, 0);
 
-      return { totalTrackedSeconds, remainingMinutes };
+      const finishTime = remainingMinutes > 0 
+          ? new Date(nowTs + remainingMinutes * 60000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })
+          : null;
+
+      return { totalTrackedSeconds, remainingMinutes, finishTime };
   }, [sessions, tasks, userSettings.dayStartHour, statsTicker]);
 
   // --- Streak Calculation Logic ---
@@ -825,6 +861,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                             style={{ width: `${(sidebarStats.totalTrackedSeconds / Math.max(1, sidebarStats.totalTrackedSeconds + (sidebarStats.remainingMinutes * 60))) * 100}%` }}
                         />
                     </div>
+
+                    {sidebarStats.finishTime && (
+                       <div className="mt-2 text-[10px] text-center text-slate-500 font-medium bg-slate-100 rounded py-1">
+                           Finish by {sidebarStats.finishTime}
+                       </div>
+                    )}
                 </div>
             </div>
         )}
