@@ -66,6 +66,12 @@ const getHabitStats = (habit: Habit, today: string) => {
     // Determine where to start checking backwards
     let checkDateStr = successToday ? today : (successYesterday ? yesterday : null);
 
+    // FIX: If a negative habit is failed today (count > target), the streak is broken immediately.
+    // Unlike positive habits where "not done yet" falls back to yesterday, a negative habit failure is definitive.
+    if (habit.goalType === 'negative' && !successToday) {
+        checkDateStr = null;
+    }
+
     if (checkDateStr) {
         let currentCheckDate = new Date(checkDateStr);
         // We must check against startDate to prevent infinite loops for negative habits (where 0 is success)
@@ -324,10 +330,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
       
       if (habit.goalType === 'negative') {
           // Negative Goal: The bar represents "Bad things done"
-          // If exceeded limit (ratio > 1), Dark Red.
-          // Otherwise Red (User requested Red instead of Yellow for progress)
-          if (ratio > 1) return 'bg-rose-700'; // Exceeded limit heavily
-          return 'bg-rose-500'; // Any progress is "bad", so Red.
+          // Always use standard Red for consistency
+          return 'bg-rose-500'; 
       } else {
           // Positive Goal: The bar represents "Good things done"
           // Red -> Yellow -> Green
@@ -511,7 +515,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                     <div 
                         key={habit.id} 
                         onClick={() => setDetailHabitId(habit.id)}
-                        className={`group bg-white rounded-xl border shadow-sm hover:shadow-md transition-all cursor-pointer relative overflow-hidden ${isFailedToday ? 'border-rose-200' : 'border-zinc-200 hover:border-zinc-300'}`}
+                        className="group bg-white rounded-xl border border-zinc-200 shadow-sm hover:shadow-md hover:border-zinc-300 transition-all cursor-pointer relative overflow-hidden"
                     >
                          <div className="p-5 flex items-center gap-4">
                              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm border ${
@@ -574,7 +578,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                              </div>
                          </div>
                          
-                         <div className="h-1 w-full bg-zinc-50">
+                         <div className="absolute bottom-0 left-0 w-full h-1 bg-zinc-50">
                              <div 
                                 className={`h-full transition-all duration-500 ${barColorClass}`} 
                                 style={{ width: `${Math.min(100, (progressToday / habit.target) * 100)}%` }}
