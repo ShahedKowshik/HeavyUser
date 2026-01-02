@@ -174,6 +174,17 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
+// Safe UUID generator fallback
+const safeUUID = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+};
+
 const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState<AppTab>(() => {
     // Determine default tab based on enabled features
@@ -351,17 +362,24 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       try {
           // 1. STOP CURRENT TIMER (If any)
           if (runningTask) {
+              // Sanitize start time - if invalid in DB, treat as just started to avoid NaN
               const startTimeDate = new Date(runningTask.timerStart!);
-              // Handle invalid dates gracefully to prevent NaN errors which cause DB updates to fail
-              const startTime = isNaN(startTimeDate.getTime()) ? nowTime : startTimeDate.getTime();
-              
-              const diffSeconds = Math.max(0, Math.floor((nowTime - startTime) / 1000));
+              const isValidDate = !isNaN(startTimeDate.getTime());
+              const safeStartTime = isValidDate ? startTimeDate.getTime() : nowTime;
+              const safeStartTimeIso = isValidDate ? runningTask.timerStart! : nowIso;
+
+              const diffSeconds = Math.max(0, Math.floor((nowTime - safeStartTime) / 1000));
               const diffMinutes = diffSeconds / 60;
               const currentActual = runningTask.actualTime || 0;
-              // Round to 2 decimal places to ensure DB compatibility and clean data
-              const newActual = Math.round((currentActual + diffMinutes) * 100) / 100;
+              
+              let newActual = Math.round((currentActual + diffMinutes) * 100) / 100;
+              
+              // Safeguard against NaN or Infinity
+              if (!isFinite(newActual) || isNaN(newActual)) {
+                  newActual = currentActual;
+              }
 
-              // DB Update: Stop Timer FIRST (Critical for persistence - fix for previous issue)
+              // DB Update: Stop Timer FIRST (Critical for persistence)
               const { error: stopError } = await supabase.from('tasks').update({
                   timer_start: null,
                   actual_time: newActual
@@ -369,44 +387,48 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
               if (stopError) {
                   console.error('Stop Timer Error', stopError);
-                  throw stopError;
+                  throw new Error(`Failed to stop timer: ${stopError.message}`);
               }
 
-              // DB Update: Close Session (Secondary - Best Effort)
-              const openSessionIndex = updatedSessions.findIndex(s => s.taskId === runningTask.id && !s.endTime);
-              
-              if (openSessionIndex !== -1) {
-                  const { error: sessionError } = await supabase.from('task_sessions')
-                      .update({ end_time: nowIso, duration: diffSeconds })
-                      .eq('id', updatedSessions[openSessionIndex].id);
+              // DB Update: Close Session (Secondary - Wrapped in try/catch to not block UI)
+              try {
+                  const openSessionIndex = updatedSessions.findIndex(s => s.taskId === runningTask.id && !s.endTime);
                   
-                  if (!sessionError) {
+                  if (openSessionIndex !== -1) {
+                      await supabase.from('task_sessions')
+                          .update({ end_time: nowIso, duration: diffSeconds })
+                          .eq('id', updatedSessions[openSessionIndex].id);
+                      
+                      // Local update
                       updatedSessions[openSessionIndex] = {
                           ...updatedSessions[openSessionIndex],
                           endTime: nowIso,
                           duration: diffSeconds
                       };
-                  }
-              } else {
-                  // Fallback: Create closed session if missing
-                  const newSessionId = crypto.randomUUID();
-                  await supabase.from('task_sessions').insert({
-                      id: newSessionId,
-                      user_id: userId,
-                      task_id: runningTask.id,
-                      start_time: runningTask.timerStart || nowIso,
-                      end_time: nowIso,
-                      duration: diffSeconds
-                  });
+                  } else {
+                      // Fallback: Create closed session
+                      const newSessionId = safeUUID();
+                      await supabase.from('task_sessions').insert({
+                          id: newSessionId,
+                          user_id: userId,
+                          task_id: runningTask.id,
+                          start_time: safeStartTimeIso, // Send sanitized ISO
+                          end_time: nowIso,
+                          duration: diffSeconds
+                      });
 
-                  const newSession: TaskSession = {
-                      id: newSessionId,
-                      taskId: runningTask.id,
-                      startTime: runningTask.timerStart || nowIso,
-                      endTime: nowIso,
-                      duration: diffSeconds
-                  };
-                  updatedSessions = [newSession, ...updatedSessions];
+                      const newSession: TaskSession = {
+                          id: newSessionId,
+                          taskId: runningTask.id,
+                          startTime: safeStartTimeIso,
+                          endTime: nowIso,
+                          duration: diffSeconds
+                      };
+                      updatedSessions = [newSession, ...updatedSessions];
+                  }
+              } catch (sessionErr) {
+                  console.warn("Session logging failed (non-critical):", sessionErr);
+                  // Do NOT throw here, we successfully stopped the timer
               }
 
               // Local Update: Stop Timer
@@ -415,46 +437,50 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               } : t);
           }
 
-          // 2. START NEW TIMER (If selected task is different than the one we just stopped)
+          // 2. START NEW TIMER (If selected task is different)
           if (runningTask?.id !== id) {
               // DB Update: Start Timer
               const { error: startError } = await supabase.from('tasks').update({ timer_start: nowIso }).eq('id', id);
               
               if (startError) {
                    console.error('Start Timer Error', startError);
-                   throw startError;
+                   throw new Error(`Failed to start timer: ${startError.message}`);
               }
 
               // Local Update: Start Timer
               updatedTasks = updatedTasks.map(t => t.id === id ? { ...t, timerStart: nowIso } : t);
               
-              // DB Update: Create Session
-              const newSessionId = crypto.randomUUID();
-              await supabase.from('task_sessions').insert({
-                  id: newSessionId,
-                  user_id: userId,
-                  task_id: id,
-                  start_time: nowIso
-              });
+              // DB Update: Create Session (Wrapped in try/catch)
+              try {
+                  const newSessionId = safeUUID();
+                  await supabase.from('task_sessions').insert({
+                      id: newSessionId,
+                      user_id: userId,
+                      task_id: id,
+                      start_time: nowIso
+                  });
 
-              // Local Session Update
-              const newSession: TaskSession = {
-                  id: newSessionId,
-                  taskId: id,
-                  startTime: nowIso,
-                  endTime: null,
-                  duration: 0
-              };
-              updatedSessions = [newSession, ...updatedSessions];
+                  // Local Session Update
+                  const newSession: TaskSession = {
+                      id: newSessionId,
+                      taskId: id,
+                      startTime: nowIso,
+                      endTime: null,
+                      duration: 0
+                  };
+                  updatedSessions = [newSession, ...updatedSessions];
+              } catch (sessionErr) {
+                  console.warn("Session start failed (non-critical):", sessionErr);
+              }
           }
 
           // Commit Local Changes
           setTasks(updatedTasks);
           setSessions(updatedSessions);
 
-      } catch (err) {
+      } catch (err: any) {
           console.error("Failed to toggle timer:", err);
-          alert("Failed to update timer state. Please try again.");
+          alert(`Failed to update timer state: ${err.message || 'Unknown error'}`);
       }
   };
 
