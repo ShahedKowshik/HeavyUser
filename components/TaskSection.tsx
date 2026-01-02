@@ -9,6 +9,8 @@ import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
 import { cn } from '../lib/utils';
 
+// ... (previous interfaces and helper functions remain same: TaskSectionProps, types, PLANNED_TIME_OPTIONS, formatDuration, formatTimer, formatTimeRange, createNewTag, getLocalDateString, TaskDatePicker, getNextDate, mapTaskToDb, RecurrenceButton)
+
 interface TaskSectionProps {
   tasks: Task[];
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
@@ -254,7 +256,6 @@ const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRef
     );
 };
 
-// ... (Rest of existing helper functions: getNextDate, mapTaskToDb, RecurrenceButton remain unchanged)
 const getNextDate = (currentDateStr: string, r: Recurrence): string => {
   const parts = currentDateStr.split('-').map(Number);
   const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
@@ -363,7 +364,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
       return () => clearInterval(interval);
   }, []);
 
-  // ... (Rest of existing state hooks and functions: openCreateModal, handleCreateTask, updateSelectedTask, toggleTask, deleteTask, addSubtaskToTask, toggleSubtaskInTask, deleteSubtaskInTask, handleInlineCreateTag, openRecurrenceModal, handleSaveRecurrence, toggleExpand, getRelativeTimeColor, getPriorityStyle, renderPriorityIcon, getGroupingKey, processList, activeTasksGroups, completedTasksGroups remain the same)
+  // ... (Rest of existing state hooks)
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [isNewTaskDatePickerOpen, setIsNewTaskDatePickerOpen] = useState(false);
@@ -386,6 +387,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
   const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId), [tasks, selectedTaskId]);
 
+  // ... (getDayDiff, formatRelativeDate, tracker calculations)
   const getDayDiff = (dateStr: string) => {
     if (!dateStr) return 9999;
     const now = new Date();
@@ -518,7 +520,10 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     if (newCompleted && task.timerStart) {
         const startTime = new Date(task.timerStart).getTime();
         const diffMinutes = (Date.now() - startTime) / 60000;
-        const newActual = (task.actualTime || 0) + diffMinutes;
+        
+        // FIX: Round to integer to satisfy DB constraints
+        const newActual = Math.round((task.actualTime || 0) + diffMinutes);
+        
         timerUpdates = {
             timerStart: null,
             actualTime: newActual
@@ -560,6 +565,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     await supabase.from('tasks').update(dbUpdates).eq('id', id);
   };
 
+  // ... (Rest of existing handlers: deleteTask, addSubtaskToTask, toggleSubtaskInTask, deleteSubtaskInTask, handleInlineCreateTag, openRecurrenceModal, handleSaveRecurrence, toggleExpand, etc. remain unchanged)
+  
   const deleteTask = async (id: string) => {
     setTasks(tasks.filter(t => t.id !== id));
     if (selectedTaskId === id) setSelectedTaskId(null);
@@ -705,9 +712,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const activeTasksGroups = useMemo(() => processList(tasks.filter(t => !t.completed)), [tasks, grouping, sorting, activeFilterTagId, dayStartHour]);
   const completedTasksGroups = useMemo(() => processList(tasks.filter(t => t.completed)), [tasks, grouping, sorting, activeFilterTagId]);
 
-  // --- Render Functions (renderListGroups and renderTrackerView remain mostly the same, ensuring UI consistency) ---
+  // ... (rest of render logic remains unchanged from previous version)
   const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => {
-    // ... (rest of renderListGroups implementation from previous version)
     const currentHour = new Date().getHours();
     const startHour = dayStartHour || 0;
     const showNightOwlIcon = startHour > 0 && currentHour < startHour;
@@ -724,7 +730,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
          </div>
       )}
       {groups.map((group, gIdx) => {
-          // Calculate Group Stats
           const groupTrackedMinutes = group.tasks.reduce((acc, t) => {
               let activeDuration = 0;
               if (t.timerStart) {
@@ -765,7 +770,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                       )}
                   </div>
                   
-                  {/* Group Stats Display */}
                   {(groupTrackedMinutes > 0 || groupRemainingMinutes > 0) && (
                       <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-400 tabular-nums">
                           {groupTrackedMinutes > 0 && <span title="Total Tracked">Tracked: {formatDuration(groupTrackedMinutes)}</span>}
@@ -775,14 +779,13 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                   )}
                 </div>
               )}
-              {/* Task Cards Rendering */}
               <div className="grid grid-cols-1 gap-2">
                 {group.tasks.map((task) => {
                   const isExpanded = expandedTasks.has(task.id);
                   const pStyle = getPriorityStyle(task.priority);
                   const relativeColor = getRelativeTimeColor(task.dueDate);
                   const diffDays = getDayDiff(task.dueDate);
-                  const isFocus = diffDays <= 0; // Overdue or Today
+                  const isFocus = diffDays <= 0;
 
                   const isTimerRunning = !!task.timerStart;
                   let currentSessionSeconds = 0;
@@ -800,7 +803,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                       onClick={() => setSelectedTaskId(task.id)}
                       className={`rounded border border-zinc-200 px-4 py-3 transition-all hover:shadow-md hover:border-zinc-300 group cursor-pointer ${task.completed ? 'opacity-70 bg-zinc-50' : (isFocus ? 'bg-white' : 'bg-zinc-50')}`}
                     >
-                      {/* ... (Existing task card content) ... */}
                       <div className="flex items-start gap-3">
                         <div className="shrink-0 relative">
                           <button 
@@ -860,7 +862,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                 </div>
                                 
                                 <div className="flex items-center shrink-0 text-xs flex-row-reverse md:flex-row justify-end w-full md:w-auto">
-                                      {/* Play Button & Planned Time Pill */}
                                       <div className="flex items-center gap-1">
                                           <button 
                                               onClick={(e) => onToggleTimer(task.id, e)}
@@ -967,10 +968,9 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   const renderTrackerView = () => {
-      // ... (rest of renderTrackerView implementation from previous version)
+      // ... (rest of existing renderTrackerView code, unchanged)
       return (
           <div className="space-y-6">
-              {/* Analytics Header */}
               <div className="grid grid-cols-3 gap-3">
                   <div className="bg-white border border-zinc-200 rounded-lg p-3 text-center shadow-sm">
                       <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide mb-1">Total Tracked</div>
@@ -992,7 +992,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                   </div>
               </div>
 
-              {/* Feed */}
               <div className="space-y-4">
                   {groupedSessions.length === 0 && (
                       <div className="text-center py-12 opacity-50">
@@ -1297,7 +1296,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
             </div>
          )}
 
-         {/* Edit Task Modal - (Content same as previous, omitted for brevity as only header changed) */}
+         {/* Edit Task Modal */}
          {selectedTask && (
              <div 
                 onClick={() => setSelectedTaskId(null)} 

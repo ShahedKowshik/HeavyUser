@@ -372,11 +372,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               const diffMinutes = diffSeconds / 60;
               const currentActual = runningTask.actualTime || 0;
               
-              let newActual = Math.round((currentActual + diffMinutes) * 100) / 100;
+              // FIX: Round to nearest integer to satisfy DB 'integer' type.
+              // To support decimals, DB needs: ALTER TABLE tasks ALTER COLUMN actual_time TYPE numeric;
+              let newActual = Math.round(currentActual + diffMinutes);
               
               // Safeguard against NaN or Infinity
               if (!isFinite(newActual) || isNaN(newActual)) {
-                  newActual = currentActual;
+                  newActual = Math.round(currentActual);
               }
 
               // DB Update: Stop Timer FIRST (Critical for persistence)
@@ -386,8 +388,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               }).eq('id', runningTask.id);
 
               if (stopError) {
-                  console.error('Stop Timer Error', stopError);
-                  throw new Error(`Failed to stop timer: ${stopError.message}`);
+                  console.error('Stop Timer Error:', JSON.stringify(stopError));
+                  throw new Error(`Failed to stop timer: ${stopError.message || stopError.details || 'DB Error'}`);
               }
 
               // DB Update: Close Session (Secondary - Wrapped in try/catch to not block UI)
@@ -428,7 +430,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                   }
               } catch (sessionErr) {
                   console.warn("Session logging failed (non-critical):", sessionErr);
-                  // Do NOT throw here, we successfully stopped the timer
               }
 
               // Local Update: Stop Timer
@@ -443,8 +444,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               const { error: startError } = await supabase.from('tasks').update({ timer_start: nowIso }).eq('id', id);
               
               if (startError) {
-                   console.error('Start Timer Error', startError);
-                   throw new Error(`Failed to start timer: ${startError.message}`);
+                   console.error('Start Timer Error:', JSON.stringify(startError));
+                   throw new Error(`Failed to start timer: ${startError.message || startError.details || 'DB Error'}`);
               }
 
               // Local Update: Start Timer
@@ -508,7 +509,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           const durationMin = durationSeconds / 60;
           const task = tasks.find(t => t.id === session.taskId);
           if (task) {
-              const newActual = Math.max(0, (task.actualTime || 0) - durationMin);
+              const val = Math.max(0, (task.actualTime || 0) - durationMin);
+              const newActual = Math.round(val); // Ensure integer
+
               setTasks(prev => prev.map(t => t.id === task.id ? { ...t, actualTime: newActual } : t));
               
               const updates: any = { actual_time: newActual };
