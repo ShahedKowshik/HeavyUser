@@ -339,8 +339,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       const task = tasks.find(t => t.id === id);
       if (!task) return;
 
-      const nowIso = new Date().toISOString();
-      const nowTime = new Date(nowIso).getTime();
+      const now = new Date();
+      const nowIso = now.toISOString();
+      const nowTime = now.getTime();
 
       let updatedTasks = [...tasks];
       let updatedSessions = [...sessions];
@@ -350,20 +351,28 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       try {
           // 1. STOP CURRENT TIMER (If any)
           if (runningTask) {
-              const startTime = new Date(runningTask.timerStart!).getTime();
-              const diffSeconds = Math.floor((nowTime - startTime) / 1000);
+              const startTimeDate = new Date(runningTask.timerStart!);
+              // Handle invalid dates gracefully to prevent NaN errors which cause DB updates to fail
+              const startTime = isNaN(startTimeDate.getTime()) ? nowTime : startTimeDate.getTime();
+              
+              const diffSeconds = Math.max(0, Math.floor((nowTime - startTime) / 1000));
               const diffMinutes = diffSeconds / 60;
-              const newActual = (runningTask.actualTime || 0) + diffMinutes;
+              const currentActual = runningTask.actualTime || 0;
+              // Round to 2 decimal places to ensure DB compatibility and clean data
+              const newActual = Math.round((currentActual + diffMinutes) * 100) / 100;
 
-              // DB Update: Stop Timer FIRST (Critical for persistence)
+              // DB Update: Stop Timer FIRST (Critical for persistence - fix for previous issue)
               const { error: stopError } = await supabase.from('tasks').update({
                   timer_start: null,
                   actual_time: newActual
               }).eq('id', runningTask.id);
 
-              if (stopError) throw stopError;
+              if (stopError) {
+                  console.error('Stop Timer Error', stopError);
+                  throw stopError;
+              }
 
-              // DB Update: Close Session (Secondary)
+              // DB Update: Close Session (Secondary - Best Effort)
               const openSessionIndex = updatedSessions.findIndex(s => s.taskId === runningTask.id && !s.endTime);
               
               if (openSessionIndex !== -1) {
@@ -379,27 +388,25 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                       };
                   }
               } else {
-                  // Fallback: Create closed session
+                  // Fallback: Create closed session if missing
                   const newSessionId = crypto.randomUUID();
-                  const { error: insertError } = await supabase.from('task_sessions').insert({
+                  await supabase.from('task_sessions').insert({
                       id: newSessionId,
                       user_id: userId,
                       task_id: runningTask.id,
-                      start_time: runningTask.timerStart!,
+                      start_time: runningTask.timerStart || nowIso,
                       end_time: nowIso,
                       duration: diffSeconds
                   });
 
-                  if (!insertError) {
-                      const newSession: TaskSession = {
-                          id: newSessionId,
-                          taskId: runningTask.id,
-                          startTime: runningTask.timerStart!,
-                          endTime: nowIso,
-                          duration: diffSeconds
-                      };
-                      updatedSessions = [newSession, ...updatedSessions];
-                  }
+                  const newSession: TaskSession = {
+                      id: newSessionId,
+                      taskId: runningTask.id,
+                      startTime: runningTask.timerStart || nowIso,
+                      endTime: nowIso,
+                      duration: diffSeconds
+                  };
+                  updatedSessions = [newSession, ...updatedSessions];
               }
 
               // Local Update: Stop Timer
@@ -408,35 +415,37 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               } : t);
           }
 
-          // 2. START NEW TIMER (If selected task is different)
+          // 2. START NEW TIMER (If selected task is different than the one we just stopped)
           if (runningTask?.id !== id) {
               // DB Update: Start Timer
               const { error: startError } = await supabase.from('tasks').update({ timer_start: nowIso }).eq('id', id);
               
-              if (startError) throw startError;
+              if (startError) {
+                   console.error('Start Timer Error', startError);
+                   throw startError;
+              }
 
               // Local Update: Start Timer
               updatedTasks = updatedTasks.map(t => t.id === id ? { ...t, timerStart: nowIso } : t);
               
               // DB Update: Create Session
               const newSessionId = crypto.randomUUID();
-              const { error: sessionStartError } = await supabase.from('task_sessions').insert({
+              await supabase.from('task_sessions').insert({
                   id: newSessionId,
                   user_id: userId,
                   task_id: id,
                   start_time: nowIso
               });
 
-              if (!sessionStartError) {
-                  const newSession: TaskSession = {
-                      id: newSessionId,
-                      taskId: id,
-                      startTime: nowIso,
-                      endTime: null,
-                      duration: 0
-                  };
-                  updatedSessions = [newSession, ...updatedSessions];
-              }
+              // Local Session Update
+              const newSession: TaskSession = {
+                  id: newSessionId,
+                  taskId: id,
+                  startTime: nowIso,
+                  endTime: null,
+                  duration: 0
+              };
+              updatedSessions = [newSession, ...updatedSessions];
           }
 
           // Commit Local Changes
