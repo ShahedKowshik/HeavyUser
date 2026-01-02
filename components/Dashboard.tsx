@@ -342,103 +342,110 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       const nowIso = new Date().toISOString();
       const nowTime = new Date(nowIso).getTime();
 
-      // Optimistic updates
       let updatedTasks = [...tasks];
       let updatedSessions = [...sessions];
 
-      // 1. Check if ANY task is running (could be this one or another)
       const runningTask = tasks.find(t => !!t.timerStart);
       
-      // Explicitly await DB operations to ensure persistence before potential refresh
       try {
+          // 1. STOP CURRENT TIMER (If any)
           if (runningTask) {
-              // We must stop the running task first
               const startTime = new Date(runningTask.timerStart!).getTime();
               const diffSeconds = Math.floor((nowTime - startTime) / 1000);
               const diffMinutes = diffSeconds / 60;
               const newActual = (runningTask.actualTime || 0) + diffMinutes;
 
-              // Update Task State (Optimistic)
-              updatedTasks = updatedTasks.map(t => t.id === runningTask.id ? { 
-                  ...t, timerStart: null, actualTime: newActual 
-              } : t);
-
-              // Update Session State (Find open session for this task)
-              const openSessionIndex = updatedSessions.findIndex(s => s.taskId === runningTask.id && !s.endTime);
-              
-              if (openSessionIndex !== -1) {
-                  updatedSessions[openSessionIndex] = {
-                      ...updatedSessions[openSessionIndex],
-                      endTime: nowIso,
-                      duration: diffSeconds
-                  };
-                  
-                  // DB Update for Session
-                  await supabase.from('task_sessions')
-                      .update({ end_time: nowIso, duration: diffSeconds })
-                      .eq('id', updatedSessions[openSessionIndex].id);
-              } else {
-                  // Fallback: Create closed session record if not found (keeps history intact)
-                  const newSession: TaskSession = {
-                      id: crypto.randomUUID(),
-                      taskId: runningTask.id,
-                      startTime: runningTask.timerStart!,
-                      endTime: nowIso,
-                      duration: diffSeconds
-                  };
-                  updatedSessions = [newSession, ...updatedSessions];
-                  await supabase.from('task_sessions').insert({
-                      id: newSession.id,
-                      user_id: userId,
-                      task_id: newSession.taskId,
-                      start_time: newSession.startTime,
-                      end_time: newSession.endTime,
-                      duration: newSession.duration
-                  });
-              }
-
-              // DB Update for Task (Set timer_start to null)
-              await supabase.from('tasks').update({
+              // DB Update: Stop Timer FIRST (Critical for persistence)
+              const { error: stopError } = await supabase.from('tasks').update({
                   timer_start: null,
                   actual_time: newActual
               }).eq('id', runningTask.id);
+
+              if (stopError) throw stopError;
+
+              // DB Update: Close Session (Secondary)
+              const openSessionIndex = updatedSessions.findIndex(s => s.taskId === runningTask.id && !s.endTime);
+              
+              if (openSessionIndex !== -1) {
+                  const { error: sessionError } = await supabase.from('task_sessions')
+                      .update({ end_time: nowIso, duration: diffSeconds })
+                      .eq('id', updatedSessions[openSessionIndex].id);
+                  
+                  if (!sessionError) {
+                      updatedSessions[openSessionIndex] = {
+                          ...updatedSessions[openSessionIndex],
+                          endTime: nowIso,
+                          duration: diffSeconds
+                      };
+                  }
+              } else {
+                  // Fallback: Create closed session
+                  const newSessionId = crypto.randomUUID();
+                  const { error: insertError } = await supabase.from('task_sessions').insert({
+                      id: newSessionId,
+                      user_id: userId,
+                      task_id: runningTask.id,
+                      start_time: runningTask.timerStart!,
+                      end_time: nowIso,
+                      duration: diffSeconds
+                  });
+
+                  if (!insertError) {
+                      const newSession: TaskSession = {
+                          id: newSessionId,
+                          taskId: runningTask.id,
+                          startTime: runningTask.timerStart!,
+                          endTime: nowIso,
+                          duration: diffSeconds
+                      };
+                      updatedSessions = [newSession, ...updatedSessions];
+                  }
+              }
+
+              // Local Update: Stop Timer
+              updatedTasks = updatedTasks.map(t => t.id === runningTask.id ? { 
+                  ...t, timerStart: null, actualTime: newActual 
+              } : t);
           }
 
-          // 2. If we are starting a NEW timer
+          // 2. START NEW TIMER (If selected task is different)
           if (runningTask?.id !== id) {
-              // Start the selected task
+              // DB Update: Start Timer
+              const { error: startError } = await supabase.from('tasks').update({ timer_start: nowIso }).eq('id', id);
+              
+              if (startError) throw startError;
+
+              // Local Update: Start Timer
               updatedTasks = updatedTasks.map(t => t.id === id ? { ...t, timerStart: nowIso } : t);
               
-              // Create new Session
-              const newSession: TaskSession = {
-                  id: crypto.randomUUID(),
-                  taskId: id,
-                  startTime: nowIso,
-                  endTime: null,
-                  duration: 0
-              };
-              updatedSessions = [newSession, ...updatedSessions];
-
-              // DB Updates
-              await supabase.from('tasks').update({ timer_start: nowIso }).eq('id', id);
-              await supabase.from('task_sessions').insert({
-                  id: newSession.id,
+              // DB Update: Create Session
+              const newSessionId = crypto.randomUUID();
+              const { error: sessionStartError } = await supabase.from('task_sessions').insert({
+                  id: newSessionId,
                   user_id: userId,
-                  task_id: newSession.taskId,
-                  start_time: newSession.startTime
+                  task_id: id,
+                  start_time: nowIso
               });
+
+              if (!sessionStartError) {
+                  const newSession: TaskSession = {
+                      id: newSessionId,
+                      taskId: id,
+                      startTime: nowIso,
+                      endTime: null,
+                      duration: 0
+                  };
+                  updatedSessions = [newSession, ...updatedSessions];
+              }
           }
 
-          // Update Local State after DB ops to confirm strict consistency, 
-          // or before if we trust optimistic. Given the bug report, let's keep optimistic 
-          // but valid since we awaited the critical parts above.
+          // Commit Local Changes
           setTasks(updatedTasks);
           setSessions(updatedSessions);
 
       } catch (err) {
           console.error("Failed to toggle timer:", err);
-          // Revert logic could be implemented here if strict consistency is required
-          // For now, alerting user or silent fail logging is standard for MVP
+          alert("Failed to update timer state. Please try again.");
       }
   };
 
