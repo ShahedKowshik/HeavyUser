@@ -1,15 +1,11 @@
 
-// ... (imports remain the same)
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Square, Repeat, ChevronDown, Moon, Circle, Flame, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, LayoutTemplate, AlignJustify, History, BarChart3 } from 'lucide-react';
-// ... (rest of imports and types/interfaces same as before)
 import { Task, Priority, Subtask, Tag, Recurrence, TaskSession } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
 import { cn } from '../lib/utils';
-
-// ... (previous interfaces and helper functions remain same: TaskSectionProps, types, PLANNED_TIME_OPTIONS, formatDuration, formatTimer, formatTimeRange, createNewTag, getLocalDateString, TaskDatePicker, getNextDate, mapTaskToDb, RecurrenceButton)
 
 interface TaskSectionProps {
   tasks: Task[];
@@ -33,7 +29,7 @@ const priorityOrder: Record<Priority, number> = { 'Urgent': 0, 'High': 1, 'Norma
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// Sunsama-style time options in minutes
+// Time options in minutes
 const PLANNED_TIME_OPTIONS = [
     { label: '1m', value: 1 },
     { label: '2m', value: 2 },
@@ -55,9 +51,10 @@ const PLANNED_TIME_OPTIONS = [
 ];
 
 const formatDuration = (minutes: number) => {
-    if (minutes < 60) return `${Math.round(minutes)}m`;
+    if (minutes > 0 && minutes < 1) return '< 1m';
+    if (minutes < 60) return `${Math.floor(minutes)}m`;
     const h = Math.floor(minutes / 60);
-    const m = Math.round(minutes % 60);
+    const m = Math.floor(minutes % 60);
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
 };
 
@@ -348,8 +345,11 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const [viewMode, setViewMode] = useState<'active' | 'completed'>('active');
   const [viewLayout, setViewLayout] = useState<'list' | 'tracker'>('list');
   const [grouping, setGrouping] = useState<Grouping>(() => {
-      const saved = localStorage.getItem('heavyuser_task_grouping');
-      return (saved as Grouping) || 'date';
+      if (typeof window !== 'undefined') {
+          const saved = localStorage.getItem('heavyuser_task_grouping');
+          return (saved as Grouping) || 'date';
+      }
+      return 'date';
   });
   const [sorting, setSorting] = useState<Sorting>('priority');
 
@@ -364,7 +364,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
       return () => clearInterval(interval);
   }, []);
 
-  // ... (Rest of existing state hooks)
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [isNewTaskDatePickerOpen, setIsNewTaskDatePickerOpen] = useState(false);
@@ -387,7 +386,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
   const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId), [tasks, selectedTaskId]);
 
-  // ... (getDayDiff, formatRelativeDate, tracker calculations)
   const getDayDiff = (dateStr: string) => {
     if (!dateStr) return 9999;
     const now = new Date();
@@ -410,7 +408,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // --- Tracker Data Calculation (Hoisted) ---
+  // --- Tracker Data Calculation ---
   const todayForTracker = new Date();
   if (todayForTracker.getHours() < (dayStartHour || 0)) todayForTracker.setDate(todayForTracker.getDate() - 1);
   const todayStrForTracker = getLocalDateString(todayForTracker);
@@ -521,8 +519,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
         const startTime = new Date(task.timerStart).getTime();
         const diffMinutes = (Date.now() - startTime) / 60000;
         
-        // FIX: Round to integer to satisfy DB constraints
-        const newActual = Math.round((task.actualTime || 0) + diffMinutes);
+        // NO ROUNDING: Keep float precision for small durations (e.g. 0.05 min)
+        const newActual = (task.actualTime || 0) + diffMinutes;
         
         timerUpdates = {
             timerStart: null,
@@ -564,8 +562,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
     await supabase.from('tasks').update(dbUpdates).eq('id', id);
   };
-
-  // ... (Rest of existing handlers: deleteTask, addSubtaskToTask, toggleSubtaskInTask, deleteSubtaskInTask, handleInlineCreateTag, openRecurrenceModal, handleSaveRecurrence, toggleExpand, etc. remain unchanged)
   
   const deleteTask = async (id: string) => {
     setTasks(tasks.filter(t => t.id !== id));
@@ -712,7 +708,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const activeTasksGroups = useMemo(() => processList(tasks.filter(t => !t.completed)), [tasks, grouping, sorting, activeFilterTagId, dayStartHour]);
   const completedTasksGroups = useMemo(() => processList(tasks.filter(t => t.completed)), [tasks, grouping, sorting, activeFilterTagId]);
 
-  // ... (rest of render logic remains unchanged from previous version)
   const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => {
     const currentHour = new Date().getHours();
     const startHour = dayStartHour || 0;
@@ -968,7 +963,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   const renderTrackerView = () => {
-      // ... (rest of existing renderTrackerView code, unchanged)
       return (
           <div className="space-y-6">
               <div className="grid grid-cols-3 gap-3">

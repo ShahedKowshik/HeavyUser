@@ -372,13 +372,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               const diffMinutes = diffSeconds / 60;
               const currentActual = runningTask.actualTime || 0;
               
-              // FIX: Round to nearest integer to satisfy DB 'integer' type.
-              // To support decimals, DB needs: ALTER TABLE tasks ALTER COLUMN actual_time TYPE numeric;
-              let newActual = Math.round(currentActual + diffMinutes);
+              // Use float/numeric for actual_time to allow precision < 1 minute
+              // Requires SQL: ALTER TABLE tasks ALTER COLUMN actual_time TYPE float;
+              let newActual = currentActual + diffMinutes;
               
               // Safeguard against NaN or Infinity
               if (!isFinite(newActual) || isNaN(newActual)) {
-                  newActual = Math.round(currentActual);
+                  newActual = currentActual;
               }
 
               // DB Update: Stop Timer FIRST (Critical for persistence)
@@ -510,7 +510,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           const task = tasks.find(t => t.id === session.taskId);
           if (task) {
               const val = Math.max(0, (task.actualTime || 0) - durationMin);
-              const newActual = Math.round(val); // Ensure integer
+              const newActual = val; // No rounding
 
               setTasks(prev => prev.map(t => t.id === task.id ? { ...t, actualTime: newActual } : t));
               
