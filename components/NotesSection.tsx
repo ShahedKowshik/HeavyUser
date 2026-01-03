@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Plus, Trash2, X, FileText, ChevronLeft, Folder, Bold, Italic, List, Heading, CheckSquare, FolderPlus, Check, Pencil, Tag as TagIcon, Clock, Type, Menu, ChevronRight, MoreVertical, ChevronDown, File } from 'lucide-react';
+import { Search, Plus, Trash2, X, FileText, ChevronLeft, Folder, FolderPlus, Check, Pencil, Tag as TagIcon, Clock, Type, Menu, ChevronRight, MoreVertical, ChevronDown, File } from 'lucide-react';
 import { Note, Folder as FolderType, Tag } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -36,6 +36,26 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     return newTag;
 };
 
+// Helper to convert legacy HTML content to plain text for the textarea
+const stripHtml = (html: string) => {
+    if (!html) return '';
+    // If it doesn't look like HTML, return as is
+    if (!/<[a-z][\s\S]*>/i.test(html)) return html;
+    
+    // Create a temporary DOM element to extract text
+    const temp = document.createElement('div');
+    // Replace block elements with newlines to preserve structure
+    let formatted = html
+        .replace(/<\/div>/ig, '\n')
+        .replace(/<\/p>/ig, '\n')
+        .replace(/<li>/ig, '• ')
+        .replace(/<\/li>/ig, '\n')
+        .replace(/<br\s*\/?>/ig, '\n');
+        
+    temp.innerHTML = formatted;
+    return temp.textContent || temp.innerText || '';
+};
+
 const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, setFolders, userId, tags, setTags, activeFilterTagId }) => {
   // Navigation State
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
@@ -50,8 +70,8 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
 
   // Editor State
   const [editorTitle, setEditorTitle] = useState('');
+  const [editorContent, setEditorContent] = useState('');
   const [editorTags, setEditorTags] = useState<string[]>([]);
-  const editorRef = useRef<HTMLDivElement>(null);
   const prevNoteIdRef = useRef<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isTagPopoverOpen, setIsTagPopoverOpen] = useState(false);
@@ -149,18 +169,15 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
       if (hasSwitched) {
         setEditorTitle(selectedNote.title);
         setEditorTags(selectedNote.tags || []);
-        if (editorRef.current) {
-          editorRef.current.innerHTML = selectedNote.content;
-        }
+        // Convert legacy HTML content to plain text for display
+        setEditorContent(stripHtml(selectedNote.content));
         prevNoteIdRef.current = selectedNoteId;
         setIsTagPopoverOpen(false);
       } 
     } else {
       setEditorTitle('');
       setEditorTags([]);
-      if (editorRef.current) {
-        editorRef.current.innerHTML = '';
-      }
+      setEditorContent('');
       prevNoteIdRef.current = null;
     }
   }, [selectedNoteId, selectedNote]);
@@ -188,210 +205,13 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
     };
   }, []);
 
-  const handleContentChange = () => {
-    if (!selectedNoteId || !editorRef.current || !selectedNote) return;
-    const newContent = editorRef.current.innerHTML;
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (!selectedNoteId || !selectedNote) return;
+    const newContent = e.target.value;
+    setEditorContent(newContent);
     
     setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, content: newContent, updatedAt: new Date().toISOString() } : n));
     saveToDb(selectedNoteId, editorTitle, newContent, editorTags, selectedNote.folderId);
-  };
-
-  // Smart List Handlers
-  const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    // 1. Enter Key Logic for Checkboxes & Lists
-    if (e.key === 'Enter') {
-      const selection = window.getSelection();
-      if (!selection || !selection.rangeCount) return;
-      const range = selection.getRangeAt(0);
-
-      // Find current block (div/p/li/headers)
-      let currentBlock = range.startContainer.nodeType === Node.ELEMENT_NODE
-          ? range.startContainer as HTMLElement
-          : range.startContainer.parentElement;
-      
-      const blockTags = ['DIV', 'P', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'];
-
-      // Traverse up to find the block container
-      while (currentBlock && !blockTags.includes(currentBlock.nodeName) && currentBlock !== editorRef.current) {
-          currentBlock = currentBlock.parentElement;
-      }
-      
-      // Check if current block has a checkbox
-      const checkbox = currentBlock?.querySelector('input[type="checkbox"]');
-      
-      if (checkbox && currentBlock instanceof HTMLElement) {
-          // If the checkbox line is active, we take control of Enter
-          e.preventDefault();
-          
-          const textContent = currentBlock.textContent || '';
-          // Remove invisible chars and whitespace
-          const cleanText = textContent.replace(/[\u200B\u00A0\s]/g, '');
-          
-          if (cleanText.length === 0) {
-              // Empty line: Exit checklist
-              checkbox.remove();
-              // Remove styling classes to revert to normal text block
-              currentBlock.classList.remove('flex', 'items-center', 'gap-2');
-              // Ensure block has height
-              if (!currentBlock.innerHTML || currentBlock.innerHTML === '') {
-                 currentBlock.innerHTML = '<br>';
-              }
-          } else {
-              // Create new checkbox line
-              const newDiv = document.createElement('div');
-              // CRITICAL: Copy classes (e.g. flex items-center) to maintain layout
-              newDiv.className = currentBlock.className;
-              
-              const newCheckbox = document.createElement('input');
-              newCheckbox.type = 'checkbox';
-              newCheckbox.className = 'mr-2';
-              newDiv.appendChild(newCheckbox);
-              
-              // Append Zero Width Space
-              const textNode = document.createTextNode('\u200B');
-              newDiv.appendChild(textNode);
-              
-              if (currentBlock.nextSibling) {
-                  editorRef.current?.insertBefore(newDiv, currentBlock.nextSibling);
-              } else {
-                  editorRef.current?.appendChild(newDiv);
-              }
-              
-              // Move cursor
-              const newRange = document.createRange();
-              newRange.setStart(textNode, 0); 
-              newRange.collapse(true);
-              selection.removeAllRanges();
-              selection.addRange(newRange);
-          }
-          handleContentChange();
-          return;
-      }
-      // Note: Native behavior handles standard <li> lists correctly on Enter.
-    }
-
-    // 2. Backspace Key Logic for Checkboxes
-    if (e.key === 'Backspace') {
-      const selection = window.getSelection();
-      if (!selection || !selection.rangeCount) return;
-      const range = selection.getRangeAt(0);
-
-      // Find current block
-      let currentBlock = range.startContainer.nodeType === Node.ELEMENT_NODE
-          ? range.startContainer as HTMLElement
-          : range.startContainer.parentElement;
-
-      // Ensure we don't go past the editor
-      while (currentBlock && currentBlock.parentElement !== editorRef.current && currentBlock !== editorRef.current) {
-          currentBlock = currentBlock.parentElement;
-      }
-
-      if (currentBlock) {
-          const checkbox = currentBlock.querySelector('input[type="checkbox"]');
-          if (checkbox) {
-              // Logic 1: If line is visually empty (just checkbox + whitespace/invisible chars)
-              const text = currentBlock.textContent || '';
-              const cleanText = text.replace(/[\u200B\u00A0\s]/g, ''); 
-              
-              if (cleanText.length === 0) {
-                  e.preventDefault();
-                  checkbox.remove();
-                  if (currentBlock instanceof HTMLElement) {
-                      currentBlock.classList.remove('flex', 'items-center', 'gap-2');
-                  }
-                  handleContentChange();
-                  return;
-              }
-
-              // Logic 2: Standard cursor check (Start of line)
-              if (range.collapsed && range.startOffset === 0) {
-                  e.preventDefault(); 
-                  checkbox.remove();
-                  if (currentBlock instanceof HTMLElement) {
-                      currentBlock.classList.remove('flex', 'items-center', 'gap-2');
-                  }
-                  handleContentChange();
-                  return;
-              }
-          }
-      }
-    }
-
-    // 3. Space Key Logic (Markdown shortcuts)
-    if (e.key === ' ') {
-      const selection = window.getSelection();
-      if (!selection || !selection.rangeCount) return;
-      
-      const range = selection.getRangeAt(0);
-      const { startContainer, startOffset } = range;
-      
-      if (startContainer.nodeType === Node.TEXT_NODE && startContainer.parentElement) {
-         const text = startContainer.textContent || '';
-         const textBeforeCaret = text.slice(0, startOffset);
-         
-         const checkboxMatch = textBeforeCaret.match(/^\[\]$/); // []
-         const orderedMatch = textBeforeCaret.match(/^1\.$/); // 1.
-         const unorderedMatch = textBeforeCaret.match(/^-$/); // -
-         const h1Match = textBeforeCaret.match(/^#$/); // #
-         const h2Match = textBeforeCaret.match(/^##$/); // ##
-
-         if (checkboxMatch || orderedMatch || unorderedMatch || h1Match || h2Match) {
-            e.preventDefault(); 
-            
-            // Delete the shortcut text (e.g. "[]")
-            const textNode = startContainer as Text;
-            const shortcutLength = textBeforeCaret.length;
-            const content = textNode.textContent || '';
-            
-            // Removing text manually
-            textNode.textContent = content.slice(0, startOffset - shortcutLength) + content.slice(startOffset);
-            
-            // Check Parent Block type
-            let currentBlock = startContainer.parentElement;
-            while (currentBlock && !['DIV', 'P', 'LI'].includes(currentBlock.nodeName) && currentBlock !== editorRef.current) {
-                currentBlock = currentBlock.parentElement;
-            }
-
-            if (checkboxMatch) {
-                 // Prevent list mixing
-                 if (currentBlock?.nodeName === 'LI') {
-                     document.execCommand('formatBlock', false, 'DIV');
-                 }
-                 
-                 // Insert checkbox with wrapper for consistent styling
-                 document.execCommand('insertHTML', false, '<div class="flex items-center"><input type="checkbox" class="mr-2" />\u200B</div>');
-                 
-            } else if (orderedMatch) {
-                 currentBlock?.querySelector('input[type="checkbox"]')?.remove();
-                 document.execCommand('insertOrderedList');
-            } else if (unorderedMatch) {
-                 currentBlock?.querySelector('input[type="checkbox"]')?.remove();
-                 document.execCommand('insertUnorderedList');
-            } else if (h1Match) {
-                 currentBlock?.querySelector('input[type="checkbox"]')?.remove();
-                 document.execCommand('formatBlock', false, 'H1');
-            } else if (h2Match) {
-                 currentBlock?.querySelector('input[type="checkbox"]')?.remove();
-                 document.execCommand('formatBlock', false, 'H2');
-            }
-            
-            handleContentChange();
-         }
-      }
-    }
-  };
-
-  const handleEditorClick = (e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'checkbox') {
-        const checkbox = target as HTMLInputElement;
-        if (checkbox.checked) {
-            checkbox.setAttribute('checked', 'checked');
-        } else {
-            checkbox.removeAttribute('checked');
-        }
-        handleContentChange();
-    }
   };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -412,10 +232,8 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
            });
        }
 
-      if (editorRef.current) {
-        setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, title: newTitle, updatedAt: new Date().toISOString() } : n));
-        saveToDb(selectedNoteId, newTitle, editorRef.current.innerHTML, editorTags, selectedNote.folderId);
-      }
+      setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, title: newTitle, updatedAt: new Date().toISOString() } : n));
+      saveToDb(selectedNoteId, newTitle, editorContent, editorTags, selectedNote.folderId);
     }
   };
 
@@ -424,9 +242,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
       const nextTags = editorTags.includes(tagId) ? editorTags.filter(id => id !== tagId) : [...editorTags, tagId];
       setEditorTags(nextTags);
       setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, tags: nextTags, updatedAt: new Date().toISOString() } : n));
-      if (editorRef.current) {
-          saveToDb(selectedNoteId, editorTitle, editorRef.current.innerHTML, nextTags, selectedNote.folderId);
-      }
+      saveToDb(selectedNoteId, editorTitle, editorContent, nextTags, selectedNote.folderId);
   };
 
   const handleInlineCreateTag = async (e: React.FormEvent) => {
@@ -439,9 +255,9 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
           setTags(prev => [...prev, newTag]);
           setEditorTags(prev => [...prev, newTag.id]);
           // Sync with DB
-          if (selectedNoteId && editorRef.current && selectedNote) {
+          if (selectedNoteId && selectedNote) {
               const updatedTags = [...editorTags, newTag.id];
-              saveToDb(selectedNoteId, editorTitle, editorRef.current.innerHTML, updatedTags, selectedNote.folderId);
+              saveToDb(selectedNoteId, editorTitle, editorContent, updatedTags, selectedNote.folderId);
           }
           setNewTagInput('');
       } catch (err) {
@@ -457,9 +273,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
       setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, folderId: newFolderId } : n));
       setIsMoveMenuOpen(false);
       
-      if (editorRef.current) {
-          saveToDb(selectedNoteId, editorTitle, editorRef.current.innerHTML, editorTags, newFolderId);
-      }
+      saveToDb(selectedNoteId, editorTitle, editorContent, editorTags, newFolderId);
       
       // If moving to a folder, ensure it's expanded so user sees it
       if (newFolderId) {
@@ -585,12 +399,6 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
       setMobileView('sidebar');
     }
     await supabase.from('notes').delete().eq('id', id);
-  };
-
-  const execCmd = (command: string, value: string | undefined = undefined) => {
-    document.execCommand(command, false, value);
-    if (editorRef.current) editorRef.current.focus();
-    handleContentChange();
   };
 
   const formatDateDetail = (isoStr: string) => {
@@ -927,7 +735,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
 
         {/* Editor Content */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-           <div className="max-w-3xl mx-auto px-6 py-8 md:py-12">
+           <div className="max-w-3xl mx-auto px-6 py-8 md:py-12 h-full flex flex-col">
                {/* Title Input */}
                <input 
                   id="note-title-input"
@@ -935,12 +743,12 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                   value={editorTitle}
                   onChange={handleTitleChange}
                   placeholder="Untitled Note"
-                  className="w-full text-3xl font-black text-slate-800 placeholder:text-slate-300 border-none outline-none bg-transparent mb-6"
+                  className="w-full text-3xl font-black text-slate-800 placeholder:text-slate-300 border-none outline-none bg-transparent mb-6 shrink-0"
                />
                
                {/* Tags Display */}
                {editorTags.length > 0 && (
-                   <div className="flex flex-wrap gap-2 mb-6">
+                   <div className="flex flex-wrap gap-2 mb-6 shrink-0">
                        {editorTags.map(tagId => {
                             const tag = tags.find(t => t.id === tagId);
                             if (!tag) return null;
@@ -958,25 +766,12 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                    </div>
                )}
 
-               {/* Rich Text Toolbar */}
-               <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-100 mb-6 py-2 flex items-center gap-1">
-                  <button onClick={() => execCmd('bold')} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded" title="Bold"><Bold className="w-4 h-4" /></button>
-                  <button onClick={() => execCmd('italic')} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded" title="Italic"><Italic className="w-4 h-4" /></button>
-                  <div className="w-px h-4 bg-slate-200 mx-1" />
-                  <button onClick={() => execCmd('insertUnorderedList')} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded" title="List"><List className="w-4 h-4" /></button>
-                  <button onClick={() => execCmd('formatBlock', 'H2')} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded" title="Heading"><Heading className="w-4 h-4" /></button>
-                  <button onClick={() => execCmd('insertHTML', '<div class="flex items-center"><input type="checkbox" class="mr-2" />&nbsp;</div>')} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded" title="Checkbox"><CheckSquare className="w-4 h-4" /></button>
-               </div>
-
-               {/* Content Editable */}
-               <div 
-                  ref={editorRef}
-                  contentEditable
-                  onInput={handleContentChange}
-                  onKeyDown={handleEditorKeyDown}
-                  onClick={handleEditorClick}
-                  className="note-content prose prose-slate max-w-none focus:outline-none min-h-[300px] text-sm leading-7 empty:before:content-[attr(data-placeholder)] empty:before:text-slate-300"
-                  data-placeholder="Start typing..."
+               {/* Plain Text Editor */}
+               <textarea 
+                  value={editorContent}
+                  onChange={handleContentChange}
+                  className="w-full flex-1 resize-none border-none outline-none bg-transparent text-sm leading-7 text-slate-700 placeholder:text-slate-300 focus:ring-0 p-0"
+                  placeholder="Start typing..."
                />
            </div>
         </div>
