@@ -198,6 +198,126 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
 
   // Smart List Handlers
   const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // 1. Enter Key Logic for Checkboxes & Lists
+    if (e.key === 'Enter') {
+      const selection = window.getSelection();
+      if (!selection || !selection.rangeCount) return;
+      const range = selection.getRangeAt(0);
+
+      // Find current block (div/p/li/headers)
+      let currentBlock = range.startContainer.nodeType === Node.ELEMENT_NODE
+          ? range.startContainer as HTMLElement
+          : range.startContainer.parentElement;
+      
+      const blockTags = ['DIV', 'P', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'];
+
+      // Traverse up to find the block container
+      while (currentBlock && !blockTags.includes(currentBlock.nodeName) && currentBlock !== editorRef.current) {
+          currentBlock = currentBlock.parentElement;
+      }
+      
+      // Check if current block has a checkbox
+      const checkbox = currentBlock?.querySelector('input[type="checkbox"]');
+      
+      if (checkbox && currentBlock instanceof HTMLElement) {
+          // If the checkbox line is active, we take control of Enter
+          e.preventDefault();
+          
+          const textContent = currentBlock.textContent || '';
+          // Remove invisible chars and whitespace
+          const cleanText = textContent.replace(/[\u200B\u00A0\s]/g, '');
+          
+          if (cleanText.length === 0) {
+              // Empty line: Exit checklist
+              checkbox.remove();
+              // Remove styling classes to revert to normal text block
+              currentBlock.classList.remove('flex', 'items-center', 'gap-2');
+              // Ensure block has height
+              if (!currentBlock.innerHTML || currentBlock.innerHTML === '') {
+                 currentBlock.innerHTML = '<br>';
+              }
+          } else {
+              // Create new checkbox line
+              const newDiv = document.createElement('div');
+              // CRITICAL: Copy classes (e.g. flex items-center) to maintain layout
+              newDiv.className = currentBlock.className;
+              
+              const newCheckbox = document.createElement('input');
+              newCheckbox.type = 'checkbox';
+              newCheckbox.className = 'mr-2';
+              newDiv.appendChild(newCheckbox);
+              
+              // Append Zero Width Space
+              const textNode = document.createTextNode('\u200B');
+              newDiv.appendChild(textNode);
+              
+              if (currentBlock.nextSibling) {
+                  editorRef.current?.insertBefore(newDiv, currentBlock.nextSibling);
+              } else {
+                  editorRef.current?.appendChild(newDiv);
+              }
+              
+              // Move cursor
+              const newRange = document.createRange();
+              newRange.setStart(textNode, 0); 
+              newRange.collapse(true);
+              selection.removeAllRanges();
+              selection.addRange(newRange);
+          }
+          handleContentChange();
+          return;
+      }
+      // Note: Native behavior handles standard <li> lists correctly on Enter.
+    }
+
+    // 2. Backspace Key Logic for Checkboxes
+    if (e.key === 'Backspace') {
+      const selection = window.getSelection();
+      if (!selection || !selection.rangeCount) return;
+      const range = selection.getRangeAt(0);
+
+      // Find current block
+      let currentBlock = range.startContainer.nodeType === Node.ELEMENT_NODE
+          ? range.startContainer as HTMLElement
+          : range.startContainer.parentElement;
+
+      // Ensure we don't go past the editor
+      while (currentBlock && currentBlock.parentElement !== editorRef.current && currentBlock !== editorRef.current) {
+          currentBlock = currentBlock.parentElement;
+      }
+
+      if (currentBlock) {
+          const checkbox = currentBlock.querySelector('input[type="checkbox"]');
+          if (checkbox) {
+              // Logic 1: If line is visually empty (just checkbox + whitespace/invisible chars)
+              const text = currentBlock.textContent || '';
+              const cleanText = text.replace(/[\u200B\u00A0\s]/g, ''); 
+              
+              if (cleanText.length === 0) {
+                  e.preventDefault();
+                  checkbox.remove();
+                  if (currentBlock instanceof HTMLElement) {
+                      currentBlock.classList.remove('flex', 'items-center', 'gap-2');
+                  }
+                  handleContentChange();
+                  return;
+              }
+
+              // Logic 2: Standard cursor check (Start of line)
+              if (range.collapsed && range.startOffset === 0) {
+                  e.preventDefault(); 
+                  checkbox.remove();
+                  if (currentBlock instanceof HTMLElement) {
+                      currentBlock.classList.remove('flex', 'items-center', 'gap-2');
+                  }
+                  handleContentChange();
+                  return;
+              }
+          }
+      }
+    }
+
+    // 3. Space Key Logic (Markdown shortcuts)
     if (e.key === ' ') {
       const selection = window.getSelection();
       if (!selection || !selection.rangeCount) return;
@@ -209,28 +329,50 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
          const text = startContainer.textContent || '';
          const textBeforeCaret = text.slice(0, startOffset);
          
-         const checkboxMatch = textBeforeCaret.match(/^\[\s?\]$/);
-         const orderedMatch = textBeforeCaret.match(/^\s*1\.$/);
-         const unorderedMatch = textBeforeCaret.match(/^\s*-$/);
+         const checkboxMatch = textBeforeCaret.match(/^\[\]$/); // []
+         const orderedMatch = textBeforeCaret.match(/^1\.$/); // 1.
+         const unorderedMatch = textBeforeCaret.match(/^-$/); // -
+         const h1Match = textBeforeCaret.match(/^#$/); // #
+         const h2Match = textBeforeCaret.match(/^##$/); // ##
 
-         if (checkboxMatch || orderedMatch || unorderedMatch) {
+         if (checkboxMatch || orderedMatch || unorderedMatch || h1Match || h2Match) {
             e.preventDefault(); 
             
-            const triggerLength = textBeforeCaret.length;
-            const triggerRange = document.createRange();
-            triggerRange.setStart(startContainer, 0);
-            triggerRange.setEnd(startContainer, triggerLength);
+            // Delete the shortcut text (e.g. "[]")
+            const textNode = startContainer as Text;
+            const shortcutLength = textBeforeCaret.length;
+            const content = textNode.textContent || '';
             
-            selection.removeAllRanges();
-            selection.addRange(triggerRange);
-            document.execCommand('delete');
+            // Removing text manually
+            textNode.textContent = content.slice(0, startOffset - shortcutLength) + content.slice(startOffset);
+            
+            // Check Parent Block type
+            let currentBlock = startContainer.parentElement;
+            while (currentBlock && !['DIV', 'P', 'LI'].includes(currentBlock.nodeName) && currentBlock !== editorRef.current) {
+                currentBlock = currentBlock.parentElement;
+            }
 
             if (checkboxMatch) {
-                 document.execCommand('insertHTML', false, '<input type="checkbox" class="mr-2" />&nbsp;');
+                 // Prevent list mixing
+                 if (currentBlock?.nodeName === 'LI') {
+                     document.execCommand('formatBlock', false, 'DIV');
+                 }
+                 
+                 // Insert checkbox with wrapper for consistent styling
+                 document.execCommand('insertHTML', false, '<div class="flex items-center"><input type="checkbox" class="mr-2" />\u200B</div>');
+                 
             } else if (orderedMatch) {
+                 currentBlock?.querySelector('input[type="checkbox"]')?.remove();
                  document.execCommand('insertOrderedList');
             } else if (unorderedMatch) {
+                 currentBlock?.querySelector('input[type="checkbox"]')?.remove();
                  document.execCommand('insertUnorderedList');
+            } else if (h1Match) {
+                 currentBlock?.querySelector('input[type="checkbox"]')?.remove();
+                 document.execCommand('formatBlock', false, 'H1');
+            } else if (h2Match) {
+                 currentBlock?.querySelector('input[type="checkbox"]')?.remove();
+                 document.execCommand('formatBlock', false, 'H2');
             }
             
             handleContentChange();
@@ -375,7 +517,6 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
     });
   };
 
-  // ... (rest of existing logic like handleCreateFolder, handleRenameFolder, etc.)
   const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;
@@ -824,7 +965,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                   <div className="w-px h-4 bg-slate-200 mx-1" />
                   <button onClick={() => execCmd('insertUnorderedList')} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded" title="List"><List className="w-4 h-4" /></button>
                   <button onClick={() => execCmd('formatBlock', 'H2')} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded" title="Heading"><Heading className="w-4 h-4" /></button>
-                  <button onClick={() => execCmd('insertHTML', '<input type="checkbox" class="mr-2" />&nbsp;')} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded" title="Checkbox"><CheckSquare className="w-4 h-4" /></button>
+                  <button onClick={() => execCmd('insertHTML', '<div class="flex items-center"><input type="checkbox" class="mr-2" />&nbsp;</div>')} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded" title="Checkbox"><CheckSquare className="w-4 h-4" /></button>
                </div>
 
                {/* Content Editable */}
@@ -834,7 +975,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                   onInput={handleContentChange}
                   onKeyDown={handleEditorKeyDown}
                   onClick={handleEditorClick}
-                  className="prose prose-slate max-w-none focus:outline-none min-h-[300px] text-sm leading-7 empty:before:content-[attr(data-placeholder)] empty:before:text-slate-300"
+                  className="note-content prose prose-slate max-w-none focus:outline-none min-h-[300px] text-sm leading-7 empty:before:content-[attr(data-placeholder)] empty:before:text-slate-300"
                   data-placeholder="Start typing..."
                />
            </div>

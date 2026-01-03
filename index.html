@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HeavyUser - Fluent Productivity</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -126,6 +126,37 @@
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.3); border-radius: 3px; }
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); }
+    
+    /* Notes Styles Failsafe */
+    .note-content ul { list-style-type: disc; padding-left: 1.5em; margin: 0.5em 0; }
+    .note-content ol { list-style-type: decimal; padding-left: 1.5em; margin: 0.5em 0; }
+    .note-content h1 { font-size: 2em; font-weight: 800; margin: 0.67em 0; }
+    .note-content h2 { font-size: 1.5em; font-weight: 700; margin: 0.75em 0; }
+    
+    /* Improved Checkbox & List Consistency */
+    /* Target divs or paragraphs that contain a direct checkbox */
+    .note-content div:has(input[type="checkbox"]),
+    .note-content p:has(input[type="checkbox"]) {
+      /* Use a explicit line-height and flex alignment to match standard prose text */
+      line-height: 1.75; 
+      min-height: 1.75em;
+      margin-top: 0.25em;
+      margin-bottom: 0.25em;
+      display: flex;
+      align-items: flex-start; /* Aligns checkbox to the top of the line */
+    }
+    
+    .note-content input[type="checkbox"] {
+        /* Visually align checkbox center with the first line of text */
+        margin-top: 0.375em; /* Precise vertical alignment relative to font size */
+        margin-right: 0.5em;
+        accent-color: #3f3f46;
+        transform: scale(1.15); /* Slightly larger for better touch target */
+        flex-shrink: 0;
+        cursor: pointer;
+        /* Visually ensure checkbox is always first, preventing "write before" issues visually */
+        order: -1; 
+    }
   </style>
   <script>
     if (typeof process === 'undefined') { window.process = { env: {} }; }
