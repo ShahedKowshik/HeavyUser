@@ -452,7 +452,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
   };
 
   return (
-    <div className="animate-in fade-in duration-500 pb-20">
+    <div className="pb-20">
       {/* Header Controls */}
       <div className="flex items-center justify-between gap-2 mb-6">
         <div className="flex items-center gap-2 bg-zinc-100 p-1 rounded-lg border border-zinc-200 shrink-0">

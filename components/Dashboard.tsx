@@ -185,6 +185,8 @@ const safeUUID = () => {
     });
 };
 
+const TAB_ORDER: AppTab[] = ['tasks', 'habit', 'journal', 'notes', 'settings', 'request_feature', 'report_bug'];
+
 const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState<AppTab>(() => {
     // Determine default tab based on enabled features
@@ -203,6 +205,29 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     return (enabled[0] as AppTab) || 'settings';
   });
   const userId = user.id;
+
+  // Animation Direction Logic
+  const prevTabRef = useRef<AppTab>(activeTab);
+  
+  const getAnimationClass = () => {
+      // Default fade for first load or if same tab
+      if (activeTab === prevTabRef.current) return 'animate-fade-in';
+      
+      const prevIndex = TAB_ORDER.indexOf(prevTabRef.current);
+      const currIndex = TAB_ORDER.indexOf(activeTab);
+      
+      if (prevIndex === -1 || currIndex === -1) return 'animate-fade-in';
+      
+      return currIndex > prevIndex 
+          ? 'animate-slide-in-from-bottom-12' 
+          : 'animate-slide-in-from-top-12';
+  };
+  
+  const animationClass = getAnimationClass();
+
+  useEffect(() => {
+      prevTabRef.current = activeTab;
+  }, [activeTab]);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -996,7 +1021,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
       {/* Main Content */}
       <main className={`flex-1 relative flex flex-col ${isFullWidthView ? 'overflow-hidden' : 'overflow-y-auto'} bg-slate-50/50 pb-20 md:pb-0`}>
-        {/* ... (rest of main content) */}
         <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-8 py-4 bg-white/90 backdrop-blur-md border-b border-slate-200 shrink-0">
           <h2 className="text-xl font-black capitalize text-slate-800 tracking-tight">{activeTab === 'tasks' ? 'Tasks' : activeTab === 'habit' ? 'Habits' : activeTab.replace('_', ' ')}</h2>
           <div className="flex items-center space-x-4">
@@ -1112,7 +1136,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         </header>
 
         <div className={`mx-auto w-full ${isFullWidthView ? 'max-w-none flex-1 min-h-0 flex flex-col' : 'p-4 md:p-8 max-w-7xl'}`}>
-          {renderContent()}
+          <div key={activeTab} className={`${animationClass} h-full`}>
+              {renderContent()}
+          </div>
         </div>
       </main>
 

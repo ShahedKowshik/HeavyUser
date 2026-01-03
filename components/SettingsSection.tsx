@@ -567,7 +567,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
   };
 
   return (
-    <div className="animate-in fade-in duration-500 pb-20 md:pb-0">
+    <div className="pb-20 md:pb-0">
       {/* Toast Notification */}
       {toast && (
         <div className="fixed bottom-6 right-6 bg-slate-800 text-white px-4 py-3 rounded-lg shadow-xl z-50 flex items-center gap-3 animate-in slide-in-from-bottom-5">

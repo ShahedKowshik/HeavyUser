@@ -344,7 +344,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'active' | 'completed'>('active');
   const [viewLayout, setViewLayout] = useState<'list' | 'tracker'>('list');
-  const [transitionDirection, setTransitionDirection] = useState<'left' | 'right'>('right');
+  const [transitionDirection, setTransitionDirection] = useState<'left' | 'right' | 'none'>('none');
   const [grouping, setGrouping] = useState<Grouping>(() => {
       if (typeof window !== 'undefined') {
           const saved = localStorage.getItem('heavyuser_task_grouping');
@@ -1104,7 +1104,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   return (
-    <div className="flex flex-col h-full animate-in fade-in duration-500">
+    <div className="flex flex-col h-full">
       <div className="flex-1 min-w-0 overflow-hidden flex flex-col relative">
          <div className="flex-1 overflow-y-auto custom-scrollbar" style={{ scrollbarGutter: 'stable' }}>
              
@@ -1183,7 +1183,9 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                 className={`px-4 md:px-8 pb-20 ${
                     transitionDirection === 'right' 
                     ? 'animate-slide-in-from-right-12' 
-                    : 'animate-slide-in-from-left-12'
+                    : transitionDirection === 'left' 
+                    ? 'animate-slide-in-from-left-12' 
+                    : ''
                 }`}
              >
                 {viewLayout === 'list' ? (

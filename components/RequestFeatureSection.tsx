@@ -1,7 +1,6 @@
 
-
 import React, { useState } from 'react';
-import { Lightbulb, Send, Loader2, CircleCheck, X } from 'lucide-react';
+import { Lightbulb, Send, Loader2, CircleCheck, TriangleAlert } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface RequestFeatureSectionProps {
@@ -65,7 +64,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
   };
 
   return (
-    <div className="animate-in fade-in duration-500 pb-20 max-w-2xl mx-auto">
+    <div className="pb-20 max-w-2xl mx-auto">
       <div className="mb-8 text-center">
         <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-100">
              <Lightbulb className="w-6 h-6 text-[#334155]" />
@@ -85,7 +84,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                     <CircleCheck className="w-8 h-8" />
                 </div>
                 <h4 className="text-xl font-bold text-slate-800 mb-2">Request Received!</h4>
-                <p className="text-slate-500">Thank you for your feedback. We're on it.</p>
+                <p className="text-slate-500">Thank you for helping us shape the future of HeavyUser.</p>
                 <button 
                     onClick={() => setIsSuccess(false)}
                     className="mt-6 text-[#334155] font-bold text-sm hover:underline"
@@ -97,7 +96,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
             <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-6">
                 {error && (
                     <div className="p-4 bg-red-50 text-red-700 text-sm font-bold rounded-lg flex items-center gap-2 border border-red-100">
-                        <X className="w-4 h-4" />
+                        <TriangleAlert className="w-4 h-4" />
                         {error}
                     </div>
                 )}
@@ -111,7 +110,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                         type="text"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        placeholder="e.g., Dark Mode, Calendar View..."
+                        placeholder="e.g., Dark Mode Toggle"
                         className="w-full text-sm font-semibold bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-[#334155] focus:ring-1 focus:ring-[#334155] transition-all placeholder:text-slate-400"
                         required
                     />
@@ -119,19 +118,19 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
 
                 <div className="space-y-2">
                     <label htmlFor="description" className="text-xs font-black text-slate-500 uppercase tracking-widest">
-                        Description <span className="text-red-500">*</span>
+                        Description & Value <span className="text-red-500">*</span>
                     </label>
                     <textarea
                         id="description"
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Describe what you want to achieve and how it helps..."
+                        placeholder="Explain how this feature would help you..."
                         className="w-full text-sm font-medium bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-[#334155] focus:ring-1 focus:ring-[#334155] transition-all placeholder:text-slate-400 min-h-[120px] resize-y"
                         required
                     />
                 </div>
 
-                <div className="space-y-2">
+                 <div className="space-y-2">
                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
                         Priority <span className="text-red-500">*</span>
                     </label>
@@ -158,7 +157,7 @@ const RequestFeatureSection: React.FC<RequestFeatureSectionProps> = ({ userId })
                         {isSubmitting ? (
                             <>
                                 <Loader2 className="w-5 h-5 animate-spin" />
-                                <span>Submitting...</span>
+                                <span>Sending...</span>
                             </>
                         ) : (
                             <>
