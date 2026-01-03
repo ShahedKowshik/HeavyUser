@@ -344,6 +344,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'active' | 'completed'>('active');
   const [viewLayout, setViewLayout] = useState<'list' | 'tracker'>('list');
+  const [transitionDirection, setTransitionDirection] = useState<'left' | 'right'>('right');
   const [grouping, setGrouping] = useState<Grouping>(() => {
       if (typeof window !== 'undefined') {
           const saved = localStorage.getItem('heavyuser_task_grouping');
@@ -386,12 +387,30 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
   const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId), [tasks, selectedTaskId]);
 
+  const handleViewModeChange = (mode: 'active' | 'completed') => {
+      if (mode === viewMode) return;
+      // active -> completed (Right)
+      // completed -> active (Left)
+      setTransitionDirection(mode === 'completed' ? 'right' : 'left');
+      setViewMode(mode);
+  };
+
+  const handleViewLayoutChange = (layout: 'list' | 'tracker') => {
+      if (layout === viewLayout) return;
+      // list -> tracker (Right)
+      // tracker -> list (Left)
+      setTransitionDirection(layout === 'tracker' ? 'right' : 'left');
+      setViewLayout(layout);
+  };
+
   const getDayDiff = (dateStr: string) => {
     if (!dateStr) return 9999;
     const now = new Date();
     if (now.getHours() < (dayStartHour || 0)) now.setDate(now.getDate() - 1);
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    
     if (dateStr === todayStr) return 0;
+    // Explicitly construct UTC dates for comparison to avoid timezone offsets causing -1/0 flip
     const target = new Date(dateStr); 
     const today = new Date(todayStr); 
     return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -671,14 +690,16 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     let filtered = list;
     if (activeFilterTagId) filtered = filtered.filter(t => t.tags?.includes(activeFilterTagId));
 
+    const getPriorityScore = (p: string) => priorityOrder[p as Priority] ?? 2; // Default to Normal if unknown
+
     const base = [...filtered].sort((a,b) => {
       if (sorting === 'date') {
         const dateA = a.dueDate || '9999-99-99';
         const dateB = b.dueDate || '9999-99-99';
         if (dateA !== dateB) return dateA.localeCompare(dateB);
-        return priorityOrder[a.priority] - priorityOrder[b.priority];
+        return getPriorityScore(a.priority) - getPriorityScore(b.priority);
       }
-      return priorityOrder[a.priority] - priorityOrder[b.priority];
+      return getPriorityScore(a.priority) - getPriorityScore(b.priority);
     });
 
     if (grouping === 'none') return [{ title: '', tasks: base }];
@@ -774,7 +795,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                   )}
                 </div>
               )}
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-1 gap-1">
                 {group.tasks.map((task) => {
                   const isExpanded = expandedTasks.has(task.id);
                   const pStyle = getPriorityStyle(task.priority);
@@ -792,17 +813,21 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                       ? formatTimer((task.actualTime || 0) * 60 + currentSessionSeconds) 
                       : formatDuration(task.actualTime || 0);
 
+                  const combinedTimeDisplay = task.plannedTime 
+                        ? `${displayTime} / ${formatDuration(task.plannedTime)}`
+                        : displayTime;
+
                   return (
                     <div 
                       key={task.id}
                       onClick={() => setSelectedTaskId(task.id)}
-                      className={`rounded border border-zinc-200 px-4 py-3 transition-all hover:shadow-md hover:border-zinc-300 group cursor-pointer ${task.completed ? 'opacity-70 bg-zinc-50' : (isFocus ? 'bg-white' : 'bg-zinc-50')}`}
+                      className={`rounded border border-zinc-200 px-4 py-2 transition-all hover:shadow-md hover:border-zinc-300 group cursor-pointer ${task.completed ? 'opacity-70 bg-zinc-50' : (isFocus ? 'bg-white' : 'bg-zinc-50')}`}
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="shrink-0 relative">
+                      <div className="flex items-center gap-3">
+                        <div className="shrink-0 relative flex items-center justify-center pt-0.5">
                           <button 
                             onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }}
-                            className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all mt-0.5 ${
+                            className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
                               task.completed 
                                 ? 'bg-[#107c10] border-[#107c10] text-white shadow-sm' 
                                 : 'border-zinc-300 hover:border-[#3f3f46] bg-white'
@@ -811,146 +836,182 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                             {task.completed && <CircleCheck className="w-3 h-3" />}
                           </button>
                           {task.recurrence && !task.completed && (
-                              <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-zinc-200 shadow-sm">
+                              <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-zinc-200 shadow-sm z-10">
                                 <Repeat className="w-2 h-2 text-zinc-400" />
                               </div>
                           )}
                         </div>
 
+                        {/* Title Section (Flexible) */}
                         <div className="flex-1 min-w-0">
-                            <div className="flex flex-col md:flex-row md:items-center gap-y-2 md:gap-x-6 w-full justify-between">
-                                <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 shrink-0 max-w-full">
-                                        <span 
-                                            className={`text-sm font-semibold transition-colors break-words whitespace-normal ${task.completed ? 'text-zinc-400 line-through' : 'text-zinc-800 hover:text-[#3f3f46]'}`}
-                                        >
-                                            {task.title}
-                                        </span>
-                                        
-                                        <button 
-                                            onClick={(e) => toggleExpand(task.id, e)}
-                                            className={`p-0.5 rounded transition-all shrink-0 ${isExpanded ? 'bg-zinc-200 text-[#3f3f46]' : 'text-zinc-300 hover:text-[#3f3f46]'}`}
-                                        >
-                                            <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
-                                        </button>
-                                    </div>
-                                    
-                                    {task.subtasks.length > 0 && (
-                                        <span className="text-[9px] font-bold text-zinc-500 bg-zinc-100 px-1 py-0.5 rounded border border-zinc-200 shrink-0">
-                                            {task.subtasks.filter(s=>s.completed).length}/{task.subtasks.length}
-                                        </span>
-                                    )}
-
-                                    {task.tags && task.tags.length > 0 && (
-                                        <div className="hidden md:flex flex-wrap gap-1">
-                                            {task.tags.map(tagId => {
-                                                const tag = tags.find(t => t.id === tagId);
-                                                if (!tag) return null;
-                                                return (
-                                                    <span key={tagId} className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border border-transparent" style={{ backgroundColor: `${tag.color}15`, color: tag.color }}>
-                                                        <TagIcon className="w-3 h-3" /> {tag.label}
-                                                    </span>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
+                            <div className="flex items-center gap-2">
+                                <span 
+                                    className={`text-sm font-semibold truncate transition-colors ${task.completed ? 'text-zinc-400 line-through' : 'text-zinc-800 hover:text-[#3f3f46]'}`}
+                                >
+                                    {task.title}
+                                </span>
                                 
-                                <div className="flex items-center shrink-0 text-xs flex-row-reverse md:flex-row justify-end w-full md:w-auto">
-                                      <div className="flex items-center gap-1">
-                                          <button 
-                                              onClick={(e) => onToggleTimer(task.id, e)}
-                                              className={`p-1 rounded-full transition-all border shrink-0 ${
-                                                  isTimerRunning 
-                                                  ? 'bg-amber-100 text-amber-600 border-amber-200 animate-pulse' 
-                                                  : (task.actualTime || 0) > 0 
-                                                    ? 'bg-zinc-100 text-zinc-500 border-zinc-200 opacity-70 hover:opacity-100 hover:bg-zinc-200'
-                                                    : 'opacity-0 group-hover:opacity-100 text-zinc-400 hover:bg-zinc-100 border-transparent hover:border-zinc-200'
-                                              }`}
-                                          >
-                                              {isTimerRunning ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
-                                          </button>
-                                          
-                                          {(task.plannedTime || task.actualTime || isTimerRunning) && (
-                                              <div className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-                                                  isTimerRunning 
-                                                    ? 'bg-amber-50 text-amber-700 border-amber-100' 
-                                                    : (task.actualTime || 0) > (task.plannedTime || 0) && task.plannedTime
-                                                        ? 'bg-red-50 text-red-700 border-red-100'
-                                                        : 'bg-zinc-50 text-zinc-500 border-zinc-100'
-                                              }`}>
-                                                  {isTimerRunning ? (
-                                                      <span className="tabular-nums">{displayTime}</span>
-                                                  ) : (
-                                                      <>
-                                                          {(task.actualTime || 0) > 0 && <span>{formatDuration(task.actualTime || 0)}</span>}
-                                                          {(task.actualTime || 0) > 0 && task.plannedTime && <span className="text-zinc-300">/</span>}
-                                                          {task.plannedTime && <span className="text-zinc-400">{formatDuration(task.plannedTime)}</span>}
-                                                      </>
-                                                  )}
-                                              </div>
-                                          )}
-                                      </div>
+                                <button 
+                                    onClick={(e) => toggleExpand(task.id, e)}
+                                    className={`p-0.5 rounded transition-all shrink-0 ${isExpanded ? 'bg-zinc-200 text-[#3f3f46]' : 'text-zinc-300 hover:text-[#3f3f46]'}`}
+                                >
+                                    <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${isExpanded ? 'rotate-90' : ''}`} />
+                                </button>
+                                
+                                {task.subtasks.length > 0 && (
+                                    <span className="text-[9px] font-bold text-zinc-500 bg-zinc-100 px-1 py-0.5 rounded border border-zinc-200 shrink-0">
+                                        {task.subtasks.filter(s=>s.completed).length}/{task.subtasks.length}
+                                    </span>
+                                )}
+                            </div>
+                            
+                            {/* Mobile Metadata (Hidden on Desktop) */}
+                            <div className="md:hidden flex flex-wrap gap-2 mt-1.5 items-center text-xs">
+                                {task.tags && task.tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1">
+                                        {task.tags.map(tagId => {
+                                            const tag = tags.find(t => t.id === tagId);
+                                            if (!tag) return null;
+                                            return (
+                                                <span key={tagId} className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border border-transparent" style={{ backgroundColor: `${tag.color}15`, color: tag.color }}>
+                                                    <TagIcon className="w-2.5 h-2.5" /> {tag.label}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                                {(task.plannedTime || task.actualTime || isTimerRunning) && (
+                                    <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-bold ${isTimerRunning ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-zinc-50 text-zinc-500 border-zinc-100'}`}>
+                                         {isTimerRunning ? <Pause className="w-2.5 h-2.5" /> : <Clock className="w-2.5 h-2.5" />}
+                                         {displayTime}
+                                    </div>
+                                )}
+                                {task.dueDate && (
+                                    <div className={`flex items-center gap-1 font-medium ${relativeColor}`}>
+                                        <Calendar className="w-3 h-3" />
+                                        <span>{formatRelativeDate(task.dueDate)}</span>
+                                    </div>
+                                )}
+                                <div className={`flex items-center gap-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border ${pStyle.text}`}>
+                                     {renderPriorityIcon(task.priority, "w-2.5 h-2.5")}
+                                     <span>{task.priority}</span>
+                                </div>
+                            </div>
+                        </div>
 
-                                      <div className="w-px h-3 bg-zinc-200 mx-3" />
-
-                                      <div className={`flex items-center gap-1.5 font-medium ${relativeColor}`}>
-                                        {task.dueDate ? (
-                                            <>
-                                                <Calendar className="w-3.5 h-3.5 shrink-0" />
-                                                <span>{formatRelativeDate(task.dueDate)}</span>
-                                            </>
-                                        ) : (
-                                            <span className="text-zinc-300">-</span>
+                        {/* Desktop Table Columns */}
+                        <div className="hidden md:grid grid-cols-[140px_110px_100px_90px] gap-4 items-center shrink-0">
+                            
+                            {/* Labels Column */}
+                            <div className="flex justify-end gap-1 overflow-hidden">
+                                {task.tags && task.tags.length > 0 ? (
+                                    <>
+                                        {task.tags.slice(0, 2).map(tagId => {
+                                            const tag = tags.find(t => t.id === tagId);
+                                            if (!tag) return null;
+                                            return (
+                                                <span key={tagId} className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border border-transparent whitespace-nowrap max-w-[70px] truncate" style={{ backgroundColor: `${tag.color}15`, color: tag.color }}>
+                                                    {tag.label}
+                                                </span>
+                                            );
+                                        })}
+                                        {task.tags.length > 2 && (
+                                            <span className="text-[10px] font-bold bg-zinc-100 text-zinc-500 px-1.5 py-0.5 rounded border border-zinc-200">
+                                                +{task.tags.length - 2}
+                                            </span>
                                         )}
-                                      </div>
+                                    </>
+                                ) : <span className="text-zinc-200 text-xs">-</span>}
+                            </div>
 
-                                      <div className="w-px h-3 bg-zinc-200 mx-3" />
+                            {/* Time Column */}
+                            <div className="flex justify-end items-center gap-2">
+                                <button 
+                                    onClick={(e) => onToggleTimer(task.id, e)}
+                                    className={`p-1 rounded-full transition-all border shrink-0 ${
+                                        isTimerRunning 
+                                        ? 'bg-amber-100 text-amber-600 border-amber-200 animate-pulse' 
+                                        : 'text-zinc-400 hover:bg-zinc-100 border-transparent hover:border-zinc-200'
+                                    }`}
+                                >
+                                    {isTimerRunning ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
+                                </button>
+                                <div className="w-[90px] flex justify-end"> {/* Fixed container for alignment */}
+                                    {(task.plannedTime || task.actualTime || isTimerRunning) ? (
+                                        <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded border text-center w-full truncate ${
+                                            isTimerRunning 
+                                            ? 'bg-amber-50 text-amber-700 border-amber-100' 
+                                            : (task.actualTime || 0) > (task.plannedTime || 0) && task.plannedTime
+                                                ? 'bg-red-50 text-red-700 border-red-100'
+                                                : 'bg-zinc-50 text-zinc-500 border-zinc-100'
+                                        }`}>
+                                            {combinedTimeDisplay}
+                                        </div>
+                                    ) : <span className="text-zinc-200 text-xs text-center w-full block">-</span>}
+                                </div>
+                            </div>
 
-                                      <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border ${pStyle.text}`}>
-                                            {renderPriorityIcon(task.priority)}
-                                            <span>{task.priority}</span>
-                                      </div>
+                            {/* Date Column */}
+                            <div className={`flex justify-end items-center gap-1.5 text-xs font-medium ${relativeColor}`}>
+                                {task.dueDate ? (
+                                    <>
+                                        <Calendar className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                                        <span className="truncate">{formatRelativeDate(task.dueDate)}</span>
+                                    </>
+                                ) : (
+                                    <span className="text-zinc-200 text-xs">-</span>
+                                )}
+                            </div>
+
+                            {/* Priority Column */}
+                            <div className="flex justify-end">
+                                <div className={`flex items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border w-[72px] ${pStyle.text}`}>
+                                    {renderPriorityIcon(task.priority)}
+                                    <span>{task.priority}</span>
                                 </div>
                             </div>
                         </div>
                       </div>
 
-                      {isExpanded && (
-                        <div className="mt-4 pl-9 animate-in fade-in slide-in-from-top-1 duration-200">
-                          <div className="space-y-1 relative">
-                            <div className="absolute left-[-18px] top-0 bottom-2 w-px bg-zinc-200" />
-                            {task.subtasks?.map(st => (
-                              <div key={st.id} className="flex items-center gap-3 relative group/sub py-1">
+                      <div 
+                        className={`grid transition-[grid-template-rows] duration-300 ${isExpanded ? 'ease-out grid-rows-[1fr]' : 'ease-in grid-rows-[0fr]'}`}
+                      >
+                        <div className="overflow-hidden">
+                          <div className={`pl-9 transition-[margin,opacity] duration-300 ${isExpanded ? 'ease-out mt-4 opacity-100' : 'ease-in mt-0 opacity-0'}`}>
+                            <div className="space-y-1 relative">
+                              <div className="absolute left-[-18px] top-0 bottom-2 w-px bg-zinc-200" />
+                              {task.subtasks?.map(st => (
+                                <div key={st.id} className="flex items-center gap-3 relative group/sub py-1">
+                                  <div className="absolute left-[-18px] top-1/2 w-3 h-px bg-zinc-200" />
+                                  <button onClick={(e) => { e.stopPropagation(); toggleSubtaskInTask(task.id, st.id); }} className="text-zinc-400 hover:text-[#3f3f46] transition-colors z-10 bg-white">
+                                    {st.completed ? <CheckSquare className="w-3.5 h-3.5 text-[#107c10]" /> : <Square className="w-3.5 h-3.5 rounded" />}
+                                  </button>
+                                  <span className={`text-xs font-medium transition-colors ${st.completed ? 'line-through opacity-50 text-zinc-500' : 'text-zinc-800'}`}>
+                                    {st.title}
+                                  </span>
+                                </div>
+                              ))}
+                              
+                              <div className="flex items-center gap-3 pt-1 group/input relative">
                                 <div className="absolute left-[-18px] top-1/2 w-3 h-px bg-zinc-200" />
-                                <button onClick={(e) => { e.stopPropagation(); toggleSubtaskInTask(task.id, st.id); }} className="text-zinc-400 hover:text-[#3f3f46] transition-colors z-10 bg-white">
-                                  {st.completed ? <CheckSquare className="w-3.5 h-3.5 text-[#107c10]" /> : <Square className="w-3.5 h-3.5 rounded" />}
-                                </button>
-                                <span className={`text-xs font-medium transition-colors ${st.completed ? 'line-through opacity-50 text-zinc-500' : 'text-zinc-800'}`}>
-                                  {st.title}
-                                </span>
+                                <Plus className="w-3.5 h-3.5 text-[#3f3f46] shrink-0" />
+                                <input 
+                                  type="text"
+                                  placeholder="Add another subtask..."
+                                  className="flex-1 bg-transparent border-none p-0 text-xs font-medium focus:ring-0 focus:outline-none placeholder:text-zinc-400"
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      const val = e.currentTarget.value.trim();
+                                      if (val) { addSubtaskToTask(task.id, val); e.currentTarget.value = ''; }
+                                    }
+                                  }}
+                                />
                               </div>
-                            ))}
-                            
-                            <div className="flex items-center gap-3 pt-1 group/input relative">
-                              <div className="absolute left-[-18px] top-1/2 w-3 h-px bg-zinc-200" />
-                              <Plus className="w-3.5 h-3.5 text-[#3f3f46] shrink-0" />
-                              <input 
-                                type="text"
-                                placeholder="Add another subtask..."
-                                className="flex-1 bg-transparent border-none p-0 text-xs font-medium focus:ring-0 focus:outline-none placeholder:text-zinc-400"
-                                onClick={(e) => e.stopPropagation()}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    const val = e.currentTarget.value.trim();
-                                    if (val) { addSubtaskToTask(task.id, val); e.currentTarget.value = ''; }
-                                  }
-                                }}
-                              />
                             </div>
                           </div>
                         </div>
-                      )}
+                      </div>
                     </div>
                   );
                 })}
@@ -1045,7 +1106,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-500">
       <div className="flex-1 min-w-0 overflow-hidden flex flex-col relative">
-         <div className="flex-1 overflow-y-auto custom-scrollbar">
+         <div className="flex-1 overflow-y-auto custom-scrollbar" style={{ scrollbarGutter: 'stable' }}>
              
              {/* Header Controls */}
              <div className="px-4 md:px-8 pt-4 md:pt-8 mb-4 space-y-4">
@@ -1054,13 +1115,13 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                     {/* Filter Tabs */}
                     <div className="flex items-center gap-1 bg-zinc-100 p-1 rounded-lg border border-zinc-200 shrink-0">
                         <button 
-                        onClick={() => setViewMode('active')}
+                        onClick={() => handleViewModeChange('active')}
                         className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'active' ? 'bg-white text-[#3f3f46] shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
                         >
                         <span className="hidden sm:inline">My </span>Tasks
                         </button>
                         <button 
-                        onClick={() => setViewMode('completed')}
+                        onClick={() => handleViewModeChange('completed')}
                         className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'completed' ? 'bg-white text-[#3f3f46] shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
                         >
                         Completed
@@ -1094,7 +1155,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                 {/* Bottom Row: View Layout Tabs */}
                 <div className="flex items-center gap-6 border-b border-zinc-200">
                     <button 
-                        onClick={() => setViewLayout('list')}
+                        onClick={() => handleViewLayoutChange('list')}
                         className={`pb-3 text-sm font-bold transition-all relative ${viewLayout === 'list' ? 'text-[#3f3f46]' : 'text-zinc-400 hover:text-zinc-600'}`}
                     >
                         <div className="flex items-center gap-2">
@@ -1104,7 +1165,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         {viewLayout === 'list' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#3f3f46] rounded-t-full" />}
                     </button>
                     <button 
-                        onClick={() => setViewLayout('tracker')}
+                        onClick={() => handleViewLayoutChange('tracker')}
                         className={`pb-3 text-sm font-bold transition-all relative ${viewLayout === 'tracker' ? 'text-[#3f3f46]' : 'text-zinc-400 hover:text-zinc-600'}`}
                     >
                         <div className="flex items-center gap-2">
@@ -1117,15 +1178,20 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
              </div>
 
              {/* Content */}
-             {viewLayout === 'list' ? (
-                 <div className="px-4 md:px-8 pb-20">
-                    {viewMode === 'active' ? renderListGroups(activeTasksGroups) : renderListGroups(completedTasksGroups)}
-                 </div>
-             ) : (
-                 <div className="px-4 md:px-8 pb-20">
-                    {renderTrackerView()}
-                 </div>
-             )}
+             <div 
+                key={`${viewLayout}-${viewLayout === 'list' ? viewMode : 'common'}`}
+                className={`px-4 md:px-8 pb-20 ${
+                    transitionDirection === 'right' 
+                    ? 'animate-slide-in-from-right-12' 
+                    : 'animate-slide-in-from-left-12'
+                }`}
+             >
+                {viewLayout === 'list' ? (
+                    viewMode === 'active' ? renderListGroups(activeTasksGroups) : renderListGroups(completedTasksGroups)
+                ) : (
+                    renderTrackerView()
+                )}
+             </div>
          </div>
       </div>
 

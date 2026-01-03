@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -67,6 +68,30 @@
             "3xl": "4px",
             DEFAULT: "4px",
           },
+          keyframes: {
+            "slide-in-from-right-12": {
+              "0%": { transform: "translateX(3rem)", opacity: 0 },
+              "100%": { transform: "translateX(0)", opacity: 1 },
+            },
+            "slide-in-from-left-12": {
+              "0%": { transform: "translateX(-3rem)", opacity: 0 },
+              "100%": { transform: "translateX(0)", opacity: 1 },
+            },
+            "zoom-in-95": {
+              "0%": { transform: "scale(0.95)", opacity: 0 },
+              "100%": { transform: "scale(1)", opacity: 1 },
+            },
+            "fade-in": {
+              "0%": { opacity: 0 },
+              "100%": { opacity: 1 },
+            }
+          },
+          animation: {
+            "slide-in-from-right-12": "slide-in-from-right-12 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards",
+            "slide-in-from-left-12": "slide-in-from-left-12 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards",
+            "zoom-in-95": "zoom-in-95 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards",
+            "fade-in": "fade-in 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards",
+          }
         },
       },
     }
