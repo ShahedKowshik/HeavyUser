@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save } from 'lucide-react';
+import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save, SkipForward, CircleCheck } from 'lucide-react';
 import { Habit, Tag } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -46,7 +46,12 @@ const getLogicalDate = (dayStartHour: number = 0) => {
 
 const getHabitStats = (habit: Habit, today: string) => {
     const isSuccess = (count: number) => {
-        if (habit.goalType === 'negative') return count <= habit.target;
+        if (habit.goalType === 'negative') {
+             // For checkbox habits (no counter), strict 0 limit implies success.
+             // For counter habits, respect the user-defined target.
+             const limit = !habit.useCounter ? 0 : habit.target;
+             return count <= limit;
+        }
         return count >= habit.target;
     };
 
@@ -126,7 +131,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
   const [filter, setFilter] = useState<'all' | 'positive' | 'negative'>('all');
   
   const [detailHabitId, setDetailHabitId] = useState<string | null>(null);
-  const [dayEdit, setDayEdit] = useState<{ date: string, count: number } | null>(null);
+  const [dayEdit, setDayEdit] = useState<{ date: string, count: number, isSkipped: boolean } | null>(null);
   const [calendarDate, setCalendarDate] = useState(new Date());
 
   const [title, setTitle] = useState('');
@@ -318,6 +323,9 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
       for (let i = 0; i < firstDay; i++) days.push(null);
       for (let i = 1; i <= daysInMonth; i++) days.push(i);
 
+      // Determine the success threshold
+      const limit = (!habit.useCounter && habit.goalType === 'negative') ? 0 : habit.target;
+
       return (
           <div className="select-none">
               <div className="flex items-center justify-between mb-2">
@@ -335,17 +343,20 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                       const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                       const count = habit.progress[dateStr] || 0;
                       const isSkipped = habit.skippedDates.includes(dateStr);
-                      const isSuccess = habit.goalType === 'negative' ? count <= habit.target : count >= habit.target;
+                      const isSuccess = habit.goalType === 'negative' ? count <= limit : count >= limit;
                       
                       let bgClass = 'bg-notion-bg_gray hover:bg-notion-hover';
+                      
                       if (isSkipped) {
                           bgClass = 'bg-notion-bg_gray opacity-50 border border-dashed border-foreground/20';
-                      } else if (count > 0 || habit.goalType === 'negative') {
+                      } else {
                           if (habit.goalType === 'negative') {
-                              if (count > habit.target) bgClass = 'bg-notion-bg_red text-notion-red';
-                              else if (dateStr <= today) bgClass = 'bg-notion-bg_green text-notion-green'; // Passed day
+                              // Negative Habit Logic
+                              if (count > limit) bgClass = 'bg-notion-bg_red text-notion-red'; // Failed
+                              else if (dateStr <= today) bgClass = 'bg-notion-bg_green text-notion-green'; // Success (Avoided) for passed days
                           } else {
-                              if (count >= habit.target) bgClass = 'bg-notion-bg_green text-notion-green';
+                              // Positive Habit Logic
+                              if (count >= limit) bgClass = 'bg-notion-bg_green text-notion-green';
                               else if (count > 0) bgClass = 'bg-notion-bg_orange text-notion-orange';
                           }
                       }
@@ -359,16 +370,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                             onClick={(e) => {
                                 e.stopPropagation();
                                 if (isFuture) return;
-                                if (habit.useCounter) {
-                                    setDayEdit({ date: dateStr, count });
-                                } else {
-                                    if (habit.goalType === 'negative') {
-                                        updateDayStatus(habit.id, dateStr, count === 0 ? 1 : 0, isSkipped);
-                                    } else {
-                                        const nextCount = count >= habit.target ? 0 : habit.target;
-                                        updateDayStatus(habit.id, dateStr, nextCount, isSkipped);
-                                    }
-                                }
+                                setDayEdit({ date: dateStr, count, isSkipped });
                             }}
                             className={`aspect-square rounded-sm flex items-center justify-center text-xs font-medium cursor-pointer transition-colors ${bgClass} ${isFuture ? 'opacity-30 cursor-default' : ''}`}
                           >
@@ -418,12 +420,14 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                 
                 let isCompletedToday = false;
                 let isFailedToday = false;
+                
+                const limit = (!habit.useCounter && habit.goalType === 'negative') ? 0 : habit.target;
 
                 if (habit.goalType === 'negative') {
-                    isCompletedToday = progressToday <= habit.target;
-                    isFailedToday = progressToday > habit.target;
+                    isCompletedToday = progressToday <= limit;
+                    isFailedToday = progressToday > limit;
                 } else {
-                    isCompletedToday = progressToday >= habit.target;
+                    isCompletedToday = progressToday >= limit;
                 }
                 
                 return (
@@ -454,7 +458,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                  <button
                                      onClick={() => {
                                          if (habit.useCounter) {
-                                             setDayEdit({ date: today, count: progressToday });
+                                             setDayEdit({ date: today, count: progressToday, isSkipped: habit.skippedDates.includes(today) });
                                          } else {
                                              if (habit.goalType === 'negative') {
                                                  updateDayStatus(habit.id, today, progressToday === 0 ? 1 : 0, false);
@@ -587,17 +591,69 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
       {/* Edit Day Modal */}
       {dayEdit && detailHabit && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4" onClick={() => setDayEdit(null)}>
-            <div className="bg-background p-4 rounded-md shadow-xl border border-border w-full max-w-xs space-y-4 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-                <div className="text-center">
-                    <h4 className="font-bold text-foreground">Edit Count</h4>
-                    <p className="text-xs text-muted-foreground">{dayEdit.date}</p>
+            <div className="bg-background p-4 rounded-md shadow-xl border border-border w-full max-w-xs space-y-4 animate-in zoom-in-95 flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="text-center mb-1">
+                    <h4 className="font-bold text-foreground">Update Status</h4>
+                    <p className="text-xs text-muted-foreground">{new Date(dayEdit.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</p>
                 </div>
-                <div className="flex items-center justify-center gap-4">
-                     <button onClick={() => setDayEdit(prev => ({ ...prev!, count: Math.max(0, prev!.count - 1) }))} className="w-8 h-8 rounded-sm bg-notion-hover flex items-center justify-center text-foreground hover:bg-muted-foreground/20"><Minus className="w-4 h-4" /></button>
-                     <input type="number" value={dayEdit.count} onChange={(e) => setDayEdit(prev => ({ ...prev!, count: parseInt(e.target.value) || 0 }))} className="w-16 text-center bg-transparent border-none text-xl font-bold text-foreground focus:ring-0 p-0" />
-                     <button onClick={() => setDayEdit(prev => ({ ...prev!, count: prev!.count + 1 }))} className="w-8 h-8 rounded-sm bg-notion-hover flex items-center justify-center text-foreground hover:bg-muted-foreground/20"><Plus className="w-4 h-4" /></button>
+
+                <div className="space-y-4">
+                    {/* Value Control */}
+                    {detailHabit.useCounter ? (
+                        <div className="flex items-center justify-center gap-4 py-2">
+                            <button onClick={() => setDayEdit(prev => ({ ...prev!, count: Math.max(0, prev!.count - 1) }))} className="w-10 h-10 rounded-sm bg-notion-hover flex items-center justify-center text-foreground hover:bg-muted-foreground/20"><Minus className="w-5 h-5" /></button>
+                            <div className="flex flex-col items-center w-16">
+                                <input type="number" value={dayEdit.count} onChange={(e) => setDayEdit(prev => ({ ...prev!, count: parseInt(e.target.value) || 0 }))} className="w-full text-center bg-transparent border-none text-2xl font-bold text-foreground focus:ring-0 p-0" />
+                                <span className="text-[10px] text-muted-foreground">{detailHabit.unit || 'count'}</span>
+                            </div>
+                            <button onClick={() => setDayEdit(prev => ({ ...prev!, count: prev!.count + 1 }))} className="w-10 h-10 rounded-sm bg-notion-hover flex items-center justify-center text-foreground hover:bg-muted-foreground/20"><Plus className="w-5 h-5" /></button>
+                        </div>
+                    ) : (
+                        <div className="flex justify-center py-2">
+                            <button 
+                                onClick={() => {
+                                    const targetVal = detailHabit.target || 1;
+                                    const isDone = dayEdit.count >= targetVal;
+                                    
+                                    let newCount = 0;
+                                    if (detailHabit.goalType === 'negative') {
+                                        // For negative checkbox, we assume boolean: 0 = Good, 1 = Bad.
+                                        // Toggle between 0 and 1.
+                                        newCount = dayEdit.count === 0 ? 1 : 0;
+                                    } else {
+                                        newCount = isDone ? 0 : targetVal;
+                                    }
+                                    setDayEdit(prev => ({ ...prev!, count: newCount }));
+                                }}
+                                className={`w-full py-3 rounded-sm flex items-center justify-center gap-2 font-medium transition-colors ${
+                                    detailHabit.goalType === 'negative' 
+                                    ? (dayEdit.count > 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700') // Negative: >0 is Bad (Red), 0 is Good (Green)
+                                    : (dayEdit.count >= (detailHabit.target || 1) ? 'bg-green-100 text-green-700' : 'bg-notion-bg_gray text-muted-foreground hover:bg-notion-hover') // Positive: >=Target is Good (Green), else Gray
+                                }`}
+                            >
+                                {detailHabit.goalType === 'negative' ? (
+                                    dayEdit.count > 0 ? <><Frown className="w-5 h-5" /> Failed</> : <><Smile className="w-5 h-5" /> Avoided</>
+                                ) : (
+                                    dayEdit.count >= (detailHabit.target || 1) ? <><Check className="w-5 h-5" /> Completed</> : <><CircleCheck className="w-5 h-5 opacity-50" /> Incomplete</>
+                                )}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Skip Toggle */}
+                    <button 
+                        onClick={() => setDayEdit(prev => ({ ...prev!, isSkipped: !prev!.isSkipped }))}
+                        className={`w-full py-1.5 text-xs rounded-sm border flex items-center justify-center gap-2 transition-colors ${dayEdit.isSkipped ? 'bg-notion-bg_gray text-foreground border-foreground/20' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-notion-hover'}`}
+                    >
+                        {dayEdit.isSkipped ? <SkipForward className="w-3.5 h-3.5 fill-current" /> : <SkipForward className="w-3.5 h-3.5" />}
+                        {dayEdit.isSkipped ? 'Skipped (Rest Day)' : 'Mark as Skipped'}
+                    </button>
                 </div>
-                <button onClick={() => { updateDayStatus(detailHabit.id, dayEdit.date, dayEdit.count, false); setDayEdit(null); }} className="w-full py-1.5 bg-notion-blue text-white rounded-sm text-sm font-medium hover:bg-blue-600">Save</button>
+
+                <div className="flex gap-2 mt-4 pt-4 border-t border-border">
+                    <button onClick={() => setDayEdit(null)} className="flex-1 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
+                    <button onClick={() => { updateDayStatus(detailHabit.id, dayEdit.date, dayEdit.count, dayEdit.isSkipped); setDayEdit(null); }} className="flex-1 py-1.5 bg-notion-blue text-white rounded-sm text-xs font-medium hover:bg-blue-600 shadow-sm transition-colors">Save Changes</button>
+                </div>
             </div>
         </div>
       )}
