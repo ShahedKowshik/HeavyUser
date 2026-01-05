@@ -18,12 +18,11 @@ interface NotesSectionProps {
 
 type ViewState = 'sidebar' | 'editor';
 
-// Helper to create a new tag inline
 const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     const newTag: Tag = {
         id: crypto.randomUUID(),
         label: label.trim(),
-        color: '#3f3f46', // Zinc 700
+        color: '#3f3f46', 
     };
     
     await supabase.from('tags').insert({
@@ -36,39 +35,27 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     return newTag;
 };
 
-// Helper to convert legacy HTML content to plain text for the textarea
 const stripHtml = (html: string) => {
     if (!html) return '';
-    // If it doesn't look like HTML, return as is
     if (!/<[a-z][\s\S]*>/i.test(html)) return html;
-    
-    // Create a temporary DOM element to extract text
     const temp = document.createElement('div');
-    // Replace block elements with newlines to preserve structure
     let formatted = html
         .replace(/<\/div>/ig, '\n')
         .replace(/<\/p>/ig, '\n')
         .replace(/<li>/ig, '• ')
         .replace(/<\/li>/ig, '\n')
         .replace(/<br\s*\/?>/ig, '\n');
-        
     temp.innerHTML = formatted;
     return temp.textContent || temp.innerText || '';
 };
 
 const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, setFolders, userId, tags, setTags, activeFilterTagId }) => {
-  // Navigation State
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Mobile Navigation State
   const [mobileView, setMobileView] = useState<ViewState>('sidebar');
-
-  // Sidebar State
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(new Set());
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
 
-  // Editor State
   const [editorTitle, setEditorTitle] = useState('');
   const [editorContent, setEditorContent] = useState('');
   const [editorTags, setEditorTags] = useState<string[]>([]);
@@ -76,31 +63,24 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
   const [isSaving, setIsSaving] = useState(false);
   const [isTagPopoverOpen, setIsTagPopoverOpen] = useState(false);
   
-  // Tag Creation State
   const [newTagInput, setNewTagInput] = useState('');
   const [isCreatingTag, setIsCreatingTag] = useState(false);
 
-  // Auto-Delete State
   const [pendingNoteIds, setPendingNoteIds] = useState<Set<string>>(new Set());
   const deletionTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  // Folder Management State
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editFolderName, setEditFolderName] = useState('');
 
-  // Move Note State
   const [isMoveMenuOpen, setIsMoveMenuOpen] = useState(false);
 
   const filteredNotes = useMemo(() => {
     let filtered = notes;
-    
-    // Global Tag Filter
     if (activeFilterTagId) {
         filtered = filtered.filter(n => n.tags && n.tags.includes(activeFilterTagId));
     }
-
     return filtered
       .filter(n => {
         const contentText = n.content.replace(/<[^>]*>?/gm, '');
@@ -112,64 +92,51 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
 
   const selectedNote = useMemo(() => notes.find(n => n.id === selectedNoteId), [notes, selectedNoteId]);
 
-  // --- Auto-Delete Logic ---
   const executeAutoDelete = async (id: string) => {
     setNotes(prev => {
         const note = prev.find(n => n.id === id);
         if (!note || note.title.trim() !== '') return prev;
         return prev.filter(n => n.id !== id);
     });
-    
     setPendingNoteIds(prev => {
         const next = new Set(prev);
         next.delete(id);
         return next;
     });
-
     if (selectedNoteId === id) {
         setSelectedNoteId(null);
         setMobileView('sidebar');
     }
-
     await supabase.from('notes').delete().eq('id', id);
     delete deletionTimers.current[id];
   };
 
-  // 1. Check on Mount
   useEffect(() => {
     const now = new Date().getTime();
     const newPendingIds = new Set<string>();
-
     notes.forEach(note => {
         if (!note.title.trim()) {
             const createdTime = new Date(note.createdAt).getTime();
             const age = now - createdTime;
-
             if (age > 30000) {
                 executeAutoDelete(note.id);
             } else {
                 const remaining = 30000 - age;
                 newPendingIds.add(note.id);
                 if (deletionTimers.current[note.id]) clearTimeout(deletionTimers.current[note.id]);
-                deletionTimers.current[note.id] = setTimeout(() => {
-                    executeAutoDelete(note.id);
-                }, remaining);
+                deletionTimers.current[note.id] = setTimeout(() => { executeAutoDelete(note.id); }, remaining);
             }
         }
     });
-
     setPendingNoteIds(newPendingIds);
   }, []);
 
-  // 2. Editor Logic
   useEffect(() => {
     const hasSwitched = selectedNoteId !== prevNoteIdRef.current;
-
     if (selectedNoteId && selectedNote) {
       if (hasSwitched) {
         setEditorTitle(selectedNote.title);
         setEditorTags(selectedNote.tags || []);
-        // Convert legacy HTML content to plain text for display
         setEditorContent(stripHtml(selectedNote.content));
         prevNoteIdRef.current = selectedNoteId;
         setIsTagPopoverOpen(false);
@@ -209,7 +176,6 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
     if (!selectedNoteId || !selectedNote) return;
     const newContent = e.target.value;
     setEditorContent(newContent);
-    
     setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, content: newContent, updatedAt: new Date().toISOString() } : n));
     saveToDb(selectedNoteId, editorTitle, newContent, editorTags, selectedNote.folderId);
   };
@@ -217,21 +183,14 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
     setEditorTitle(newTitle);
-
     if (selectedNoteId && selectedNote) {
-       // --- AUTO DELETE CANCELLATION LOGIC ---
        if (newTitle.trim().length > 0) {
            if (deletionTimers.current[selectedNoteId]) {
                clearTimeout(deletionTimers.current[selectedNoteId]);
                delete deletionTimers.current[selectedNoteId];
            }
-           setPendingNoteIds(prev => {
-               const next = new Set(prev);
-               next.delete(selectedNoteId);
-               return next;
-           });
+           setPendingNoteIds(prev => { const next = new Set(prev); next.delete(selectedNoteId); return next; });
        }
-
       setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, title: newTitle, updatedAt: new Date().toISOString() } : n));
       saveToDb(selectedNoteId, newTitle, editorContent, editorTags, selectedNote.folderId);
     }
@@ -248,119 +207,61 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
   const handleInlineCreateTag = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!newTagInput.trim()) return;
-      
       setIsCreatingTag(true);
       try {
           const newTag = await createNewTag(newTagInput, userId);
           setTags(prev => [...prev, newTag]);
           setEditorTags(prev => [...prev, newTag.id]);
-          // Sync with DB
           if (selectedNoteId && selectedNote) {
               const updatedTags = [...editorTags, newTag.id];
               saveToDb(selectedNoteId, editorTitle, editorContent, updatedTags, selectedNote.folderId);
           }
           setNewTagInput('');
-      } catch (err) {
-          console.error(err);
-      } finally {
-          setIsCreatingTag(false);
-      }
+      } catch (err) { console.error(err); } finally { setIsCreatingTag(false); }
   };
 
   const handleMoveNote = async (newFolderId: string | null) => {
       if (!selectedNoteId || !selectedNote) return;
-      
       setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, folderId: newFolderId } : n));
       setIsMoveMenuOpen(false);
-      
       saveToDb(selectedNoteId, editorTitle, editorContent, editorTags, newFolderId);
-      
-      // If moving to a folder, ensure it's expanded so user sees it
-      if (newFolderId) {
-          setExpandedFolderIds(prev => new Set(prev).add(newFolderId));
-      }
+      if (newFolderId) setExpandedFolderIds(prev => new Set(prev).add(newFolderId));
   };
 
   const handleCreateNote = async (targetFolderId: string | null = null) => {
     const newId = crypto.randomUUID();
     const timestamp = new Date().toISOString();
-    
-    // Pre-fill with active global filter tag if present
     const initialTags = activeFilterTagId ? [activeFilterTagId] : [];
-
-    const newNote: Note = {
-      id: newId,
-      title: '',
-      content: '',
-      folderId: targetFolderId,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      tags: initialTags
-    };
-
+    const newNote: Note = { id: newId, title: '', content: '', folderId: targetFolderId, createdAt: timestamp, updatedAt: timestamp, tags: initialTags };
     setNotes([newNote, ...notes]);
     setSelectedNoteId(newId);
     setMobileView('editor');
     setIsAddMenuOpen(false);
-    
-    // Expand folder if creating inside one
-    if (targetFolderId) {
-        setExpandedFolderIds(prev => new Set(prev).add(targetFolderId));
-    }
-    
-    // --- START 30s TIMER ---
+    if (targetFolderId) setExpandedFolderIds(prev => new Set(prev).add(targetFolderId));
     setPendingNoteIds(prev => new Set(prev).add(newId));
-    deletionTimers.current[newId] = setTimeout(() => {
-        executeAutoDelete(newId);
-    }, 30000); // 30 seconds
-    
-    setTimeout(() => {
-       const titleInput = document.getElementById('note-title-input');
-       if(titleInput) titleInput.focus();
-    }, 100);
-
-    await supabase.from('notes').insert({
-      id: newId,
-      user_id: userId,
-      title: encryptData(''),
-      content: encryptData(''),
-      folder_id: targetFolderId,
-      created_at: timestamp,
-      updated_at: timestamp,
-      tags: initialTags
-    });
+    deletionTimers.current[newId] = setTimeout(() => { executeAutoDelete(newId); }, 30000);
+    setTimeout(() => { const titleInput = document.getElementById('note-title-input'); if(titleInput) titleInput.focus(); }, 100);
+    await supabase.from('notes').insert({ id: newId, user_id: userId, title: encryptData(''), content: encryptData(''), folder_id: targetFolderId, created_at: timestamp, updated_at: timestamp, tags: initialTags });
   };
 
   const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;
-
     const newId = crypto.randomUUID();
     const newFolder: FolderType = { id: newId, name: newFolderName };
-
     setFolders([...folders, newFolder]);
     setNewFolderName('');
     setIsCreatingFolder(false);
     setIsAddMenuOpen(false);
     setExpandedFolderIds(prev => new Set(prev).add(newId));
-
-    await supabase.from('folders').insert({
-      id: newId,
-      user_id: userId,
-      name: encryptData(newFolder.name)
-    });
+    await supabase.from('folders').insert({ id: newId, user_id: userId, name: encryptData(newFolder.name) });
   };
 
   const handleRenameFolder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingFolderId || !editFolderName.trim()) return;
-
     setFolders(prev => prev.map(f => f.id === editingFolderId ? { ...f, name: editFolderName } : f));
-    
-    await supabase.from('folders').update({
-        name: encryptData(editFolderName)
-    }).eq('id', editingFolderId);
-
+    await supabase.from('folders').update({ name: encryptData(editFolderName) }).eq('id', editingFolderId);
     setEditingFolderId(null);
     setEditFolderName('');
   };
@@ -368,36 +269,19 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
   const handleDeleteFolder = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!window.confirm("Delete this folder and ALL notes inside it?")) return;
-    
     setFolders(prev => prev.filter(f => f.id !== id));
     setNotes(prev => prev.filter(n => n.folderId !== id));
-    
-    if (selectedNote?.folderId === id) {
-        setSelectedNoteId(null);
-    }
-
+    if (selectedNote?.folderId === id) setSelectedNoteId(null);
     await supabase.from('notes').delete().eq('folder_id', id);
     await supabase.from('folders').delete().eq('id', id);
   };
 
   const handleDeleteNote = async (id: string, force = false) => {
     if (!force && !window.confirm("Permanently delete this note?")) return;
-    
-    if (deletionTimers.current[id]) {
-        clearTimeout(deletionTimers.current[id]);
-        delete deletionTimers.current[id];
-    }
-    setPendingNoteIds(prev => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-    });
-
+    if (deletionTimers.current[id]) { clearTimeout(deletionTimers.current[id]); delete deletionTimers.current[id]; }
+    setPendingNoteIds(prev => { const next = new Set(prev); next.delete(id); return next; });
     setNotes(prev => prev.filter(n => n.id !== id));
-    if (selectedNoteId === id) {
-      setSelectedNoteId(null);
-      setMobileView('sidebar');
-    }
+    if (selectedNoteId === id) { setSelectedNoteId(null); setMobileView('sidebar'); }
     await supabase.from('notes').delete().eq('id', id);
   };
 
@@ -415,49 +299,44 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
       });
   };
 
-  // --- Views ---
-
   const renderSidebar = () => (
-    <div className="flex flex-col h-full bg-slate-50 border-r border-slate-200 w-full md:w-80 shrink-0">
-       {/* Header & Search */}
-       <div className="p-4 flex items-center justify-between gap-2 shrink-0 bg-white border-b border-slate-200">
-          {/* Search Bar (Left aligned like filters) */}
-          <div className="relative flex-1 max-w-md">
-             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+    <div className="flex flex-col h-full bg-notion-sidebar border-r border-border w-full md:w-72 shrink-0">
+       <div className="p-3 flex items-center justify-between gap-2 shrink-0 border-b border-border">
+          <div className="relative flex-1">
+             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
              <input 
                 type="text" 
                 placeholder="Search..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-lg text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-[#3f3f46] focus:ring-1 focus:ring-[#3f3f46] transition-all"
+                className="w-full pl-7 pr-2 py-1 bg-background border border-transparent hover:border-border focus:border-notion-blue rounded-sm text-xs text-foreground placeholder:text-muted-foreground outline-none transition-all"
              />
           </div>
 
-          {/* Global Add Button (Right aligned) */}
           <div className="relative shrink-0">
                  <button 
                     onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
-                    className="flex items-center justify-center gap-2 px-3 py-2 bg-[#3f3f46] text-white rounded-md shadow-sm hover:bg-[#27272a] transition-all text-sm font-bold"
+                    className="flex items-center justify-center gap-1 px-2 py-1 bg-notion-blue text-white rounded-sm shadow-sm hover:bg-blue-600 transition-all text-xs font-medium"
                  >
-                    <Plus className="w-4 h-4" />
-                    <span className="hidden md:inline">New Note</span>
+                    <Plus className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">New</span>
                  </button>
                  
                  {isAddMenuOpen && (
                      <>
                         <div className="fixed inset-0 z-10" onClick={() => setIsAddMenuOpen(false)} />
-                        <div className="absolute right-0 top-full mt-2 w-40 bg-white border border-slate-200 rounded-lg shadow-xl z-20 p-1 animate-in zoom-in-95 origin-top-right">
+                        <div className="absolute right-0 top-full mt-1 w-32 bg-background border border-border rounded-md shadow-lg z-20 p-1 animate-in zoom-in-95 origin-top-right">
                             <button 
                                 onClick={() => handleCreateNote(null)}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded"
+                                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm"
                             >
-                                <FileText className="w-4 h-4 text-slate-400" /> New Note
+                                <FileText className="w-3.5 h-3.5 text-muted-foreground" /> New Note
                             </button>
                             <button 
                                 onClick={() => { setIsCreatingFolder(true); setIsAddMenuOpen(false); }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded"
+                                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm"
                             >
-                                <FolderPlus className="w-4 h-4 text-slate-400" /> New Folder
+                                <FolderPlus className="w-3.5 h-3.5 text-muted-foreground" /> New Folder
                             </button>
                         </div>
                      </>
@@ -467,15 +346,13 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
 
        <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
            
-           {/* Folders Section */}
            <div className="px-2 pt-2 pb-1 flex items-center justify-between">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Folders</span>
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Folders</span>
            </div>
 
            {folders.map(folder => {
                const isExpanded = expandedFolderIds.has(folder.id);
                const isEditing = editingFolderId === folder.id;
-               // Filter notes belonging to this folder (and search if active)
                const folderNotes = filteredNotes.filter(n => n.folderId === folder.id);
                const isEmpty = folderNotes.length === 0;
 
@@ -483,53 +360,51 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                    <div key={folder.id} className="select-none">
                        {isEditing ? (
                              <form onSubmit={handleRenameFolder} className="px-2 py-1 mb-1">
-                                <div className="flex gap-1 items-center bg-white p-1 rounded border border-[#3f3f46] shadow-sm">
+                                <div className="flex gap-1 items-center bg-background p-1 rounded-sm border border-notion-blue shadow-sm">
                                     <input 
                                         autoFocus
                                         type="text" 
                                         value={editFolderName}
                                         onChange={(e) => setEditFolderName(e.target.value)}
-                                        className="flex-1 text-xs px-2 py-1.5 border-none outline-none bg-transparent font-semibold"
+                                        className="flex-1 text-xs px-1 border-none outline-none bg-transparent"
                                         onBlur={() => { if(!editFolderName.trim()) setEditingFolderId(null); }}
                                     />
-                                    <button type="submit" className="p-1 bg-[#3f3f46] text-white rounded hover:bg-[#27272a]"><Check className="w-3 h-3" /></button>
-                                    <button type="button" onClick={() => setEditingFolderId(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded"><X className="w-3 h-3" /></button>
+                                    <button type="submit" className="text-notion-blue"><Check className="w-3 h-3" /></button>
+                                    <button type="button" onClick={() => setEditingFolderId(null)} className="text-muted-foreground"><X className="w-3 h-3" /></button>
                                 </div>
                              </form>
                        ) : (
                            <div className="group relative mb-0.5">
                                <div 
-                                    className={`flex items-center gap-1 px-2 py-1.5 rounded-lg cursor-pointer transition-colors hover:bg-slate-100`}
+                                    className={`flex items-center gap-1 px-2 py-1 rounded-sm cursor-pointer transition-colors hover:bg-notion-hover`}
                                     onClick={() => toggleFolderExpand(folder.id)}
                                >
-                                   <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
-                                   <Folder className={`w-4 h-4 ${isExpanded ? 'text-[#3f3f46] fill-[#3f3f46]/10' : 'text-slate-400'}`} />
-                                   <span className="text-sm font-medium text-slate-700 flex-1 truncate">{folder.name}</span>
+                                   <ChevronRight className={`w-3 h-3 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+                                   <Folder className={`w-3.5 h-3.5 ${isExpanded ? 'text-foreground' : 'text-muted-foreground'}`} />
+                                   <span className="text-sm text-foreground flex-1 truncate">{folder.name}</span>
                                    
-                                   {/* Quick Add Note to Folder */}
                                    <button 
                                       onClick={(e) => { e.stopPropagation(); handleCreateNote(folder.id); }}
-                                      className="p-1 text-slate-400 hover:text-[#3f3f46] hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                      className="p-0.5 text-muted-foreground hover:bg-notion-item_hover rounded opacity-0 group-hover:opacity-100 transition-opacity"
                                       title="New Note in Folder"
                                    >
-                                       <Plus className="w-3.5 h-3.5" />
+                                       <Plus className="w-3 h-3" />
                                    </button>
                                    
-                                   {/* Folder Options */}
                                    <div className="relative group/opt">
-                                        <button className="p-1 text-slate-400 hover:text-slate-600 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <MoreVertical className="w-3.5 h-3.5" />
+                                        <button className="p-0.5 text-muted-foreground hover:text-foreground rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <MoreVertical className="w-3 h-3" />
                                         </button>
-                                        <div className="absolute right-0 top-full mt-1 w-32 bg-white border border-slate-200 rounded shadow-lg z-20 hidden group-hover/opt:block animate-in zoom-in-95">
+                                        <div className="absolute right-0 top-full mt-1 w-28 bg-background border border-border rounded-md shadow-lg z-20 hidden group-hover/opt:block animate-in zoom-in-95">
                                              <button 
                                                 onClick={(e) => { e.stopPropagation(); setEditingFolderId(folder.id); setEditFolderName(folder.name); }}
-                                                className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                                                className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover flex items-center gap-2"
                                             >
                                                 <Pencil className="w-3 h-3" /> Rename
                                             </button>
                                             <button 
                                                 onClick={(e) => handleDeleteFolder(folder.id, e)}
-                                                className="w-full text-left px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                                className="w-full text-left px-2 py-1.5 text-xs text-notion-red hover:bg-notion-bg_red flex items-center gap-2"
                                             >
                                                 <Trash2 className="w-3 h-3" /> Delete
                                             </button>
@@ -537,17 +412,16 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                                    </div>
                                </div>
 
-                               {/* Nested Notes List */}
                                {isExpanded && (
-                                   <div className="ml-6 border-l border-slate-200 pl-2 space-y-0.5 mt-0.5">
-                                       {isEmpty && <div className="text-xs text-slate-400 italic py-1 px-2">Empty folder</div>}
+                                   <div className="ml-6 border-l border-border pl-2 space-y-0.5 mt-0.5">
+                                       {isEmpty && <div className="text-xs text-muted-foreground italic py-1">Empty folder</div>}
                                        {folderNotes.map(note => (
                                            <div 
                                                key={note.id}
                                                onClick={() => { setSelectedNoteId(note.id); setMobileView('editor'); }}
-                                               className={`px-2 py-1.5 rounded-md text-sm cursor-pointer truncate transition-colors flex items-center gap-2 group/note ${selectedNoteId === note.id ? 'bg-[#f1f5f9] text-[#3f3f46] font-medium' : 'text-slate-600 hover:bg-slate-50'}`}
+                                               className={`px-2 py-1 rounded-sm text-sm cursor-pointer truncate transition-colors flex items-center gap-2 group/note ${selectedNoteId === note.id ? 'bg-notion-item_hover text-foreground font-medium' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
                                            >
-                                               <FileText className={`w-3.5 h-3.5 shrink-0 ${selectedNoteId === note.id ? 'text-[#3f3f46]' : 'text-slate-300'}`} />
+                                               <FileText className="w-3 h-3 shrink-0 opacity-70" />
                                                <span className="truncate">{note.title || 'Untitled'}</span>
                                            </div>
                                        ))}
@@ -561,24 +435,23 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
 
            {isCreatingFolder && (
              <form onSubmit={handleCreateFolder} className="mt-1 px-2 animate-in fade-in slide-in-from-top-2">
-                 <div className="flex gap-2 items-center bg-white p-1 rounded-lg border border-[#3f3f46] shadow-sm">
+                 <div className="flex gap-2 items-center bg-background p-1 rounded-sm border border-notion-blue shadow-sm">
                     <input 
                         autoFocus
                         type="text" 
                         value={newFolderName}
                         onChange={(e) => setNewFolderName(e.target.value)}
                         placeholder="Folder Name..."
-                        className="flex-1 text-xs px-2 py-1.5 border-none outline-none bg-transparent font-semibold"
+                        className="flex-1 text-xs px-1 border-none outline-none bg-transparent"
                         onBlur={() => !newFolderName && setIsCreatingFolder(false)}
                     />
-                    <button type="submit" disabled={!newFolderName} className="p-1.5 bg-[#3f3f46] text-white rounded-md"><Plus className="w-3 h-3" /></button>
+                    <button type="submit" disabled={!newFolderName} className="text-notion-blue"><Plus className="w-3 h-3" /></button>
                  </div>
              </form>
            )}
 
-           {/* Uncategorized Notes */}
             <div className="px-2 pt-4 pb-1 flex items-center justify-between">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Uncategorized</span>
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Uncategorized</span>
            </div>
            
            <div className="space-y-0.5 px-2">
@@ -586,13 +459,13 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                    <div 
                         key={note.id}
                         onClick={() => { setSelectedNoteId(note.id); setMobileView('editor'); }}
-                        className={`px-2 py-2 rounded-md text-sm cursor-pointer truncate transition-colors flex items-center gap-2 ${selectedNoteId === note.id ? 'bg-[#f1f5f9] text-[#3f3f46] font-medium' : 'text-slate-600 hover:bg-slate-50'}`}
+                        className={`px-2 py-1 rounded-sm text-sm cursor-pointer truncate transition-colors flex items-center gap-2 ${selectedNoteId === note.id ? 'bg-notion-item_hover text-foreground font-medium' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
                     >
-                        <FileText className={`w-3.5 h-3.5 shrink-0 ${selectedNoteId === note.id ? 'text-[#3f3f46]' : 'text-slate-300'}`} />
+                        <FileText className="w-3 h-3 shrink-0 opacity-70" />
                         <span className="truncate">{note.title || 'Untitled'}</span>
                     </div>
                ))}
-               {filteredNotes.filter(n => !n.folderId).length === 0 && <p className="text-xs text-slate-300 italic px-2">No notes</p>}
+               {filteredNotes.filter(n => !n.folderId).length === 0 && <p className="text-xs text-muted-foreground italic px-2">No notes</p>}
            </div>
 
        </div>
@@ -602,9 +475,9 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
   const renderEditorPane = () => {
     if (!selectedNoteId || !selectedNote) {
       return (
-        <div className="flex-1 flex flex-col items-center justify-center bg-slate-50/50 text-slate-400">
-           <Type className="w-16 h-16 opacity-10 mb-4" />
-           <p className="text-sm font-bold">Select a note to view</p>
+        <div className="flex-1 flex flex-col items-center justify-center bg-background text-muted-foreground">
+           <Type className="w-12 h-12 opacity-10 mb-4" />
+           <p className="text-sm font-medium">Select a note to view</p>
         </div>
       );
     }
@@ -612,26 +485,23 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
     const currentFolder = folders.find(f => f.id === selectedNote.folderId);
 
     return (
-      <div className="flex-1 flex flex-col h-full bg-white relative">
-        {/* Editor Toolbar */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-100 shrink-0">
-           {/* ... existing toolbar code ... */}
+      <div className="flex-1 flex flex-col h-full bg-background relative">
+        <div className="flex items-center justify-between p-3 border-b border-border shrink-0 h-12">
            <div className="flex items-center gap-2">
               <button 
-                  className="md:hidden p-2 -ml-2 text-slate-400 hover:text-[#3f3f46]"
+                  className="md:hidden p-1 -ml-1 text-muted-foreground hover:text-foreground"
                   onClick={() => setMobileView('sidebar')}
               >
                   <ChevronLeft className="w-5 h-5" />
               </button>
               
-              {/* Folder Selector / Move Note */}
               <div className="relative">
                   <button 
                     onClick={() => setIsMoveMenuOpen(!isMoveMenuOpen)}
-                    className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-slate-100 text-xs font-medium text-slate-500 transition-colors"
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm hover:bg-notion-hover text-xs text-muted-foreground hover:text-foreground transition-colors"
                     title="Move Note"
                   >
-                      <Folder className="w-3.5 h-3.5" />
+                      <Folder className="w-3 h-3" />
                       <span>{currentFolder ? currentFolder.name : 'Uncategorized'}</span>
                       <ChevronDown className="w-3 h-3 opacity-50" />
                   </button>
@@ -639,21 +509,21 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                   {isMoveMenuOpen && (
                       <>
                         <div className="fixed inset-0 z-10" onClick={() => setIsMoveMenuOpen(false)} />
-                        <div className="absolute left-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-lg shadow-xl z-20 p-1 animate-in zoom-in-95 origin-top-left max-h-60 overflow-y-auto custom-scrollbar">
-                            <div className="px-2 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Move to...</div>
+                        <div className="absolute left-0 top-full mt-1 w-40 bg-background border border-border rounded-md shadow-lg z-20 p-1 animate-in zoom-in-95 origin-top-left max-h-60 overflow-y-auto custom-scrollbar">
+                            <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Move to...</div>
                             <button
                                 onClick={() => handleMoveNote(null)}
-                                className={`w-full text-left px-3 py-2 text-xs font-medium rounded flex items-center gap-2 ${!selectedNote.folderId ? 'bg-slate-100 text-[#3f3f46]' : 'text-slate-700 hover:bg-slate-50'}`}
+                                className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center gap-2 ${!selectedNote.folderId ? 'bg-notion-hover text-foreground' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
                             >
-                                <File className="w-3.5 h-3.5 opacity-50" /> Uncategorized
+                                <File className="w-3 h-3 opacity-50" /> Uncategorized
                             </button>
                             {folders.map(f => (
                                 <button
                                     key={f.id}
                                     onClick={() => handleMoveNote(f.id)}
-                                    className={`w-full text-left px-3 py-2 text-xs font-medium rounded flex items-center gap-2 ${selectedNote.folderId === f.id ? 'bg-slate-100 text-[#3f3f46]' : 'text-slate-700 hover:bg-slate-50'}`}
+                                    className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center gap-2 ${selectedNote.folderId === f.id ? 'bg-notion-hover text-foreground' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
                                 >
-                                    <Folder className="w-3.5 h-3.5 opacity-50" /> {f.name}
+                                    <Folder className="w-3 h-3 opacity-50" /> {f.name}
                                 </button>
                             ))}
                         </div>
@@ -661,19 +531,18 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                   )}
               </div>
 
-              <div className="hidden sm:flex items-center text-xs text-slate-400 gap-2 ml-2 border-l border-slate-200 pl-3">
+              <div className="hidden sm:flex items-center text-xs text-muted-foreground gap-2 ml-2 border-l border-border pl-3">
                   <Clock className="w-3 h-3" />
                   <span>{formatDateDetail(selectedNote.updatedAt)}</span>
-                  {isSaving && <span className="text-[#3f3f46] font-bold animate-pulse">Saving...</span>}
+                  {isSaving && <span className="text-foreground font-medium animate-pulse">Saving...</span>}
               </div>
            </div>
            
            <div className="flex items-center gap-1">
-               {/* Tag Button */}
                <div className="relative">
                    <button 
                        onClick={() => setIsTagPopoverOpen(!isTagPopoverOpen)}
-                       className={`p-2 rounded hover:bg-slate-100 transition-colors ${editorTags.length > 0 ? 'text-[#3f3f46]' : 'text-slate-400'}`}
+                       className={`p-1 rounded-sm hover:bg-notion-hover transition-colors ${editorTags.length > 0 ? 'text-foreground' : 'text-muted-foreground'}`}
                        title="Manage Labels"
                    >
                        <TagIcon className="w-4 h-4" />
@@ -682,39 +551,38 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                    {isTagPopoverOpen && (
                        <>
                         <div className="fixed inset-0 z-10" onClick={() => setIsTagPopoverOpen(false)} />
-                        <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-lg shadow-xl z-20 p-2 animate-in zoom-in-95 origin-top-right">
-                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Labels</h4>
-                            <div className="max-h-40 overflow-y-auto space-y-1">
-                                {tags.length === 0 && <p className="text-xs text-slate-400 italic px-1">No labels found.</p>}
+                        <div className="absolute right-0 top-full mt-1 w-48 bg-background border border-border rounded-md shadow-lg z-20 p-1 animate-in zoom-in-95 origin-top-right">
+                            <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Labels</div>
+                            <div className="max-h-40 overflow-y-auto space-y-0.5 my-1">
+                                {tags.length === 0 && <p className="text-xs text-muted-foreground italic px-2">No labels found.</p>}
                                 {tags.map(tag => (
                                     <button
                                         key={tag.id}
                                         onClick={() => toggleEditorTag(tag.id)}
-                                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-bold hover:bg-slate-50 transition-colors"
+                                        className="w-full flex items-center gap-2 px-2 py-1 rounded-sm text-xs hover:bg-notion-hover transition-colors"
                                     >
-                                        <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${editorTags.includes(tag.id) ? 'border-transparent' : 'border-slate-300'}`} style={editorTags.includes(tag.id) ? { backgroundColor: tag.color } : {}}>
-                                            {editorTags.includes(tag.id) && <Check className="w-2.5 h-2.5 text-white" />}
+                                        <div className={`w-3 h-3 rounded-sm border flex items-center justify-center ${editorTags.includes(tag.id) ? 'border-transparent' : 'border-muted-foreground'}`} style={editorTags.includes(tag.id) ? { backgroundColor: tag.color } : {}}>
+                                            {editorTags.includes(tag.id) && <Check className="w-2 h-2 text-white" />}
                                         </div>
                                         <span className="truncate">{tag.label}</span>
                                     </button>
                                 ))}
-                                {/* Inline Tag Creator */}
-                                <div className="flex items-center gap-1 mt-1 pt-1 border-t border-slate-100">
+                                <div className="flex items-center gap-1 mt-1 pt-1 border-t border-border px-1">
                                     <input 
                                         type="text" 
                                         placeholder="New Label..." 
                                         value={newTagInput}
                                         onChange={(e) => setNewTagInput(e.target.value)}
-                                        className="w-full text-xs px-2 py-1.5 border border-zinc-200 rounded focus:border-[#3f3f46] focus:ring-1 focus:ring-[#3f3f46]"
+                                        className="w-full text-xs px-1 py-1 border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none"
                                         onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }}
                                     />
                                     <button 
                                         type="button"
                                         onClick={handleInlineCreateTag}
                                         disabled={!newTagInput.trim() || isCreatingTag}
-                                        className="p-1.5 bg-zinc-100 text-zinc-600 rounded hover:bg-[#f1f5f9] hover:text-[#3f3f46] disabled:opacity-50"
+                                        className="p-1 bg-notion-hover text-muted-foreground rounded-sm hover:text-foreground disabled:opacity-50"
                                     >
-                                        <Plus className="w-3.5 h-3.5" />
+                                        <Plus className="w-3 h-3" />
                                     </button>
                                 </div>
                             </div>
@@ -725,7 +593,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
 
                <button 
                   onClick={() => handleDeleteNote(selectedNoteId)}
-                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                  className="p-1 text-muted-foreground hover:text-notion-red hover:bg-notion-bg_red rounded-sm transition-colors"
                   title="Delete Note"
                >
                   <Trash2 className="w-4 h-4" />
@@ -733,32 +601,28 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
            </div>
         </div>
 
-        {/* Editor Content */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-           <div className="max-w-3xl mx-auto px-6 py-8 md:py-12 h-full flex flex-col">
-               {/* Title Input */}
+           <div className="max-w-3xl mx-auto px-8 py-10 h-full flex flex-col">
                <input 
                   id="note-title-input"
                   type="text" 
                   value={editorTitle}
                   onChange={handleTitleChange}
-                  placeholder="Untitled Note"
-                  className="w-full text-3xl font-black text-slate-800 placeholder:text-slate-300 border-none outline-none bg-transparent mb-6 shrink-0"
+                  placeholder="Untitled"
+                  className="w-full text-4xl font-bold text-foreground placeholder:text-muted-foreground/30 border-none outline-none bg-transparent mb-4 shrink-0"
                />
                
-               {/* Tags Display */}
                {editorTags.length > 0 && (
-                   <div className="flex flex-wrap gap-2 mb-6 shrink-0">
+                   <div className="flex flex-wrap gap-1 mb-6 shrink-0">
                        {editorTags.map(tagId => {
                             const tag = tags.find(t => t.id === tagId);
                             if (!tag) return null;
                             return (
                                 <span 
                                 key={tagId} 
-                                className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border border-transparent"
-                                style={{ backgroundColor: `${tag.color}15`, color: tag.color }}
+                                className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-sm border border-transparent bg-notion-bg_gray text-foreground"
                                 >
-                                <TagIcon className="w-3 h-3" />
+                                <TagIcon className="w-3 h-3 text-muted-foreground" />
                                 {tag.label}
                                 </span>
                             );
@@ -766,12 +630,11 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                    </div>
                )}
 
-               {/* Plain Text Editor */}
                <textarea 
                   value={editorContent}
                   onChange={handleContentChange}
-                  className="w-full flex-1 resize-none border-none outline-none bg-transparent text-sm leading-7 text-slate-700 placeholder:text-slate-300 focus:ring-0 p-0"
-                  placeholder="Start typing..."
+                  className="w-full flex-1 resize-none border-none outline-none bg-transparent text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus:ring-0 p-0 font-normal"
+                  placeholder="Type '/' for commands"
                />
            </div>
         </div>
@@ -780,13 +643,10 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
   };
 
   return (
-    <div className="flex h-full bg-white relative">
-      {/* Sidebar Pane (Merged Folders + Notes List) */}
-      <div className={`${mobileView === 'sidebar' ? 'flex w-full' : 'hidden'} md:flex md:w-80 h-full`}>
+    <div className="flex h-full bg-background relative">
+      <div className={`${mobileView === 'sidebar' ? 'flex w-full' : 'hidden'} md:flex md:w-72 h-full`}>
         {renderSidebar()}
       </div>
-      
-      {/* Editor Pane */}
       <div className={`${mobileView === 'editor' ? 'flex w-full' : 'hidden'} md:flex flex-1 h-full`}>
         {renderEditorPane()}
       </div>

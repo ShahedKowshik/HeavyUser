@@ -16,12 +16,11 @@ interface JournalSectionProps {
 
 type JournalFilter = 'All' | 'Log' | 'Gratitude';
 
-// Helper to create a new tag inline
 const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     const newTag: Tag = {
         id: crypto.randomUUID(),
         label: label.trim(),
-        color: '#3f3f46', // Zinc 700 default
+        color: '#3f3f46',
     };
     
     await supabase.from('tags').insert({
@@ -45,13 +44,11 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
   const [entryType, setEntryType] = useState<EntryType>('Log');
   const [entryTags, setEntryTags] = useState<string[]>([]);
 
-  // Tag Creation State
   const [newTagInput, setNewTagInput] = useState('');
   const [isCreatingTag, setIsCreatingTag] = useState(false);
 
   const openCreateModal = () => {
     setEditingEntry(null); setTitle(''); setContent(''); setEntryType('Log'); 
-    // Pre-fill with active global filter tag if present
     setEntryTags(activeFilterTagId ? [activeFilterTagId] : []);
     setNewTagInput(''); setIsCreatingTag(false);
     setIsModalOpen(true);
@@ -87,26 +84,18 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
     if (!title.trim() || !content.trim()) return;
 
     if (editingEntry) {
-      // Optimistic Update (Update local state with PLAIN TEXT for UI)
       setJournals(prev => prev.map(j => j.id === editingEntry.id ? { ...j, title, content, entryType, tags: entryTags } : j));
-      
-      // Sync to Supabase (Send ENCRYPTED text)
       await supabase.from('journals').update({
         title: encryptData(title),
         content: encryptData(content),
         entry_type: entryType,
         tags: entryTags
       }).eq('id', editingEntry.id);
-      
     } else {
       const newId = crypto.randomUUID();
       const timestamp = new Date().toISOString();
       const newEntry: JournalEntry = { id: newId, title, content, timestamp, rating: null, entryType, tags: entryTags };
-      
-      // Optimistic Update (Add to local state with PLAIN TEXT)
       setJournals([newEntry, ...journals]);
-
-      // Sync to Supabase (Send ENCRYPTED text)
       await supabase.from('journals').insert({
         id: newId,
         user_id: userId,
@@ -133,15 +122,11 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
     return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   };
 
-  // Grouping Logic
   const groupedJournals = useMemo(() => {
     const filtered = journals.filter(j => {
-      // Search works because 'journals' props are already decrypted in Dashboard.tsx
       const matchesSearch = j.title.toLowerCase().includes(searchQuery.toLowerCase()) || j.content.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesFilter = filter === 'All' || j.entryType === filter;
-      // Global Tag Filter Logic
       const matchesGlobalTag = !activeFilterTagId || j.tags?.includes(activeFilterTagId);
-      
       return matchesSearch && matchesFilter && matchesGlobalTag;
     });
 
@@ -152,19 +137,19 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
       groups[dateKey].push(j);
     });
 
-    // Sort dates descending
     return Object.entries(groups).sort((a, b) => new Date(b[1][0].timestamp).getTime() - new Date(a[1][0].timestamp).getTime());
   }, [journals, searchQuery, filter, activeFilterTagId]);
 
   return (
-    <div className="space-y-8 pb-20">
-      <div className="flex items-center justify-between gap-2 mb-6">
-          <div className="flex items-center gap-2 bg-zinc-100 p-1 rounded-lg border border-zinc-200 shrink-0">
+    <div className="pb-20 px-4 md:px-8 pt-4 md:pt-6">
+      {/* Header Controls */}
+      <div className="flex flex-row items-center justify-between gap-2 sm:gap-4 border-b border-border pb-4 mb-6">
+          <div className="flex items-center gap-1">
             {(['All', 'Log', 'Gratitude'] as JournalFilter[]).map((f) => (
               <button 
                 key={f} 
                 onClick={() => setFilter(f)} 
-                className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-bold rounded-md transition-all ${filter === f ? 'bg-white text-[#3f3f46] shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
+                className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === f ? 'text-foreground bg-notion-hover' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
               >
                 {f}
               </button>
@@ -173,78 +158,59 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
 
         <div className="flex items-center gap-2">
           <div className="relative hidden sm:block">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input 
                 type="text" 
                 placeholder="Search..." 
                 value={searchQuery} 
                 onChange={(e) => setSearchQuery(e.target.value)} 
-                className="pl-9 pr-3 py-2 text-xs w-24 md:focus:w-48 font-bold bg-white border border-zinc-200 rounded transition-all focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-300" 
+                className="pl-8 pr-2 py-1 text-xs w-24 md:focus:w-40 bg-transparent border border-transparent hover:border-border focus:border-notion-blue rounded-sm transition-all outline-none" 
             />
           </div>
           <button 
             onClick={openCreateModal} 
-            className="flex items-center justify-center gap-2 px-3 py-2 bg-[#3f3f46] text-white hover:bg-[#27272a] rounded shadow-sm active:scale-95 transition-all text-sm font-bold shrink-0"
+            className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0"
           >
-            <Plus className="w-4 h-4" />
-            <span className="hidden md:inline">New Journal</span>
+            <Plus className="w-4 h-4" /> New
           </button>
         </div>
       </div>
 
       <div className="space-y-8">
         {groupedJournals.length === 0 ? (
-          <div className="text-center py-24 bg-white rounded border border-zinc-200 border-dashed">
-            <BookOpen className="w-10 h-10 text-zinc-300 mx-auto mb-4" />
-            <p className="text-zinc-400 text-sm font-bold uppercase tracking-widest">A blank page awaits</p>
+          <div className="text-center py-24 opacity-50">
+            <BookOpen className="w-16 h-16 text-muted-foreground mx-auto mb-4 bg-notion-bg_gray rounded-full p-4" />
+            <p className="font-medium text-muted-foreground">No entries found</p>
           </div>
         ) : (
           groupedJournals.map(([date, entries]) => (
             <div key={date} className="space-y-3">
-              <h4 className="text-[11px] font-black text-zinc-400 uppercase tracking-widest pl-1">{date}</h4>
-              <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+              <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider pl-1">{date}</h4>
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                 {entries.map((entry) => (
-                  <div key={entry.id} className="group bg-white rounded border border-zinc-200 p-5 hover:shadow-lg hover:border-zinc-300 transition-all flex flex-col justify-between relative">
-                    <div className="flex items-start justify-between mb-3">
+                  <div key={entry.id} className="group bg-background rounded-sm border border-border p-4 hover:bg-notion-item_hover transition-all flex flex-col cursor-default relative">
+                    <div className="flex items-start justify-between mb-2">
                        <div className="flex flex-wrap gap-2">
-                           <span className={`text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded ${entry.entryType === 'Gratitude' ? 'bg-orange-50 text-[#d83b01]' : 'bg-zinc-50 text-[#3f3f46]'}`}>
+                           <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-sm font-medium ${entry.entryType === 'Gratitude' ? 'bg-notion-bg_orange text-notion-orange' : 'bg-notion-bg_gray text-muted-foreground'}`}>
                               {entry.entryType}
                            </span>
-                           {entry.tags?.map(tagId => {
-                                const tag = tags.find(t => t.id === tagId);
-                                if (!tag) return null;
-                                return (
-                                    <span 
-                                    key={tagId} 
-                                    className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border border-transparent"
-                                    style={{ backgroundColor: `${tag.color}15`, color: tag.color }}
-                                    >
-                                    <TagIcon className="w-2.5 h-2.5" />
-                                    {tag.label}
-                                    </span>
-                                );
-                            })}
                        </div>
-                       <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                          <button onClick={() => openEditModal(entry)} className="p-1.5 text-[#3f3f46] hover:bg-zinc-100 rounded transition-colors" title="Edit">
+                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => openEditModal(entry)} className="p-1 text-muted-foreground hover:bg-notion-hover hover:text-foreground rounded-sm transition-colors">
                              <Pencil className="w-3.5 h-3.5" />
                           </button>
-                          <button onClick={() => deleteEntry(entry.id)} className="p-1.5 text-[#a4262c] hover:bg-red-50 rounded transition-colors" title="Delete">
+                          <button onClick={() => deleteEntry(entry.id)} className="p-1 text-muted-foreground hover:bg-notion-bg_red hover:text-notion-red rounded-sm transition-colors">
                              <Trash2 className="w-3.5 h-3.5" />
                           </button>
                        </div>
                     </div>
 
-                    <div className="flex gap-4">
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-lg font-black text-zinc-800 tracking-tight mb-2 group-hover:text-[#3f3f46] transition-colors truncate">
-                          {entry.title}
-                        </h4>
-                        <p className="text-sm text-zinc-600 leading-relaxed font-medium whitespace-pre-line">
-                          {entry.content}
-                        </p>
-                      </div>
-                    </div>
+                    <h4 className="text-sm font-semibold text-foreground mb-1 line-clamp-1">
+                      {entry.title}
+                    </h4>
+                    <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed whitespace-pre-line">
+                      {entry.content}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -254,97 +220,38 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="bg-white w-[95%] md:w-full max-w-2xl rounded shadow-2xl animate-in zoom-in duration-200 overflow-hidden flex flex-col max-h-[95vh]">
-            <div className="flex items-center justify-between px-8 py-6 border-b border-zinc-100">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-[#f1f5f9] rounded text-[#3f3f46]">
-                  <BookOpen className="w-5 h-5" />
-                </div>
-                <h3 className="text-xl font-black text-zinc-800 tracking-tight">Record Memory</h3>
-              </div>
-              <button onClick={closeModal} className="p-2 text-zinc-400 hover:bg-zinc-100 rounded transition-colors">
-                <X className="w-5 h-5" />
-              </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-background w-[95%] md:w-full max-w-2xl rounded-md shadow-2xl border border-border flex flex-col max-h-[85vh] animate-in zoom-in-95">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <span className="font-semibold text-foreground">New Entry</span>
+              <button onClick={closeModal} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
             </div>
-            <form onSubmit={handleSave} className="p-8 flex-1 overflow-y-auto space-y-8 no-scrollbar">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Entry Type</label>
-                <div className="flex p-1 bg-zinc-100 rounded border border-zinc-200">
-                  {(['Log', 'Gratitude'] as EntryType[]).map((t) => (
-                    <button 
-                      key={t} 
-                      type="button" 
-                      onClick={() => setEntryType(t)} 
-                      className={`flex-1 py-2 text-xs font-bold rounded transition-all ${entryType === t ? 'bg-white text-[#3f3f46] shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Title</label>
-                <input autoFocus required type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Give this moment a name..." className="w-full text-base font-bold bg-zinc-50 border-none rounded p-4 focus:ring-2 focus:ring-[#3f3f46]/10" />
-              </div>
-
-              {/* Tag Selector */}
-              <div className="space-y-2">
-                  <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-1.5"><TagIcon className="w-3 h-3"/> Labels</label>
-                  <div className="flex flex-wrap gap-2">
-                      {tags.map(tag => {
-                          const isActive = entryTags.includes(tag.id);
-                          return (
-                              <button
-                                  key={tag.id}
-                                  type="button"
-                                  onClick={() => {
-                                      if (isActive) setEntryTags(prev => prev.filter(id => id !== tag.id));
-                                      else setEntryTags(prev => [...prev, tag.id]);
-                                  }}
-                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition-all ${
-                                      isActive 
-                                      ? 'ring-2 ring-offset-1 ring-[#3f3f46] border-transparent' 
-                                      : 'bg-white border-zinc-200 text-zinc-500 hover:bg-zinc-50'
-                                  }`}
-                                  style={isActive ? { backgroundColor: tag.color + '20', color: tag.color } : {}}
-                              >
-                                  <TagIcon className="w-3 h-3" />
-                                  {tag.label}
-                              </button>
-                          );
-                      })}
-                      {/* Inline Tag Creator */}
-                      <div className="flex items-center gap-1">
-                          <input 
-                             type="text" 
-                             placeholder="New Label..." 
-                             value={newTagInput}
-                             onChange={(e) => setNewTagInput(e.target.value)}
-                             className="w-24 text-xs px-2 py-1.5 border border-zinc-200 rounded focus:border-[#3f3f46] focus:ring-1 focus:ring-[#3f3f46]"
-                             onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }}
-                          />
-                          <button 
-                             type="button"
-                             onClick={handleInlineCreateTag}
-                             disabled={!newTagInput.trim() || isCreatingTag}
-                             className="p-1.5 bg-zinc-100 text-zinc-600 rounded hover:bg-[#f1f5f9] hover:text-[#3f3f46] disabled:opacity-50"
-                          >
-                             <Plus className="w-3.5 h-3.5" />
-                          </button>
-                      </div>
+            
+            <form onSubmit={handleSave} className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Type:</span>
+                  <div className="flex bg-notion-bg_gray p-0.5 rounded-sm">
+                      {(['Log', 'Gratitude'] as EntryType[]).map((t) => (
+                        <button 
+                          key={t} 
+                          type="button" 
+                          onClick={() => setEntryType(t)} 
+                          className={`px-3 py-0.5 text-xs rounded-sm transition-colors ${entryType === t ? 'bg-white text-foreground shadow-sm' : 'hover:text-foreground'}`}
+                        >
+                          {t}
+                        </button>
+                      ))}
                   </div>
               </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Narrative</label>
-                <textarea required rows={6} value={content} onChange={(e) => setContent(e.target.value)} placeholder="Describe the feeling..." className="w-full text-sm font-medium bg-zinc-50 border-none rounded p-4 resize-none focus:ring-2 focus:ring-[#3f3f46]/10" />
+              
+              <div className="space-y-4">
+                <input autoFocus required type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Untitled" className="w-full text-3xl font-bold bg-transparent border-none p-0 focus:ring-0 placeholder:text-muted-foreground/50 text-foreground" />
+                <textarea required rows={12} value={content} onChange={(e) => setContent(e.target.value)} placeholder="Start writing..." className="w-full text-sm font-medium bg-transparent border-none p-0 resize-none focus:ring-0 placeholder:text-muted-foreground/50 text-foreground leading-relaxed" />
               </div>
             </form>
-            <div className="px-8 py-6 border-t border-zinc-100 bg-zinc-50 flex justify-end gap-4">
-              <button type="button" onClick={closeModal} className="px-6 py-2.5 text-sm font-bold text-zinc-600 hover:bg-zinc-200 rounded transition-all">Cancel</button>
-              <button onClick={handleSave} type="submit" className="px-10 py-2.5 text-sm font-bold bg-[#3f3f46] text-white hover:bg-[#1e293b] rounded shadow-lg active:scale-95 transition-transform">Store Memory</button>
+            
+            <div className="px-6 py-4 border-t border-border flex justify-end">
+              <button onClick={handleSave} type="submit" className="px-4 py-1.5 bg-notion-blue text-white rounded-sm text-sm font-medium hover:bg-blue-600 transition-colors">Done</button>
             </div>
           </div>
         </div>

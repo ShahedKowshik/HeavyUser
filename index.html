@@ -22,71 +22,102 @@
         },
         extend: {
           fontFamily: {
-            sans: ['Inter', 'sans-serif'],
+            sans: ['Inter', 'ui-sans-serif', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Helvetica', 'Apple Color Emoji', 'Arial', 'sans-serif', 'Segoe UI Emoji', 'Segoe UI Symbol'],
+            serif: ['ui-serif', 'Georgia', 'Cambria', 'Times New Roman', 'Times', 'serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'],
           },
           colors: {
-            border: "hsl(var(--border))",
-            input: "hsl(var(--input))",
-            ring: "hsl(var(--ring))",
-            background: "hsl(var(--background))",
-            foreground: "hsl(var(--foreground))",
+            border: "#E9E9E7",
+            input: "rgba(15, 15, 15, 0.1)", // Subtle gray input border
+            ring: "rgba(35, 131, 226, 0.7)", // Notion blue focus
+            background: "#FFFFFF",
+            foreground: "#37352F",
             primary: {
-              DEFAULT: "hsl(var(--primary))",
-              foreground: "hsl(var(--primary-foreground))",
+              DEFAULT: "#37352F",
+              foreground: "#FFFFFF",
             },
             secondary: {
-              DEFAULT: "hsl(var(--secondary))",
-              foreground: "hsl(var(--secondary-foreground))",
+              DEFAULT: "#F7F7F5",
+              foreground: "#37352F",
             },
             destructive: {
-              DEFAULT: "hsl(var(--destructive))",
-              foreground: "hsl(var(--destructive-foreground))",
+              DEFAULT: "#EB5757",
+              foreground: "#FFFFFF",
             },
             muted: {
-              DEFAULT: "hsl(var(--muted))",
-              foreground: "hsl(var(--muted-foreground))",
+              DEFAULT: "#F7F7F5",
+              foreground: "rgba(55, 53, 47, 0.65)", // Notion muted text
             },
             accent: {
-              DEFAULT: "hsl(var(--accent))",
-              foreground: "hsl(var(--accent-foreground))",
+              DEFAULT: "#F7F7F5", // Hover background
+              foreground: "#37352F",
             },
             popover: {
-              DEFAULT: "hsl(var(--popover))",
-              foreground: "hsl(var(--popover-foreground))",
+              DEFAULT: "#FFFFFF",
+              foreground: "#37352F",
             },
             card: {
-              DEFAULT: "hsl(var(--card))",
-              foreground: "hsl(var(--card-foreground))",
+              DEFAULT: "#FFFFFF",
+              foreground: "#37352F",
             },
+            // Notion Palette
+            notion: {
+               sidebar: "#F7F7F5",
+               hover: "rgba(55, 53, 47, 0.08)",
+               item_hover: "rgba(55, 53, 47, 0.08)",
+               divider: "rgba(55, 53, 47, 0.09)",
+               red: "#E03E3E",
+               orange: "#D9730D",
+               yellow: "#CB912F",
+               green: "#448361",
+               blue: "#337EA9",
+               purple: "#9065B0",
+               pink: "#C14C8A",
+               gray: "#9B9A97",
+               brown: "#9F6B53",
+               bg_red: "#FDEBEC",
+               bg_orange: "#FBF3DB",
+               bg_yellow: "#FBF3DB",
+               bg_green: "#EDF3EC",
+               bg_blue: "#E7F3F8",
+               bg_purple: "#F4F0F7",
+               bg_pink: "#F9F2F5",
+               bg_gray: "#F1F1EF",
+               bg_brown: "#F4EEEE",
+            }
           },
           borderRadius: {
-            lg: "4px",
+            lg: "6px",
             md: "4px",
-            sm: "4px",
-            xl: "4px",
-            "2xl": "4px",
-            "3xl": "4px",
+            sm: "3px",
+            xl: "8px",
+            "2xl": "12px",
+            "3xl": "16px",
             DEFAULT: "4px",
+          },
+          boxShadow: {
+            sm: 'rgba(15, 15, 15, 0.1) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 2px 4px',
+            md: 'rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 3px 6px, rgba(15, 15, 15, 0.2) 0px 9px 24px',
           },
           keyframes: {
             "slide-in-from-right-12": {
-              "0%": { transform: "translateX(3rem)", opacity: 0 },
+              "0%": { transform: "translateX(20px)", opacity: 0 },
               "100%": { transform: "translateX(0)", opacity: 1 },
             },
             "slide-in-from-left-12": {
-              "0%": { transform: "translateX(-3rem)", opacity: 0 },
+              "0%": { transform: "translateX(-20px)", opacity: 0 },
               "100%": { transform: "translateX(0)", opacity: 1 },
             },
             "slide-in-from-bottom-12": {
-              "0%": { transform: "translateY(3rem)", opacity: 0 },
+              "0%": { transform: "translateY(20px)", opacity: 0 },
               "100%": { transform: "translateY(0)", opacity: 1 },
             },
             "slide-in-from-top-12": {
-              "0%": { transform: "translateY(-3rem)", opacity: 0 },
+              "0%": { transform: "translateY(-20px)", opacity: 0 },
               "100%": { transform: "translateY(0)", opacity: 1 },
             },
             "zoom-in-95": {
-              "0%": { transform: "scale(0.95)", opacity: 0 },
+              "0%": { transform: "scale(0.98)", opacity: 0 },
               "100%": { transform: "scale(1)", opacity: 1 },
             },
             "fade-in": {
@@ -95,12 +126,12 @@
             }
           },
           animation: {
-            "slide-in-from-right-12": "slide-in-from-right-12 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards",
-            "slide-in-from-left-12": "slide-in-from-left-12 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards",
-            "slide-in-from-bottom-12": "slide-in-from-bottom-12 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards",
-            "slide-in-from-top-12": "slide-in-from-top-12 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards",
-            "zoom-in-95": "zoom-in-95 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards",
-            "fade-in": "fade-in 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards",
+            "slide-in-from-right-12": "slide-in-from-right-12 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            "slide-in-from-left-12": "slide-in-from-left-12 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            "slide-in-from-bottom-12": "slide-in-from-bottom-12 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            "slide-in-from-top-12": "slide-in-from-top-12 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            "zoom-in-95": "zoom-in-95 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            "fade-in": "fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards",
           }
         },
       },
@@ -109,69 +140,74 @@
   <style>
     :root {
       --background: 0 0% 100%;
-      --foreground: 222.2 84% 4.9%;
+      --foreground: 45 4% 20%; /* #37352F */
       --card: 0 0% 100%;
-      --card-foreground: 222.2 84% 4.9%;
+      --card-foreground: 45 4% 20%;
       --popover: 0 0% 100%;
-      --popover-foreground: 222.2 84% 4.9%;
-      --primary: 240 5% 26%; /* Zinc 700 #3f3f46 (Neutral Grey) */
-      --primary-foreground: 210 40% 98%;
-      --secondary: 210 40% 96.1%;
-      --secondary-foreground: 222.2 47.4% 11.2%;
-      --muted: 210 40% 96.1%;
-      --muted-foreground: 215.4 16.3% 46.9%;
-      --accent: 210 40% 96.1%;
-      --accent-foreground: 222.2 47.4% 11.2%;
+      --popover-foreground: 45 4% 20%;
+      --primary: 45 4% 20%;
+      --primary-foreground: 0 0% 100%;
+      --secondary: 60 5% 96%; /* #F7F7F5 */
+      --secondary-foreground: 45 4% 20%;
+      --muted: 60 5% 96%;
+      --muted-foreground: 45 2% 60%; /* #9B9A97 */
+      --accent: 60 5% 96%;
+      --accent-foreground: 45 4% 20%;
       --destructive: 0 84.2% 60.2%;
-      --destructive-foreground: 210 40% 98%;
-      --border: 214.3 31.8% 91.4%;
-      --input: 214.3 31.8% 91.4%;
-      --ring: 240 5% 26%; /* Zinc 700 */
+      --destructive-foreground: 0 0% 98%;
+      --border: 60 2% 91%; /* #E9E9E7 */
+      --input: 60 2% 91%;
+      --ring: 210 80% 51%; /* Notion Blue */
       --radius: 4px;
     }
     .dark {
-      --background: 222.2 84% 4.9%;
-      --foreground: 210 40% 98%;
-      --card: 222.2 84% 4.9%;
-      --card-foreground: 210 40% 98%;
-      --popover: 222.2 84% 4.9%;
-      --popover-foreground: 210 40% 98%;
-      --primary: 210 40% 98%;
-      --primary-foreground: 222.2 47.4% 11.2%;
-      --secondary: 217.2 32.6% 17.5%;
-      --secondary-foreground: 210 40% 98%;
-      --muted: 217.2 32.6% 17.5%;
-      --muted-foreground: 215 20.2% 65.1%;
-      --accent: 217.2 32.6% 17.5%;
-      --accent-foreground: 210 40% 98%;
+      /* Notion Dark Mode approximations */
+      --background: 220 5% 12%; /* #191919 */
+      --foreground: 0 0% 88%; /* #D4D4D4 */
+      --card: 220 5% 12%;
+      --card-foreground: 0 0% 88%;
+      --popover: 220 5% 12%;
+      --popover-foreground: 0 0% 88%;
+      --primary: 0 0% 88%;
+      --primary-foreground: 220 5% 12%;
+      --secondary: 220 4% 18%; /* #2F2F2F */
+      --secondary-foreground: 0 0% 88%;
+      --muted: 220 4% 18%;
+      --muted-foreground: 220 2% 60%;
+      --accent: 220 4% 18%;
+      --accent-foreground: 0 0% 88%;
       --destructive: 0 62.8% 30.6%;
-      --destructive-foreground: 210 40% 98%;
-      --border: 217.2 32.6% 17.5%;
-      --input: 217.2 32.6% 17.5%;
-      --ring: 212.7 26.8% 83.9%;
+      --destructive-foreground: 0 0% 98%;
+      --border: 220 4% 24%; /* #373737 */
+      --input: 220 4% 24%;
+      --ring: 210 80% 51%;
     }
     body {
       @apply bg-background text-foreground font-sans antialiased;
+      background-color: #FFFFFF; /* Hard force for light mode base */
+    }
+    .dark body {
+      background-color: #191919;
     }
     /* Fix for mobile blue/black tap highlight */
     * {
       -webkit-tap-highlight-color: transparent;
     }
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.3); border-radius: 3px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(55, 53, 47, 0.16); border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(55, 53, 47, 0.32); }
     
     /* Notes List & Checkbox Alignment Fixes */
     .note-content ul, .note-content ol { 
-      padding-left: 1.65em !important; 
-      margin-top: 0.25em !important; 
-      margin-bottom: 0.25em !important;
+      padding-left: 1.5em !important; 
+      margin-top: 0.1em !important; 
+      margin-bottom: 0.1em !important;
     }
     .note-content li { 
-      margin-top: 0.25em !important; 
-      margin-bottom: 0.25em !important;
-      padding-left: 0 !important; /* Reset prose padding */
+      margin-top: 0.1em !important; 
+      margin-bottom: 0.1em !important;
+      padding-left: 0 !important;
     }
 
     /* Target checkbox rows */
@@ -179,22 +215,21 @@
     .note-content p:has(input[type="checkbox"]) {
       line-height: inherit;
       min-height: 1.5em;
-      margin-top: 0.25em !important;
-      margin-bottom: 0.25em !important;
+      margin-top: 0.1em !important;
+      margin-bottom: 0.1em !important;
       display: flex;
       align-items: flex-start;
       padding-left: 0 !important;
     }
     
     .note-content input[type="checkbox"] {
-        margin-top: 0.35em !important; /* Visual alignment with text cap-height */
-        margin-right: 0.65em !important; /* 1em width + 0.65em margin = 1.65em total offset, matching UL padding */
+        margin-top: 0.25em !important;
+        margin-right: 0.5em !important;
         width: 1em !important;
         height: 1em !important;
-        accent-color: #3f3f46;
+        accent-color: #37352F;
         flex-shrink: 0;
         cursor: pointer;
-        /* Ensure it overrides utility classes */
     }
   </style>
   <script>
