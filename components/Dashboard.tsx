@@ -559,7 +559,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         </nav>
 
         {!isSidebarCollapsed && (
-            <div className="mt-4 px-3 py-3 border border-border rounded-sm mx-1">
+            <div className="mt-4 px-3 py-3 bg-background border border-border rounded-sm mx-1 shadow-sm">
                 <div className="flex justify-between items-end mb-1">
                     <div>
                         <div className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider">Tracked</div>
@@ -586,7 +586,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             </div>
         )}
 
-        <div className={`pt-2 mt-2 border-t border-notion-divider w-full flex flex-col gap-0.5`}>
+        <div className={`pt-2 mt-2 w-full flex flex-col gap-0.5`}>
           <NavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
           <NavItem id="request_feature" label="Request Feature" icon={Lightbulb} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
           <NavItem id="report_bug" label="Report Bug" icon={Bug} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
