@@ -4,6 +4,7 @@ import { Search, Plus, Trash2, X, FileText, ChevronLeft, Folder, FolderPlus, Che
 import { Note, Folder as FolderType, Tag } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
+import { getContrastColor } from '../lib/utils';
 
 interface NotesSectionProps {
   notes: Note[];
@@ -561,7 +562,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                                         onClick={() => toggleEditorTag(tag.id)}
                                         className="w-full flex items-center gap-2 px-2 py-1 rounded-sm text-xs hover:bg-notion-hover transition-colors"
                                     >
-                                        <div className={`w-3 h-3 rounded-sm border flex items-center justify-center ${editorTags.includes(tag.id) ? 'border-transparent' : 'border-muted-foreground'}`} style={editorTags.includes(tag.id) ? { backgroundColor: tag.color } : {}}>
+                                        <div className={`w-3 h-3 rounded-sm border flex items-center justify-center ${editorTags.includes(tag.id) ? 'border-transparent' : 'border-muted-foreground'}`} style={editorTags.includes(tag.id) ? { backgroundColor: tag.color, borderColor: 'transparent' } : {}}>
                                             {editorTags.includes(tag.id) && <Check className="w-2 h-2 text-white" />}
                                         </div>
                                         <span className="truncate">{tag.label}</span>
@@ -620,9 +621,10 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                             return (
                                 <span 
                                 key={tagId} 
-                                className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-sm border border-transparent bg-notion-bg_gray text-foreground"
+                                className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-sm border border-transparent"
+                                style={{ backgroundColor: tag.color, color: getContrastColor(tag.color) }}
                                 >
-                                <TagIcon className="w-3 h-3 text-muted-foreground" />
+                                <TagIcon className="w-3 h-3 opacity-50" style={{ color: getContrastColor(tag.color) }} />
                                 {tag.label}
                                 </span>
                             );

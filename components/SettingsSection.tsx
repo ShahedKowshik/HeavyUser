@@ -8,6 +8,7 @@ import {
 import { UserSettings, AppTab, Tag } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
+import { getContrastColor } from '../lib/utils';
 
 interface SettingsSectionProps {
   settings: UserSettings;
@@ -54,7 +55,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
 
   // Tag Management State
   const [newTagLabel, setNewTagLabel] = useState('');
-  const [newTagColor, setNewTagColor] = useState(PRESET_COLORS[3]); 
+  const [newTagColor, setNewTagColor] = useState(PRESET_COLORS[0]); 
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [editTagLabel, setEditTagLabel] = useState('');
   const [editTagColor, setEditTagColor] = useState('');
@@ -98,6 +99,26 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
       label: encryptData(newTag.label),
       color: newTag.color
     });
+  };
+
+  const handleUpdateTag = async () => {
+    if (!editingTagId || !editTagLabel.trim()) return;
+    const updatedTags = tags.map(t => t.id === editingTagId ? { ...t, label: editTagLabel, color: editTagColor } : t);
+    setTags(updatedTags);
+    
+    await supabase.from('tags').update({
+        label: encryptData(editTagLabel),
+        color: editTagColor
+    }).eq('id', editingTagId);
+    
+    setEditingTagId(null);
+  };
+
+  const handleDeleteTag = async (id: string) => {
+      if (!confirm("Delete this label?")) return;
+      setTags(tags.filter(t => t.id !== id));
+      await supabase.from('tags').delete().eq('id', id);
+      setEditingTagId(null);
   };
 
   const handleFinalDelete = async () => {
@@ -265,23 +286,86 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
 
                         <div>
                             <h2 className="text-lg font-medium text-foreground border-b border-border pb-2 mb-4">Labels</h2>
-                            <div className="flex gap-2 mb-4">
-                                <input 
-                                    type="text" 
-                                    placeholder="New Label Name" 
-                                    value={newTagLabel}
-                                    onChange={e => setNewTagLabel(e.target.value)}
-                                    className="text-sm border border-border rounded-sm px-2 py-1 bg-transparent outline-none focus:ring-1 focus:ring-notion-blue"
-                                />
-                                <button onClick={handleAddTag} className="px-2 py-1 bg-notion-hover rounded-sm text-sm border border-border hover:bg-border transition-colors">Add</button>
+                            
+                            {/* Create Label Section */}
+                            <div className="flex flex-col gap-2 mb-4 p-3 border border-border rounded-md bg-secondary/30">
+                                <span className="text-xs font-semibold text-muted-foreground uppercase">Create New Label</span>
+                                <div className="flex gap-2 items-center">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Label Name" 
+                                        value={newTagLabel}
+                                        onChange={e => setNewTagLabel(e.target.value)}
+                                        className="flex-1 text-sm border border-border rounded-sm px-2 py-1 bg-background outline-none focus:ring-1 focus:ring-notion-blue"
+                                    />
+                                    {/* Color Picker */}
+                                     <div className="relative group">
+                                        <button 
+                                            className="w-8 h-8 rounded-sm border border-border flex items-center justify-center transition-colors shadow-sm"
+                                            style={{ backgroundColor: newTagColor }}
+                                        />
+                                        <div className="absolute left-0 top-full mt-1 p-2 bg-background border border-border rounded shadow-xl grid grid-cols-8 gap-1 z-10 hidden group-hover:grid w-64">
+                                            {PRESET_COLORS.map(c => (
+                                                <button 
+                                                    key={c} 
+                                                    onClick={() => setNewTagColor(c)} 
+                                                    className="w-6 h-6 rounded-sm border border-border/50 hover:scale-110 transition-transform"
+                                                    style={{ backgroundColor: c }} 
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                    
+                                    <button onClick={handleAddTag} disabled={!newTagLabel.trim()} className="px-3 py-1 bg-notion-blue text-white rounded-sm text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50">Add</button>
+                                </div>
                             </div>
+                            
                             <div className="flex flex-wrap gap-2">
-                                {tags.map(tag => (
-                                    <span key={tag.id} className="flex items-center gap-1.5 px-2 py-1 rounded-sm bg-notion-bg_gray text-sm border border-border">
-                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />
-                                        {tag.label}
-                                    </span>
-                                ))}
+                                {tags.map(tag => {
+                                    const textColor = getContrastColor(tag.color);
+                                    if (editingTagId === tag.id) {
+                                        return (
+                                            <div key={tag.id} className="flex items-center gap-2 p-1 border border-notion-blue rounded-sm bg-background animate-in fade-in shadow-sm">
+                                                <input 
+                                                    autoFocus
+                                                    value={editTagLabel}
+                                                    onChange={(e) => setEditTagLabel(e.target.value)}
+                                                    className="w-24 text-sm px-1 outline-none bg-transparent"
+                                                />
+                                                <div className="relative group">
+                                                    <button 
+                                                        className="w-4 h-4 rounded-full border border-border shadow-sm"
+                                                        style={{ backgroundColor: editTagColor }}
+                                                    />
+                                                     <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 p-2 bg-background border border-border rounded shadow-xl grid grid-cols-8 gap-1 z-20 hidden group-hover:grid w-64">
+                                                        {PRESET_COLORS.map(c => (
+                                                            <button 
+                                                                key={c} 
+                                                                onClick={() => setEditTagColor(c)} 
+                                                                className="w-5 h-5 rounded-sm border border-border/50 hover:scale-110 transition-transform"
+                                                                style={{ backgroundColor: c }} 
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <button onClick={handleUpdateTag} className="text-notion-green hover:bg-notion-bg_green p-0.5 rounded"><Check className="w-3 h-3" /></button>
+                                                <button onClick={() => handleDeleteTag(tag.id)} className="text-notion-red hover:bg-notion-bg_red p-0.5 rounded"><Trash2 className="w-3 h-3" /></button>
+                                                <button onClick={() => setEditingTagId(null)} className="text-muted-foreground hover:bg-notion-hover p-0.5 rounded"><X className="w-3 h-3" /></button>
+                                            </div>
+                                        );
+                                    }
+                                    return (
+                                        <button 
+                                            key={tag.id} 
+                                            onClick={() => { setEditingTagId(tag.id); setEditTagLabel(tag.label); setEditTagColor(tag.color); }}
+                                            className="group flex items-center gap-1.5 px-2 py-1 rounded-sm text-sm border border-transparent hover:border-border transition-all hover:shadow-sm"
+                                            style={{ backgroundColor: tag.color, color: textColor }}
+                                        >
+                                            {tag.label}
+                                            <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-50 transition-opacity" />
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>

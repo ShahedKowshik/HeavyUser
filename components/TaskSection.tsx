@@ -5,7 +5,7 @@ import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon,
 import { Task, Priority, Subtask, Tag, Recurrence, TaskSession } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
-import { cn } from '../lib/utils';
+import { cn, getContrastColor } from '../lib/utils';
 
 // ... (Assuming helpers exist in scope or similar to previous structure)
 
@@ -559,7 +559,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                         const tag = tags.find(t => t.id === tagId);
                                         if (!tag) return null;
                                         return (
-                                            <span key={tagId} className="px-1.5 py-0.5 rounded-sm bg-notion-bg_gray text-muted-foreground truncate max-w-[80px]">
+                                            <span key={tagId} className="px-1.5 py-0.5 rounded-sm text-xs truncate max-w-[80px] border border-black/5" style={{ backgroundColor: tag.color, color: getContrastColor(tag.color) }}>
                                                 {tag.label}
                                             </span>
                                         );
@@ -695,11 +695,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
              <div className="px-4 md:px-8 pt-4 md:pt-6 mb-4 space-y-4">
                 <div className="flex flex-row items-center justify-between gap-2 sm:gap-4 border-b border-border pb-4">
                     <div className="flex items-center gap-1">
-                        <button onClick={() => { setViewLayout('list'); handleViewModeChange('active'); }} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'list' && viewMode === 'active' ? 'text-foreground bg-notion-hover' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>
-                            Board View
-                        </button>
-                        <button onClick={() => { setViewLayout('list'); handleViewModeChange('completed'); }} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'list' && viewMode === 'completed' ? 'text-foreground bg-notion-hover' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>
-                            Completed
+                        <button onClick={() => setViewLayout('list')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'list' ? 'text-foreground bg-notion-hover' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>
+                            List
                         </button>
                         <button onClick={() => setViewLayout('tracker')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'tracker' ? 'text-foreground bg-notion-hover' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>
                             Tracker
@@ -707,6 +704,16 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                     </div>
 
                     <div className="flex items-center gap-2">
+                        {viewLayout === 'list' && (
+                            <button 
+                                onClick={() => handleViewModeChange(viewMode === 'active' ? 'completed' : 'active')}
+                                className={`flex items-center justify-center p-1.5 rounded-sm transition-colors ${viewMode === 'completed' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
+                                title={viewMode === 'active' ? "Show Completed" : "Show Active"}
+                            >
+                                <CheckSquare className="w-4 h-4" />
+                            </button>
+                        )}
+
                         <div className="relative">
                             <button 
                                 onClick={() => setIsGroupingMenuOpen(!isGroupingMenuOpen)} 
@@ -788,7 +795,13 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                             <div className="w-32 flex items-center gap-2 text-muted-foreground"><TagIcon className="w-4 h-4" /> <span>Tags</span></div>
                             <div className="flex-1 flex flex-wrap gap-1">
                                 {tags.map(tag => (
-                                    <button key={tag.id} type="button" onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])} className={`px-1.5 py-0.5 rounded-sm text-sm transition-colors ${selectedTags.includes(tag.id) ? 'bg-notion-bg_gray text-foreground' : 'text-muted-foreground hover:bg-notion-hover'}`}>
+                                    <button 
+                                        key={tag.id} 
+                                        type="button" 
+                                        onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])} 
+                                        className={`px-1.5 py-0.5 rounded-sm text-sm transition-colors ${selectedTags.includes(tag.id) ? 'border border-black/5' : 'text-muted-foreground hover:bg-notion-hover'}`}
+                                        style={selectedTags.includes(tag.id) ? { backgroundColor: tag.color, color: getContrastColor(tag.color) } : {}}
+                                    >
                                         {tag.label}
                                     </button>
                                 ))}
