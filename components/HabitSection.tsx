@@ -343,25 +343,31 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                       } else if (count > 0 || habit.goalType === 'negative') {
                           if (habit.goalType === 'negative') {
                               if (count > habit.target) bgClass = 'bg-notion-bg_red text-notion-red';
-                              else if (new Date(dateStr) <= new Date(today)) bgClass = 'bg-notion-bg_green text-notion-green'; // Passed day
+                              else if (dateStr <= today) bgClass = 'bg-notion-bg_green text-notion-green'; // Passed day
                           } else {
                               if (count >= habit.target) bgClass = 'bg-notion-bg_green text-notion-green';
                               else if (count > 0) bgClass = 'bg-notion-bg_orange text-notion-orange';
                           }
                       }
 
-                      const isFuture = new Date(dateStr) > new Date(today);
+                      // Fixed future check logic
+                      const isFuture = dateStr > today;
 
                       return (
                           <div 
                             key={day}
-                            onClick={() => {
+                            onClick={(e) => {
+                                e.stopPropagation();
                                 if (isFuture) return;
                                 if (habit.useCounter) {
                                     setDayEdit({ date: dateStr, count });
                                 } else {
-                                    const nextCount = count >= habit.target ? 0 : habit.target;
-                                    updateDayStatus(habit.id, dateStr, nextCount, isSkipped);
+                                    if (habit.goalType === 'negative') {
+                                        updateDayStatus(habit.id, dateStr, count === 0 ? 1 : 0, isSkipped);
+                                    } else {
+                                        const nextCount = count >= habit.target ? 0 : habit.target;
+                                        updateDayStatus(habit.id, dateStr, nextCount, isSkipped);
+                                    }
                                 }
                             }}
                             className={`aspect-square rounded-sm flex items-center justify-center text-xs font-medium cursor-pointer transition-colors ${bgClass} ${isFuture ? 'opacity-30 cursor-default' : ''}`}
@@ -457,14 +463,14 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                              }
                                          }
                                      }}
-                                     className={`w-6 h-6 rounded-sm flex items-center justify-center transition-colors border ${
+                                     className={`w-6 h-6 rounded-sm flex items-center justify-center transition-colors bg-notion-bg_gray hover:bg-notion-hover ${
                                          habit.useCounter 
-                                            ? 'bg-notion-bg_gray border-muted-foreground/30 hover:bg-notion-hover text-muted-foreground'
+                                            ? 'text-muted-foreground'
                                             : isCompletedToday && !isFailedToday
-                                                ? 'bg-notion-blue border-notion-blue text-white'
+                                                ? 'text-foreground'
                                                 : isFailedToday 
-                                                    ? 'bg-notion-red border-notion-red text-white'
-                                                    : 'border-muted-foreground/40 hover:bg-notion-hover text-transparent hover:text-muted-foreground'
+                                                    ? 'text-notion-red'
+                                                    : 'text-transparent hover:text-muted-foreground'
                                      }`}
                                  >
                                      {habit.useCounter ? <Plus className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}

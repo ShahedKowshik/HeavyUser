@@ -235,7 +235,7 @@ const RecurrenceButton = ({ value, onChange, openModal }: { value: Recurrence | 
   <button
      type="button"
      onClick={() => openModal(value, onChange)}
-     className={`flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-sm transition-all ${
+     className={`flex items-center gap-1.5 px-2 py-1 text-sm font-medium rounded-sm transition-all ${
         value 
         ? 'bg-notion-bg_purple text-notion-purple' 
         : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'
@@ -757,7 +757,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
             <div onClick={(e) => e.stopPropagation()} className="bg-background w-full max-w-2xl rounded-md shadow-2xl border border-border flex flex-col max-h-[85vh] overflow-hidden">
                 <div className="px-12 pt-8 pb-4 flex items-start gap-4">
                     <div className="flex-1">
-                        <input autoFocus type="text" placeholder="Untitled" value={title} onChange={e => setTitle(e.target.value)} className="w-full text-3xl font-bold text-foreground placeholder:text-muted-foreground/50 border-none focus:ring-0 p-[5px] bg-transparent" />
+                        <input autoFocus type="text" placeholder="Untitled" value={title} onChange={e => setTitle(e.target.value)} className="w-full text-xl font-bold text-foreground placeholder:text-muted-foreground/50 border-none focus:ring-0 p-[5px] bg-transparent" />
                     </div>
                     <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:bg-notion-hover hover:text-foreground p-1 rounded transition-colors -mr-2"><X className="w-5 h-5"/></button>
                 </div>
@@ -768,7 +768,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         <div className="flex items-center h-8">
                             <div className="w-32 flex items-center gap-2 text-muted-foreground"><Calendar className="w-4 h-4" /> <span>Date</span></div>
                             <div className="flex-1 relative">
-                                <button type="button" ref={dateButtonRef} onClick={() => setIsDatePickerOpen(!isDatePickerOpen)} className="text-foreground hover:bg-notion-hover px-1.5 py-0.5 rounded-sm transition-colors text-left w-full truncate">
+                                <button type="button" ref={dateButtonRef} onClick={() => setIsDatePickerOpen(!isDatePickerOpen)} className="text-sm text-foreground hover:bg-notion-hover px-1.5 py-0.5 rounded-sm transition-colors text-left w-full truncate">
                                     {dueDate ? formatRelativeDate(dueDate) : <span className="text-muted-foreground">Empty</span>}
                                 </button>
                                 {isDatePickerOpen && <TaskDatePicker value={dueDate} onChange={setDueDate} onClose={() => setIsDatePickerOpen(false)} dayStartHour={dayStartHour} triggerRef={dateButtonRef} />}
@@ -778,7 +778,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                             <div className="w-32 flex items-center gap-2 text-muted-foreground"><CheckSquare className="w-4 h-4" /> <span>Priority</span></div>
                             <div className="flex-1 flex gap-1">
                                 {priorities.map(p => (
-                                    <button key={p} type="button" onClick={() => setPriority(p)} className={`px-2 py-0.5 text-xs rounded-sm transition-colors ${priority === p ? getPriorityStyle(p).badge : 'text-muted-foreground hover:bg-notion-hover'}`}>
+                                    <button key={p} type="button" onClick={() => setPriority(p)} className={`px-2 py-0.5 text-sm rounded-sm transition-colors ${priority === p ? getPriorityStyle(p).badge : 'text-muted-foreground hover:bg-notion-hover'}`}>
                                         {p}
                                     </button>
                                 ))}
@@ -788,16 +788,16 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                             <div className="w-32 flex items-center gap-2 text-muted-foreground"><TagIcon className="w-4 h-4" /> <span>Tags</span></div>
                             <div className="flex-1 flex flex-wrap gap-1">
                                 {tags.map(tag => (
-                                    <button key={tag.id} type="button" onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])} className={`px-1.5 py-0.5 rounded-sm text-xs transition-colors ${selectedTags.includes(tag.id) ? 'bg-notion-bg_gray text-foreground' : 'text-muted-foreground hover:bg-notion-hover'}`}>
+                                    <button key={tag.id} type="button" onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])} className={`px-1.5 py-0.5 rounded-sm text-sm transition-colors ${selectedTags.includes(tag.id) ? 'bg-notion-bg_gray text-foreground' : 'text-muted-foreground hover:bg-notion-hover'}`}>
                                         {tag.label}
                                     </button>
                                 ))}
-                                <input type="text" placeholder="Add..." value={newTagInput} onChange={(e) => setNewTagInput(e.target.value)} className="w-16 bg-transparent border-none text-xs p-0 focus:ring-0 placeholder:text-muted-foreground/50" onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }} />
+                                <input type="text" placeholder="Add..." value={newTagInput} onChange={(e) => setNewTagInput(e.target.value)} className="w-16 bg-transparent border-none text-sm p-0 focus:ring-0 placeholder:text-muted-foreground/50" onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }} />
                             </div>
                         </div>
                         <div className="flex items-center h-8">
                             <div className="w-32 flex items-center gap-2 text-muted-foreground"><Repeat className="w-4 h-4" /> <span>Recur</span></div>
-                            <div className="flex-1"><RecurrenceButton value={createRecurrence} onChange={setCreateRecurrence} openModal={openRecurrenceModal} /></div>
+                            <div className="flex-1 text-sm"><RecurrenceButton value={createRecurrence} onChange={setCreateRecurrence} openModal={openRecurrenceModal} /></div>
                         </div>
                         
                         {/* Time Estimation */}
@@ -809,7 +809,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                         key={opt.label} 
                                         type="button" 
                                         onClick={() => setPlannedTime(opt.value)} 
-                                        className={`px-2 py-0.5 text-xs rounded-sm transition-colors whitespace-nowrap ${plannedTime === opt.value ? 'bg-notion-bg_blue text-notion-blue' : 'text-muted-foreground hover:bg-notion-hover'}`}
+                                        className={`px-2 py-0.5 text-sm rounded-sm transition-colors whitespace-nowrap ${plannedTime === opt.value ? 'bg-notion-bg_blue text-notion-blue' : 'text-muted-foreground hover:bg-notion-hover'}`}
                                     >
                                         {opt.label}
                                     </button>
