@@ -698,7 +698,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                         const tag = tags.find(t => t.id === tagId);
                                         if (!tag) return null;
                                         return (
-                                            <span key={tagId} className="px-1.5 py-0.5 rounded-sm text-xs truncate max-w-[80px] border border-black/5" style={{ backgroundColor: tag.color, color: getContrastColor(tag.color) }}>
+                                            <span key={tagId} className="px-1.5 py-0.5 rounded-sm text-xs font-medium truncate max-w-[80px] border border-black/5 shadow-[0_1px_2px_rgba(0,0,0,0.05)]" style={{ backgroundColor: tag.color, color: getContrastColor(tag.color) }}>
                                                 {tag.label}
                                             </span>
                                         );
@@ -954,7 +954,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                         key={tag.id} 
                                         type="button" 
                                         onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])} 
-                                        className={`px-1.5 py-0.5 rounded-sm text-sm transition-colors ${selectedTags.includes(tag.id) ? 'border border-black/5' : 'text-muted-foreground hover:bg-notion-hover'}`}
+                                        className={`px-1.5 py-0.5 rounded-sm text-sm font-medium transition-colors ${selectedTags.includes(tag.id) ? 'border border-black/5' : 'text-muted-foreground hover:bg-notion-hover'}`}
                                         style={selectedTags.includes(tag.id) ? { backgroundColor: tag.color, color: getContrastColor(tag.color) } : {}}
                                     >
                                         {tag.label}

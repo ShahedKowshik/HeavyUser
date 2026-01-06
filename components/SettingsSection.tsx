@@ -365,7 +365,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                         <button 
                                             key={tag.id} 
                                             onClick={() => { setEditingTagId(tag.id); setEditTagLabel(tag.label); setEditTagColor(tag.color); }}
-                                            className="group flex items-center gap-1.5 px-2 py-1 rounded-sm text-sm border border-transparent hover:border-border transition-all hover:shadow-sm"
+                                            className="group flex items-center gap-1.5 px-2 py-1 rounded-sm text-sm font-medium border border-transparent hover:border-border transition-all hover:shadow-sm"
                                             style={{ backgroundColor: tag.color, color: textColor }}
                                         >
                                             <span className="truncate max-w-[150px]">{tag.label}</span>

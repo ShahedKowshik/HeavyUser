@@ -1,9 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save, SkipForward, CircleCheck, ArrowLeft, Clock } from 'lucide-react';
+import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save, SkipForward, CircleCheck, ArrowLeft, Clock, MoreHorizontal, Flag } from 'lucide-react';
 import { Habit, Tag } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
+import { cn } from '../lib/utils';
 
 interface HabitSectionProps {
   habits: Habit[];
@@ -47,9 +48,8 @@ const getLogicalDate = (dayStartHour: number = 0) => {
 const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
     const parts = dateStr.split('-').map(Number);
-    // Construct local date from parts (Month is 0-indexed)
     const date = new Date(parts[0], parts[1] - 1, parts[2]);
-    return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 };
 
 const getHabitStats = (habit: Habit, today: string) => {
@@ -68,15 +68,12 @@ const getHabitStats = (habit: Habit, today: string) => {
     // --- Streak Calculation ---
     let streak = 0;
     
-    // Check Today First for negative failure
-    // If a negative habit is failed TODAY, streak is broken immediately.
     const todayCount = habit.progress[today] || 0;
     const todaySkipped = habit.skippedDates.includes(today);
     let isStreakBrokenToday = false;
     
     if (habit.goalType === 'negative') {
         const limit = !habit.useCounter ? 0 : habit.target;
-        // If count exceeds limit and not skipped, it is a failure
         if (todayCount > limit && !todaySkipped) {
             isStreakBrokenToday = true;
         }
@@ -87,7 +84,6 @@ const getHabitStats = (habit: Habit, today: string) => {
         const startDate = new Date(habit.startDate);
         startDate.setHours(0,0,0,0);
 
-        // Optimization: prevent infinite loop if startDate is invalid or future relative to yesterday
         if (startDate <= new Date(today)) { 
              while (true) {
                 const dateStr = `${currentCheckDate.getFullYear()}-${String(currentCheckDate.getMonth() + 1).padStart(2, '0')}-${String(currentCheckDate.getDate()).padStart(2, '0')}`;
@@ -95,7 +91,6 @@ const getHabitStats = (habit: Habit, today: string) => {
                 const checkTime = new Date(dateStr);
                 checkTime.setHours(0,0,0,0);
                 
-                // Stop if we go before start date
                 if (checkTime < startDate) break;
 
                 const count = habit.progress[dateStr] || 0;
@@ -113,10 +108,9 @@ const getHabitStats = (habit: Habit, today: string) => {
         streak = 0;
     }
 
-    // --- Totals Calculation (From Start Date to Today) ---
+    // --- Totals Calculation ---
     let totalDays = 0;
     let successfulDays = 0;
-    let failedDays = 0;
     
     const start = new Date(habit.startDate);
     start.setHours(0,0,0,0);
@@ -125,7 +119,6 @@ const getHabitStats = (habit: Habit, today: string) => {
     
     const cur = new Date(start);
     
-    // Loop through all days from start to today
     while (cur <= end) {
         const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
         
@@ -133,42 +126,18 @@ const getHabitStats = (habit: Habit, today: string) => {
         const skipped = habit.skippedDates.includes(dateStr);
         const success = isSuccess(count, habit.goalType || 'positive', habit.target);
 
-        if (dateStr === today) {
-             // Logic for Today
-             // Negative Habit: Default is success unless failed.
-             // Positive Habit: Default is pending (fail) unless success. 
-             // We include today in stats to show "current status".
-             totalDays++;
-             
-             if (skipped) {
-                 successfulDays++;
-             } else {
-                 if (habit.goalType === 'negative') {
-                     if (success) successfulDays++;
-                     else failedDays++;
-                 } else {
-                     // Positive
-                     if (success) successfulDays++;
-                     else failedDays++; // Strictly speaking, if not done yet, it counts as failed in "Total Success" ratio until done.
-                 }
-             }
+        totalDays++;
+        if (skipped) {
+            successfulDays++;
         } else {
-            // Past Days
-            totalDays++;
-            if (skipped) {
-                successfulDays++;
-            } else {
-                if (success) successfulDays++;
-                else failedDays++;
-            }
+            if (success) successfulDays++;
         }
-        
         cur.setDate(cur.getDate() + 1);
     }
 
     const rate = totalDays > 0 ? Math.round((successfulDays / totalDays) * 100) : 0;
 
-    return { streak, totalDays, successfulDays, failedDays, rate };
+    return { streak, totalDays, successfulDays, rate };
 };
 
 const interpolateColor = (color1: string, color2: string, factor: number) => {
@@ -190,21 +159,19 @@ const interpolateColor = (color1: string, color2: string, factor: number) => {
 const getProgressBarStyle = (progress: number, target: number, type: 'positive' | 'negative' | undefined) => {
     const ratio = Math.min(progress / Math.max(target, 1), 1);
     const RED = '#E03E3E';
-    const YELLOW = '#D9730D';
+    const YELLOW = '#F59E0B'; // Amber/Yellow
     const GREEN = '#448361';
 
     let backgroundColor;
     const goalType = type || 'positive';
 
     if (goalType === 'negative') {
-        // Green (0%) -> Yellow (50%) -> Red (100%)
         if (ratio < 0.5) {
             backgroundColor = interpolateColor(GREEN, YELLOW, ratio * 2);
         } else {
             backgroundColor = interpolateColor(YELLOW, RED, (ratio - 0.5) * 2);
         }
     } else {
-        // Red (0%) -> Yellow (50%) -> Green (100%)
         if (ratio < 0.5) {
             backgroundColor = interpolateColor(RED, YELLOW, ratio * 2);
         } else {
@@ -215,22 +182,8 @@ const getProgressBarStyle = (progress: number, target: number, type: 'positive' 
     return { width: `${ratio * 100}%`, backgroundColor };
 };
 
-const getDaysSinceStart = (startDateStr: string, today: string) => {
-    const startParts = startDateStr.split('-').map(Number);
-    const start = new Date(startParts[0], startParts[1]-1, startParts[2]);
-    
-    const todayParts = today.split('-').map(Number);
-    const now = new Date(todayParts[0], todayParts[1]-1, todayParts[2]);
-
-    const diffTime = now.getTime() - start.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-    
-    if (diffDays > 0) return `Maintained for ${diffDays} days`;
-    if (diffDays < 0) return `Starts in ${Math.abs(diffDays)} days`;
-    return `Starts today`;
-};
-
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, dayStartHour, tags, setTags, activeFilterTagId }) => {
   const today = getLogicalDate(dayStartHour);
@@ -251,9 +204,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
   const [goalType, setGoalType] = useState<'positive' | 'negative'>('positive');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [formStartDate, setFormStartDate] = useState('');
-  
-  const [newTagInput, setNewTagInput] = useState('');
-  const [isCreatingTag, setIsCreatingTag] = useState(false);
 
   const detailHabit = useMemo(() => habits.find(h => h.id === detailHabitId), [habits, detailHabitId]);
 
@@ -352,22 +302,16 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
   const handleDelete = async (id: string) => {
       if(!confirm("Delete this habit?")) return;
-      
       const previousHabits = [...habits];
       setHabits(prev => prev.filter(h => h.id !== id));
       setDetailHabitId(null);
-      
       const { error } = await supabase.from('habits').delete().eq('id', id);
-      if (error) {
-          setHabits(previousHabits);
-      }
+      if (error) setHabits(previousHabits);
   };
 
   const updateDayStatus = async (habitId: string, date: string, count: number, skipped: boolean) => {
-    // Optimistic
     setHabits(prev => prev.map(h => {
         if (h.id !== habitId) return h;
-        
         const newProgress = { ...h.progress };
         if (count > 0) newProgress[date] = count;
         else delete newProgress[date]; 
@@ -382,7 +326,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     const habit = habits.find(h => h.id === habitId);
     if (!habit) return;
     
-    // Prepare DB update
     const newProgress = { ...habit.progress };
     if (count > 0) newProgress[date] = count;
     else delete newProgress[date];
@@ -401,29 +344,278 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
       const habit = habits.find(h => h.id === habitId);
       if (!habit) return;
       const isSkipped = habit.skippedDates.includes(date);
-      // Preserve current count if any
       const count = habit.progress[date] || 0;
       updateDayStatus(habitId, date, count, !isSkipped);
   };
 
   const filteredHabits = useMemo(() => {
     let res = habits;
-    if (activeFilterTagId) {
-        res = res.filter(h => h.tags?.includes(activeFilterTagId));
-    }
+    if (activeFilterTagId) res = res.filter(h => h.tags?.includes(activeFilterTagId));
     if (filter === 'positive') res = res.filter(h => h.goalType !== 'negative');
     if (filter === 'negative') res = res.filter(h => h.goalType === 'negative');
     return res;
   }, [habits, activeFilterTagId, filter]);
 
-  // Calendar Helpers
-  const changeMonth = (delta: number) => {
-      const d = new Date(calendarDate);
-      d.setMonth(d.getMonth() + delta);
-      setCalendarDate(d);
+  // --- Analytics Components ---
+
+  const HabitHeatmap = ({ habit }: { habit: Habit }) => {
+    // Show last 52 weeks (~1 year)
+    const weeksToShow = 52;
+    const todayDate = new Date(today);
+    
+    // Find the previous Sunday to align grid
+    const startOfWeekDate = new Date(todayDate);
+    startOfWeekDate.setDate(todayDate.getDate() - todayDate.getDay());
+    
+    // Calculate grid start date
+    const gridStartDate = new Date(startOfWeekDate);
+    gridStartDate.setDate(gridStartDate.getDate() - ((weeksToShow - 1) * 7));
+
+    const weeks = [];
+    let current = new Date(gridStartDate);
+
+    // Pre-calculate habit start for comparison
+    const habitStartDate = new Date(habit.startDate);
+    habitStartDate.setHours(0,0,0,0);
+
+    for (let w = 0; w < weeksToShow; w++) {
+        const days = [];
+        for (let d = 0; d < 7; d++) {
+            const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+            const dateObj = new Date(current);
+            dateObj.setHours(0,0,0,0);
+
+            // Respect start date
+            const isBeforeStart = dateObj < habitStartDate;
+            const isStartDate = dateStr === habit.startDate;
+            const isFuture = dateStr > today;
+            
+            days.push({
+                date: dateStr,
+                count: habit.progress[dateStr] || 0,
+                isSkipped: habit.skippedDates.includes(dateStr),
+                isFuture,
+                isBeforeStart,
+                isStartDate,
+                month: current.getMonth(),
+                day: current.getDate()
+            });
+            current.setDate(current.getDate() + 1);
+        }
+        weeks.push(days);
+    }
+
+    const limit = (!habit.useCounter && habit.goalType === 'negative') ? 0 : habit.target;
+
+    return (
+        <div className="flex flex-col w-full select-none">
+            {/* Month Labels */}
+            <div className="flex pl-6 mb-1 text-[10px] text-muted-foreground">
+                {weeks.map((week, i) => {
+                     // Only show month label on the first week of the month (roughly)
+                     const showLabel = week[0].day <= 7;
+                     return (
+                        <div key={i} className="flex-1 text-center overflow-hidden">
+                            {showLabel ? MONTH_NAMES[week[0].month] : ''}
+                        </div>
+                     );
+                })}
+            </div>
+
+            <div className="flex gap-[2px]">
+                {/* Day Labels */}
+                <div className="flex flex-col justify-between py-[1px] text-[9px] text-muted-foreground w-4 shrink-0">
+                    <span>Mon</span>
+                    <span>Wed</span>
+                    <span>Fri</span>
+                </div>
+                
+                {/* Heatmap Grid */}
+                <div className="flex flex-1 gap-[2px]">
+                    {weeks.map((week, i) => (
+                        <div key={i} className="flex flex-col gap-[2px] flex-1">
+                            {week.map((day, j) => {
+                                let bgClass = 'bg-secondary';
+                                if (day.isFuture) {
+                                    bgClass = 'bg-transparent border border-border/30';
+                                } else if (day.isBeforeStart) {
+                                    bgClass = 'bg-secondary/20'; // Faded for before start
+                                } else if (day.isSkipped) {
+                                    bgClass = 'bg-notion-bg_gray opacity-40 border border-dashed border-foreground/10';
+                                } else if (habit.goalType === 'negative') {
+                                    if (day.count > limit) bgClass = 'bg-notion-red'; 
+                                    else if (day.count > 0) bgClass = 'bg-[#F59E0B]'; // Safe = Yellow/Amber
+                                    else bgClass = 'bg-notion-green'; // Success = Solid Green
+                                } else {
+                                    if (day.count >= habit.target) bgClass = 'bg-notion-green';
+                                    else if (day.count > 0) bgClass = 'bg-notion-orange';
+                                    else bgClass = 'bg-secondary';
+                                }
+
+                                const markerClass = day.isStartDate ? 'ring-2 ring-inset ring-notion-blue z-10' : '';
+
+                                return (
+                                    <div 
+                                        key={day.date}
+                                        title={`${day.date}: ${day.count} ${habit.unit || ''} ${day.isStartDate ? '(Start)' : ''}`}
+                                        className={`w-full aspect-square rounded-[0.5px] transition-colors relative ${bgClass} ${markerClass}`}
+                                    />
+                                );
+                            })}
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Legend */}
+            <div className="flex flex-wrap justify-end gap-x-4 gap-y-2 mt-3 text-[10px] text-muted-foreground">
+                 <div className="flex items-center gap-1.5" title="Dates before you started tracking this habit">
+                     <div className="w-2.5 h-2.5 rounded-[1px] bg-secondary/20" />
+                     <span>Before Start</span>
+                 </div>
+                 <div className="flex items-center gap-1.5" title="Start Date">
+                     <div className="w-2.5 h-2.5 rounded-[1px] bg-secondary ring-2 ring-inset ring-notion-blue" />
+                     <span>Start Date</span>
+                 </div>
+                 
+                 {habit.goalType === 'negative' ? (
+                     <>
+                        <div className="flex items-center gap-1.5" title="Goal met (Zero activity)">
+                             <div className="w-2.5 h-2.5 rounded-[1px] bg-notion-green" />
+                             <span>Success</span>
+                        </div>
+                        <div className="flex items-center gap-1.5" title="Activity recorded but within limit">
+                            <div className="w-2.5 h-2.5 rounded-[1px] bg-[#F59E0B]" />
+                            <span>Safe (In Limit)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5" title="Limit exceeded">
+                            <div className="w-2.5 h-2.5 rounded-[1px] bg-notion-red" />
+                            <span>Failed</span>
+                        </div>
+                     </>
+                 ) : (
+                     <>
+                        <div className="flex items-center gap-1.5" title="No activity recorded">
+                            <div className="w-2.5 h-2.5 rounded-[1px] bg-secondary border border-border/50" />
+                            <span>None</span>
+                        </div>
+                        <div className="flex items-center gap-1.5" title="Started but didn't reach target">
+                            <div className="w-2.5 h-2.5 rounded-[1px] bg-notion-orange" />
+                            <span>Partial</span>
+                        </div>
+                        <div className="flex items-center gap-1.5" title="Daily target reached">
+                            <div className="w-2.5 h-2.5 rounded-[1px] bg-notion-green" />
+                            <span>Done</span>
+                        </div>
+                     </>
+                 )}
+                 
+                 <div className="flex items-center gap-1.5" title="Day marked as skipped">
+                     <div className="w-2.5 h-2.5 rounded-[1px] bg-notion-bg_gray border border-dashed border-foreground/30" />
+                     <span>Skipped</span>
+                 </div>
+            </div>
+        </div>
+    );
   };
 
-  const renderCalendar = (habit: Habit) => {
+  const HabitTrendChart = ({ habit }: { habit: Habit }) => {
+     // Last 30 days
+     const days = 30;
+     const data = [];
+     const end = new Date(today);
+     
+     const maxVal = Math.max(habit.target, Math.max(...Object.values(habit.progress).slice(-days).map(Number) || [0], 1));
+     const yMax = Math.ceil(maxVal * 1.1); // Add breathing room
+
+     for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(end);
+        d.setDate(d.getDate() - i);
+        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        data.push({
+            date: dateStr,
+            day: d.getDate(),
+            month: d.toLocaleDateString('en-US', { month: 'short' }),
+            count: habit.progress[dateStr] || 0,
+            skipped: habit.skippedDates.includes(dateStr),
+            isStartDate: dateStr === habit.startDate
+        });
+     }
+
+     return (
+        <div className="flex flex-col h-full w-full">
+            <div className="flex-1 flex gap-2">
+                 {/* Y Axis Labels */}
+                 <div className="flex flex-col justify-between items-end text-[10px] text-muted-foreground w-6 font-mono py-1">
+                     <span>{yMax}</span>
+                     {/* Show target label if it's nicely between 0 and max */}
+                     {habit.target < yMax && habit.target > 0 && <span className="text-primary font-bold">{habit.target}</span>}
+                     <span>0</span>
+                 </div>
+
+                 {/* Chart Area */}
+                 <div className="flex-1 relative border-l border-b border-border min-h-[120px]">
+                      {/* Target Line */}
+                      <div 
+                        className="absolute w-full border-t border-dashed border-foreground/30 z-0" 
+                        style={{ bottom: `${(habit.target / yMax) * 100}%` }}
+                      >
+                         <div className="absolute right-0 bottom-full mb-0.5 text-[9px] text-muted-foreground font-medium px-1 bg-background/80 backdrop-blur-sm rounded-sm">Target</div>
+                      </div>
+
+                      {/* Bars */}
+                      <div className="absolute inset-0 flex items-end justify-between px-1 z-10">
+                           {data.map((d, i) => {
+                                let barColor = 'bg-secondary';
+                                if (d.skipped) barColor = 'bg-notion-bg_gray border border-dashed border-foreground/20';
+                                else if (habit.goalType === 'negative') {
+                                    if (d.count > habit.target) barColor = 'bg-notion-red';
+                                    else if (d.count > 0) barColor = 'bg-[#F59E0B]';
+                                    else barColor = 'bg-notion-green'; // Solid Green for Success 0
+                                } else {
+                                    if (d.count >= habit.target) barColor = 'bg-notion-green';
+                                    else if (d.count > 0) barColor = 'bg-notion-orange';
+                                }
+
+                               return (
+                                   <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group/bar relative px-[1px]">
+                                       {/* Count Label on Bar */}
+                                       {d.count > 0 && (
+                                            <span className="mb-0.5 text-[8px] font-medium text-foreground/70">{d.count}</span>
+                                       )}
+                                       
+                                       <div 
+                                          className={`w-full rounded-t-[1px] transition-all min-h-[1px] ${barColor} ${d.isStartDate ? 'ring-1 ring-inset ring-notion-blue z-20' : ''}`} 
+                                          style={{ height: `${(d.count / yMax) * 100}%` }} 
+                                       />
+                                       
+                                       {d.isStartDate && (
+                                           <div className="absolute bottom-0 w-full h-1 bg-notion-blue" title="Start Date"></div>
+                                       )}
+                                       
+                                       {/* Tooltip */}
+                                       <div className="opacity-0 group-hover/bar:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 mb-2 text-xs bg-foreground text-background px-2 py-1 rounded shadow-lg whitespace-nowrap z-20 pointer-events-none border border-border">
+                                           <div className="font-bold">{d.month} {d.day} {d.isStartDate && '(Start)'}</div>
+                                           <div>{d.count} {habit.unit}</div>
+                                       </div>
+                                   </div>
+                               )
+                           })}
+                      </div>
+                 </div>
+            </div>
+
+            {/* X Axis Labels */}
+            <div className="flex pl-8 mt-1 justify-between text-[9px] text-muted-foreground">
+                {data.filter((_, i) => i % 5 === 0).map((d, i) => (
+                    <span key={i} className={d.isStartDate ? 'text-notion-blue font-bold' : ''}>{d.month} {d.day}</span>
+                ))}
+            </div>
+        </div>
+     );
+  };
+
+  const MiniCalendar = ({ habit }: { habit: Habit }) => {
       const y = calendarDate.getFullYear();
       const m = calendarDate.getMonth();
       const firstDay = new Date(y, m, 1).getDay();
@@ -433,68 +625,72 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
       for (let i = 0; i < firstDay; i++) days.push(null);
       for (let i = 1; i <= daysInMonth; i++) days.push(i);
 
+      // Pad end to make sure grid is consistent
+      while (days.length % 7 !== 0) {
+          days.push(null);
+      }
+
+      const changeMonth = (delta: number) => {
+        const d = new Date(calendarDate);
+        d.setMonth(d.getMonth() + delta);
+        setCalendarDate(d);
+      };
+      
       const limit = (!habit.useCounter && habit.goalType === 'negative') ? 0 : habit.target;
-      const startDateStr = habit.startDate;
 
       return (
-          <div className="select-none bg-background rounded-md">
-              <div className="flex items-center justify-between mb-4">
-                  <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-notion-hover rounded"><ChevronLeft className="w-4 h-4" /></button>
-                  <span className="text-sm font-bold">{calendarDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</span>
-                  <button onClick={() => changeMonth(1)} className="p-1 hover:bg-notion-hover rounded"><ChevronRight className="w-4 h-4" /></button>
+          <div className="flex flex-col h-full select-none">
+              <div className="flex items-center justify-between mb-2 shrink-0">
+                  <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-notion-hover rounded text-muted-foreground"><ChevronLeft className="w-4 h-4" /></button>
+                  <span className="text-sm font-semibold">{calendarDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</span>
+                  <button onClick={() => changeMonth(1)} className="p-1 hover:bg-notion-hover rounded text-muted-foreground"><ChevronRight className="w-4 h-4" /></button>
               </div>
-              <div className="grid grid-cols-7 gap-1 text-center text-xs mb-2">
-                  {WEEKDAYS.map(d => <div key={d} className="text-muted-foreground font-medium uppercase tracking-wider text-[10px]">{d.slice(0,3)}</div>)}
+              <div className="grid grid-cols-7 gap-1 mb-2 text-center">
+                  {WEEKDAYS.map(d => <div key={d} className="text-[10px] text-muted-foreground font-bold">{d.slice(0, 2)}</div>)}
               </div>
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-7 gap-1 flex-1 content-start">
                   {days.map((day, idx) => {
-                      if (!day) return <div key={`empty-${idx}`} />;
+                      if (!day) return <div key={`empty-${idx}`} className="aspect-square" />;
                       
                       const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                       const count = habit.progress[dateStr] || 0;
                       const isSkipped = habit.skippedDates.includes(dateStr);
                       const isFuture = dateStr > today;
-                      const isBeforeStart = dateStr < startDateStr;
+                      const isBeforeStart = dateStr < habit.startDate;
                       const isToday = dateStr === today;
+                      const isStartDate = dateStr === habit.startDate;
                       
-                      let bgClass = 'bg-notion-bg_gray hover:bg-notion-hover';
-                      let textClass = 'text-foreground';
-
-                      // Determine visual state
-                      if (isBeforeStart) {
-                          bgClass = 'bg-transparent border border-border opacity-30';
-                          textClass = 'text-muted-foreground';
-                      } else if (isSkipped) {
-                          bgClass = 'bg-notion-bg_gray opacity-50 border border-dashed border-foreground/20';
-                      } else if (habit.goalType === 'negative') {
-                          if (count > limit) { bgClass = 'bg-notion-bg_red text-notion-red'; }
-                          else if (isToday) { bgClass = 'bg-notion-bg_blue text-notion-blue border border-notion-blue'; }
-                          else { bgClass = 'bg-notion-bg_green text-notion-green'; }
+                      let bgClass = 'bg-secondary text-muted-foreground';
+                      
+                      if (!isFuture && !isBeforeStart) {
+                          if (isSkipped) {
+                              bgClass = 'bg-notion-bg_gray border border-dashed border-border opacity-50';
+                          } else if (habit.goalType === 'negative') {
+                              if (count > limit) bgClass = 'bg-notion-bg_red text-notion-red font-bold';
+                              else if (isToday) bgClass = 'bg-notion-bg_blue text-notion-blue border border-notion-blue';
+                              else bgClass = 'bg-notion-bg_green text-notion-green';
+                          } else {
+                              if (count >= limit) bgClass = 'bg-notion-bg_green text-notion-green font-bold';
+                              else if (count > 0) bgClass = 'bg-notion-bg_orange text-notion-orange';
+                              else if (isToday) bgClass = 'bg-notion-bg_blue text-notion-blue border border-notion-blue';
+                          }
                       } else {
-                          // Positive
-                          if (count >= limit) { bgClass = 'bg-notion-bg_green text-notion-green'; }
-                          else if (count > 0) { bgClass = 'bg-notion-bg_orange text-notion-orange'; }
-                          else if (isToday) { bgClass = 'bg-notion-bg_blue text-notion-blue border border-notion-blue'; }
+                          bgClass = 'bg-transparent text-muted-foreground/30';
                       }
+
+                      const markerClass = isStartDate ? 'ring-2 ring-inset ring-notion-blue relative z-10' : '';
 
                       return (
                           <div 
-                            key={day}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (isFuture || isBeforeStart) return;
-                                setDayEdit({ date: dateStr, count, isSkipped });
-                            }}
-                            className={`aspect-square rounded-sm flex items-center justify-center text-xs font-medium cursor-pointer transition-colors relative ${bgClass} ${textClass} ${isFuture ? 'opacity-30 cursor-default hover:bg-notion-bg_gray' : ''}`}
+                              key={day}
+                              onClick={(e) => {
+                                  if (isFuture || isBeforeStart) return;
+                                  setDayEdit({ date: dateStr, count, isSkipped });
+                              }}
+                              className={`aspect-square rounded-[2px] flex items-center justify-center text-xs cursor-pointer hover:opacity-80 transition-opacity ${bgClass} ${markerClass}`}
+                              title={isStartDate ? 'Start Date' : undefined}
                           >
-                              {habit.useCounter && count > 0 ? (
-                                  <div className="flex flex-col items-center justify-center">
-                                      <span className="text-[9px] opacity-60 leading-none mb-0.5">{day}</span>
-                                      <span className="text-sm font-bold leading-none">{count}</span>
-                                  </div>
-                              ) : (
-                                  day
-                              )}
+                              {day}
                           </div>
                       );
                   })}
@@ -507,157 +703,169 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     if (!detailHabit) return null;
     const stats = getHabitStats(detailHabit, today);
 
-    const totalVolume = detailHabit.useCounter 
-        ? (Object.values(detailHabit.progress) as number[]).reduce((a, b) => a + b, 0) 
-        : 0;
-
     return (
-        <div className="flex flex-col h-full bg-background animate-in fade-in">
-            {/* Header / Breadcrumb */}
-            <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
-                <div className="px-4 md:px-8 pt-4 md:pt-6 pb-0">
-                    <div className="w-full border-b border-border pb-4">
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground mb-4">
-                            <button onClick={() => setDetailHabitId(null)} className="hover:text-foreground transition-colors flex items-center gap-1">
-                                <ArrowLeft className="w-4 h-4" /> Habits
-                            </button>
-                            <ChevronRight className="w-4 h-4 opacity-50" />
-                            <span className="text-foreground font-medium truncate">{detailHabit.title}</span>
+        <div className="flex flex-col h-full bg-background overflow-hidden animate-in fade-in">
+            {/* Header */}
+            <div className="shrink-0 h-14 border-b border-border flex items-center justify-between px-6 bg-background/95 backdrop-blur-sm z-10">
+                 <div className="flex items-center gap-3">
+                     <button onClick={() => setDetailHabitId(null)} className="p-1 hover:bg-notion-hover rounded-sm text-muted-foreground hover:text-foreground transition-colors">
+                         <ArrowLeft className="w-5 h-5" />
+                     </button>
+                     <div className="w-px h-4 bg-border mx-1" />
+                     <span className="text-2xl">{detailHabit.icon}</span>
+                     <div>
+                         <h2 className="text-base font-bold text-foreground leading-tight">{detailHabit.title}</h2>
+                         <div className="flex items-center gap-2 text-xs text-muted-foreground leading-tight">
+                            <span className={`uppercase font-bold text-[10px] ${detailHabit.goalType === 'negative' ? 'text-notion-red' : 'text-notion-green'}`}>
+                                {detailHabit.goalType === 'negative' ? 'Quit' : 'Build'}
+                            </span>
+                            <span>•</span>
+                            <span>Target: {detailHabit.target} {detailHabit.unit}</span>
+                         </div>
+                     </div>
+                 </div>
+                 <div className="flex items-center gap-2">
+                     <button onClick={() => openEditModal(detailHabit)} className="p-2 text-muted-foreground hover:bg-notion-hover hover:text-foreground rounded-sm transition-colors">
+                         <Settings className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => handleDelete(detailHabit.id)} className="p-2 text-muted-foreground hover:bg-notion-bg_red hover:text-notion-red rounded-sm transition-colors">
+                         <Trash2 className="w-4 h-4" />
+                     </button>
+                 </div>
+            </div>
+
+            {/* Content Dashboard (No Scroll) */}
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 overflow-hidden">
+                
+                {/* Left Panel: Analytics */}
+                <div className="lg:col-span-8 flex flex-col gap-6 min-h-0">
+                    
+                    {/* Stats Row */}
+                    <div className="grid grid-cols-4 gap-4 shrink-0">
+                         <div className="bg-background border border-border rounded-lg p-4 shadow-sm">
+                             <div className="text-xs uppercase font-bold text-muted-foreground mb-1">Streak</div>
+                             <div className="text-2xl font-bold flex items-center gap-2">
+                                 <Flame className={`w-6 h-6 ${stats.streak > 0 ? 'text-notion-orange fill-notion-orange' : 'text-muted-foreground'}`} />
+                                 {stats.streak} <span className="text-sm font-normal text-muted-foreground">days</span>
+                             </div>
+                         </div>
+                         <div className="bg-background border border-border rounded-lg p-4 shadow-sm">
+                             <div className="text-xs uppercase font-bold text-muted-foreground mb-1">Success Rate</div>
+                             <div className="text-2xl font-bold flex items-center gap-2">
+                                 <Activity className="w-6 h-6 text-notion-blue" />
+                                 {stats.rate}%
+                             </div>
+                         </div>
+                         <div className="bg-background border border-border rounded-lg p-4 shadow-sm">
+                             <div className="text-xs uppercase font-bold text-muted-foreground mb-1">Total Days</div>
+                             <div className="text-2xl font-bold flex items-center gap-2">
+                                 <Trophy className="w-6 h-6 text-notion-yellow" />
+                                 {stats.totalDays}
+                             </div>
+                         </div>
+                         <div className="bg-background border border-border rounded-lg p-4 shadow-sm">
+                             <div className="text-xs uppercase font-bold text-muted-foreground mb-1">Today</div>
+                             <div className="text-2xl font-bold flex items-center gap-2">
+                                 <span className={detailHabit.progress[today] >= detailHabit.target ? 'text-notion-green' : 'text-foreground'}>
+                                     {detailHabit.progress[today] || 0}
+                                 </span>
+                                 <span className="text-sm font-normal text-muted-foreground">/ {detailHabit.target} {detailHabit.unit}</span>
+                             </div>
+                         </div>
+                    </div>
+
+                    {/* Heatmap Card - removed flex-1 to let content dictate size, removing extra gap */}
+                    <div className="bg-background border border-border rounded-lg p-5 flex flex-col shadow-sm shrink-0">
+                        <div className="flex items-center gap-2 mb-3 shrink-0">
+                            <Activity className="w-5 h-5 text-muted-foreground" />
+                            <h3 className="text-base font-semibold">Heatmap (Last 365 Days)</h3>
                         </div>
-                        
-                        <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="text-4xl">{detailHabit.icon}</div>
-                                <div>
-                                    <h1 className="text-2xl font-bold text-foreground">{detailHabit.title}</h1>
-                                    <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1 flex-wrap">
-                                        <span className={`uppercase tracking-wide text-xs font-bold px-1.5 py-0.5 rounded-sm ${detailHabit.goalType === 'negative' ? 'bg-notion-bg_red text-notion-red' : 'bg-notion-bg_green text-notion-green'}`}>
-                                            {detailHabit.goalType === 'negative' ? 'Quit' : 'Build'}
-                                        </span>
-                                        <span>•</span>
-                                        <span>Target: {detailHabit.target} {detailHabit.unit} {detailHabit.useCounter ? 'count' : 'times'}</span>
-                                        <span>•</span>
-                                        <span>{getDaysSinceStart(detailHabit.startDate, today)}</span>
+                        <div className="min-h-0">
+                            <HabitHeatmap habit={detailHabit} />
+                        </div>
+                    </div>
+
+                    {/* Trend Chart Card */}
+                    <div className="h-56 shrink-0 bg-background border border-border rounded-lg p-5 flex flex-col shadow-sm">
+                        <div className="flex items-center gap-2 mb-2 shrink-0">
+                            <BarChart3 className="w-5 h-5 text-muted-foreground" />
+                            <h3 className="text-base font-semibold">30-Day Trend</h3>
+                        </div>
+                        <div className="flex-1 min-h-0 w-full pt-2">
+                             <HabitTrendChart habit={detailHabit} />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right Panel: Calendar & History */}
+                <div className="lg:col-span-4 flex flex-col gap-6 min-h-0">
+                    
+                    {/* Interactive Calendar - Fixed Height, No Scroll */}
+                    <div className="h-auto shrink-0 bg-background border border-border rounded-lg p-5 shadow-sm">
+                        <MiniCalendar habit={detailHabit} />
+                    </div>
+
+                    {/* Scrollable Log History - Last 7 days */}
+                    <div className="flex-1 min-h-0 bg-background border border-border rounded-lg flex flex-col shadow-sm overflow-hidden">
+                        <div className="px-5 py-4 border-b border-border shrink-0 bg-secondary/20">
+                            <h3 className="text-sm font-semibold flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-muted-foreground" /> Recent Logs (Last 7 Days)
+                            </h3>
+                        </div>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
+                            {Array.from({length: 7}).map((_, i) => {
+                                const d = new Date(today);
+                                d.setDate(d.getDate() - i);
+                                const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                
+                                if (dateStr < detailHabit.startDate) return null;
+
+                                const count = detailHabit.progress[dateStr] || 0;
+                                const isSkipped = detailHabit.skippedDates.includes(dateStr);
+                                const isSuccess = (detailHabit.goalType === 'negative' ? count <= (detailHabit.useCounter ? detailHabit.target : 0) : count >= detailHabit.target);
+                                
+                                return (
+                                    <div key={dateStr} className="flex items-center justify-between p-4 border-b border-border last:border-0 hover:bg-notion-hover transition-colors group">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-medium text-foreground">{formatDate(dateStr)}</span>
+                                            <span className="text-xs text-muted-foreground">{d.toLocaleDateString('en-US', { weekday: 'long' })}</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            {detailHabit.useCounter ? (
+                                                <span className={`text-sm font-mono font-bold ${isSuccess ? 'text-notion-green' : 'text-muted-foreground'}`}>
+                                                    {count} {detailHabit.unit}
+                                                </span>
+                                            ) : (
+                                                <span className={`text-xs font-bold uppercase tracking-wide px-2 py-0.5 rounded-sm ${isSuccess ? 'bg-notion-bg_green text-notion-green' : 'bg-secondary text-muted-foreground'}`}>
+                                                    {isSuccess ? (detailHabit.goalType === 'negative' ? 'Success' : 'Completed') : (detailHabit.goalType === 'negative' ? 'Failed' : 'Missed')}
+                                                </span>
+                                            )}
+                                            
+                                            <div className="w-px h-4 bg-border mx-1" />
+                                            <button 
+                                                onClick={() => toggleSkip(detailHabit.id, dateStr)}
+                                                className={`p-1.5 rounded text-[10px] uppercase font-bold tracking-wide transition-colors ${isSkipped ? 'bg-notion-bg_gray text-foreground border border-border' : 'text-muted-foreground opacity-50 hover:opacity-100 hover:bg-secondary'}`}
+                                                title={isSkipped ? "Unskip" : "Skip"}
+                                            >
+                                                <SkipForward className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button 
+                                                onClick={() => setDayEdit({ date: dateStr, count, isSkipped })}
+                                                className="p-1.5 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <MoreHorizontal className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                            <div className="flex gap-2">
-                                 <button onClick={() => openEditModal(detailHabit)} className="flex items-center gap-2 px-3 py-1.5 bg-secondary hover:bg-notion-hover text-foreground rounded-sm text-sm font-medium transition-colors border border-border">
-                                     <Settings className="w-4 h-4" /> Edit
-                                 </button>
-                                 <button onClick={() => handleDelete(detailHabit.id)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-notion-bg_red text-notion-red rounded-sm text-sm font-medium transition-colors border border-border">
-                                     <Trash2 className="w-4 h-4" />
-                                 </button>
-                            </div>
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
+
             </div>
 
-            {/* Detail Content */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar">
-                <div className="w-full space-y-8 px-4 md:px-8 py-6 pb-20">
-                    {/* Stats Cards - Removed Shadows */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-background border border-border rounded-lg p-4">
-                            <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Current Streak</div>
-                            <div className="text-2xl font-bold flex items-center gap-2">
-                                <Flame className={`w-6 h-6 ${stats.streak > 0 ? 'text-notion-orange fill-notion-orange' : 'text-muted-foreground'}`} />
-                                {stats.streak} <span className="text-sm font-normal text-muted-foreground">days</span>
-                            </div>
-                        </div>
-                        <div className="bg-background border border-border rounded-lg p-4">
-                            <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Failed Days</div>
-                            <div className="text-2xl font-bold flex items-center gap-2">
-                                <BarChart3 className="w-6 h-6 text-notion-red" />
-                                <span className="flex items-baseline gap-1">
-                                    {stats.failedDays} <span className="text-lg text-muted-foreground font-normal">/ {stats.totalDays}</span>
-                                </span>
-                            </div>
-                        </div>
-                        <div className="bg-background border border-border rounded-lg p-4">
-                            <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Total Success</div>
-                            <div className="text-2xl font-bold flex items-center gap-2">
-                                <Trophy className="w-6 h-6 text-notion-yellow" />
-                                <span className="flex items-baseline gap-1">
-                                    {stats.successfulDays} <span className="text-lg text-muted-foreground font-normal">/ {stats.totalDays}</span>
-                                </span>
-                            </div>
-                        </div>
-                         <div className="bg-background border border-border rounded-lg p-4">
-                            <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Today</div>
-                            <div className="text-2xl font-bold flex items-center gap-2">
-                                {detailHabit.progress[today] || 0} <span className="text-sm font-normal text-muted-foreground">/ {detailHabit.target} {detailHabit.unit}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Main Calendar - Removed Shadow */}
-                        <div className="lg:col-span-2 space-y-4">
-                            <div className="flex items-center gap-2 mb-2">
-                                <CalendarIcon className="w-5 h-5 text-muted-foreground" />
-                                <h3 className="text-lg font-semibold">History</h3>
-                            </div>
-                            <div className="p-4 border border-border rounded-lg bg-background">
-                                {renderCalendar(detailHabit)}
-                            </div>
-                            
-                            {detailHabit.useCounter && (
-                                <div className="px-1">
-                                    <p className="text-sm text-muted-foreground leading-relaxed">
-                                        Since starting, you've accumulated <span className="font-semibold text-foreground">{totalVolume} {detailHabit.unit || 'units'}</span> across {stats.totalDays} days. 
-                                        That's an average of <span className="font-semibold text-foreground">{stats.totalDays > 0 ? Math.round(totalVolume / stats.totalDays) : 0} {detailHabit.unit || 'units'}</span> per day.
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Recent Log */}
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-2 mb-2">
-                                <Clock className="w-5 h-5 text-muted-foreground" />
-                                <h3 className="text-lg font-semibold">Recent Activity</h3>
-                            </div>
-                            <div className="bg-background border border-border rounded-lg overflow-hidden">
-                                <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
-                                    {Array.from({length: 14}).map((_, i) => {
-                                        const d = new Date(today);
-                                        d.setDate(d.getDate() - i);
-                                        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                                        
-                                        if (dateStr < detailHabit.startDate) return null;
-
-                                        const count = detailHabit.progress[dateStr] || 0;
-                                        const isSkipped = detailHabit.skippedDates.includes(dateStr);
-                                        
-                                        return (
-                                            <div key={dateStr} className="flex items-center justify-between p-3 border-b border-border last:border-0 hover:bg-notion-hover transition-colors">
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm font-medium text-foreground">{formatDate(dateStr)}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <span className={`text-sm font-mono ${count >= detailHabit.target ? 'text-notion-green font-bold' : 'text-muted-foreground'}`}>
-                                                        {count} / {detailHabit.target}
-                                                    </span>
-                                                    <button 
-                                                        onClick={() => toggleSkip(detailHabit.id, dateStr)}
-                                                        className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wide transition-colors ${isSkipped ? 'bg-notion-bg_gray text-foreground border border-border' : 'text-muted-foreground hover:bg-secondary'}`}
-                                                    >
-                                                        {isSkipped ? 'Skipped' : 'Skip'}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-             {/* Edit Day Modal - Nested within Detail view */}
+             {/* Edit Day Popover */}
              {dayEdit && (
               <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4" onClick={() => setDayEdit(null)}>
                   <div className="bg-background p-6 rounded-lg shadow-xl border border-border w-full max-w-sm space-y-6 animate-in zoom-in-95 flex flex-col" onClick={e => e.stopPropagation()}>
@@ -683,7 +891,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                       onClick={() => {
                                           const targetVal = detailHabit.target || 1;
                                           const isDone = dayEdit.count >= targetVal;
-                                          // Toggle
                                           const newCount = isDone ? 0 : targetVal;
                                           setDayEdit(prev => { if (!prev) return null; return { ...prev, count: newCount }; });
                                       }}
