@@ -143,7 +143,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
   return (
     <div className="flex h-full flex-col md:flex-row overflow-hidden bg-background">
         {/* Sidebar Settings Menu */}
-        <div className="w-full md:w-64 border-r border-border bg-notion-sidebar p-2 space-y-6 overflow-y-auto">
+        <div className="w-full md:w-48 border-r border-border bg-notion-sidebar p-2 space-y-6 overflow-y-auto">
             <div className="space-y-1">
                 <div className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Account</div>
                 <button 
