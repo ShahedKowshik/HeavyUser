@@ -268,6 +268,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   });
   const [sorting, setSorting] = useState<Sorting>('priority');
   const [isGroupingMenuOpen, setIsGroupingMenuOpen] = useState(false);
+  const [isRescheduleMenuOpen, setIsRescheduleMenuOpen] = useState(false);
 
   useEffect(() => { localStorage.setItem('heavyuser_task_grouping', grouping); }, [grouping]);
 
@@ -320,6 +321,22 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     const parts = dateStr.split('-').map(Number);
     const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const rescheduleOverdue = async (tasksToReschedule: Task[], daysOffset: number) => {
+    const d = new Date();
+    if (d.getHours() < (dayStartHour || 0)) d.setDate(d.getDate() - 1);
+    d.setDate(d.getDate() + daysOffset);
+    const newDateStr = getLocalDateString(d);
+
+    const taskIds = tasksToReschedule.map(t => t.id);
+
+    // Optimistic Update
+    setTasks(prev => prev.map(t => taskIds.includes(t.id) ? { ...t, dueDate: newDateStr } : t));
+    setIsRescheduleMenuOpen(false);
+
+    // DB Update
+    await supabase.from('tasks').update({ due_date: newDateStr }).in('id', taskIds);
   };
 
   const openCreateModal = () => {
@@ -482,6 +499,34 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         {group.title}
                       </span>
                       <span className="text-xs text-muted-foreground bg-notion-item_hover px-1.5 rounded-sm">{group.tasks.length}</span>
+                      
+                      {/* Overdue Reschedule Button */}
+                      {group.title === 'Overdue' && (
+                          <div className="relative ml-2">
+                              <button 
+                                  onClick={(e) => { e.stopPropagation(); setIsRescheduleMenuOpen(!isRescheduleMenuOpen); }}
+                                  className="p-1 hover:bg-notion-hover rounded-sm text-notion-red transition-colors flex items-center justify-center"
+                                  title="Reschedule overdue tasks"
+                              >
+                                  <Calendar className="w-3.5 h-3.5" />
+                              </button>
+                              
+                              {isRescheduleMenuOpen && (
+                                  <>
+                                      <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setIsRescheduleMenuOpen(false); }} />
+                                      <div className="absolute left-0 top-full mt-1 z-20 w-40 bg-background border border-border rounded-md shadow-lg p-1 animate-in zoom-in-95 origin-top-left" onClick={(e) => e.stopPropagation()}>
+                                          <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Reschedule All</div>
+                                          <button onClick={() => rescheduleOverdue(group.tasks, 0)} className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm flex items-center gap-2">
+                                              <span>Today</span>
+                                          </button>
+                                          <button onClick={() => rescheduleOverdue(group.tasks, 1)} className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm flex items-center gap-2">
+                                              <span>Tomorrow</span>
+                                          </button>
+                                      </div>
+                                  </>
+                              )}
+                          </div>
+                      )}
                   </div>
                 </div>
               )}
