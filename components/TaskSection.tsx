@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Square, Repeat, ChevronDown, Moon, Circle, Flame, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, LayoutTemplate, AlignJustify, History, BarChart3, GripVertical, Check } from 'lucide-react';
+import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Square, Repeat, ChevronDown, Moon, Circle, Flame, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, LayoutTemplate, AlignJustify, History, BarChart3, GripVertical, Check, AlertCircle, ArrowRight } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence, TaskSession } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -425,11 +425,21 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
   const getPriorityStyle = (p: Priority) => {
     switch (p) {
-      case 'Urgent': return { badge: 'bg-notion-bg_red text-notion-red' };
-      case 'High': return { badge: 'bg-notion-bg_orange text-notion-orange' };
-      case 'Normal': return { badge: 'bg-notion-bg_blue text-notion-blue' };
-      default: return { badge: 'bg-notion-bg_gray text-muted-foreground' };
+      case 'Urgent': return 'bg-notion-bg_red text-notion-red';
+      case 'High': return 'bg-notion-bg_yellow text-notion-yellow';
+      case 'Normal': return 'bg-notion-bg_gray text-muted-foreground';
+      case 'Low': return 'bg-notion-bg_gray text-muted-foreground';
+      default: return 'bg-notion-bg_gray text-muted-foreground';
     }
+  };
+
+  const getPriorityIcon = (p: Priority) => {
+      switch (p) {
+          case 'Urgent': return <AlertCircle className="w-3 h-3" />;
+          case 'High': return <ArrowUp className="w-3 h-3" />;
+          case 'Normal': return <ArrowRight className="w-3 h-3" />;
+          case 'Low': return <ArrowDown className="w-3 h-3" />;
+      }
   };
   
   const getGroupingKey = (dateStr: string) => {
@@ -620,8 +630,9 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                 )}
                             </div>
 
-                            <div className="w-20 flex justify-end">
-                                <span className={`px-1.5 py-0.5 rounded-sm ${pStyle.badge} text-[10px] font-medium`}>
+                            <div className="w-24 flex justify-end">
+                                <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-sm ${pStyle} text-[10px] font-medium w-20 justify-start`}>
+                                    {getPriorityIcon(task.priority)}
                                     {task.priority}
                                 </span>
                             </div>
@@ -830,7 +841,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                             <div className="w-32 flex items-center gap-2 text-muted-foreground"><CheckSquare className="w-4 h-4" /> <span>Priority</span></div>
                             <div className="flex-1 flex gap-1">
                                 {priorities.map(p => (
-                                    <button key={p} type="button" onClick={() => setPriority(p)} className={`px-2 py-0.5 text-sm rounded-sm transition-colors ${priority === p ? getPriorityStyle(p).badge : 'text-muted-foreground hover:bg-notion-hover'}`}>
+                                    <button key={p} type="button" onClick={() => setPriority(p)} className={`flex items-center gap-1 px-2 py-0.5 text-sm rounded-sm transition-colors ${priority === p ? getPriorityStyle(p) : 'text-muted-foreground hover:bg-notion-hover'}`}>
+                                        {getPriorityIcon(p)}
                                         {p}
                                     </button>
                                 ))}

@@ -29,7 +29,7 @@ const NavItem: React.FC<NavItemProps> = ({ id, label, icon: Icon, count, shortcu
   <button
     onClick={() => setActiveTab(id)}
     title={isSidebarCollapsed ? label : undefined}
-    className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-1' : 'space-x-2 px-3'} py-1 rounded-sm transition-all duration-100 group min-h-[28px] ${
+    className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-1' : 'space-x-2 px-3'} py-1 rounded-sm group min-h-[28px] ${
       activeTab === id 
       ? 'bg-notion-hover text-foreground font-medium' 
       : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground font-medium'
@@ -58,7 +58,7 @@ interface MobileNavItemProps {
 const MobileNavItem: React.FC<MobileNavItemProps> = ({ id, label, icon: Icon, activeTab, setActiveTab }) => (
   <button
     onClick={() => setActiveTab(id)}
-    className={`flex flex-col items-center justify-center p-2 rounded transition-all duration-200 ${
+    className={`flex flex-col items-center justify-center p-2 rounded ${
       activeTab === id 
       ? 'text-foreground' 
       : 'text-muted-foreground'
@@ -178,19 +178,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
   const prevTabRef = useRef<AppTab>(activeTab);
   
-  const getAnimationClass = () => {
-      if (activeTab === prevTabRef.current) return 'animate-fade-in';
-      const prevIndex = TAB_ORDER.indexOf(prevTabRef.current);
-      const currIndex = TAB_ORDER.indexOf(activeTab);
-      if (prevIndex === -1 || currIndex === -1) return 'animate-fade-in';
-      
-      const isForward = currIndex > prevIndex;
-      if (isForward) {
-          return 'animate-slide-in-from-right-12 md:animate-slide-in-from-bottom-12';
-      } else {
-          return 'animate-slide-in-from-left-12 md:animate-slide-in-from-top-12';
-      }
-  };
+  const getAnimationClass = () => '';
   
   const animationClass = getAnimationClass();
 
@@ -540,7 +528,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans selection:bg-[#CDE8F4] selection:text-foreground">
       {/* Sidebar - Desktop */}
-      <aside className={`hidden md:flex flex-col p-2 space-y-1 bg-notion-sidebar border-r border-border shrink-0 z-20 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-16 items-center' : 'w-52'}`}>
+      <aside className={`hidden md:flex flex-col p-2 space-y-1 bg-notion-sidebar border-r border-border shrink-0 z-20 ${isSidebarCollapsed ? 'w-16 items-center' : 'w-52'}`}>
         <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'space-x-2 px-2'} py-3 mb-1 cursor-pointer hover:bg-notion-hover rounded-sm transition-colors`} onClick={toggleSidebar} title="Toggle Sidebar">
           <div className="w-5 h-5 bg-foreground text-background rounded-sm flex items-center justify-center font-bold text-xs shrink-0">H</div>
           {!isSidebarCollapsed && (
