@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Square, Repeat, ChevronDown, Moon, Circle, Flame, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, LayoutTemplate, AlignJustify, History, BarChart3, GripVertical, Check, AlertCircle, ArrowRight } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence, TaskSession } from '../types';
@@ -86,18 +86,52 @@ const getLocalDateString = (date: Date) => {
     return `${y}-${m}-${d}`;
 };
 
+const getPriorityStyle = (p: Priority) => {
+  switch (p) {
+    case 'Urgent': return 'bg-notion-bg_red text-notion-red';
+    case 'High': return 'bg-notion-bg_yellow text-notion-yellow';
+    case 'Normal': return 'bg-notion-bg_gray text-muted-foreground';
+    case 'Low': return 'bg-notion-bg_gray text-muted-foreground';
+    default: return 'bg-notion-bg_gray text-muted-foreground';
+  }
+};
+
+const getPriorityIcon = (p: Priority) => {
+    switch (p) {
+        case 'Urgent': return <AlertCircle className="w-3 h-3" />;
+        case 'High': return <ArrowUp className="w-3 h-3" />;
+        case 'Normal': return <ArrowRight className="w-3 h-3" />;
+        case 'Low': return <ArrowDown className="w-3 h-3" />;
+    }
+};
+
 const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRef }: { value: string, onChange: (date: string) => void, onClose: () => void, dayStartHour?: number, triggerRef: React.RefObject<HTMLElement> }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [coords, setCoords] = useState({ top: 0, left: 0 });
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const updatePosition = () => {
-            if (triggerRef.current) {
-                const rect = triggerRef.current.getBoundingClientRect();
-                setCoords({
-                    top: rect.bottom + 4,
-                    left: rect.left
-                });
+            if (triggerRef.current && containerRef.current) {
+                const triggerRect = triggerRef.current.getBoundingClientRect();
+                const containerRect = containerRef.current.getBoundingClientRect();
+                
+                let top = triggerRect.bottom + 4;
+                let left = triggerRect.left;
+
+                // Adjust for right edge
+                const padding = 16;
+                const windowWidth = window.innerWidth;
+                
+                if (left + containerRect.width > windowWidth - padding) {
+                    left = windowWidth - containerRect.width - padding;
+                }
+                
+                // Adjust for left edge
+                if (left < padding) {
+                    left = padding;
+                }
+
+                setCoords({ top, left });
             }
         };
         updatePosition();
@@ -199,6 +233,73 @@ const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRef
     );
 };
 
+const TaskPriorityPicker = ({ value, onChange, onClose, triggerRef }: { value: Priority, onChange: (p: Priority) => void, onClose: () => void, triggerRef: React.RefObject<HTMLElement> }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [coords, setCoords] = useState({ top: 0, left: 0 });
+
+    useLayoutEffect(() => {
+        const updatePosition = () => {
+            if (triggerRef.current && containerRef.current) {
+                const triggerRect = triggerRef.current.getBoundingClientRect();
+                const containerRect = containerRef.current.getBoundingClientRect();
+                
+                let top = triggerRect.bottom + 4;
+                let left = triggerRect.left;
+
+                const padding = 16;
+                const windowWidth = window.innerWidth;
+                
+                if (left + containerRect.width > windowWidth - padding) {
+                    left = windowWidth - containerRect.width - padding;
+                }
+                if (left < padding) left = padding;
+
+                setCoords({ top, left });
+            }
+        };
+        updatePosition();
+        window.addEventListener('scroll', updatePosition, true);
+        window.addEventListener('resize', updatePosition);
+        return () => {
+            window.removeEventListener('scroll', updatePosition, true);
+            window.removeEventListener('resize', updatePosition);
+        };
+    }, [triggerRef]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node) && triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
+                onClose();
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [onClose, triggerRef]);
+
+    return createPortal(
+        <div ref={containerRef} style={{ position: 'fixed', top: coords.top, left: coords.left, zIndex: 9999 }} className="bg-background rounded-md shadow-lg border border-border p-1 w-32 animate-in zoom-in-95 origin-top-left font-sans flex flex-col gap-0.5">
+            {priorities.map(p => (
+                <button 
+                    key={p}
+                    onClick={() => { onChange(p); onClose(); }}
+                    className={`flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm transition-colors ${value === p ? 'bg-notion-hover font-medium text-foreground' : 'text-foreground hover:bg-notion-hover'}`}
+                >
+                    <span className={
+                        p === 'Urgent' ? 'text-notion-red' : 
+                        p === 'High' ? 'text-notion-yellow' : 
+                        'text-muted-foreground'
+                    }>
+                        {getPriorityIcon(p)}
+                    </span>
+                    <span>{p}</span>
+                    {value === p && <Check className="w-3 h-3 ml-auto opacity-50" />}
+                </button>
+            ))}
+        </div>,
+        document.body
+    );
+};
+
 const getNextDate = (currentDateStr: string, r: Recurrence): string => {
   const parts = currentDateStr.split('-').map(Number);
   const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
@@ -269,6 +370,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const [sorting, setSorting] = useState<Sorting>('priority');
   const [isGroupingMenuOpen, setIsGroupingMenuOpen] = useState(false);
   const [isRescheduleMenuOpen, setIsRescheduleMenuOpen] = useState(false);
+  const [quickDateEdit, setQuickDateEdit] = useState<{ taskId: string, element: HTMLElement, value: string } | null>(null);
+  const [quickPriorityEdit, setQuickPriorityEdit] = useState<{ taskId: string, element: HTMLElement, value: Priority } | null>(null);
 
   useEffect(() => { localStorage.setItem('heavyuser_task_grouping', grouping); }, [grouping]);
 
@@ -421,25 +524,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     if (diff === 0) return 'text-notion-green';
     if (diff === 1) return 'text-notion-orange';
     return 'text-muted-foreground';
-  };
-
-  const getPriorityStyle = (p: Priority) => {
-    switch (p) {
-      case 'Urgent': return 'bg-notion-bg_red text-notion-red';
-      case 'High': return 'bg-notion-bg_yellow text-notion-yellow';
-      case 'Normal': return 'bg-notion-bg_gray text-muted-foreground';
-      case 'Low': return 'bg-notion-bg_gray text-muted-foreground';
-      default: return 'bg-notion-bg_gray text-muted-foreground';
-    }
-  };
-
-  const getPriorityIcon = (p: Priority) => {
-      switch (p) {
-          case 'Urgent': return <AlertCircle className="w-3 h-3" />;
-          case 'High': return <ArrowUp className="w-3 h-3" />;
-          case 'Normal': return <ArrowRight className="w-3 h-3" />;
-          case 'Low': return <ArrowDown className="w-3 h-3" />;
-      }
   };
   
   const getGroupingKey = (dateStr: string) => {
@@ -601,7 +685,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                 {(task.plannedTime || task.actualTime || isTimerRunning) ? (
                                     <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-sm ${isTimerRunning ? 'bg-notion-bg_blue text-notion-blue' : 'text-muted-foreground'}`}>
                                         {isTimerRunning && <Clock className="w-3 h-3 animate-pulse" />}
-                                        <span className="font-mono">{combinedTimeDisplay}</span>
+                                        <span className="font-medium tabular-nums">{combinedTimeDisplay}</span>
                                     </div>
                                 ) : <div className="w-full h-full opacity-0 group-hover:opacity-100 flex justify-end">
                                      <button onClick={(e) => onToggleTimer(task.id, e)} className="p-1 hover:bg-notion-hover rounded-sm text-muted-foreground"><Play className="w-3 h-3" /></button>
@@ -622,7 +706,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                 ) : null}
                             </div>
 
-                            <div className={`w-24 flex justify-end items-center ${relativeColor}`}>
+                            <div 
+                                className={`w-24 flex justify-end items-center ${relativeColor} cursor-pointer hover:bg-notion-hover rounded-sm px-1 py-0.5 transition-colors`}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setQuickDateEdit({ taskId: task.id, element: e.currentTarget as HTMLElement, value: task.dueDate });
+                                }}
+                                title="Change Due Date"
+                            >
                                 {task.dueDate ? (
                                     <span className="truncate">{formatRelativeDate(task.dueDate)}</span>
                                 ) : (
@@ -631,7 +722,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                             </div>
 
                             <div className="w-24 flex justify-end">
-                                <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-sm ${pStyle} text-[10px] font-medium w-20 justify-start`}>
+                                <span 
+                                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-sm ${pStyle} text-[10px] font-medium w-20 justify-start cursor-pointer hover:opacity-80 transition-opacity`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setQuickPriorityEdit({ taskId: task.id, element: e.currentTarget as HTMLElement, value: task.priority });
+                                    }}
+                                    title="Change Priority"
+                                >
                                     {getPriorityIcon(task.priority)}
                                     {task.priority}
                                 </span>
@@ -727,7 +825,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                           </div>
                                       </div>
                                       <div className="flex items-center gap-3">
-                                          <span className="font-mono tabular-nums">{duration}</span>
+                                          <span className="font-medium tabular-nums">{duration}</span>
                                           <button onClick={() => onDeleteSession(session.id)} className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-notion-red rounded">
                                               <Trash2 className="w-3 h-3" />
                                           </button>
@@ -892,7 +990,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                             <div className="flex items-center h-8">
                                 <div className="w-32 flex items-center gap-2 text-muted-foreground"><Timer className="w-4 h-4" /> <span>Tracked</span></div>
                                 <div className="flex-1 flex items-center gap-2">
-                                    <span className="text-sm font-mono text-foreground">
+                                    <span className="text-sm font-medium tabular-nums text-foreground">
                                         {formatTimer((selectedTask.actualTime || 0) * 60 + (selectedTask.timerStart ? Math.floor((now - new Date(selectedTask.timerStart).getTime())/1000) : 0))}
                                     </span>
                                     <button 
@@ -916,6 +1014,37 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                 </div>
             </div>
         </div>
+      )}
+
+      {/* Quick Date Picker Portal */}
+      {quickDateEdit && (
+          <TaskDatePicker 
+              value={quickDateEdit.value} 
+              onChange={async (date) => {
+                  const taskId = quickDateEdit.taskId;
+                  setTasks(prev => prev.map(t => t.id === taskId ? { ...t, dueDate: date } : t));
+                  setQuickDateEdit(null);
+                  await supabase.from('tasks').update({ due_date: date || null }).eq('id', taskId);
+              }} 
+              onClose={() => setQuickDateEdit(null)} 
+              dayStartHour={dayStartHour} 
+              triggerRef={{ current: quickDateEdit.element } as React.RefObject<HTMLElement>} 
+          />
+      )}
+
+      {/* Quick Priority Picker Portal */}
+      {quickPriorityEdit && (
+          <TaskPriorityPicker 
+              value={quickPriorityEdit.value}
+              onChange={async (p) => {
+                  const taskId = quickPriorityEdit.taskId;
+                  setTasks(prev => prev.map(t => t.id === taskId ? { ...t, priority: p } : t));
+                  setQuickPriorityEdit(null);
+                  await supabase.from('tasks').update({ priority: p }).eq('id', taskId);
+              }}
+              onClose={() => setQuickPriorityEdit(null)}
+              triggerRef={{ current: quickPriorityEdit.element } as React.RefObject<HTMLElement>}
+          />
       )}
 
       {/* Recurrence Modal */}
