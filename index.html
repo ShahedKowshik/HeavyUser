@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -235,6 +234,48 @@
         flex-shrink: 0;
         cursor: pointer;
     }
+
+    /* TipTap Editor Overrides */
+    .ProseMirror {
+      outline: none;
+      min-height: 150px;
+    }
+    
+    /* Tighter Spacing for Notes to prevent large gaps */
+    .ProseMirror p {
+      margin-top: 0.1em !important;
+      margin-bottom: 0.1em !important;
+      line-height: 1.5 !important;
+    }
+    .ProseMirror h1 {
+        margin-top: 0.6em !important;
+        margin-bottom: 0.3em !important;
+        line-height: 1.2 !important;
+    }
+    .ProseMirror h2 {
+        margin-top: 0.5em !important;
+        margin-bottom: 0.25em !important;
+        line-height: 1.3 !important;
+    }
+    .ProseMirror ul, .ProseMirror ol {
+        margin-top: 0.1em !important;
+        margin-bottom: 0.1em !important;
+    }
+    .ProseMirror li {
+        margin-top: 0.05em !important;
+        margin-bottom: 0.05em !important;
+    }
+    .ProseMirror li p {
+        margin: 0 !important;
+    }
+
+    .ProseMirror p.is-editor-empty:first-child::before {
+      color: #9B9A97;
+      content: attr(data-placeholder);
+      float: left;
+      height: 0;
+      pointer-events: none;
+    }
   </style>
   <script>
     if (typeof process === 'undefined') { window.process = { env: {} }; }
@@ -262,7 +303,11 @@
     "@radix-ui/react-slot": "https://esm.sh/@radix-ui/react-slot@1.0.2?deps=react@18.3.1,react-dom@18.3.1",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/",
-    "@vercel/speed-insights/": "https://esm.sh/@vercel/speed-insights@^1.3.1/"
+    "@vercel/speed-insights/": "https://esm.sh/@vercel/speed-insights@^1.3.1/",
+    "@tiptap/react": "https://esm.sh/@tiptap/react@2.2.4?deps=react@18.3.1,react-dom@18.3.1",
+    "@tiptap/starter-kit": "https://esm.sh/@tiptap/starter-kit@2.2.4?deps=react@18.3.1,react-dom@18.3.1",
+    "@tiptap/extension-underline": "https://esm.sh/@tiptap/extension-underline@2.2.4?deps=react@18.3.1,react-dom@18.3.1",
+    "@tiptap/extension-placeholder": "https://esm.sh/@tiptap/extension-placeholder@2.2.4?deps=react@18.3.1,react-dom@18.3.1"
   }
 }
 </script>

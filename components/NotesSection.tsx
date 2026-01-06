@@ -1,10 +1,20 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Plus, Trash2, X, FileText, ChevronLeft, Folder, FolderPlus, Check, Pencil, Tag as TagIcon, Clock, Type, Menu, ChevronRight, MoreVertical, ChevronDown, File } from 'lucide-react';
+import { 
+    Search, Plus, Trash2, X, FileText, ChevronLeft, Folder, FolderPlus, 
+    Check, Pencil, Tag as TagIcon, Clock, Type, ChevronRight, MoreVertical, 
+    ChevronDown, File, Bold, Italic, Underline as UnderlineIcon, 
+    Strikethrough, List, ListOrdered, Quote, Heading1, Heading2, 
+    Undo, Redo, Code, GripVertical
+} from 'lucide-react';
 import { Note, Folder as FolderType, Tag } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
 import { getContrastColor } from '../lib/utils';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Underline from '@tiptap/extension-underline';
+import Placeholder from '@tiptap/extension-placeholder';
 
 interface NotesSectionProps {
   notes: Note[];
@@ -36,18 +46,133 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     return newTag;
 };
 
-const stripHtml = (html: string) => {
-    if (!html) return '';
-    if (!/<[a-z][\s\S]*>/i.test(html)) return html;
-    const temp = document.createElement('div');
-    let formatted = html
-        .replace(/<\/div>/ig, '\n')
-        .replace(/<\/p>/ig, '\n')
-        .replace(/<li>/ig, '• ')
-        .replace(/<\/li>/ig, '\n')
-        .replace(/<br\s*\/?>/ig, '\n');
-    temp.innerHTML = formatted;
-    return temp.textContent || temp.innerText || '';
+const ToolbarButton = ({ 
+    onClick, 
+    isActive = false, 
+    disabled = false, 
+    children, 
+    title 
+}: { 
+    onClick: () => void; 
+    isActive?: boolean; 
+    disabled?: boolean; 
+    children?: React.ReactNode; 
+    title?: string;
+}) => (
+    <button
+        onClick={onClick}
+        disabled={disabled}
+        title={title}
+        className={`p-1.5 rounded-sm transition-colors ${
+            isActive 
+                ? 'bg-notion-hover text-foreground' 
+                : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'
+        } ${disabled ? 'opacity-30 cursor-not-allowed' : ''}`}
+    >
+        {children}
+    </button>
+);
+
+const MenuBar = ({ editor }: { editor: any }) => {
+    if (!editor) return null;
+
+    return (
+        <div className="flex items-center gap-0.5 flex-wrap border-b border-border p-2 bg-background sticky top-0 z-10">
+            <div className="flex items-center gap-0.5 border-r border-border pr-2 mr-2">
+                <ToolbarButton 
+                    onClick={() => editor.chain().focus().undo().run()} 
+                    disabled={!editor.can().undo()}
+                    title="Undo"
+                >
+                    <Undo className="w-4 h-4" />
+                </ToolbarButton>
+                <ToolbarButton 
+                    onClick={() => editor.chain().focus().redo().run()} 
+                    disabled={!editor.can().redo()}
+                    title="Redo"
+                >
+                    <Redo className="w-4 h-4" />
+                </ToolbarButton>
+            </div>
+
+            <ToolbarButton 
+                onClick={() => editor.chain().focus().toggleBold().run()} 
+                isActive={editor.isActive('bold')}
+                title="Bold"
+            >
+                <Bold className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton 
+                onClick={() => editor.chain().focus().toggleItalic().run()} 
+                isActive={editor.isActive('italic')}
+                title="Italic"
+            >
+                <Italic className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton 
+                onClick={() => editor.chain().focus().toggleUnderline().run()} 
+                isActive={editor.isActive('underline')}
+                title="Underline"
+            >
+                <UnderlineIcon className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton 
+                onClick={() => editor.chain().focus().toggleStrike().run()} 
+                isActive={editor.isActive('strike')}
+                title="Strikethrough"
+            >
+                <Strikethrough className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton 
+                onClick={() => editor.chain().focus().toggleCode().run()} 
+                isActive={editor.isActive('code')}
+                title="Inline Code"
+            >
+                <Code className="w-4 h-4" />
+            </ToolbarButton>
+
+            <div className="w-px h-4 bg-border mx-2" />
+
+            <ToolbarButton 
+                onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} 
+                isActive={editor.isActive('heading', { level: 1 })}
+                title="Heading 1"
+            >
+                <Heading1 className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton 
+                onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} 
+                isActive={editor.isActive('heading', { level: 2 })}
+                title="Heading 2"
+            >
+                <Heading2 className="w-4 h-4" />
+            </ToolbarButton>
+            
+            <div className="w-px h-4 bg-border mx-2" />
+
+            <ToolbarButton 
+                onClick={() => editor.chain().focus().toggleBulletList().run()} 
+                isActive={editor.isActive('bulletList')}
+                title="Bullet List"
+            >
+                <List className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton 
+                onClick={() => editor.chain().focus().toggleOrderedList().run()} 
+                isActive={editor.isActive('orderedList')}
+                title="Ordered List"
+            >
+                <ListOrdered className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton 
+                onClick={() => editor.chain().focus().toggleBlockquote().run()} 
+                isActive={editor.isActive('blockquote')}
+                title="Blockquote"
+            >
+                <Quote className="w-4 h-4" />
+            </ToolbarButton>
+        </div>
+    );
 };
 
 const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, setFolders, userId, tags, setTags, activeFilterTagId }) => {
@@ -58,7 +183,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
 
   const [editorTitle, setEditorTitle] = useState('');
-  const [editorContent, setEditorContent] = useState('');
+  // We use editor instance to manage content, this state is mostly for save sync
   const [editorTags, setEditorTags] = useState<string[]>([]);
   const prevNoteIdRef = useRef<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -92,6 +217,88 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
   }, [notes, searchQuery, activeFilterTagId]);
 
   const selectedNote = useMemo(() => notes.find(n => n.id === selectedNoteId), [notes, selectedNoteId]);
+
+  const saveToDb = useMemo(() => {
+    let timeout: ReturnType<typeof setTimeout>;
+    return (id: string, title: string, content: string, currentTags: string[], folderId: string | null | undefined) => {
+      setIsSaving(true);
+      clearTimeout(timeout);
+      timeout = setTimeout(async () => {
+        try {
+            await supabase.from('notes').update({
+            title: encryptData(title),
+            content: encryptData(content),
+            tags: currentTags,
+            folder_id: folderId,
+            updated_at: new Date().toISOString()
+            }).eq('id', id);
+        } catch (e) {
+            console.error("Save failed", e);
+        } finally {
+            setIsSaving(false);
+        }
+      }, 1000);
+    };
+  }, []);
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+          heading: { levels: [1, 2] },
+          codeBlock: false,
+      }),
+      Underline,
+      Placeholder.configure({
+        placeholder: 'Type \'/\' for commands or start writing...',
+        emptyEditorClass: 'is-editor-empty',
+      })
+    ],
+    editorProps: {
+        attributes: {
+            class: 'prose prose-sm md:prose-base focus:outline-none max-w-none min-h-[50vh]',
+        },
+    },
+    onUpdate: ({ editor }) => {
+        if (!selectedNoteId) return;
+        const html = editor.getHTML();
+        
+        // Update local state without triggering re-render of everything
+        setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, content: html, updatedAt: new Date().toISOString() } : n));
+        
+        // Trigger save
+        // Note: selectedNote might be stale in closure, better to use refs or just pass the current values
+        // We need the current title and tags to save properly
+        saveToDb(selectedNoteId, editorTitle, html, editorTags, selectedNote?.folderId);
+    },
+  });
+
+  // Sync Editor Content when Note Selection Changes
+  useEffect(() => {
+    const hasSwitched = selectedNoteId !== prevNoteIdRef.current;
+    if (selectedNoteId && selectedNote) {
+      if (hasSwitched) {
+        setEditorTitle(selectedNote.title);
+        setEditorTags(selectedNote.tags || []);
+        
+        // Update TipTap content
+        if (editor) {
+            // Set content and ensure we don't trigger the update listener to save immediately
+            editor.commands.setContent(selectedNote.content, false);
+        }
+
+        prevNoteIdRef.current = selectedNoteId;
+        setIsTagPopoverOpen(false);
+      } 
+    } else {
+      setEditorTitle('');
+      setEditorTags([]);
+      if (editor) {
+          editor.commands.setContent('', false);
+      }
+      prevNoteIdRef.current = null;
+    }
+  }, [selectedNoteId, selectedNote, editor]);
+
 
   const executeAutoDelete = async (id: string) => {
     setNotes(prev => {
@@ -132,55 +339,6 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
     setPendingNoteIds(newPendingIds);
   }, []);
 
-  useEffect(() => {
-    const hasSwitched = selectedNoteId !== prevNoteIdRef.current;
-    if (selectedNoteId && selectedNote) {
-      if (hasSwitched) {
-        setEditorTitle(selectedNote.title);
-        setEditorTags(selectedNote.tags || []);
-        setEditorContent(stripHtml(selectedNote.content));
-        prevNoteIdRef.current = selectedNoteId;
-        setIsTagPopoverOpen(false);
-      } 
-    } else {
-      setEditorTitle('');
-      setEditorTags([]);
-      setEditorContent('');
-      prevNoteIdRef.current = null;
-    }
-  }, [selectedNoteId, selectedNote]);
-
-  const saveToDb = useMemo(() => {
-    let timeout: ReturnType<typeof setTimeout>;
-    return (id: string, title: string, content: string, currentTags: string[], folderId: string | null | undefined) => {
-      setIsSaving(true);
-      clearTimeout(timeout);
-      timeout = setTimeout(async () => {
-        try {
-            await supabase.from('notes').update({
-            title: encryptData(title),
-            content: encryptData(content),
-            tags: currentTags,
-            folder_id: folderId,
-            updated_at: new Date().toISOString()
-            }).eq('id', id);
-        } catch (e) {
-            console.error("Save failed", e);
-        } finally {
-            setIsSaving(false);
-        }
-      }, 1000);
-    };
-  }, []);
-
-  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    if (!selectedNoteId || !selectedNote) return;
-    const newContent = e.target.value;
-    setEditorContent(newContent);
-    setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, content: newContent, updatedAt: new Date().toISOString() } : n));
-    saveToDb(selectedNoteId, editorTitle, newContent, editorTags, selectedNote.folderId);
-  };
-
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
     setEditorTitle(newTitle);
@@ -193,7 +351,9 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
            setPendingNoteIds(prev => { const next = new Set(prev); next.delete(selectedNoteId); return next; });
        }
       setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, title: newTitle, updatedAt: new Date().toISOString() } : n));
-      saveToDb(selectedNoteId, newTitle, editorContent, editorTags, selectedNote.folderId);
+      // Use current editor content for save
+      const currentContent = editor ? editor.getHTML() : selectedNote.content;
+      saveToDb(selectedNoteId, newTitle, currentContent, editorTags, selectedNote.folderId);
     }
   };
 
@@ -202,7 +362,8 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
       const nextTags = editorTags.includes(tagId) ? editorTags.filter(id => id !== tagId) : [...editorTags, tagId];
       setEditorTags(nextTags);
       setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, tags: nextTags, updatedAt: new Date().toISOString() } : n));
-      saveToDb(selectedNoteId, editorTitle, editorContent, nextTags, selectedNote.folderId);
+      const currentContent = editor ? editor.getHTML() : selectedNote.content;
+      saveToDb(selectedNoteId, editorTitle, currentContent, nextTags, selectedNote.folderId);
   };
 
   const handleInlineCreateTag = async (e: React.FormEvent) => {
@@ -215,7 +376,8 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
           setEditorTags(prev => [...prev, newTag.id]);
           if (selectedNoteId && selectedNote) {
               const updatedTags = [...editorTags, newTag.id];
-              saveToDb(selectedNoteId, editorTitle, editorContent, updatedTags, selectedNote.folderId);
+              const currentContent = editor ? editor.getHTML() : selectedNote.content;
+              saveToDb(selectedNoteId, editorTitle, currentContent, updatedTags, selectedNote.folderId);
           }
           setNewTagInput('');
       } catch (err) { console.error(err); } finally { setIsCreatingTag(false); }
@@ -225,7 +387,8 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
       if (!selectedNoteId || !selectedNote) return;
       setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, folderId: newFolderId } : n));
       setIsMoveMenuOpen(false);
-      saveToDb(selectedNoteId, editorTitle, editorContent, editorTags, newFolderId);
+      const currentContent = editor ? editor.getHTML() : selectedNote.content;
+      saveToDb(selectedNoteId, editorTitle, currentContent, editorTags, newFolderId);
       if (newFolderId) setExpandedFolderIds(prev => new Set(prev).add(newFolderId));
   };
 
@@ -487,7 +650,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
 
     return (
       <div className="flex-1 flex flex-col h-full bg-background relative">
-        <div className="flex items-center justify-between p-3 border-b border-border shrink-0 h-12">
+        <div className="flex items-center justify-between p-3 border-b border-border shrink-0 h-12 bg-background/95 backdrop-blur z-20">
            <div className="flex items-center gap-2">
               <button 
                   className="md:hidden p-1 -ml-1 text-muted-foreground hover:text-foreground"
@@ -602,42 +765,46 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
            </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-           <div className="max-w-3xl mx-auto px-8 py-10 h-full flex flex-col">
-               <input 
-                  id="note-title-input"
-                  type="text" 
-                  value={editorTitle}
-                  onChange={handleTitleChange}
-                  placeholder="Untitled"
-                  className="w-full text-4xl font-bold text-foreground placeholder:text-muted-foreground/30 border-none outline-none bg-transparent mb-4 shrink-0"
-               />
-               
-               {editorTags.length > 0 && (
-                   <div className="flex flex-wrap gap-1 mb-6 shrink-0">
-                       {editorTags.map(tagId => {
-                            const tag = tags.find(t => t.id === tagId);
-                            if (!tag) return null;
-                            return (
-                                <span 
-                                key={tagId} 
-                                className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-sm border border-transparent"
-                                style={{ backgroundColor: tag.color, color: getContrastColor(tag.color) }}
-                                >
-                                <TagIcon className="w-3 h-3 opacity-50" style={{ color: getContrastColor(tag.color) }} />
-                                {tag.label}
-                                </span>
-                            );
-                        })}
-                   </div>
-               )}
+        <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col relative">
+           {/* Editor Container */}
+           <div className="w-full max-w-3xl mx-auto flex flex-col h-full bg-background">
+               <div className="px-8 pt-8 pb-4 shrink-0 bg-background">
+                   <input 
+                      id="note-title-input"
+                      type="text" 
+                      value={editorTitle}
+                      onChange={handleTitleChange}
+                      placeholder="Untitled"
+                      className="w-full text-4xl font-bold text-foreground placeholder:text-muted-foreground/30 border-none outline-none bg-transparent mb-4"
+                   />
+                   
+                   {editorTags.length > 0 && (
+                       <div className="flex flex-wrap gap-1 mb-2">
+                           {editorTags.map(tagId => {
+                                const tag = tags.find(t => t.id === tagId);
+                                if (!tag) return null;
+                                return (
+                                    <span 
+                                    key={tagId} 
+                                    className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-sm border border-transparent"
+                                    style={{ backgroundColor: tag.color, color: getContrastColor(tag.color) }}
+                                    >
+                                    <TagIcon className="w-3 h-3 opacity-50" style={{ color: getContrastColor(tag.color) }} />
+                                    {tag.label}
+                                    </span>
+                                );
+                            })}
+                       </div>
+                   )}
+               </div>
 
-               <textarea 
-                  value={editorContent}
-                  onChange={handleContentChange}
-                  className="w-full flex-1 resize-none border-none outline-none bg-transparent text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus:ring-0 p-0 font-normal"
-                  placeholder="Type '/' for commands"
-               />
+               {/* Sticky Toolbar */}
+               <MenuBar editor={editor} />
+
+               {/* Actual Editor Content */}
+               <div className="flex-1 px-8 py-4 cursor-text" onClick={() => editor?.commands.focus()}>
+                   <EditorContent editor={editor} className="h-full" />
+               </div>
            </div>
         </div>
       </div>
