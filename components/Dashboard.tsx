@@ -540,7 +540,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans selection:bg-[#CDE8F4] selection:text-foreground">
       {/* Sidebar - Desktop */}
-      <aside className={`hidden md:flex flex-col p-2 space-y-1 bg-notion-sidebar border-r border-border shrink-0 z-20 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-16 items-center' : 'w-60'}`}>
+      <aside className={`hidden md:flex flex-col p-2 space-y-1 bg-notion-sidebar border-r border-border shrink-0 z-20 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-16 items-center' : 'w-52'}`}>
         <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'space-x-2 px-2'} py-3 mb-1 cursor-pointer hover:bg-notion-hover rounded-sm transition-colors`} onClick={toggleSidebar} title="Toggle Sidebar">
           <div className="w-5 h-5 bg-foreground text-background rounded-sm flex items-center justify-center font-bold text-xs shrink-0">H</div>
           {!isSidebarCollapsed && (
@@ -559,7 +559,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         </nav>
 
         {!isSidebarCollapsed && (
-            <div className="mt-4 px-3 py-3 bg-background border border-border rounded-sm mx-1 shadow-sm">
+            <div className="mt-4 px-3 py-3 bg-background border border-border rounded-sm mx-1">
                 <div className="flex justify-between items-end mb-1">
                     <div>
                         <div className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider">Tracked</div>
