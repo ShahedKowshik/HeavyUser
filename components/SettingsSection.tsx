@@ -143,59 +143,64 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
   return (
     <div className="flex h-full flex-col md:flex-row overflow-hidden bg-background">
         {/* Sidebar Settings Menu */}
-        <div className="w-full md:w-48 border-r border-border bg-notion-sidebar p-2 space-y-6 overflow-y-auto">
-            <div className="space-y-1">
-                <div className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Account</div>
+        <div className="w-full md:w-48 shrink-0 flex flex-row md:flex-col border-b md:border-b-0 md:border-r border-border bg-notion-sidebar p-2 gap-2 md:space-y-6 overflow-x-auto md:overflow-y-auto custom-scrollbar md:h-full">
+            <div className="contents md:block md:space-y-1">
+                <div className="hidden md:block px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Account</div>
                 <button 
                     onClick={() => setActiveCategory('account')}
-                    className={`w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'account' ? 'bg-notion-hover text-foreground font-medium' : 'text-foreground hover:bg-notion-hover'}`}
+                    className={`whitespace-nowrap w-auto md:w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'account' ? 'bg-notion-hover text-foreground font-medium shadow-sm md:shadow-none' : 'text-foreground hover:bg-notion-hover'}`}
                 >
-                    <User className="w-4 h-4 text-muted-foreground" /> My Account
+                    <User className="w-4 h-4 text-muted-foreground" /> 
+                    <span>My Account</span>
                 </button>
             </div>
 
-            <div className="space-y-1">
-                <div className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Workspace</div>
+            <div className="contents md:block md:space-y-1">
+                <div className="hidden md:block px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Workspace</div>
                 <button 
                     onClick={() => setActiveCategory('workspace')}
-                    className={`w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'workspace' ? 'bg-notion-hover text-foreground font-medium' : 'text-foreground hover:bg-notion-hover'}`}
+                    className={`whitespace-nowrap w-auto md:w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'workspace' ? 'bg-notion-hover text-foreground font-medium shadow-sm md:shadow-none' : 'text-foreground hover:bg-notion-hover'}`}
                 >
-                    <LayoutGrid className="w-4 h-4 text-muted-foreground" /> Settings
+                    <LayoutGrid className="w-4 h-4 text-muted-foreground" /> 
+                    <span>Settings</span>
                 </button>
             </div>
 
-            <div className="space-y-1">
-                <div className="px-3 py-1 text-xs font-semibold text-red-500 uppercase tracking-wider mb-1">Danger Zone</div>
+            <div className="contents md:block md:space-y-1">
+                <div className="hidden md:block px-3 py-1 text-xs font-semibold text-red-500 uppercase tracking-wider mb-1">Danger Zone</div>
                 <button 
                     onClick={() => setActiveCategory('danger')}
-                    className={`w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'danger' ? 'bg-red-50 text-red-600 font-medium' : 'text-red-600 hover:bg-red-50'}`}
+                    className={`whitespace-nowrap w-auto md:w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'danger' ? 'bg-red-50 text-red-600 font-medium shadow-sm md:shadow-none' : 'text-red-600 hover:bg-red-50'}`}
                 >
-                    <Trash2 className="w-4 h-4" /> Delete Account
+                    <Trash2 className="w-4 h-4" /> 
+                    <span>Delete Account</span>
                 </button>
             </div>
             
-            <div className="mt-auto pt-6 px-3">
-                 <button onClick={onLogout} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-2">
-                     <LogOut className="w-3 h-3" /> Log out
+            <div className="md:mt-auto md:pt-6 px-3 ml-auto md:ml-0 flex items-center">
+                 <button onClick={onLogout} className="whitespace-nowrap text-xs text-muted-foreground hover:text-foreground flex items-center gap-2 px-2 py-1.5 md:px-0">
+                     <LogOut className="w-3 h-3" /> 
+                     <span className="hidden md:inline">Log out</span>
+                     <span className="md:hidden">Log out</span>
                  </button>
             </div>
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-8 md:px-12 md:py-10">
+        <div className="flex-1 overflow-y-auto p-4 md:px-12 md:py-10">
             {toast && (
                 <div className="fixed bottom-4 right-4 bg-foreground text-background px-3 py-2 rounded shadow-lg text-sm flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 z-50">
                     <Check className="w-3 h-3" /> {toast}
                 </div>
             )}
 
-            <div className="max-w-3xl space-y-10">
+            <div className="max-w-3xl space-y-8 md:space-y-10">
                 {activeCategory === 'account' && (
                     <div className="space-y-8 animate-in fade-in">
                         <div>
                             <h2 className="text-lg font-medium text-foreground border-b border-border pb-2 mb-4">My Profile</h2>
-                            <div className="flex gap-6">
-                                <div className="shrink-0">
+                            <div className="flex flex-col sm:flex-row gap-6">
+                                <div className="shrink-0 self-center sm:self-start">
                                     {localProfilePic ? (
                                         <img src={localProfilePic} className="w-16 h-16 rounded-full object-cover border border-border" />
                                     ) : (
@@ -204,7 +209,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex-1 space-y-4 max-w-sm">
+                                <div className="flex-1 space-y-4 max-w-sm w-full">
                                     <div className="space-y-1">
                                         <label className="text-xs font-medium text-muted-foreground">Preferred Name</label>
                                         <input type="text" value={localName} onChange={e => setLocalName(e.target.value)} className="w-full text-sm border border-border rounded-sm px-2 py-1.5 focus:border-notion-blue focus:ring-1 focus:ring-notion-blue outline-none bg-transparent" />
@@ -213,14 +218,14 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                         <label className="text-xs font-medium text-muted-foreground">Avatar URL</label>
                                         <input type="text" value={localProfilePic} onChange={e => setLocalProfilePic(e.target.value)} placeholder="https://..." className="w-full text-sm border border-border rounded-sm px-2 py-1.5 focus:border-notion-blue focus:ring-1 focus:ring-notion-blue outline-none bg-transparent" />
                                     </div>
-                                    <button onClick={handleSaveProfile} className="px-3 py-1 bg-notion-blue text-white rounded-sm text-sm hover:bg-blue-600 transition-colors">Update</button>
+                                    <button onClick={handleSaveProfile} className="w-full sm:w-auto px-3 py-1 bg-notion-blue text-white rounded-sm text-sm hover:bg-blue-600 transition-colors">Update</button>
                                 </div>
                             </div>
                         </div>
 
                         <div>
                             <h2 className="text-lg font-medium text-foreground border-b border-border pb-2 mb-4">Email & Password</h2>
-                            <div className="space-y-4 max-w-sm">
+                            <div className="space-y-4 max-w-sm w-full">
                                 <div className="space-y-1">
                                     <label className="text-xs font-medium text-muted-foreground">Email</label>
                                     <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className="w-full text-sm border border-border rounded-sm px-2 py-1.5 bg-transparent" />
@@ -230,8 +235,8 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                     <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full text-sm border border-border rounded-sm px-2 py-1.5 bg-transparent" />
                                 </div>
                                 <div className="flex gap-2">
-                                    <button className="px-3 py-1 border border-border rounded-sm text-sm hover:bg-notion-hover transition-colors">Change Email</button>
-                                    <button className="px-3 py-1 border border-border rounded-sm text-sm hover:bg-notion-hover transition-colors">Change Password</button>
+                                    <button className="flex-1 sm:flex-none px-3 py-1 border border-border rounded-sm text-sm hover:bg-notion-hover transition-colors">Change Email</button>
+                                    <button className="flex-1 sm:flex-none px-3 py-1 border border-border rounded-sm text-sm hover:bg-notion-hover transition-colors">Change Password</button>
                                 </div>
                             </div>
                         </div>
@@ -267,7 +272,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
 
                         <div>
                             <h2 className="text-lg font-medium text-foreground border-b border-border pb-2 mb-4">Preferences</h2>
-                            <div className="flex items-center justify-between max-w-sm py-2">
+                            <div className="flex items-center justify-between max-w-sm py-2 w-full">
                                 <div>
                                     <div className="text-sm font-medium">Day Start Hour</div>
                                     <div className="text-xs text-muted-foreground">When your day resets (Night Owl mode)</div>
@@ -296,15 +301,15 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                         placeholder="Label Name" 
                                         value={newTagLabel}
                                         onChange={e => setNewTagLabel(e.target.value)}
-                                        className="flex-1 text-sm border border-border rounded-sm px-2 py-1 bg-background outline-none focus:ring-1 focus:ring-notion-blue"
+                                        className="flex-1 text-sm border border-border rounded-sm px-2 py-1 bg-background outline-none focus:ring-1 focus:ring-notion-blue min-w-0"
                                     />
                                     {/* Color Picker */}
-                                     <div className="relative group">
+                                     <div className="relative group shrink-0">
                                         <button 
                                             className="w-8 h-8 rounded-sm border border-border flex items-center justify-center transition-colors shadow-sm"
                                             style={{ backgroundColor: newTagColor }}
                                         />
-                                        <div className="absolute left-0 top-full mt-1 p-2 bg-background border border-border rounded shadow-xl grid grid-cols-8 gap-1 z-10 hidden group-hover:grid w-64">
+                                        <div className="absolute right-0 md:left-0 top-full mt-1 p-2 bg-background border border-border rounded shadow-xl grid grid-cols-8 gap-1 z-10 hidden group-hover:grid w-64">
                                             {PRESET_COLORS.map(c => (
                                                 <button 
                                                     key={c} 
@@ -316,7 +321,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                         </div>
                                     </div>
                                     
-                                    <button onClick={handleAddTag} disabled={!newTagLabel.trim()} className="px-3 py-1 bg-notion-blue text-white rounded-sm text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50">Add</button>
+                                    <button onClick={handleAddTag} disabled={!newTagLabel.trim()} className="px-3 py-1 bg-notion-blue text-white rounded-sm text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">Add</button>
                                 </div>
                             </div>
                             
@@ -325,14 +330,14 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                     const textColor = getContrastColor(tag.color);
                                     if (editingTagId === tag.id) {
                                         return (
-                                            <div key={tag.id} className="flex items-center gap-2 p-1 border border-notion-blue rounded-sm bg-background animate-in fade-in shadow-sm">
+                                            <div key={tag.id} className="flex items-center gap-2 p-1 border border-notion-blue rounded-sm bg-background animate-in fade-in shadow-sm w-full sm:w-auto">
                                                 <input 
                                                     autoFocus
                                                     value={editTagLabel}
                                                     onChange={(e) => setEditTagLabel(e.target.value)}
-                                                    className="w-24 text-sm px-1 outline-none bg-transparent"
+                                                    className="flex-1 w-24 text-sm px-1 outline-none bg-transparent min-w-0"
                                                 />
-                                                <div className="relative group">
+                                                <div className="relative group shrink-0">
                                                     <button 
                                                         className="w-4 h-4 rounded-full border border-border shadow-sm"
                                                         style={{ backgroundColor: editTagColor }}
@@ -348,9 +353,11 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                                         ))}
                                                     </div>
                                                 </div>
-                                                <button onClick={handleUpdateTag} className="text-notion-green hover:bg-notion-bg_green p-0.5 rounded"><Check className="w-3 h-3" /></button>
-                                                <button onClick={() => handleDeleteTag(tag.id)} className="text-notion-red hover:bg-notion-bg_red p-0.5 rounded"><Trash2 className="w-3 h-3" /></button>
-                                                <button onClick={() => setEditingTagId(null)} className="text-muted-foreground hover:bg-notion-hover p-0.5 rounded"><X className="w-3 h-3" /></button>
+                                                <div className="flex shrink-0">
+                                                    <button onClick={handleUpdateTag} className="text-notion-green hover:bg-notion-bg_green p-0.5 rounded"><Check className="w-3 h-3" /></button>
+                                                    <button onClick={() => handleDeleteTag(tag.id)} className="text-notion-red hover:bg-notion-bg_red p-0.5 rounded"><Trash2 className="w-3 h-3" /></button>
+                                                    <button onClick={() => setEditingTagId(null)} className="text-muted-foreground hover:bg-notion-hover p-0.5 rounded"><X className="w-3 h-3" /></button>
+                                                </div>
                                             </div>
                                         );
                                     }
@@ -361,8 +368,8 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                             className="group flex items-center gap-1.5 px-2 py-1 rounded-sm text-sm border border-transparent hover:border-border transition-all hover:shadow-sm"
                                             style={{ backgroundColor: tag.color, color: textColor }}
                                         >
-                                            {tag.label}
-                                            <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-50 transition-opacity" />
+                                            <span className="truncate max-w-[150px]">{tag.label}</span>
+                                            <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-50 transition-opacity shrink-0" />
                                         </button>
                                     );
                                 })}
@@ -386,12 +393,12 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                         type="text" 
                                         value={deleteKeyword}
                                         onChange={e => setDeleteKeyword(e.target.value)}
-                                        className="flex-1 text-sm border border-red-200 rounded-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-500"
+                                        className="flex-1 text-sm border border-red-200 rounded-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-500 min-w-0"
                                     />
                                     <button 
                                         onClick={handleFinalDelete}
                                         disabled={deleteKeyword !== 'delete' || isDeleting}
-                                        className="px-4 py-1.5 bg-red-600 text-white rounded-sm text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+                                        className="px-4 py-1.5 bg-red-600 text-white rounded-sm text-sm font-medium hover:bg-red-700 disabled:opacity-50 shrink-0"
                                     >
                                         {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete Everything'}
                                     </button>
