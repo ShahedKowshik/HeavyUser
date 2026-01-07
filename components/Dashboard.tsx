@@ -226,6 +226,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       const remainingMinutes = activeTasks.reduce((acc, t) => { let cur = t.timerStart ? (nowTs - new Date(t.timerStart).getTime()) / 1000 / 60 : 0; return acc + Math.max(0, (t.plannedTime || 0) - (t.actualTime || 0) - cur); }, 0);
       return { totalTrackedSeconds, remainingMinutes, finishTime: remainingMinutes > 0 ? new Date(nowTs + remainingMinutes * 60000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }) : null };
   }, [sessions, tasks, userSettings.dayStartHour, statsTicker]);
+  
+  const progressPercent = useMemo(() => {
+      const trackedMins = sidebarStats.totalTrackedSeconds / 60;
+      const total = trackedMins + sidebarStats.remainingMinutes;
+      if (total <= 0) return 0;
+      return Math.min(100, (trackedMins / total) * 100);
+  }, [sidebarStats]);
 
   const streakData = useMemo(() => {
     const activeDates = new Set<string>();
@@ -272,42 +279,45 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   };
 
   const renderSidebar = () => (
-      <aside className={`hidden md:flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'w-16' : 'w-52'} h-full border-r border-border bg-notion-sidebar`}>
+      <aside className={`hidden md:flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'w-16' : 'w-56'} h-full border-r border-border bg-notion-sidebar`}>
           <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'space-x-2 px-2'} py-3 mb-1 cursor-pointer hover:bg-notion-hover transition-colors`} onClick={toggleSidebar}>
               <AppIcon className="w-5 h-5" />
               {!isSidebarCollapsed && <div className="flex-1 flex justify-between items-center min-w-0"><h1 className="text-sm font-bold truncate">HeavyUser</h1><ChevronLeft className="w-3.5 h-3.5 opacity-50" /></div>}
           </div>
           
-          <nav className="flex-1 space-y-0.5 w-full overflow-y-auto custom-scrollbar">
+          <nav className="flex-1 space-y-0.5 w-full overflow-y-auto custom-scrollbar px-2 py-2">
             {enabledModules.includes('tasks') && <NavItem id="tasks" label="Tasks" icon={CheckSquare} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
             {enabledModules.includes('habit') && <NavItem id="habit" label="Habits" icon={Zap} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
             {enabledModules.includes('journal') && <NavItem id="journal" label="Journal" icon={Book} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
             {enabledModules.includes('notes') && <NavItem id="notes" label="Notes" icon={StickyNote} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
-            
-            <div className="mt-8 space-y-0.5">
-                {!isSidebarCollapsed && <div className="px-3 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Support</div>}
+          </nav>
+          
+          <div className="shrink-0 mb-2 px-2 space-y-0.5 border-t border-border/40 pt-2">
+                <NavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
+                
+               {!isSidebarCollapsed && <div className="px-3 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider opacity-70 mt-1">Support</div>}
                 <NavItem id="request_feature" label="Request Feature" icon={Lightbulb} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
                 <NavItem id="report_bug" label="Report Bug" icon={Bug} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
-            </div>
-          </nav>
+          </div>
 
           {!isSidebarCollapsed && (
-            <div className="mt-auto p-4 border-t border-border space-y-3">
-                {/* Global Status in Sidebar */}
-                <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1.5" title="Current Streak">
-                        <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'text-notion-orange fill-notion-orange' : 'text-muted-foreground'}`} />
-                        <span className="font-medium tabular-nums">{streakData.count}</span>
+            <div className="p-4 border-t border-border bg-secondary/10 space-y-4">
+                {/* Status Pills */}
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 bg-background border border-border rounded-md px-2 py-1.5 flex items-center justify-center gap-1.5 shadow-sm" title="Current Streak">
+                        <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'text-notion-orange fill-notion-orange' : 'text-notion-orange'}`} />
+                        <span className="text-xs font-bold tabular-nums">{streakData.count}</span>
                     </div>
-                    <div className="relative">
-                         <button onClick={() => setIsTagFilterOpen(!isTagFilterOpen)} className={`flex items-center gap-1 hover:bg-notion-hover px-1.5 py-0.5 rounded transition-colors ${activeFilterTagId ? 'text-notion-blue' : 'text-muted-foreground'}`} title="Filter by Tag">
+                    
+                    <div className="flex-1 relative">
+                         <button onClick={() => setIsTagFilterOpen(!isTagFilterOpen)} className={`w-full bg-background border border-border rounded-md px-2 py-1.5 flex items-center justify-center gap-1.5 shadow-sm hover:bg-notion-hover transition-colors ${activeFilterTagId ? 'text-notion-blue' : 'text-muted-foreground'}`} title="Filter by Tag">
                             <TagIcon className="w-3.5 h-3.5" />
-                            <span className="max-w-[60px] truncate">{activeFilterTag ? activeFilterTag.label : 'All'}</span>
+                            <span className="text-xs font-medium max-w-[60px] truncate">{activeFilterTag ? activeFilterTag.label : 'All'}</span>
                         </button>
                         {isTagFilterOpen && (
                             <>
                                 <div className="fixed inset-0 z-40" onClick={() => setIsTagFilterOpen(false)} />
-                                <div className="absolute bottom-full left-0 mb-1 w-40 bg-background border border-border rounded-md shadow-xl z-50 p-1 animate-in zoom-in-95">
+                                <div className="absolute bottom-full left-0 mb-2 w-40 bg-background border border-border rounded-md shadow-xl z-50 p-1 animate-in zoom-in-95">
                                     <button onClick={() => { setActiveFilterTagId(null); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between hover:bg-notion-hover">All Labels</button>
                                     <div className="h-px bg-border my-1" />
                                     <div className="max-h-40 overflow-y-auto custom-scrollbar">
@@ -324,21 +334,33 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                     </div>
                 </div>
 
-                <div className="px-3 py-3 bg-background border border-border rounded-lg shadow-sm">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="p-1.5 bg-notion-blue/10 text-notion-blue rounded-full"><Activity className="w-4 h-4" /></div>
-                        <div>
-                            <div className="text-xs font-bold">Daily Focus</div>
-                            <div className="text-[10px] text-muted-foreground">{sidebarStats.finishTime ? `Ends at ${sidebarStats.finishTime}` : 'Clear!'}</div>
+                {/* Daily Focus Card */}
+                <div className="bg-background border border-border rounded-lg p-3 shadow-sm">
+                    <div className="flex items-start gap-3 mb-3">
+                        <div className="p-2 bg-blue-50 text-notion-blue rounded-full shrink-0">
+                            <Activity className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                            <div className="text-xs font-bold text-foreground truncate">Daily Focus</div>
+                            <div className="text-[10px] text-muted-foreground truncate">
+                                {sidebarStats.finishTime ? `Ends at ${sidebarStats.finishTime}` : 'All caught up!'}
+                            </div>
                         </div>
                     </div>
+                    
+                    {/* Progress Bar */}
+                    <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden mb-2">
+                        <div className="h-full bg-notion-blue transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+                    </div>
+
                     <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
                         <span>{Math.floor(sidebarStats.totalTrackedSeconds/60)}m done</span>
                         <span>{sidebarStats.remainingMinutes}m left</span>
                     </div>
                 </div>
                 
-                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground justify-center pt-1 opacity-70">
+                {/* Reset Timer */}
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground justify-center opacity-60">
                     <Clock className="w-3 h-3" /> <span>Reset in {timeLeft}</span>
                 </div>
             </div>
@@ -355,13 +377,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
          <header className="md:hidden flex flex-col border-b border-border bg-background z-20">
              <div className="flex items-center justify-between p-4 pb-2">
                  <div className="flex items-center gap-2"><AppIcon className="w-6 h-6 rounded-sm" /><span className="font-bold text-lg">HeavyUser</span></div>
-                 <button onClick={() => setActiveTab('settings')} className="text-muted-foreground p-1"><Settings className="w-5 h-5" /></button>
              </div>
              {/* Mobile Global Stats Bar */}
              <div className="flex items-center justify-between px-4 pb-3 pt-1 text-xs">
                  <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1.5 font-medium">
-                        <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'text-notion-orange fill-notion-orange' : 'text-muted-foreground'}`} />
+                        <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'text-notion-orange fill-notion-orange' : 'text-notion-orange'}`} />
                         <span>{streakData.count}</span>
                     </div>
                     <div className="relative">
