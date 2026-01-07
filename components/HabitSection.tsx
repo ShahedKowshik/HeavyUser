@@ -407,68 +407,75 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
     const limit = (!habit.useCounter && habit.goalType === 'negative') ? 0 : habit.target;
 
+    // Split weeks into 2 chunks of 26 weeks each
+    const chunks = [weeks.slice(0, 26), weeks.slice(26, 52)];
+
     return (
-        <div className="flex flex-col w-full select-none">
-            {/* Month Labels */}
-            <div className="flex pl-6 mb-1 text-[10px] text-muted-foreground">
-                {weeks.map((week, i) => {
-                     // Only show month label on the first week of the month (roughly)
-                     const showLabel = week[0].day <= 7;
-                     return (
-                        <div key={i} className="flex-1 text-center overflow-hidden">
-                            {showLabel ? MONTH_NAMES[week[0].month] : ''}
+        <div className="flex flex-col w-full select-none gap-6">
+            {chunks.map((chunkWeeks, chunkIndex) => (
+                <div key={chunkIndex} className="flex flex-col w-full">
+                    {/* Month Labels */}
+                    <div className="flex pl-6 mb-1 text-[10px] text-muted-foreground">
+                        {chunkWeeks.map((week, i) => {
+                             // Only show month label on the first week of the month (roughly)
+                             const showLabel = week[0].day <= 7;
+                             return (
+                                <div key={i} className="flex-1 text-center overflow-hidden">
+                                    {showLabel ? MONTH_NAMES[week[0].month] : ''}
+                                </div>
+                             );
+                        })}
+                    </div>
+
+                    <div className="flex gap-[2px]">
+                        {/* Day Labels */}
+                        <div className="flex flex-col justify-between py-[1px] text-[9px] text-muted-foreground w-4 shrink-0">
+                            <span>Mon</span>
+                            <span>Wed</span>
+                            <span>Fri</span>
                         </div>
-                     );
-                })}
-            </div>
+                        
+                        {/* Heatmap Grid */}
+                        <div className="flex flex-1 gap-[2px]">
+                            {chunkWeeks.map((week, i) => (
+                                <div key={i} className="flex flex-col gap-[2px] flex-1">
+                                    {week.map((day, j) => {
+                                        let bgClass = 'bg-secondary';
+                                        if (day.isFuture) {
+                                            bgClass = 'bg-transparent border border-border/30';
+                                        } else if (day.isBeforeStart) {
+                                            bgClass = 'bg-secondary/20'; // Faded for before start
+                                        } else if (day.isSkipped) {
+                                            bgClass = 'bg-notion-bg_gray opacity-40 border border-dashed border-foreground/10';
+                                        } else if (habit.goalType === 'negative') {
+                                            if (day.count > limit) bgClass = 'bg-notion-red'; 
+                                            else if (day.count > 0) bgClass = 'bg-[#F59E0B]'; // Safe = Yellow/Amber
+                                            else bgClass = 'bg-notion-green'; // Success = Solid Green
+                                        } else {
+                                            if (day.count >= habit.target) bgClass = 'bg-notion-green';
+                                            else if (day.count > 0) bgClass = 'bg-notion-orange';
+                                            else bgClass = 'bg-secondary';
+                                        }
 
-            <div className="flex gap-[2px]">
-                {/* Day Labels */}
-                <div className="flex flex-col justify-between py-[1px] text-[9px] text-muted-foreground w-4 shrink-0">
-                    <span>Mon</span>
-                    <span>Wed</span>
-                    <span>Fri</span>
-                </div>
-                
-                {/* Heatmap Grid */}
-                <div className="flex flex-1 gap-[2px]">
-                    {weeks.map((week, i) => (
-                        <div key={i} className="flex flex-col gap-[2px] flex-1">
-                            {week.map((day, j) => {
-                                let bgClass = 'bg-secondary';
-                                if (day.isFuture) {
-                                    bgClass = 'bg-transparent border border-border/30';
-                                } else if (day.isBeforeStart) {
-                                    bgClass = 'bg-secondary/20'; // Faded for before start
-                                } else if (day.isSkipped) {
-                                    bgClass = 'bg-notion-bg_gray opacity-40 border border-dashed border-foreground/10';
-                                } else if (habit.goalType === 'negative') {
-                                    if (day.count > limit) bgClass = 'bg-notion-red'; 
-                                    else if (day.count > 0) bgClass = 'bg-[#F59E0B]'; // Safe = Yellow/Amber
-                                    else bgClass = 'bg-notion-green'; // Success = Solid Green
-                                } else {
-                                    if (day.count >= habit.target) bgClass = 'bg-notion-green';
-                                    else if (day.count > 0) bgClass = 'bg-notion-orange';
-                                    else bgClass = 'bg-secondary';
-                                }
+                                        const markerClass = day.isStartDate ? 'ring-2 ring-inset ring-notion-blue z-10' : '';
 
-                                const markerClass = day.isStartDate ? 'ring-2 ring-inset ring-notion-blue z-10' : '';
-
-                                return (
-                                    <div 
-                                        key={day.date}
-                                        title={`${day.date}: ${day.count} ${habit.unit || ''} ${day.isStartDate ? '(Start)' : ''}`}
-                                        className={`w-full aspect-square rounded-[0.5px] transition-colors relative ${bgClass} ${markerClass}`}
-                                    />
-                                );
-                            })}
+                                        return (
+                                            <div 
+                                                key={day.date}
+                                                title={`${day.date}: ${day.count} ${habit.unit || ''} ${day.isStartDate ? '(Start)' : ''}`}
+                                                className={`w-full aspect-square rounded-[0.5px] transition-colors relative ${bgClass} ${markerClass}`}
+                                            />
+                                        );
+                                    })}
+                                </div>
+                            ))}
                         </div>
-                    ))}
+                    </div>
                 </div>
-            </div>
+            ))}
 
-            {/* Legend */}
-            <div className="flex flex-wrap justify-end gap-x-4 gap-y-2 mt-3 text-[10px] text-muted-foreground">
+            {/* Legend - Responsive wrapping */}
+            <div className="flex flex-wrap justify-end gap-x-4 gap-y-2 mt-1 text-[10px] text-muted-foreground">
                  <div className="flex items-center gap-1.5" title="Dates before you started tracking this habit">
                      <div className="w-2.5 h-2.5 rounded-[1px] bg-secondary/20" />
                      <span>Before Start</span>
@@ -546,7 +553,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
         <div className="flex flex-col h-full w-full">
             <div className="flex-1 flex gap-2">
                  {/* Y Axis Labels */}
-                 <div className="flex flex-col justify-between items-end text-[10px] text-muted-foreground w-6 font-mono py-1">
+                 <div className="flex flex-col justify-between items-end text-[10px] text-muted-foreground w-8 font-mono py-1 shrink-0">
                      <span>{yMax}</span>
                      {/* Show target label if it's nicely between 0 and max */}
                      {habit.target < yMax && habit.target > 0 && <span className="text-primary font-bold">{habit.target}</span>}
@@ -581,7 +588,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                    <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group/bar relative px-[1px]">
                                        {/* Count Label on Bar */}
                                        {d.count > 0 && (
-                                            <span className="mb-0.5 text-[8px] font-medium text-foreground/70">{d.count}</span>
+                                            <span className="mb-0.5 text-[8px] font-medium text-foreground/70 hidden sm:block">{d.count}</span>
                                        )}
                                        
                                        <div 
@@ -606,7 +613,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
             </div>
 
             {/* X Axis Labels */}
-            <div className="flex pl-8 mt-1 justify-between text-[9px] text-muted-foreground">
+            <div className="flex pl-10 mt-1 justify-between text-[9px] text-muted-foreground">
                 {data.filter((_, i) => i % 5 === 0).map((d, i) => (
                     <span key={i} className={d.isStartDate ? 'text-notion-blue font-bold' : ''}>{d.month} {d.day}</span>
                 ))}
@@ -705,26 +712,26 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
     return (
         <div className="flex flex-col h-full bg-background overflow-hidden animate-in fade-in">
-            {/* Header */}
-            <div className="shrink-0 h-14 border-b border-border flex items-center justify-between px-6 bg-background/95 backdrop-blur-sm z-10">
-                 <div className="flex items-center gap-3">
-                     <button onClick={() => setDetailHabitId(null)} className="p-1 hover:bg-notion-hover rounded-sm text-muted-foreground hover:text-foreground transition-colors">
+            {/* Header - Fixed & Sticky */}
+            <div className="shrink-0 h-14 border-b border-border flex items-center justify-between px-4 md:px-6 bg-background/95 backdrop-blur-sm z-10 sticky top-0">
+                 <div className="flex items-center gap-3 min-w-0 flex-1">
+                     <button onClick={() => setDetailHabitId(null)} className="p-1 hover:bg-notion-hover rounded-sm text-muted-foreground hover:text-foreground transition-colors shrink-0">
                          <ArrowLeft className="w-5 h-5" />
                      </button>
-                     <div className="w-px h-4 bg-border mx-1" />
-                     <span className="text-2xl">{detailHabit.icon}</span>
-                     <div>
-                         <h2 className="text-base font-bold text-foreground leading-tight">{detailHabit.title}</h2>
-                         <div className="flex items-center gap-2 text-xs text-muted-foreground leading-tight">
-                            <span className={`uppercase font-bold text-[10px] ${detailHabit.goalType === 'negative' ? 'text-notion-red' : 'text-notion-green'}`}>
+                     <div className="w-px h-4 bg-border mx-1 shrink-0" />
+                     <span className="text-2xl shrink-0">{detailHabit.icon}</span>
+                     <div className="min-w-0 flex-1">
+                         <h2 className="text-base font-bold text-foreground leading-tight truncate">{detailHabit.title}</h2>
+                         <div className="flex items-center gap-2 text-xs text-muted-foreground leading-tight truncate">
+                            <span className={`uppercase font-bold text-[10px] shrink-0 ${detailHabit.goalType === 'negative' ? 'text-notion-red' : 'text-notion-green'}`}>
                                 {detailHabit.goalType === 'negative' ? 'Quit' : 'Build'}
                             </span>
-                            <span>•</span>
-                            <span>Target: {detailHabit.target} {detailHabit.unit}</span>
+                            <span className="shrink-0">•</span>
+                            <span className="truncate">Target: {detailHabit.target} {detailHabit.unit}</span>
                          </div>
                      </div>
                  </div>
-                 <div className="flex items-center gap-2">
+                 <div className="flex items-center gap-2 shrink-0">
                      <button onClick={() => openEditModal(detailHabit)} className="p-2 text-muted-foreground hover:bg-notion-hover hover:text-foreground rounded-sm transition-colors">
                          <Settings className="w-4 h-4" />
                      </button>
@@ -734,59 +741,59 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                  </div>
             </div>
 
-            {/* Content Dashboard (No Scroll) */}
-            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 overflow-hidden">
+            {/* Content Dashboard - Scrollable on Mobile, Fixed on Desktop */}
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 p-4 md:p-6 overflow-y-auto lg:overflow-hidden">
                 
                 {/* Left Panel: Analytics */}
-                <div className="lg:col-span-8 flex flex-col gap-6 min-h-0">
+                <div className="lg:col-span-8 flex flex-col gap-4 md:gap-6 lg:overflow-y-auto custom-scrollbar lg:pr-2">
                     
                     {/* Stats Row */}
-                    <div className="grid grid-cols-4 gap-4 shrink-0">
-                         <div className="bg-background border border-border rounded-lg p-4 shadow-sm">
-                             <div className="text-xs uppercase font-bold text-muted-foreground mb-1">Streak</div>
-                             <div className="text-2xl font-bold flex items-center gap-2">
-                                 <Flame className={`w-6 h-6 ${stats.streak > 0 ? 'text-notion-orange fill-notion-orange' : 'text-muted-foreground'}`} />
-                                 {stats.streak} <span className="text-sm font-normal text-muted-foreground">days</span>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 shrink-0">
+                         <div className="bg-background border border-border rounded-lg p-3 md:p-4 shadow-sm overflow-hidden">
+                             <div className="text-[10px] md:text-xs uppercase font-bold text-muted-foreground mb-1 truncate">Streak</div>
+                             <div className="text-xl md:text-2xl font-bold flex items-center gap-2 truncate">
+                                 <Flame className={`w-6 h-6 shrink-0 ${stats.streak > 0 ? 'text-notion-orange fill-notion-orange' : 'text-muted-foreground'}`} />
+                                 {stats.streak} <span className="text-xs md:text-sm font-normal text-muted-foreground">days</span>
                              </div>
                          </div>
-                         <div className="bg-background border border-border rounded-lg p-4 shadow-sm">
-                             <div className="text-xs uppercase font-bold text-muted-foreground mb-1">Success Rate</div>
-                             <div className="text-2xl font-bold flex items-center gap-2">
-                                 <Activity className="w-6 h-6 text-notion-blue" />
+                         <div className="bg-background border border-border rounded-lg p-3 md:p-4 shadow-sm overflow-hidden">
+                             <div className="text-[10px] md:text-xs uppercase font-bold text-muted-foreground mb-1 truncate">Success Rate</div>
+                             <div className="text-xl md:text-2xl font-bold flex items-center gap-2 truncate">
+                                 <Activity className="w-6 h-6 shrink-0 text-notion-blue" />
                                  {stats.rate}%
                              </div>
                          </div>
-                         <div className="bg-background border border-border rounded-lg p-4 shadow-sm">
-                             <div className="text-xs uppercase font-bold text-muted-foreground mb-1">Total Days</div>
-                             <div className="text-2xl font-bold flex items-center gap-2">
-                                 <Trophy className="w-6 h-6 text-notion-yellow" />
+                         <div className="bg-background border border-border rounded-lg p-3 md:p-4 shadow-sm overflow-hidden">
+                             <div className="text-[10px] md:text-xs uppercase font-bold text-muted-foreground mb-1 truncate">Total Days</div>
+                             <div className="text-xl md:text-2xl font-bold flex items-center gap-2 truncate">
+                                 <Trophy className="w-6 h-6 shrink-0 text-notion-yellow" />
                                  {stats.totalDays}
                              </div>
                          </div>
-                         <div className="bg-background border border-border rounded-lg p-4 shadow-sm">
-                             <div className="text-xs uppercase font-bold text-muted-foreground mb-1">Today</div>
-                             <div className="text-2xl font-bold flex items-center gap-2">
+                         <div className="bg-background border border-border rounded-lg p-3 md:p-4 shadow-sm overflow-hidden">
+                             <div className="text-[10px] md:text-xs uppercase font-bold text-muted-foreground mb-1 truncate">Today</div>
+                             <div className="text-xl md:text-2xl font-bold flex flex-wrap items-baseline gap-x-2 gap-y-0">
                                  <span className={detailHabit.progress[today] >= detailHabit.target ? 'text-notion-green' : 'text-foreground'}>
                                      {detailHabit.progress[today] || 0}
                                  </span>
-                                 <span className="text-sm font-normal text-muted-foreground">/ {detailHabit.target} {detailHabit.unit}</span>
+                                 <span className="text-xs md:text-sm font-normal text-muted-foreground whitespace-nowrap">/ {detailHabit.target} {detailHabit.unit}</span>
                              </div>
                          </div>
                     </div>
 
-                    {/* Heatmap Card - removed flex-1 to let content dictate size, removing extra gap */}
-                    <div className="bg-background border border-border rounded-lg p-5 flex flex-col shadow-sm shrink-0">
+                    {/* Heatmap Card */}
+                    <div className="bg-background border border-border rounded-lg p-4 md:p-5 flex flex-col shadow-sm shrink-0 overflow-hidden">
                         <div className="flex items-center gap-2 mb-3 shrink-0">
                             <Activity className="w-5 h-5 text-muted-foreground" />
                             <h3 className="text-base font-semibold">Heatmap (Last 365 Days)</h3>
                         </div>
-                        <div className="min-h-0">
-                            <HabitHeatmap habit={detailHabit} />
+                        <div className="w-full pt-2">
+                             <HabitHeatmap habit={detailHabit} />
                         </div>
                     </div>
 
                     {/* Trend Chart Card */}
-                    <div className="h-56 shrink-0 bg-background border border-border rounded-lg p-5 flex flex-col shadow-sm">
+                    <div className="h-56 shrink-0 bg-background border border-border rounded-lg p-4 md:p-5 flex flex-col shadow-sm overflow-hidden">
                         <div className="flex items-center gap-2 mb-2 shrink-0">
                             <BarChart3 className="w-5 h-5 text-muted-foreground" />
                             <h3 className="text-base font-semibold">30-Day Trend</h3>
@@ -798,15 +805,15 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                 </div>
 
                 {/* Right Panel: Calendar & History */}
-                <div className="lg:col-span-4 flex flex-col gap-6 min-h-0">
+                <div className="lg:col-span-4 flex flex-col gap-4 md:gap-6 lg:h-full lg:min-h-0">
                     
                     {/* Interactive Calendar - Fixed Height, No Scroll */}
-                    <div className="h-auto shrink-0 bg-background border border-border rounded-lg p-5 shadow-sm">
+                    <div className="h-auto shrink-0 bg-background border border-border rounded-lg p-4 md:p-5 shadow-sm">
                         <MiniCalendar habit={detailHabit} />
                     </div>
 
-                    {/* Scrollable Log History - Last 7 days */}
-                    <div className="flex-1 min-h-0 bg-background border border-border rounded-lg flex flex-col shadow-sm overflow-hidden">
+                    {/* Scrollable Log History - Fixed Height on mobile to allow scroll within, flex on desktop */}
+                    <div className="h-[400px] lg:h-auto lg:flex-1 min-h-0 bg-background border border-border rounded-lg flex flex-col shadow-sm overflow-hidden">
                         <div className="px-5 py-4 border-b border-border shrink-0 bg-secondary/20">
                             <h3 className="text-sm font-semibold flex items-center gap-2">
                                 <Clock className="w-4 h-4 text-muted-foreground" /> Recent Logs (Last 7 Days)
@@ -908,7 +915,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                           {/* Skip Toggle */}
                           <button 
                               onClick={() => setDayEdit(prev => { if (!prev) return null; return { ...prev, isSkipped: !prev.isSkipped }; })}
-                              className={`w-full py-2 text-sm rounded-md border flex items-center justify-center gap-2 transition-colors ${dayEdit.isSkipped ? 'bg-notion-bg_gray text-foreground border-foreground/20' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
+                              className={`w-full py-2 text-sm rounded-md border flex items-center justify-center gap-2 transition-colors ${dayEdit.isSkipped ? 'bg-notion-bg_gray text-foreground border border-border' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
                           >
                               {dayEdit.isSkipped ? <SkipForward className="w-4 h-4 fill-current" /> : <SkipForward className="w-4 h-4" />}
                               {dayEdit.isSkipped ? 'Rest Day (Skipped)' : 'Mark as Skipped'}
