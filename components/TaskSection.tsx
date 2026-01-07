@@ -584,6 +584,27 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
          </div>
       )}
       {groups.map((group, gIdx) => {
+          // Calculate stats for the group
+          const { totalTracked, totalRemaining } = group.tasks.reduce((acc, task) => {
+              let activeSeconds = 0;
+              if (task.timerStart) {
+                  activeSeconds = Math.floor((now - new Date(task.timerStart).getTime()) / 1000);
+              }
+              const actual = (task.actualTime || 0) + (activeSeconds / 60);
+              const planned = task.plannedTime || 0;
+              const remaining = Math.max(0, planned - actual);
+              
+              return {
+                  totalTracked: acc.totalTracked + actual,
+                  totalRemaining: acc.totalRemaining + remaining
+              };
+          }, { totalTracked: 0, totalRemaining: 0 });
+
+          // Determine if we should show tracked time
+          const showTracked = ['Today', 'Yesterday', 'Overdue'].includes(group.title);
+          const hasTracked = totalTracked > 0;
+          const hasRemaining = totalRemaining > 0;
+
           return (
             <div key={group.title + gIdx} className="space-y-0">
               {group.title && (
@@ -621,6 +642,21 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                               )}
                           </div>
                       )}
+                  </div>
+
+                  <div className="flex items-center gap-3 text-[10px] text-muted-foreground font-medium">
+                       {showTracked && hasTracked && (
+                           <div className="flex items-center gap-1" title="Time tracked today/in this group">
+                               <span>Tracked:</span>
+                               <span className="font-medium text-foreground">{formatDuration(totalTracked)}</span>
+                           </div>
+                       )}
+                       {hasRemaining && (
+                           <div className="flex items-center gap-1" title="Estimated time remaining">
+                               <span>Remaining:</span>
+                               <span className="font-medium text-foreground">{formatDuration(totalRemaining)}</span>
+                           </div>
+                       )}
                   </div>
                 </div>
               )}
