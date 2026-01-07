@@ -77,7 +77,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
     if (!editor) return null;
 
     return (
-        <div className="flex items-center gap-0.5 flex-wrap border-b border-border px-12 py-2 bg-background sticky top-0 z-10">
+        <div className="flex items-center gap-0.5 flex-wrap border-b border-border px-0 py-2 bg-background sticky top-0 z-10">
             <div className="flex items-center gap-0.5 border-r border-border pr-2 mr-2">
                 <ToolbarButton 
                     onClick={() => editor.chain().focus().undo().run()} 
@@ -611,7 +611,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
            </div>
            
            <div className="space-y-0.5">
-               {filteredNotes.filter(n => !n.folderId || !folders.find(f => f.id === n.folderId) || expandedFolderIds.has(n.folderId)).map(note => (
+               {filteredNotes.filter(n => !n.folderId || !folders.find(f => f.id === n.folderId)).map(note => (
                    <div 
                        key={note.id}
                        onClick={() => { setSelectedNoteId(note.id); setMobileView('editor'); }}
@@ -624,15 +624,20 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                            </span>
                        </div>
                        <div className="flex items-center gap-2 ml-5.5">
-                           <span className={`text-[10px] truncate ${selectedNoteId === note.id ? 'text-notion-blue/70' : 'text-muted-foreground'}`}>{formatDateDetail(note.updatedAt)}</span>
-                           {note.tags && note.tags.length > 0 && (
-                               <div className="flex gap-1">
-                                    {note.tags.slice(0, 2).map(tagId => {
+                           {note.tags && note.tags.length > 0 ? (
+                               <div className="flex gap-1 overflow-hidden">
+                                    {note.tags.map(tagId => {
                                         const tag = tags.find(t => t.id === tagId);
                                         if (!tag) return null;
-                                        return <div key={tagId} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                                        return (
+                                            <span key={tagId} className="text-[10px] px-1 rounded-sm truncate max-w-[60px]" style={{ backgroundColor: tag.color + '40', color: tag.color }}>
+                                                {tag.label}
+                                            </span>
+                                        );
                                     })}
                                </div>
+                           ) : (
+                               <span className="text-[10px] text-muted-foreground">No labels</span>
                            )}
                        </div>
                    </div>
