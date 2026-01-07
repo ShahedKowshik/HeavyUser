@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { 
   User, Trash2, TriangleAlert, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, 
   Lock, Moon, Tag as TagIcon, Plus, Pencil, Code, LayoutGrid, 
-  ListTodo, Zap, Book, File, Shield, Database, ChevronRight, Info, CheckSquare, StickyNote
+  ListTodo, Zap, Book, File, Shield, Database, ChevronRight, Info, CheckSquare, StickyNote, Lightbulb, Bug
 } from 'lucide-react';
 import { UserSettings, AppTab, Tag } from '../types';
 import { supabase } from '../lib/supabase';
@@ -30,9 +30,9 @@ const PRESET_COLORS = [
   '#e0e7ff', '#a5b4fc', '#818cf8', '#6366f1'
 ];
 
-type Category = 'account' | 'workspace' | 'danger';
+type Category = 'account' | 'workspace' | 'support' | 'danger';
 
-const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, onLogout, tags, setTags }) => {
+const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, onLogout, onNavigate, tags, setTags }) => {
   const [activeCategory, setActiveCategory] = useState<Category>('account');
   
   // Profile State
@@ -51,7 +51,6 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
   // Security State
   const [newEmail, setNewEmail] = useState(settings.email);
   const [newPassword, setNewPassword] = useState('');
-  const [securityMessage, setSecurityMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
   // Tag Management State
   const [newTagLabel, setNewTagLabel] = useState('');
@@ -166,6 +165,17 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                 </button>
             </div>
 
+            {/* Mobile Only: Support Tab since bottom nav hides sidebar */}
+            <div className="contents md:hidden">
+                <button 
+                    onClick={() => setActiveCategory('support')}
+                    className={`whitespace-nowrap w-auto md:w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'support' ? 'bg-notion-bg_blue text-notion-blue font-medium shadow-sm md:shadow-none' : 'text-foreground hover:bg-notion-hover'}`}
+                >
+                    <Info className={`w-4 h-4 ${activeCategory === 'support' ? 'text-notion-blue' : 'text-muted-foreground'}`} /> 
+                    <span>Support</span>
+                </button>
+            </div>
+
             <div className="contents md:block md:space-y-1">
                 <div className="hidden md:block px-3 py-1 text-xs font-semibold text-red-500 uppercase tracking-wider mb-1">Danger Zone</div>
                 <button 
@@ -189,7 +199,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-4 md:px-12 md:py-10">
             {toast && (
-                <div className="fixed bottom-4 right-4 bg-foreground text-background px-3 py-2 rounded shadow-lg text-sm flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 z-50">
+                <div className="fixed bottom-20 md:bottom-4 right-4 bg-foreground text-background px-3 py-2 rounded shadow-lg text-sm flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 z-50">
                     <Check className="w-3 h-3" /> {toast}
                 </div>
             )}
@@ -291,8 +301,6 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
 
                         <div>
                             <h2 className="text-lg font-medium text-foreground border-b border-border pb-2 mb-4">Labels</h2>
-                            
-                            {/* Create Label Section */}
                             <div className="flex flex-col gap-2 mb-4 p-3 border border-border rounded-md bg-secondary/30">
                                 <span className="text-xs font-semibold text-muted-foreground uppercase">Create New Label</span>
                                 <div className="flex gap-2 items-center">
@@ -303,7 +311,6 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                         onChange={e => setNewTagLabel(e.target.value)}
                                         className="flex-1 text-sm border border-border rounded-sm px-2 py-1 bg-background outline-none focus:ring-1 focus:ring-notion-blue min-w-0"
                                     />
-                                    {/* Color Picker */}
                                      <div className="relative group shrink-0">
                                         <button 
                                             className="w-8 h-8 rounded-sm border border-border flex items-center justify-center transition-colors shadow-sm"
@@ -320,11 +327,9 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                             ))}
                                         </div>
                                     </div>
-                                    
                                     <button onClick={handleAddTag} disabled={!newTagLabel.trim()} className="px-3 py-1 bg-notion-blue text-white rounded-sm text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">Add</button>
                                 </div>
                             </div>
-                            
                             <div className="flex flex-wrap gap-2">
                                 {tags.map(tag => {
                                     const textColor = getContrastColor(tag.color);
@@ -374,6 +379,41 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                     );
                                 })}
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeCategory === 'support' && (
+                    <div className="space-y-6 animate-in fade-in">
+                        <h2 className="text-lg font-medium text-foreground border-b border-border pb-2 mb-4">Support & Feedback</h2>
+                        <div className="grid grid-cols-1 gap-4">
+                            <button 
+                                onClick={() => onNavigate('request_feature')}
+                                className="flex items-center gap-4 p-4 border border-border rounded-lg bg-background hover:bg-notion-hover transition-colors text-left"
+                            >
+                                <div className="p-3 bg-notion-bg_blue text-notion-blue rounded-full">
+                                    <Lightbulb className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-foreground">Request Feature</h3>
+                                    <p className="text-xs text-muted-foreground">Have an idea? Let us know.</p>
+                                </div>
+                                <ChevronRight className="w-5 h-5 text-muted-foreground ml-auto" />
+                            </button>
+
+                            <button 
+                                onClick={() => onNavigate('report_bug')}
+                                className="flex items-center gap-4 p-4 border border-border rounded-lg bg-background hover:bg-notion-hover transition-colors text-left"
+                            >
+                                <div className="p-3 bg-notion-bg_red text-notion-red rounded-full">
+                                    <Bug className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-foreground">Report Bug</h3>
+                                    <p className="text-xs text-muted-foreground">Found an issue? Tell us.</p>
+                                </div>
+                                <ChevronRight className="w-5 h-5 text-muted-foreground ml-auto" />
+                            </button>
                         </div>
                     </div>
                 )}

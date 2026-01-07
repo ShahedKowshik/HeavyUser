@@ -7,8 +7,6 @@ import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
 import { cn, getContrastColor } from '../lib/utils';
 
-// ... (Assuming helpers exist in scope or similar to previous structure)
-
 interface TaskSectionProps {
   tasks: Task[];
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
@@ -32,8 +30,12 @@ const priorityOrder: Record<Priority, number> = { 'Urgent': 0, 'High': 1, 'Norma
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const PLANNED_TIME_OPTIONS = [
+    { label: '1m', value: 1 },
+    { label: '2m', value: 2 },
     { label: '5m', value: 5 },
+    { label: '10m', value: 10 },
     { label: '15m', value: 15 },
+    { label: '20m', value: 20 },
     { label: '30m', value: 30 },
     { label: '45m', value: 45 },
     { label: '1h', value: 60 },
@@ -105,68 +107,14 @@ const getPriorityIcon = (p: Priority) => {
     }
 };
 
-const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRef }: { value: string, onChange: (date: string) => void, onClose: () => void, dayStartHour?: number, triggerRef: React.RefObject<HTMLElement> }) => {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [coords, setCoords] = useState({ top: 0, left: 0 });
-
-    useLayoutEffect(() => {
-        const updatePosition = () => {
-            if (triggerRef.current && containerRef.current) {
-                const triggerRect = triggerRef.current.getBoundingClientRect();
-                const containerRect = containerRef.current.getBoundingClientRect();
-                
-                let top = triggerRect.bottom + 4;
-                let left = triggerRect.left;
-
-                // Adjust for right edge
-                const padding = 16;
-                const windowWidth = window.innerWidth;
-                
-                if (left + containerRect.width > windowWidth - padding) {
-                    left = windowWidth - containerRect.width - padding;
-                }
-                
-                // Adjust for left edge
-                if (left < padding) {
-                    left = padding;
-                }
-
-                setCoords({ top, left });
-            }
-        };
-        updatePosition();
-        window.addEventListener('scroll', updatePosition, true);
-        window.addEventListener('resize', updatePosition);
-        return () => {
-            window.removeEventListener('scroll', updatePosition, true);
-            window.removeEventListener('resize', updatePosition);
-        };
-    }, [triggerRef]);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node) && triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
-                onClose();
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [onClose, triggerRef]);
-
+// Reusable Calendar Content without shortcuts
+const CalendarContent = ({ value, onChange, onClose, dayStartHour }: any) => {
     const getLogicalDate = () => {
         const d = new Date();
         if (d.getHours() < dayStartHour) d.setDate(d.getDate() - 1);
         return d;
     };
-
     const [viewDate, setViewDate] = useState(() => value ? new Date(value) : getLogicalDate());
-
-    const handleQuickSelect = (daysToAdd: number) => {
-        const d = getLogicalDate();
-        d.setDate(d.getDate() + daysToAdd);
-        onChange(getLocalDateString(d));
-        onClose();
-    };
 
     const handleDayClick = (day: number) => {
         const d = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
@@ -182,31 +130,18 @@ const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRef
     const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
     const firstDayOfWeek = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
     const monthName = viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const isSelected = (day: number) => value && new Date(value).getDate() === day && new Date(value).getMonth() === viewDate.getMonth() && new Date(value).getFullYear() === viewDate.getFullYear();
+    const isToday = (day: number) => { const t = getLogicalDate(); return t.getDate() === day && t.getMonth() === viewDate.getMonth() && t.getFullYear() === viewDate.getFullYear(); };
 
-    const isSelected = (day: number) => {
-        if (!value) return false;
-        const [y, m, d] = value.split('-').map(Number);
-        return y === viewDate.getFullYear() && m === (viewDate.getMonth() + 1) && d === day;
-    };
-    
-    const isToday = (day: number) => {
-        const today = getLogicalDate();
-        return today.getFullYear() === viewDate.getFullYear() && today.getMonth() === viewDate.getMonth() && today.getDate() === day;
-    };
-
-    return createPortal(
-        <div ref={containerRef} style={{ position: 'fixed', top: coords.top, left: coords.left, zIndex: 9999 }} className="bg-background rounded-md shadow-lg border border-border p-3 w-64 animate-in zoom-in-95 origin-top-left font-sans">
-            <div className="space-y-1 mb-3 border-b border-border pb-3">
-                <div className="grid grid-cols-2 gap-1">
-                    <button type="button" onClick={() => handleQuickSelect(0)} className="text-xs text-foreground bg-secondary hover:bg-notion-hover py-1 px-2 rounded-sm transition-colors text-left">Today</button>
-                    <button type="button" onClick={() => handleQuickSelect(1)} className="text-xs text-foreground bg-secondary hover:bg-notion-hover py-1 px-2 rounded-sm transition-colors text-left">Tomorrow</button>
-                </div>
-                {value && (
+    return (
+        <div className="font-sans w-64 p-3 bg-background rounded-md shadow-lg border border-border">
+            {value && (
+                <div className="mb-3 border-b border-border pb-3">
                     <button type="button" onClick={() => { onChange(''); onClose(); }} className="w-full text-xs text-destructive hover:bg-notion-bg_red py-1 px-2 rounded-sm transition-colors flex items-center gap-1 text-left">
-                        <Trash2 className="w-3 h-3" /> Clear
+                        <Trash2 className="w-3 h-3" /> Clear Date
                     </button>
-                )}
-            </div>
+                </div>
+            )}
             <div className="flex items-center justify-between mb-2 px-1">
                 <button type="button" onClick={() => changeMonth(-1)} className="p-0.5 text-muted-foreground hover:bg-notion-hover rounded-sm"><ChevronLeft className="w-4 h-4" /></button>
                 <span className="text-sm font-medium text-foreground">{monthName}</span>
@@ -219,41 +154,40 @@ const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRef
                 {Array.from({ length: firstDayOfWeek }).map((_, i) => <div key={`empty-${i}`} />)}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                     const day = i + 1;
-                    const selected = isSelected(day);
-                    const today = isToday(day);
                     return (
-                        <button key={day} type="button" onClick={() => handleDayClick(day)} className={`w-8 h-8 flex items-center justify-center text-xs rounded-sm hover:bg-notion-hover transition-colors ${selected ? 'bg-primary text-primary-foreground hover:bg-primary/90' : today ? 'text-notion-red font-bold' : 'text-foreground'}`}>
+                        <button key={day} type="button" onClick={() => handleDayClick(day)} className={`w-8 h-8 flex items-center justify-center text-xs rounded-sm hover:bg-notion-hover transition-colors ${isSelected(day) ? 'bg-primary text-primary-foreground hover:bg-primary/90' : isToday(day) ? 'text-notion-red font-bold' : 'text-foreground'}`}>
                             {day}
                         </button>
                     );
                 })}
             </div>
-        </div>,
-        document.body
+        </div>
     );
 };
 
-const TaskPriorityPicker = ({ value, onChange, onClose, triggerRef }: { value: Priority, onChange: (p: Priority) => void, onClose: () => void, triggerRef: React.RefObject<HTMLElement> }) => {
+const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRef }: any) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [coords, setCoords] = useState({ top: 0, left: 0 });
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     useLayoutEffect(() => {
+        if (isMobile) return;
         const updatePosition = () => {
             if (triggerRef.current && containerRef.current) {
                 const triggerRect = triggerRef.current.getBoundingClientRect();
                 const containerRect = containerRef.current.getBoundingClientRect();
-                
                 let top = triggerRect.bottom + 4;
                 let left = triggerRect.left;
-
                 const padding = 16;
                 const windowWidth = window.innerWidth;
-                
-                if (left + containerRect.width > windowWidth - padding) {
-                    left = windowWidth - containerRect.width - padding;
-                }
+                if (left + containerRect.width > windowWidth - padding) left = windowWidth - containerRect.width - padding;
                 if (left < padding) left = padding;
-
                 setCoords({ top, left });
             }
         };
@@ -264,9 +198,10 @@ const TaskPriorityPicker = ({ value, onChange, onClose, triggerRef }: { value: P
             window.removeEventListener('scroll', updatePosition, true);
             window.removeEventListener('resize', updatePosition);
         };
-    }, [triggerRef]);
+    }, [triggerRef, isMobile]);
 
     useEffect(() => {
+        if(isMobile) return;
         const handleClickOutside = (event: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(event.target as Node) && triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
                 onClose();
@@ -274,27 +209,95 @@ const TaskPriorityPicker = ({ value, onChange, onClose, triggerRef }: { value: P
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [onClose, triggerRef]);
+    }, [onClose, triggerRef, isMobile]);
+
+    if (isMobile) {
+        return createPortal(
+            <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
+                <div onClick={e => e.stopPropagation()} className="animate-in zoom-in-95">
+                    <CalendarContent value={value} onChange={onChange} onClose={onClose} dayStartHour={dayStartHour} />
+                </div>
+            </div>,
+            document.body
+        );
+    }
 
     return createPortal(
-        <div ref={containerRef} style={{ position: 'fixed', top: coords.top, left: coords.left, zIndex: 9999 }} className="bg-background rounded-md shadow-lg border border-border p-1 w-32 animate-in zoom-in-95 origin-top-left font-sans flex flex-col gap-0.5">
-            {priorities.map(p => (
-                <button 
-                    key={p}
-                    onClick={() => { onChange(p); onClose(); }}
-                    className={`flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm transition-colors ${value === p ? 'bg-notion-hover font-medium text-foreground' : 'text-foreground hover:bg-notion-hover'}`}
-                >
-                    <span className={
-                        p === 'Urgent' ? 'text-notion-red' : 
-                        p === 'High' ? 'text-notion-yellow' : 
-                        'text-muted-foreground'
-                    }>
-                        {getPriorityIcon(p)}
-                    </span>
-                    <span>{p}</span>
-                    {value === p && <Check className="w-3 h-3 ml-auto opacity-50" />}
-                </button>
-            ))}
+        <div ref={containerRef} style={{ position: 'fixed', top: coords.top, left: coords.left, zIndex: 9999 }} className="animate-in zoom-in-95 origin-top-left">
+            <CalendarContent value={value} onChange={onChange} onClose={onClose} dayStartHour={dayStartHour} />
+        </div>,
+        document.body
+    );
+};
+
+// Reusable Priority Content
+const PriorityContent = ({ value, onChange, onClose }: any) => (
+    <div className="bg-background rounded-md shadow-lg border border-border p-1 w-32 font-sans flex flex-col gap-0.5">
+        {priorities.map(p => (
+            <button key={p} onClick={() => { onChange(p); onClose(); }} className={`flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm transition-colors ${value === p ? 'bg-notion-hover font-medium text-foreground' : 'text-foreground hover:bg-notion-hover'}`}>
+                <span className={p === 'Urgent' ? 'text-notion-red' : p === 'High' ? 'text-notion-yellow' : 'text-muted-foreground'}>{getPriorityIcon(p)}</span>
+                <span>{p}</span>
+                {value === p && <Check className="w-3 h-3 ml-auto opacity-50" />}
+            </button>
+        ))}
+    </div>
+);
+
+const TaskPriorityPicker = ({ value, onChange, onClose, triggerRef }: any) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [coords, setCoords] = useState({ top: 0, left: 0 });
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    useLayoutEffect(() => {
+        if(isMobile) return;
+        const updatePosition = () => {
+            if (triggerRef.current && containerRef.current) {
+                const triggerRect = triggerRef.current.getBoundingClientRect();
+                let top = triggerRect.bottom + 4;
+                let left = triggerRect.left;
+                setCoords({ top, left });
+            }
+        };
+        updatePosition();
+        window.addEventListener('scroll', updatePosition, true);
+        window.addEventListener('resize', updatePosition);
+        return () => {
+            window.removeEventListener('scroll', updatePosition, true);
+            window.removeEventListener('resize', updatePosition);
+        };
+    }, [triggerRef, isMobile]);
+
+    useEffect(() => {
+        if(isMobile) return;
+        const handleClickOutside = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node) && triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
+                onClose();
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [onClose, triggerRef, isMobile]);
+
+    if(isMobile) {
+        return createPortal(
+            <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
+                <div onClick={e => e.stopPropagation()} className="animate-in zoom-in-95">
+                    <PriorityContent value={value} onChange={onChange} onClose={onClose} />
+                </div>
+            </div>,
+            document.body
+        );
+    }
+
+    return createPortal(
+        <div ref={containerRef} style={{ position: 'fixed', top: coords.top, left: coords.left, zIndex: 9999 }} className="animate-in zoom-in-95 origin-top-left">
+            <PriorityContent value={value} onChange={onChange} onClose={onClose} />
         </div>,
         document.body
     );
@@ -311,7 +314,6 @@ const getNextDate = (currentDateStr: string, r: Recurrence): string => {
     date.setUTCDate(date.getUTCDate() + r.interval);
     return date.toISOString().split('T')[0];
   }
-  // Other recurrence logic simplified for brevity but presumed correctly implemented in full file if not changed
   return currentDateStr;
 };
 
@@ -331,27 +333,6 @@ const mapTaskToDb = (task: Task, userId: string) => ({
     actual_time: task.actualTime,
     timer_start: task.timerStart
 });
-
-const RecurrenceButton = ({ value, onChange, openModal }: { value: Recurrence | null, onChange: (r: Recurrence | null) => void, openModal: (current: Recurrence | null, cb: (r: Recurrence | null) => void) => void }) => (
-  <button
-     type="button"
-     onClick={() => openModal(value, onChange)}
-     className={`flex items-center gap-1.5 px-2 py-1 text-sm font-medium rounded-sm transition-all ${
-        value 
-        ? 'bg-notion-bg_purple text-notion-purple' 
-        : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'
-     }`}
-  >
-     <Repeat className="w-3.5 h-3.5" />
-     {value ? (
-        <span className="truncate max-w-[100px]">
-           {value.interval > 1 ? `Every ${value.interval} ${value.type.replace('ly', 's')}` : value.type.charAt(0).toUpperCase() + value.type.slice(1)}
-        </span>
-     ) : (
-        "Repeat"
-     )}
-  </button>
-);
 
 export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, onTaskComplete, activeFilterTagId, onToggleTimer, sessions, onDeleteSession }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -387,10 +368,12 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const [createRecurrence, setCreateRecurrence] = useState<Recurrence | null>(null);
   const [createNotes, setCreateNotes] = useState('');
   const [plannedTime, setPlannedTime] = useState<number | undefined>(undefined);
+  const [editSubtasks, setEditSubtasks] = useState<Subtask[]>([]);
   
   const [newTagInput, setNewTagInput] = useState('');
   const [isCreatingTag, setIsCreatingTag] = useState(false);
   const dateButtonRef = useRef<HTMLButtonElement>(null);
+  const priorityButtonRef = useRef<HTMLButtonElement>(null);
 
   const [isRecurrenceModalOpen, setIsRecurrenceModalOpen] = useState(false);
   const [recurrenceEditValue, setRecurrenceEditValue] = useState<Recurrence | null>(null);
@@ -434,16 +417,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
     const taskIds = tasksToReschedule.map(t => t.id);
 
-    // Optimistic Update
     setTasks(prev => prev.map(t => taskIds.includes(t.id) ? { ...t, dueDate: newDateStr } : t));
     setIsRescheduleMenuOpen(false);
 
-    // DB Update
     await supabase.from('tasks').update({ due_date: newDateStr }).in('id', taskIds);
   };
 
   const openCreateModal = () => {
-    setTitle(''); setDueDate(''); setPriority('Normal'); setSelectedTags(activeFilterTagId ? [activeFilterTagId] : []); setCreateRecurrence(null); setCreateNotes(''); setPlannedTime(undefined); setIsModalOpen(true); setSelectedTaskId(null);
+    setTitle(''); setDueDate(''); setPriority('Normal'); setSelectedTags(activeFilterTagId ? [activeFilterTagId] : []); setCreateRecurrence(null); setCreateNotes(''); setPlannedTime(undefined); setEditSubtasks([]); setIsModalOpen(true); setSelectedTaskId(null);
   };
 
   const openEditModal = (task: Task) => {
@@ -455,6 +436,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
       setCreateRecurrence(task.recurrence || null);
       setCreateNotes(task.notes || '');
       setPlannedTime(task.plannedTime);
+      setEditSubtasks(task.subtasks || []);
       setIsModalOpen(true);
   };
 
@@ -462,15 +444,13 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     e.preventDefault(); if (!title.trim()) return;
     
     if (selectedTaskId) {
-        // Edit existing
-        setTasks(prev => prev.map(t => t.id === selectedTaskId ? { ...t, title, dueDate, priority, tags: selectedTags, notes: createNotes, recurrence: createRecurrence, plannedTime } : t));
+        setTasks(prev => prev.map(t => t.id === selectedTaskId ? { ...t, title, dueDate, priority, tags: selectedTags, notes: createNotes, recurrence: createRecurrence, plannedTime, subtasks: editSubtasks } : t));
         const updatedTask = tasks.find(t => t.id === selectedTaskId);
         if (updatedTask) {
-            await supabase.from('tasks').update(mapTaskToDb({ ...updatedTask, title, dueDate, priority, tags: selectedTags, notes: createNotes, recurrence: createRecurrence, plannedTime }, userId)).eq('id', selectedTaskId);
+            await supabase.from('tasks').update(mapTaskToDb({ ...updatedTask, title, dueDate, priority, tags: selectedTags, notes: createNotes, recurrence: createRecurrence, plannedTime, subtasks: editSubtasks }, userId)).eq('id', selectedTaskId);
         }
     } else {
-        // Create new
-        const newTask: Task = { id: crypto.randomUUID(), title, dueDate, completed: false, priority, subtasks: [], tags: selectedTags, notes: createNotes, recurrence: createRecurrence, plannedTime, actualTime: 0 };
+        const newTask: Task = { id: crypto.randomUUID(), title, dueDate, completed: false, priority, subtasks: editSubtasks, tags: selectedTags, notes: createNotes, recurrence: createRecurrence, plannedTime, actualTime: 0 };
         setTasks(prev => [newTask, ...prev]); 
         await supabase.from('tasks').insert(mapTaskToDb(newTask, userId));
     }
@@ -497,10 +477,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     }
     let updatedTasks = tasks.map(t => t.id === id ? { ...t, completed: newCompleted, completedAt: newCompletedAt, ...timerUpdates } : t);
     if (newCompleted && task.recurrence && task.dueDate) {
-        // Recurrence logic (same as before)
-        const parts = task.dueDate.split('-').map(Number);
-        const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-        // ... simple recurrence calc ...
         const nextDate = getNextDate(task.dueDate, task.recurrence);
         const nextTask: Task = { ...task, id: crypto.randomUUID(), dueDate: nextDate, completed: false, completedAt: null, createdAt: new Date().toISOString(), subtasks: task.subtasks.map(s => ({ ...s, completed: false, id: crypto.randomUUID() })), timerStart: null, actualTime: 0 };
         updatedTasks = [nextTask, ...updatedTasks]; await supabase.from('tasks').insert(mapTaskToDb(nextTask, userId));
@@ -514,6 +490,11 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const deleteSubtaskInTask = (taskId: string, subtaskId: string) => { setTasks(prev => { const newTasks = prev.map(t => t.id === taskId ? { ...t, subtasks: t.subtasks.filter(s => s.id !== subtaskId) } : t); const t = newTasks.find(t => t.id === taskId); if (t) supabase.from('tasks').update(mapTaskToDb(t, userId)).eq('id', taskId).then(); return newTasks; }); };
   const addSubtaskToTask = (taskId: string, subtaskId: string) => { if (!subtaskId.trim()) return; const newSubtask: Subtask = { id: crypto.randomUUID(), title: subtaskId, completed: false }; setTasks(prev => { const newTasks = prev.map(t => t.id === taskId ? { ...t, subtasks: [...t.subtasks, newSubtask] } : t); const t = newTasks.find(t => t.id === taskId); if (t) supabase.from('tasks').update(mapTaskToDb(t, userId)).eq('id', taskId).then(); return newTasks; }); };
   const toggleSubtaskInTask = (taskId: string, subtaskId: string) => { setTasks(prev => { const newTasks = prev.map(t => t.id === taskId ? { ...t, subtasks: t.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s) } : t); const t = newTasks.find(t => t.id === taskId); if (t) supabase.from('tasks').update(mapTaskToDb(t, userId)).eq('id', taskId).then(); return newTasks; }); };
+  
+  const addEditSubtask = (title: string) => { if (!title.trim()) return; setEditSubtasks(prev => [...prev, { id: crypto.randomUUID(), title, completed: false }]); };
+  const removeEditSubtask = (id: string) => { setEditSubtasks(prev => prev.filter(s => s.id !== id)); };
+  const toggleEditSubtask = (id: string) => { setEditSubtasks(prev => prev.map(s => s.id === id ? { ...s, completed: !s.completed } : s)); };
+
   const handleInlineCreateTag = async (e: React.FormEvent) => { e.preventDefault(); if (!newTagInput.trim()) return; setIsCreatingTag(true); try { const newTag = await createNewTag(newTagInput, userId); setTags(prev => [...prev, newTag]); setSelectedTags(prev => [...prev, newTag.id]); setNewTagInput(''); } finally { setIsCreatingTag(false); } };
   const openRecurrenceModal = (current: Recurrence | null, onSave: (r: Recurrence | null) => void) => { setRecurrenceEditValue(current || { type: 'daily', interval: 1 }); setRecurrenceCallback(() => onSave); setIsRecurrenceModalOpen(true); };
   const toggleExpand = (id: string, e: React.MouseEvent) => { e.stopPropagation(); const next = new Set(expandedTasks); if (next.has(id)) next.delete(id); else next.add(id); setExpandedTasks(next); };
@@ -572,6 +553,21 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const activeTasksGroups = useMemo(() => processList(tasks.filter(t => !t.completed)), [tasks, grouping, sorting, activeFilterTagId, dayStartHour]);
   const completedTasksGroups = useMemo(() => processList(tasks.filter(t => t.completed)), [tasks, grouping, sorting, activeFilterTagId]);
 
+  const handleQuickDate = (offset: number) => {
+    const d = new Date();
+    if (d.getHours() < (dayStartHour || 0)) d.setDate(d.getDate() - 1);
+    d.setDate(d.getDate() + offset);
+    setDueDate(getLocalDateString(d));
+    setIsDatePickerOpen(false);
+  };
+
+  const quickDates = [
+    { label: 'Today', offset: 0 },
+    { label: 'Tomorrow', offset: 1 },
+    { label: '+7d', offset: 7 },
+    { label: '+30d', offset: 30 },
+  ];
+
   const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => {
     return (
     <div className="space-y-6">
@@ -584,7 +580,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
          </div>
       )}
       {groups.map((group, gIdx) => {
-          // Calculate stats for the group
           const { totalTracked, totalRemaining } = group.tasks.reduce((acc, task) => {
               let activeSeconds = 0;
               if (task.timerStart) {
@@ -600,13 +595,13 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
               };
           }, { totalTracked: 0, totalRemaining: 0 });
 
-          // Determine if we should show tracked time
           const showTracked = ['Today', 'Yesterday', 'Overdue'].includes(group.title);
           const hasTracked = totalTracked > 0;
           const hasRemaining = totalRemaining > 0;
 
           return (
             <div key={group.title + gIdx} className="space-y-0">
+              {/* Group Header - Same as previous */}
               {group.title && (
                 <div className="px-2 py-2 flex items-center justify-between gap-2 border-b border-border">
                   <div className="flex items-center gap-2">
@@ -615,7 +610,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                       </span>
                       <span className="text-xs text-muted-foreground bg-notion-item_hover px-1.5 rounded-sm">{group.tasks.length}</span>
                       
-                      {/* Overdue Reschedule Button */}
                       {group.title === 'Overdue' && (
                           <div className="relative ml-2">
                               <button 
@@ -660,6 +654,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                   </div>
                 </div>
               )}
+              {/* Task List */}
               <div className="flex flex-col">
                 {group.tasks.map((task) => {
                   const isExpanded = expandedTasks.has(task.id);
@@ -680,42 +675,22 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         : displayTime;
 
                   return (
-                    <div 
-                      key={task.id}
-                      className="group flex flex-col border-b border-border last:border-0 hover:bg-notion-item_hover transition-colors"
-                    >
+                    <div key={task.id} className="group flex flex-col border-b border-border last:border-0 hover:bg-notion-item_hover transition-colors">
                       <div className="flex items-center min-h-[36px] px-2 py-1 gap-2" onClick={() => openEditModal(task)}>
                         <div className="shrink-0 flex items-center justify-center w-6" onClick={(e) => e.stopPropagation()}>
-                          <button 
-                            onClick={() => toggleTask(task.id)}
-                            className={`w-4 h-4 rounded-sm border flex items-center justify-center transition-all ${
-                              task.completed 
-                                ? 'bg-notion-blue border-notion-blue text-white' 
-                                : 'border-muted-foreground/40 hover:bg-notion-hover'
-                            }`}
-                          >
+                          <button onClick={() => toggleTask(task.id)} className={`w-4 h-4 rounded-sm border flex items-center justify-center transition-all ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'border-muted-foreground/40 hover:bg-notion-hover'}`}>
                             {task.completed && <CheckSquare className="w-3 h-3" />}
                           </button>
                         </div>
-
                         <div className="flex-1 min-w-0 flex items-center gap-2 cursor-pointer">
-                            <span 
-                                className={`text-sm truncate ${task.completed ? 'text-muted-foreground line-through decoration-muted-foreground' : 'text-foreground'}`}
-                            >
-                                {task.title}
-                            </span>
-                            
+                            <span className={`text-sm truncate ${task.completed ? 'text-muted-foreground line-through decoration-muted-foreground' : 'text-foreground'}`}>{task.title}</span>
                             {task.subtasks.length > 0 && (
-                                <button 
-                                    onClick={(e) => toggleExpand(task.id, e)}
-                                    className={`flex items-center gap-0.5 text-[10px] px-1 rounded-sm ${isExpanded ? 'bg-notion-hover text-foreground' : 'text-muted-foreground'}`}
-                                >
+                                <button onClick={(e) => toggleExpand(task.id, e)} className={`flex items-center gap-0.5 text-[10px] px-1 rounded-sm ${isExpanded ? 'bg-notion-hover text-foreground' : 'text-muted-foreground'}`}>
                                     <ListChecks className="w-3 h-3" />
                                     <span>{task.subtasks.filter(s=>s.completed).length}/{task.subtasks.length}</span>
                                 </button>
                             )}
                         </div>
-
                         <div className="hidden md:flex items-center gap-2 shrink-0 text-xs">
                             <div className="w-24 flex justify-end items-center">
                                 {(task.plannedTime || task.actualTime || isTimerRunning) ? (
@@ -727,76 +702,37 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                      <button onClick={(e) => onToggleTimer(task.id, e)} className="p-1 hover:bg-notion-hover rounded-sm text-muted-foreground"><Play className="w-3 h-3" /></button>
                                 </div>}
                             </div>
-
                             <div className="w-56 flex justify-end gap-1 flex-wrap content-center">
                                 {task.tags && task.tags.length > 0 ? (
                                     task.tags.map(tagId => {
                                         const tag = tags.find(t => t.id === tagId);
                                         if (!tag) return null;
-                                        return (
-                                            <span key={tagId} className="px-1.5 py-0.5 rounded-sm text-xs font-semibold border border-black/10 shadow-sm" style={{ backgroundColor: tag.color, color: getContrastColor(tag.color) }}>
-                                                {tag.label}
-                                            </span>
-                                        );
+                                        return <span key={tagId} className="px-1.5 py-0.5 rounded-sm text-xs font-semibold border border-black/10 shadow-sm" style={{ backgroundColor: tag.color, color: getContrastColor(tag.color) }}>{tag.label}</span>;
                                     })
                                 ) : null}
                             </div>
-
-                            <div 
-                                className={`w-24 flex justify-end items-center ${relativeColor} cursor-pointer hover:bg-notion-hover rounded-sm px-1 py-0.5 transition-colors`}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setQuickDateEdit({ taskId: task.id, element: e.currentTarget as HTMLElement, value: task.dueDate });
-                                }}
-                                title="Change Due Date"
-                            >
-                                {task.dueDate ? (
-                                    <span className="truncate">{formatRelativeDate(task.dueDate)}</span>
-                                ) : (
-                                    <span className="text-muted-foreground opacity-30 group-hover:opacity-100">-</span>
-                                )}
+                            <div className={`w-24 flex justify-end items-center ${relativeColor} cursor-pointer hover:bg-notion-hover rounded-sm px-1 py-0.5 transition-colors`} onClick={(e) => { e.stopPropagation(); setQuickDateEdit({ taskId: task.id, element: e.currentTarget as HTMLElement, value: task.dueDate }); }} title="Change Due Date">
+                                {task.dueDate ? <span className="truncate">{formatRelativeDate(task.dueDate)}</span> : <span className="text-muted-foreground opacity-30 group-hover:opacity-100">-</span>}
                             </div>
-
                             <div className="w-24 flex justify-end">
-                                <span 
-                                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-sm ${pStyle} text-[10px] font-medium w-20 justify-start cursor-pointer hover:opacity-80 transition-opacity`}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setQuickPriorityEdit({ taskId: task.id, element: e.currentTarget as HTMLElement, value: task.priority });
-                                    }}
-                                    title="Change Priority"
-                                >
-                                    {getPriorityIcon(task.priority)}
-                                    {task.priority}
+                                <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-sm ${pStyle} text-[10px] font-medium w-20 justify-start cursor-pointer hover:opacity-80 transition-opacity`} onClick={(e) => { e.stopPropagation(); setQuickPriorityEdit({ taskId: task.id, element: e.currentTarget as HTMLElement, value: task.priority }); }} title="Change Priority">
+                                    {getPriorityIcon(task.priority)} {task.priority}
                                 </span>
                             </div>
                         </div>
                       </div>
-
                       {isExpanded && (
                           <div className="pl-10 pr-4 pb-2 space-y-1">
                               {task.subtasks.map(st => (
                                 <div key={st.id} className="flex items-center gap-2 py-0.5 group/sub">
-                                  <button onClick={(e) => { e.stopPropagation(); toggleSubtaskInTask(task.id, st.id); }} className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center transition-all ${st.completed ? 'bg-notion-blue border-notion-blue text-white' : 'border-muted-foreground/40 hover:bg-notion-hover'}`}>
-                                    {st.completed && <CheckSquare className="w-2.5 h-2.5" />}
-                                  </button>
-                                  <span className={`text-xs ${st.completed ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
-                                    {st.title}
-                                  </span>
-                                  <button onClick={(e) => { e.stopPropagation(); deleteSubtaskInTask(task.id, st.id); }} className="opacity-0 group-hover/sub:opacity-100 ml-auto p-0.5 hover:bg-notion-bg_red hover:text-notion-red rounded-sm">
-                                      <Trash2 className="w-3 h-3" />
-                                  </button>
+                                  <button onClick={(e) => { e.stopPropagation(); toggleSubtaskInTask(task.id, st.id); }} className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center transition-all ${st.completed ? 'bg-notion-blue border-notion-blue text-white' : 'border-muted-foreground/40 hover:bg-notion-hover'}`}>{st.completed && <CheckSquare className="w-2.5 h-2.5" />}</button>
+                                  <span className={`text-xs ${st.completed ? 'text-muted-foreground line-through' : 'text-foreground'}`}>{st.title}</span>
+                                  <button onClick={(e) => { e.stopPropagation(); deleteSubtaskInTask(task.id, st.id); }} className="opacity-0 group-hover/sub:opacity-100 ml-auto p-0.5 hover:bg-notion-bg_red hover:text-notion-red rounded-sm"><Trash2 className="w-3 h-3" /></button>
                                 </div>
                               ))}
                               <div className="flex items-center gap-2 pt-1">
                                 <Plus className="w-3.5 h-3.5 text-muted-foreground" />
-                                <input 
-                                  type="text"
-                                  placeholder="New subtask"
-                                  className="bg-transparent border-none p-0 text-xs text-foreground focus:ring-0 placeholder:text-muted-foreground"
-                                  onKeyDown={(e) => { if (e.key === 'Enter') { const val = e.currentTarget.value.trim(); if (val) { addSubtaskToTask(task.id, val); e.currentTarget.value = ''; } } }}
-                                  onClick={e => e.stopPropagation()}
-                                />
+                                <input type="text" placeholder="New subtask" className="bg-transparent border-none p-0 text-xs text-foreground focus:ring-0 placeholder:text-muted-foreground" onKeyDown={(e) => { if (e.key === 'Enter') { const val = e.currentTarget.value.trim(); if (val) { addSubtaskToTask(task.id, val); e.currentTarget.value = ''; } } }} onClick={e => e.stopPropagation()} />
                               </div>
                           </div>
                       )}
@@ -811,68 +747,20 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   );
   };
 
-  // Tracker View (Full Implementation)
   const renderTrackerView = () => {
       const totalTrackedSeconds = sessions.reduce((acc, s) => acc + (s.duration || 0), 0);
-      
-      // Group sessions by date
       const sessionsByDate: Record<string, TaskSession[]> = {};
-      sessions.forEach(s => {
-          const date = s.startTime.split('T')[0];
-          if(!sessionsByDate[date]) sessionsByDate[date] = [];
-          sessionsByDate[date].push(s);
-      });
-
+      sessions.forEach(s => { const date = s.startTime.split('T')[0]; if(!sessionsByDate[date]) sessionsByDate[date] = []; sessionsByDate[date].push(s); });
       return (
           <div className="space-y-8 animate-in fade-in">
-              {/* Stats Cards */}
               <div className="grid grid-cols-3 gap-4">
-                  {[
-                      { label: "Total Tracked", value: formatDuration(totalTrackedSeconds / 60), color: "text-foreground" },
-                      { label: "Sessions", value: sessions.length, color: "text-notion-blue" },
-                      { label: "Avg Session", value: sessions.length ? formatDuration((totalTrackedSeconds / sessions.length) / 60) : '0m', color: "text-notion-orange" } 
-                  ].map((stat, i) => (
-                      <div key={i} className="bg-background border border-border rounded-md p-4 shadow-sm">
-                          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-1">{stat.label}</div>
-                          <div className={`text-xl font-medium ${stat.color} tabular-nums`}>{stat.value}</div>
-                      </div>
+                  {[{ label: "Total Tracked", value: formatDuration(totalTrackedSeconds / 60), color: "text-foreground" }, { label: "Sessions", value: sessions.length, color: "text-notion-blue" }, { label: "Avg Session", value: sessions.length ? formatDuration((totalTrackedSeconds / sessions.length) / 60) : '0m', color: "text-notion-orange" }].map((stat, i) => (
+                      <div key={i} className="bg-background border border-border rounded-md p-4 shadow-sm"><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-1">{stat.label}</div><div className={`text-xl font-medium ${stat.color} tabular-nums`}>{stat.value}</div></div>
                   ))}
               </div>
-
-              {/* Session Log */}
-              <div className="space-y-4">
-                  <h3 className="text-sm font-bold text-foreground border-b border-border pb-2">Session History</h3>
-                  {Object.entries(sessionsByDate).sort((a,b) => b[0].localeCompare(a[0])).map(([date, dateSessions]) => (
-                      <div key={date} className="space-y-1">
-                          <h4 className="text-xs font-semibold text-muted-foreground sticky top-0 bg-background py-1 z-10">{new Date(date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric'})}</h4>
-                          {dateSessions.sort((a,b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()).map(session => {
-                              const task = tasks.find(t => t.id === session.taskId);
-                              const startTime = new Date(session.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-                              const endTime = session.endTime ? new Date(session.endTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'Now';
-                              const duration = session.duration ? formatDuration(session.duration / 60) : 'Running...';
-                              
-                              return (
-                                  <div key={session.id} className="flex items-center justify-between text-xs p-2 rounded-sm border border-border bg-background hover:bg-notion-hover group">
-                                      <div className="flex items-center gap-3 overflow-hidden">
-                                          <div className={`w-1.5 h-1.5 rounded-full ${!session.endTime ? 'bg-green-500 animate-pulse' : 'bg-notion-bg_gray'}`} />
-                                          <div className="flex flex-col">
-                                              <span className="font-medium text-foreground truncate max-w-[200px]">{task?.title || 'Unknown Task'}</span>
-                                              <span className="text-[10px] text-muted-foreground">{startTime} - {endTime}</span>
-                                          </div>
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                          <span className="font-medium tabular-nums">{duration}</span>
-                                          <button onClick={() => onDeleteSession(session.id)} className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-notion-red rounded">
-                                              <Trash2 className="w-3 h-3" />
-                                          </button>
-                                      </div>
-                                  </div>
-                              );
-                          })}
-                      </div>
-                  ))}
-                  {sessions.length === 0 && <div className="text-center text-muted-foreground text-xs py-8">No tracked sessions yet.</div>}
-              </div>
+              <div className="space-y-4"><h3 className="text-sm font-bold text-foreground border-b border-border pb-2">Session History</h3>{Object.entries(sessionsByDate).sort((a,b) => b[0].localeCompare(a[0])).map(([date, dateSessions]) => (
+                      <div key={date} className="space-y-1"><h4 className="text-xs font-semibold text-muted-foreground sticky top-0 bg-background py-1 z-10">{new Date(date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric'})}</h4>{dateSessions.sort((a,b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()).map(session => { const task = tasks.find(t => t.id === session.taskId); const startTime = new Date(session.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); const endTime = session.endTime ? new Date(session.endTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'Now'; const duration = session.duration ? formatDuration(session.duration / 60) : 'Running...'; return ( <div key={session.id} className="flex items-center justify-between text-xs p-2 rounded-sm border border-border bg-background hover:bg-notion-hover group"><div className="flex items-center gap-3 overflow-hidden"><div className={`w-1.5 h-1.5 rounded-full ${!session.endTime ? 'bg-green-500 animate-pulse' : 'bg-notion-bg_gray'}`} /><div className="flex flex-col"><span className="font-medium text-foreground truncate max-w-[200px]">{task?.title || 'Unknown Task'}</span><span className="text-[10px] text-muted-foreground">{startTime} - {endTime}</span></div></div><div className="flex items-center gap-3"><span className="font-medium tabular-nums">{duration}</span><button onClick={() => onDeleteSession(session.id)} className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-notion-red rounded"><Trash2 className="w-3 h-3" /></button></div></div> ); })}</div>
+                  ))}{sessions.length === 0 && <div className="text-center text-muted-foreground text-xs py-8">No tracked sessions yet.</div>}</div>
           </div>
       );
   };
@@ -885,263 +773,132 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
              <div className="px-4 md:px-8 pt-4 md:pt-6 mb-4 space-y-4">
                 <div className="flex flex-row items-center justify-between gap-2 sm:gap-4 border-b border-border pb-4">
                     <div className="flex items-center gap-1">
-                        <button onClick={() => setViewLayout('list')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'list' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>
-                            List
-                        </button>
-                        <button onClick={() => setViewLayout('tracker')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'tracker' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>
-                            Tracker
-                        </button>
+                        <button onClick={() => setViewLayout('list')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'list' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>List</button>
+                        <button onClick={() => setViewLayout('tracker')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'tracker' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Tracker</button>
                     </div>
-
                     <div className="flex items-center gap-2">
-                        {viewLayout === 'list' && (
-                            <button 
-                                onClick={() => handleViewModeChange(viewMode === 'active' ? 'completed' : 'active')}
-                                className={`flex items-center justify-center p-1.5 rounded-sm transition-colors ${viewMode === 'completed' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
-                                title={viewMode === 'active' ? "Show Completed" : "Show Active"}
-                            >
-                                <CheckSquare className="w-4 h-4" />
-                            </button>
-                        )}
-
+                        {viewLayout === 'list' && ( <button onClick={() => handleViewModeChange(viewMode === 'active' ? 'completed' : 'active')} className={`flex items-center justify-center p-1.5 rounded-sm transition-colors ${viewMode === 'completed' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`} title={viewMode === 'active' ? "Show Completed" : "Show Active"}><CheckSquare className="w-4 h-4" /></button> )}
                         <div className="relative">
-                            <button 
-                                onClick={() => setIsGroupingMenuOpen(!isGroupingMenuOpen)} 
-                                className="p-1 rounded-sm hover:bg-notion-hover text-muted-foreground hover:text-foreground transition-colors"
-                                title="Grouping Options"
-                            >
-                                <MoreHorizontal className="w-4 h-4" />
-                            </button>
-                            
-                            {isGroupingMenuOpen && (
-                                <>
-                                    <div className="fixed inset-0 z-10" onClick={() => setIsGroupingMenuOpen(false)} />
-                                    <div className="absolute right-0 top-full mt-1 w-32 bg-background border border-border rounded-md shadow-lg z-20 p-1 animate-in zoom-in-95 origin-top-right">
-                                        <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Group By</div>
-                                        <button onClick={() => { setGrouping('date'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'date' ? 'bg-notion-hover text-foreground' : 'text-foreground hover:bg-notion-hover'}`}>
-                                            Date {grouping === 'date' && <Check className="w-3 h-3" />}
-                                        </button>
-                                        <button onClick={() => { setGrouping('priority'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'priority' ? 'bg-notion-hover text-foreground' : 'text-foreground hover:bg-notion-hover'}`}>
-                                            Priority {grouping === 'priority' && <Check className="w-3 h-3" />}
-                                        </button>
-                                        <button onClick={() => { setGrouping('none'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'none' ? 'bg-notion-hover text-foreground' : 'text-foreground hover:bg-notion-hover'}`}>
-                                            None {grouping === 'none' && <Check className="w-3 h-3" />}
-                                        </button>
-                                    </div>
-                                </>
-                            )}
+                            <button onClick={() => setIsGroupingMenuOpen(!isGroupingMenuOpen)} className="p-1 rounded-sm hover:bg-notion-hover text-muted-foreground hover:text-foreground transition-colors" title="Grouping Options"><MoreHorizontal className="w-4 h-4" /></button>
+                            {isGroupingMenuOpen && ( <> <div className="fixed inset-0 z-10" onClick={() => setIsGroupingMenuOpen(false)} /> <div className="absolute right-0 top-full mt-1 w-32 bg-background border border-border rounded-md shadow-lg z-20 p-1 animate-in zoom-in-95 origin-top-right"> <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Group By</div> <button onClick={() => { setGrouping('date'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'date' ? 'bg-notion-hover text-foreground' : 'text-foreground hover:bg-notion-hover'}`}> Date {grouping === 'date' && <Check className="w-3 h-3" />} </button> <button onClick={() => { setGrouping('priority'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'priority' ? 'bg-notion-hover text-foreground' : 'text-foreground hover:bg-notion-hover'}`}> Priority {grouping === 'priority' && <Check className="w-3 h-3" />} </button> <button onClick={() => { setGrouping('none'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'none' ? 'bg-notion-hover text-foreground' : 'text-foreground hover:bg-notion-hover'}`}> None {grouping === 'none' && <Check className="w-3 h-3" />} </button> </div> </> )}
                         </div>
-
-                        <button onClick={openCreateModal} className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0">
-                            <Plus className="w-4 h-4" /> New
-                        </button>
+                        <button onClick={openCreateModal} className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0"><Plus className="w-4 h-4" /> New</button>
                     </div>
                 </div>
              </div>
-
              {/* Content */}
              <div key={`${viewLayout}-${viewMode}`} className={`px-4 md:px-8 pb-20 ${transitionDirection === 'right' ? 'animate-slide-in-from-right-12' : transitionDirection === 'left' ? 'animate-slide-in-from-left-12' : ''}`}>
-                {viewLayout === 'list' ? (
-                    viewMode === 'active' ? renderListGroups(activeTasksGroups) : renderListGroups(completedTasksGroups)
-                ) : renderTrackerView()}
+                {viewLayout === 'list' ? ( viewMode === 'active' ? renderListGroups(activeTasksGroups) : renderListGroups(completedTasksGroups) ) : renderTrackerView()}
              </div>
          </div>
       </div>
 
-      {/* Task Modal - Create & Edit */}
+      {/* Task Modal */}
       {isModalOpen && (
-        <div onClick={() => setIsModalOpen(false)} className="fixed inset-0 z-50 flex flex-col md:items-center md:justify-center bg-background md:bg-black/40 md:backdrop-blur-sm md:p-4 animate-in fade-in duration-200">
+        <div onClick={() => setIsModalOpen(false)} className="fixed inset-0 z-50 flex flex-col items-center justify-center md:bg-black/40 md:backdrop-blur-sm md:p-4 animate-in fade-in duration-200">
             <div onClick={(e) => e.stopPropagation()} className="bg-background w-full h-full md:h-auto md:max-w-2xl md:rounded-md md:shadow-2xl md:border md:border-border flex flex-col md:max-h-[85vh] overflow-hidden">
-                <div className="px-4 py-4 md:px-12 md:pt-8 md:pb-4 flex items-start gap-4 shrink-0">
-                    <div className="flex-1">
-                        <input autoFocus type="text" placeholder="Untitled" value={title} onChange={e => setTitle(e.target.value)} className="w-full text-lg md:text-xl font-bold text-foreground placeholder:text-muted-foreground/50 border-none focus:ring-0 p-[5px] bg-transparent" />
-                    </div>
+                <div className="flex md:hidden items-center justify-between p-4 border-b border-border shrink-0">
+                    <button onClick={() => setIsModalOpen(false)} className="text-sm font-medium text-muted-foreground hover:text-foreground">Cancel</button>
+                    <span className="font-semibold text-foreground">{selectedTaskId ? 'Edit Task' : 'New Task'}</span>
+                    <button onClick={handleSaveTask} className="text-sm font-bold text-notion-blue">Done</button>
+                </div>
+                <div className="hidden md:flex px-4 py-4 md:px-12 md:pt-8 md:pb-4 items-start gap-4 shrink-0">
+                    <div className="flex-1"><input autoFocus type="text" placeholder="Untitled" value={title} onChange={e => setTitle(e.target.value)} className="w-full text-lg md:text-xl font-bold text-foreground placeholder:text-muted-foreground/50 border-none focus:ring-0 p-[5px] bg-transparent" /></div>
                     <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:bg-notion-hover hover:text-foreground p-1 rounded transition-colors -mr-2"><X className="w-6 h-6 md:w-5 md:h-5"/></button>
                 </div>
-                
                 <div className="flex-1 overflow-y-auto custom-scrollbar px-4 md:px-12 py-2 md:py-4 space-y-6">
-                    {/* Properties Table */}
-                    <div className="space-y-2 md:space-y-1 text-sm">
-                        <div className="flex items-center min-h-[32px]">
-                            <div className="w-24 md:w-32 flex items-center gap-2 text-muted-foreground shrink-0"><Calendar className="w-4 h-4" /> <span>Date</span></div>
-                            <div className="flex-1 relative">
-                                <button type="button" ref={dateButtonRef} onClick={() => setIsDatePickerOpen(!isDatePickerOpen)} className="text-sm text-foreground hover:bg-notion-hover px-1.5 py-0.5 rounded-sm transition-colors text-left w-full truncate">
-                                    {dueDate ? formatRelativeDate(dueDate) : <span className="text-muted-foreground">Empty</span>}
-                                </button>
-                                {isDatePickerOpen && <TaskDatePicker value={dueDate} onChange={setDueDate} onClose={() => setIsDatePickerOpen(false)} dayStartHour={dayStartHour} triggerRef={dateButtonRef} />}
-                            </div>
-                        </div>
-                        <div className="flex items-center min-h-[32px]">
-                            <div className="w-24 md:w-32 flex items-center gap-2 text-muted-foreground shrink-0"><CheckSquare className="w-4 h-4" /> <span>Priority</span></div>
-                            <div className="flex-1 flex gap-1 flex-wrap">
-                                {priorities.map(p => (
-                                    <button key={p} type="button" onClick={() => setPriority(p)} className={`flex items-center gap-1 px-2 py-0.5 text-sm rounded-sm transition-colors ${priority === p ? getPriorityStyle(p) : 'text-muted-foreground hover:bg-notion-hover'}`}>
-                                        {getPriorityIcon(p)}
-                                        {p}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="flex items-center min-h-[32px]">
-                            <div className="w-24 md:w-32 flex items-center gap-2 text-muted-foreground shrink-0"><TagIcon className="w-4 h-4" /> <span>Tags</span></div>
-                            <div className="flex-1 flex flex-wrap gap-1">
-                                {tags.map(tag => (
-                                    <button 
-                                        key={tag.id} 
-                                        type="button" 
-                                        onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])} 
-                                        className={`px-1.5 py-0.5 rounded-sm text-sm font-semibold transition-colors border ${selectedTags.includes(tag.id) ? 'border-black/10' : 'border-transparent text-muted-foreground hover:bg-notion-hover'}`}
-                                        style={selectedTags.includes(tag.id) ? { backgroundColor: tag.color, color: getContrastColor(tag.color) } : {}}
-                                    >
-                                        {tag.label}
-                                    </button>
-                                ))}
-                                <input type="text" placeholder="Add..." value={newTagInput} onChange={(e) => setNewTagInput(e.target.value)} className="w-16 bg-transparent border-none text-sm p-0 focus:ring-0 placeholder:text-muted-foreground/50" onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }} />
-                            </div>
-                        </div>
-                        <div className="flex items-center min-h-[32px]">
-                            <div className="w-24 md:w-32 flex items-center gap-2 text-muted-foreground shrink-0"><Repeat className="w-4 h-4" /> <span>Recur</span></div>
-                            <div className="flex-1 text-sm"><RecurrenceButton value={createRecurrence} onChange={setCreateRecurrence} openModal={openRecurrenceModal} /></div>
-                        </div>
-                        
-                        {/* Time Estimation */}
-                        <div className="flex items-center min-h-[32px]">
-                            <div className="w-24 md:w-32 flex items-center gap-2 text-muted-foreground shrink-0"><Clock className="w-4 h-4" /> <span>Estimate</span></div>
-                            <div className="flex-1 flex gap-1 overflow-x-auto no-scrollbar">
-                                {PLANNED_TIME_OPTIONS.map(opt => (
-                                    <button 
-                                        key={opt.label} 
-                                        type="button" 
-                                        onClick={() => setPlannedTime(opt.value)} 
-                                        className={`px-2 py-0.5 text-sm rounded-sm transition-colors whitespace-nowrap ${plannedTime === opt.value ? 'bg-notion-bg_blue text-notion-blue' : 'text-muted-foreground hover:bg-notion-hover'}`}
-                                    >
-                                        {opt.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Tracked Time with Controls */}
-                        {selectedTaskId && selectedTask && (
-                            <div className="flex items-center min-h-[32px]">
-                                <div className="w-24 md:w-32 flex items-center gap-2 text-muted-foreground shrink-0"><Timer className="w-4 h-4" /> <span>Tracked</span></div>
-                                <div className="flex-1 flex items-center gap-2">
-                                    <span className="text-sm font-medium tabular-nums text-foreground">
-                                        {formatTimer((selectedTask.actualTime || 0) * 60 + (selectedTask.timerStart ? Math.floor((now - new Date(selectedTask.timerStart).getTime())/1000) : 0))}
-                                    </span>
-                                    <button 
-                                        onClick={(e) => onToggleTimer(selectedTask.id, e)}
-                                        className="p-1 rounded-sm hover:bg-notion-hover text-muted-foreground hover:text-foreground"
-                                    >
-                                        {selectedTask.timerStart ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-                                    </button>
+                    <div className="md:hidden pt-2 pb-4"><input type="text" placeholder="Task Name" value={title} onChange={e => setTitle(e.target.value)} className="w-full text-2xl font-bold text-foreground placeholder:text-muted-foreground/50 border-none focus:ring-0 bg-transparent px-0" /></div>
+                    <div className="space-y-4 md:space-y-1 text-sm">
+                        {/* Date */}
+                        <div className="flex flex-col md:flex-row md:items-start md:min-h-[32px] gap-2 md:gap-0">
+                            <div className="w-24 md:w-32 flex items-center gap-2 text-muted-foreground shrink-0 mt-1.5 md:mt-0"><Calendar className="w-4 h-4" /> <span>Date</span></div>
+                            <div className="flex-1">
+                                <div className="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar pb-1 md:pb-0 items-center">
+                                    {quickDates.map(qd => (
+                                        <button key={qd.label} type="button" onClick={() => handleQuickDate(qd.offset)} className={`px-3 py-1 text-xs rounded-sm whitespace-nowrap transition-colors border ${dueDate === getLocalDateString(new Date(new Date().setDate(new Date().getDate() + qd.offset))) ? 'bg-notion-bg_blue text-notion-blue border-notion-blue/20' : 'border-border/50 text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>{qd.label}</button>
+                                    ))}
+                                    <div className="relative">
+                                        <button 
+                                            type="button" 
+                                            ref={dateButtonRef} 
+                                            onClick={() => setIsDatePickerOpen(!isDatePickerOpen)} 
+                                            className={`px-3 py-1 text-xs rounded-sm whitespace-nowrap transition-colors border ${
+                                                // Check if the selected date is NOT in the quick dates list AND dueDate exists
+                                                !quickDates.some(qd => dueDate === getLocalDateString(new Date(new Date().setDate(new Date().getDate() + qd.offset)))) && dueDate
+                                                ? 'bg-notion-bg_blue text-notion-blue border-notion-blue/20' 
+                                                : 'border-border/50 text-muted-foreground hover:bg-notion-hover hover:text-foreground'
+                                            }`}
+                                        >
+                                            {!quickDates.some(qd => dueDate === getLocalDateString(new Date(new Date().setDate(new Date().getDate() + qd.offset)))) && dueDate ? formatRelativeDate(dueDate) : 'Custom'}
+                                        </button>
+                                        {isDatePickerOpen && <TaskDatePicker value={dueDate} onChange={setDueDate} onClose={() => setIsDatePickerOpen(false)} dayStartHour={dayStartHour} triggerRef={dateButtonRef} />}
+                                    </div>
                                 </div>
+                            </div>
+                        </div>
+                        {/* Priority */}
+                        <div className="flex flex-col md:flex-row md:items-center min-h-[32px] gap-2 md:gap-0">
+                            <div className="w-24 md:w-32 flex items-center gap-2 text-muted-foreground shrink-0"><CheckSquare className="w-4 h-4" /> <span>Priority</span></div>
+                            <div className="flex w-full md:w-auto bg-secondary p-0.5 rounded-md">
+                                {priorities.map(p => (
+                                    <button key={p} type="button" onClick={() => setPriority(p)} className={`flex-1 md:flex-none md:px-3 flex items-center justify-center gap-1.5 py-1.5 md:py-1 text-xs font-medium rounded-sm transition-all ${priority === p ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{getPriorityIcon(p)}<span>{p}</span></button>
+                                ))}
+                            </div>
+                        </div>
+                        {/* Tags */}
+                        <div className="flex flex-col md:flex-row md:items-center min-h-[32px] gap-2 md:gap-0">
+                            <div className="w-24 md:w-32 flex items-center gap-2 text-muted-foreground shrink-0"><TagIcon className="w-4 h-4" /> <span>Tags</span></div>
+                            <div className="flex-1 flex flex-wrap gap-2 md:gap-1">
+                                {tags.map(tag => (
+                                    <button key={tag.id} type="button" onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])} className={`px-2 py-1 md:px-1.5 md:py-0.5 rounded-md md:rounded-sm text-sm font-semibold transition-colors border ${selectedTags.includes(tag.id) ? 'border-black/10' : 'border-border/50 md:border-transparent text-muted-foreground hover:bg-notion-hover'}`} style={selectedTags.includes(tag.id) ? { backgroundColor: tag.color, color: getContrastColor(tag.color) } : {}}>{tag.label}</button>
+                                ))}
+                                <div className="flex items-center gap-2"><Plus className="w-3.5 h-3.5 text-muted-foreground" /><input type="text" placeholder="New tag" value={newTagInput} onChange={(e) => setNewTagInput(e.target.value)} className="w-20 bg-transparent border-none text-sm p-0 focus:ring-0 placeholder:text-muted-foreground/50" onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleInlineCreateTag(e); } }} /></div>
+                            </div>
+                        </div>
+                        {/* Recur */}
+                        <div className="flex flex-col md:flex-row md:items-center min-h-[32px] gap-1 md:gap-0">
+                            <div className="w-24 md:w-32 flex items-center gap-2 text-muted-foreground shrink-0"><Repeat className="w-4 h-4" /> <span>Recur</span></div>
+                            <div className="flex-1 text-sm"><button type="button" onClick={() => openRecurrenceModal(createRecurrence, setCreateRecurrence)} className={`text-xs px-3 py-1.5 rounded-sm transition-colors text-left border flex items-center gap-2 w-fit ${createRecurrence ? 'border-notion-purple/30 bg-notion-bg_purple text-notion-purple font-medium' : 'border-border/50 text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}><Repeat className="w-3 h-3" />{createRecurrence ? (<span>{createRecurrence.interval > 1 ? `Every ${createRecurrence.interval} ${createRecurrence.type.replace('ly', 's')}` : createRecurrence.type.charAt(0).toUpperCase() + createRecurrence.type.slice(1)}</span>) : (<span>Does not repeat</span>)}</button></div>
+                        </div>
+                        {/* Estimate */}
+                        <div className="flex flex-col md:flex-row md:items-start md:min-h-[32px] gap-2 md:gap-0">
+                            <div className="w-24 md:w-32 flex items-center gap-2 text-muted-foreground shrink-0 mt-1 md:mt-0"><Clock className="w-4 h-4" /> <span>Estimate</span></div>
+                            <div className="flex-1 flex flex-wrap gap-1.5 pb-1 md:pb-0">
+                                {PLANNED_TIME_OPTIONS.map(opt => (
+                                    <button key={opt.label} type="button" onClick={() => setPlannedTime(opt.value)} className={`px-2 py-1 text-xs rounded-sm transition-colors border ${plannedTime === opt.value ? 'bg-notion-bg_blue text-notion-blue border-notion-blue/20 font-medium' : 'text-muted-foreground border-border/50 hover:bg-notion-hover'}`}>{opt.label}</button>
+                                ))}
+                            </div>
+                        </div>
+                        {/* Tracked */}
+                        {selectedTaskId && selectedTask && (
+                            <div className="flex flex-col md:flex-row md:items-center min-h-[32px] gap-1 md:gap-0">
+                                <div className="w-24 md:w-32 flex items-center gap-2 text-muted-foreground shrink-0"><Timer className="w-4 h-4" /> <span>Tracked</span></div>
+                                <div className="flex-1 flex items-center gap-2"><span className="text-sm font-medium tabular-nums text-foreground">{formatTimer((selectedTask.actualTime || 0) * 60 + (selectedTask.timerStart ? Math.floor((now - new Date(selectedTask.timerStart).getTime())/1000) : 0))}</span><button onClick={(e) => onToggleTimer(selectedTask.id, e)} className="p-1 rounded-sm hover:bg-notion-hover text-muted-foreground hover:text-foreground">{selectedTask.timerStart ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}</button></div>
                             </div>
                         )}
                     </div>
-
+                    {/* Subtasks */}
                     <div className="border-t border-border pt-4">
-                        <textarea placeholder="Press Enter to continue with an empty note" value={createNotes} onChange={e => setCreateNotes(e.target.value)} className="w-full text-base text-foreground bg-transparent border-none p-0 resize-none focus:ring-0 placeholder:text-muted-foreground/50 min-h-[100px]" />
+                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Subtasks</div>
+                        <div className="space-y-2">
+                            {editSubtasks.map(st => (
+                                <div key={st.id} className="flex items-center gap-2 group"><button type="button" onClick={() => toggleEditSubtask(st.id)} className={`w-4 h-4 rounded-sm border flex items-center justify-center transition-all ${st.completed ? 'bg-notion-blue border-notion-blue text-white' : 'border-muted-foreground/40'}`}>{st.completed && <CheckSquare className="w-3 h-3" />}</button><input type="text" value={st.title} onChange={(e) => setEditSubtasks(prev => prev.map(s => s.id === st.id ? { ...s, title: e.target.value } : s))} className={`flex-1 bg-transparent border-none p-0 text-sm focus:ring-0 ${st.completed ? 'text-muted-foreground line-through' : 'text-foreground'}`} /><button type="button" onClick={() => removeEditSubtask(st.id)} className="p-1 text-muted-foreground hover:text-notion-red md:opacity-0 md:group-hover:opacity-100 transition-opacity"><X className="w-3.5 h-3.5" /></button></div>
+                            ))}
+                            <div className="flex items-center gap-2"><Plus className="w-4 h-4 text-muted-foreground" /><input type="text" placeholder="Add subtask" className="flex-1 bg-transparent border-none p-0 text-sm focus:ring-0 placeholder:text-muted-foreground" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addEditSubtask(e.currentTarget.value); e.currentTarget.value = ''; } }} /></div>
+                        </div>
                     </div>
+                    <div className="border-t border-border pt-4"><textarea placeholder="Add notes..." value={createNotes} onChange={e => setCreateNotes(e.target.value)} className="w-full text-base text-foreground bg-transparent border-none p-0 resize-none focus:ring-0 placeholder:text-muted-foreground/50 min-h-[100px]" /></div>
+                    {selectedTaskId && ( <div className="md:hidden pt-8 pb-4"><button type="button" onClick={handleDeleteTask} className="w-full py-3 text-notion-red bg-notion-bg_red rounded-md text-sm font-medium">Delete Task</button></div> )}
                 </div>
-                <div className="p-4 md:p-2 border-t border-border flex justify-between shrink-0">
-                     <button onClick={handleDeleteTask} className={`px-3 py-1.5 text-notion-red hover:bg-notion-bg_red rounded-sm text-sm font-medium transition-colors ${!selectedTaskId ? 'hidden' : ''}`}>Delete</button>
-                     <button onClick={handleSaveTask} className="px-3 py-1.5 bg-notion-blue text-white rounded-sm text-sm font-medium hover:bg-blue-600 transition-colors">Done</button>
-                </div>
+                <div className="hidden md:flex p-4 md:p-2 border-t border-border justify-between shrink-0"><button onClick={handleDeleteTask} className={`px-3 py-1.5 text-notion-red hover:bg-notion-bg_red rounded-sm text-sm font-medium transition-colors ${!selectedTaskId ? 'hidden' : ''}`}>Delete</button><button onClick={handleSaveTask} className="px-3 py-1.5 bg-notion-blue text-white rounded-sm text-sm font-medium hover:bg-blue-600 transition-colors">Done</button></div>
             </div>
         </div>
       )}
-
-      {/* Quick Date Picker Portal */}
-      {quickDateEdit && (
-          <TaskDatePicker 
-              value={quickDateEdit.value} 
-              onChange={async (date) => {
-                  const taskId = quickDateEdit.taskId;
-                  setTasks(prev => prev.map(t => t.id === taskId ? { ...t, dueDate: date } : t));
-                  setQuickDateEdit(null);
-                  await supabase.from('tasks').update({ due_date: date || null }).eq('id', taskId);
-              }} 
-              onClose={() => setQuickDateEdit(null)} 
-              dayStartHour={dayStartHour} 
-              triggerRef={{ current: quickDateEdit.element } as React.RefObject<HTMLElement>} 
-          />
-      )}
-
-      {/* Quick Priority Picker Portal */}
-      {quickPriorityEdit && (
-          <TaskPriorityPicker 
-              value={quickPriorityEdit.value}
-              onChange={async (p) => {
-                  const taskId = quickPriorityEdit.taskId;
-                  setTasks(prev => prev.map(t => t.id === taskId ? { ...t, priority: p } : t));
-                  setQuickPriorityEdit(null);
-                  await supabase.from('tasks').update({ priority: p }).eq('id', taskId);
-              }}
-              onClose={() => setQuickPriorityEdit(null)}
-              triggerRef={{ current: quickPriorityEdit.element } as React.RefObject<HTMLElement>}
-          />
-      )}
-
-      {/* Recurrence Modal */}
-      {isRecurrenceModalOpen && recurrenceEditValue && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4" onClick={() => setIsRecurrenceModalOpen(false)}>
-              <div className="bg-background w-full max-w-xs rounded-md shadow-xl border border-border p-4 space-y-4 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-                  <h4 className="font-bold text-foreground text-sm">Repeat Task</h4>
-                  
-                  <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                          <label className="text-xs text-muted-foreground">Frequency</label>
-                          <select 
-                              value={recurrenceEditValue.type}
-                              onChange={(e) => setRecurrenceEditValue(prev => ({ ...prev!, type: e.target.value as any }))}
-                              className="text-xs bg-transparent border border-border rounded-sm px-2 py-1 outline-none focus:ring-1 focus:ring-notion-blue"
-                          >
-                              <option value="daily">Daily</option>
-                              <option value="weekly">Weekly</option>
-                              <option value="monthly">Monthly</option>
-                              <option value="yearly">Yearly</option>
-                          </select>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                          <label className="text-xs text-muted-foreground">Every</label>
-                          <div className="flex items-center gap-2">
-                              <input 
-                                  type="number" 
-                                  min="1" 
-                                  value={recurrenceEditValue.interval} 
-                                  onChange={(e) => setRecurrenceEditValue(prev => ({ ...prev!, interval: parseInt(e.target.value) || 1 }))}
-                                  className="w-12 text-xs bg-transparent border border-border rounded-sm px-2 py-1 outline-none focus:ring-1 focus:ring-notion-blue text-center"
-                              />
-                              <span className="text-xs text-muted-foreground">{recurrenceEditValue.type.replace('ly', '(s)')}</span>
-                          </div>
-                      </div>
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-2 border-t border-border">
-                      <button 
-                          onClick={() => { 
-                              if (recurrenceCallback) recurrenceCallback(null); 
-                              setIsRecurrenceModalOpen(false); 
-                          }}
-                          className="px-2 py-1 text-xs text-destructive hover:bg-notion-bg_red rounded-sm"
-                      >
-                          Clear
-                      </button>
-                      <button 
-                          onClick={() => { 
-                              if (recurrenceCallback) recurrenceCallback(recurrenceEditValue); 
-                              setIsRecurrenceModalOpen(false); 
-                          }}
-                          className="px-2 py-1 text-xs bg-notion-blue text-white rounded-sm"
-                      >
-                          Save
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
+      
+      {quickDateEdit && <TaskDatePicker value={quickDateEdit.value} onChange={async (date: string) => { const taskId = quickDateEdit.taskId; setTasks(prev => prev.map(t => t.id === taskId ? { ...t, dueDate: date } : t)); setQuickDateEdit(null); await supabase.from('tasks').update({ due_date: date || null }).eq('id', taskId); }} onClose={() => setQuickDateEdit(null)} dayStartHour={dayStartHour} triggerRef={{ current: quickDateEdit.element } as React.RefObject<HTMLElement>} />}
+      {quickPriorityEdit && <TaskPriorityPicker value={quickPriorityEdit.value} onChange={async (p: Priority) => { const taskId = quickPriorityEdit.taskId; setTasks(prev => prev.map(t => t.id === taskId ? { ...t, priority: p } : t)); setQuickPriorityEdit(null); await supabase.from('tasks').update({ priority: p }).eq('id', taskId); }} onClose={() => setQuickPriorityEdit(null)} triggerRef={{ current: quickPriorityEdit.element } as React.RefObject<HTMLElement>} />}
+      {/* ... Recurrence modal ... */}
+      {isRecurrenceModalOpen && recurrenceEditValue && ( <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4" onClick={() => setIsRecurrenceModalOpen(false)}> <div className="bg-background w-full max-w-xs rounded-md shadow-xl border border-border p-4 space-y-4 animate-in zoom-in-95" onClick={e => e.stopPropagation()}> <h4 className="font-bold text-foreground text-sm">Repeat Task</h4> <div className="space-y-2"> <div className="flex items-center justify-between"> <label className="text-xs text-muted-foreground">Frequency</label> <select value={recurrenceEditValue.type} onChange={(e) => setRecurrenceEditValue(prev => ({ ...prev!, type: e.target.value as any }))} className="text-xs bg-transparent border border-border rounded-sm px-2 py-1 outline-none focus:ring-1 focus:ring-notion-blue"> <option value="daily">Daily</option> <option value="weekly">Weekly</option> <option value="monthly">Monthly</option> <option value="yearly">Yearly</option> </select> </div> <div className="flex items-center justify-between"> <label className="text-xs text-muted-foreground">Every</label> <div className="flex items-center gap-2"> <input type="number" min="1" value={recurrenceEditValue.interval} onChange={(e) => setRecurrenceEditValue(prev => ({ ...prev!, interval: parseInt(e.target.value) || 1 }))} className="w-12 text-xs bg-transparent border border-border rounded-sm px-2 py-1 outline-none focus:ring-1 focus:ring-notion-blue text-center" /> <span className="text-xs text-muted-foreground">{recurrenceEditValue.type.replace('ly', '(s)')}</span> </div> </div> </div> <div className="flex justify-end gap-2 pt-2 border-t border-border"> <button onClick={() => { if (recurrenceCallback) recurrenceCallback(null); setIsRecurrenceModalOpen(false); }} className="px-2 py-1 text-xs text-destructive hover:bg-notion-bg_red rounded-sm">Clear</button> <button onClick={() => { if (recurrenceCallback) recurrenceCallback(recurrenceEditValue); setIsRecurrenceModalOpen(false); }} className="px-2 py-1 text-xs bg-notion-blue text-white rounded-sm">Save</button> </div> </div> </div> )}
     </div>
   );
 };
