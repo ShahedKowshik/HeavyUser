@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause, BarChart3, CheckSquare, StickyNote, MoreHorizontal, ChevronDown, Ban } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession } from '../types';
@@ -419,13 +420,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
              </div>
          </header>
 
-         {/* Content */}
-         <div className="flex-1 overflow-hidden relative">
+         {/* Content - Added padding-bottom for mobile to prevent nav overlap */}
+         <div className="flex-1 overflow-hidden relative pb-16 md:pb-0">
              {renderContent()}
          </div>
 
-         {/* Mobile Bottom Navigation */}
-         <div className="md:hidden border-t border-border bg-background z-30">
+         {/* Mobile Bottom Navigation - Fixed Positioning */}
+         <div className="md:hidden fixed bottom-0 left-0 right-0 border-t border-border bg-background z-50">
             <div className="flex items-center justify-around h-16">
                 {enabledModules.includes('tasks') && <MobileNavItem id="tasks" label="Tasks" icon={CheckSquare} activeTab={activeTab} setActiveTab={setActiveTab} />}
                 {enabledModules.includes('habit') && <MobileNavItem id="habit" label="Habits" icon={Zap} activeTab={activeTab} setActiveTab={setActiveTab} />}

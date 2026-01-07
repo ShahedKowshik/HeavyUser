@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Square, Repeat, ChevronDown, Moon, Circle, Flame, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, LayoutTemplate, AlignJustify, History, BarChart3, GripVertical, Check, AlertCircle, ArrowRight, Columns, Layout } from 'lucide-react';
@@ -745,7 +746,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                           {Array.from({length: endHour - startHour}).map((_, i) => (
                                               <div 
                                                 key={i} 
-                                                className={`absolute w-full text-right pr-2 text-[10px] text-muted-foreground transform ${i === 0 ? '' : '-translate-y-1/2'}`} 
+                                                className={`absolute w-full text-right pr-2 text-[10px] text-muted-foreground transform ${i === 0 ? 'translate-y-1' : '-translate-y-1/2'}`} 
                                                 style={{ top: i * pixelPerHour }}
                                               >
                                                   {(startHour + i) === 0 ? '12 AM' : (startHour + i) < 12 ? `${startHour + i} AM` : (startHour + i) === 12 ? '12 PM' : `${(startHour + i) - 12} PM`}
