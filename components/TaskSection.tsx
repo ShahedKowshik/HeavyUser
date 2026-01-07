@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Square, Repeat, ChevronDown, Moon, Circle, Flame, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, LayoutTemplate, AlignJustify, History, BarChart3, GripVertical, Check, AlertCircle, ArrowRight } from 'lucide-react';
@@ -424,7 +423,9 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   const openCreateModal = () => {
-    setTitle(''); setDueDate(''); setPriority('Normal'); setSelectedTags(activeFilterTagId ? [activeFilterTagId] : []); setCreateRecurrence(null); setCreateNotes(''); setPlannedTime(undefined); setEditSubtasks([]); setIsModalOpen(true); setSelectedTaskId(null);
+    setTitle(''); setDueDate(''); setPriority('Normal'); 
+    setSelectedTags((activeFilterTagId && activeFilterTagId !== 'no_tag') ? [activeFilterTagId] : []); 
+    setCreateRecurrence(null); setCreateNotes(''); setPlannedTime(undefined); setEditSubtasks([]); setIsModalOpen(true); setSelectedTaskId(null);
   };
 
   const openEditModal = (task: Task) => {
@@ -518,7 +519,11 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
   const processList = (list: Task[]) => {
     let filtered = list;
-    if (activeFilterTagId) filtered = filtered.filter(t => t.tags?.includes(activeFilterTagId));
+    if (activeFilterTagId === 'no_tag') {
+        filtered = filtered.filter(t => !t.tags || t.tags.length === 0);
+    } else if (activeFilterTagId) {
+        filtered = filtered.filter(t => t.tags?.includes(activeFilterTagId));
+    }
     const getPriorityScore = (p: string) => priorityOrder[p as Priority] ?? 2;
     const base = [...filtered].sort((a,b) => {
       if (sorting === 'date') {

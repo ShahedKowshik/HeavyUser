@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, Search, Pencil, X, BookOpen, Image as ImageIcon, Sparkles, Tag as TagIcon } from 'lucide-react';
 import { JournalEntry, EntryType, Tag } from '../types';
@@ -49,7 +48,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
 
   const openCreateModal = () => {
     setEditingEntry(null); setTitle(''); setContent(''); setEntryType('Log'); 
-    setEntryTags(activeFilterTagId ? [activeFilterTagId] : []);
+    setEntryTags((activeFilterTagId && activeFilterTagId !== 'no_tag') ? [activeFilterTagId] : []);
     setNewTagInput(''); setIsCreatingTag(false);
     setIsModalOpen(true);
   };
@@ -126,7 +125,9 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
     const filtered = journals.filter(j => {
       const matchesSearch = j.title.toLowerCase().includes(searchQuery.toLowerCase()) || j.content.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesFilter = filter === 'All' || j.entryType === filter;
-      const matchesGlobalTag = !activeFilterTagId || j.tags?.includes(activeFilterTagId);
+      const matchesGlobalTag = activeFilterTagId === 'no_tag' 
+           ? (!j.tags || j.tags.length === 0) 
+           : (!activeFilterTagId || j.tags?.includes(activeFilterTagId));
       return matchesSearch && matchesFilter && matchesGlobalTag;
     });
 

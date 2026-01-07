@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause, BarChart3, CheckSquare, StickyNote, MoreHorizontal, ChevronDown } from 'lucide-react';
+import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause, BarChart3, CheckSquare, StickyNote, MoreHorizontal, ChevronDown, Ban } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
@@ -312,13 +311,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                     <div className="flex-1 relative">
                          <button onClick={() => setIsTagFilterOpen(!isTagFilterOpen)} className={`w-full bg-background border border-border rounded-md px-2 py-1.5 flex items-center justify-center gap-1.5 shadow-sm hover:bg-notion-hover transition-colors ${activeFilterTagId ? 'text-notion-blue' : 'text-muted-foreground'}`} title="Filter by Tag">
                             <TagIcon className="w-3.5 h-3.5" />
-                            <span className="text-xs font-medium max-w-[60px] truncate">{activeFilterTag ? activeFilterTag.label : 'All'}</span>
+                            <span className="text-xs font-medium max-w-[60px] truncate">{activeFilterTagId === 'no_tag' ? 'No Label' : (activeFilterTag ? activeFilterTag.label : 'All')}</span>
                         </button>
                         {isTagFilterOpen && (
                             <>
                                 <div className="fixed inset-0 z-40" onClick={() => setIsTagFilterOpen(false)} />
                                 <div className="absolute bottom-full left-0 mb-2 w-40 bg-background border border-border rounded-md shadow-xl z-50 p-1 animate-in zoom-in-95">
                                     <button onClick={() => { setActiveFilterTagId(null); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between hover:bg-notion-hover">All Labels</button>
+                                    <button onClick={() => { setActiveFilterTagId('no_tag'); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between hover:bg-notion-hover">No Label</button>
                                     <div className="h-px bg-border my-1" />
                                     <div className="max-h-40 overflow-y-auto custom-scrollbar">
                                         {tags.map(tag => (
@@ -373,42 +373,47 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       {renderSidebar()}
 
       <main className="flex-1 flex flex-col min-w-0 bg-background relative overflow-hidden">
-         {/* Mobile Header */}
-         <header className="md:hidden flex flex-col border-b border-border bg-background z-20">
-             <div className="flex items-center justify-between p-4 pb-2">
-                 <div className="flex items-center gap-2"><AppIcon className="w-6 h-6 rounded-sm" /><span className="font-bold text-lg">HeavyUser</span></div>
+         {/* Mobile Header - Compact Single Line */}
+         <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-background z-20">
+             <div className="flex items-center gap-2 shrink-0">
+                 <AppIcon className="w-6 h-6 rounded-sm" />
+                 <span className="font-bold text-lg">HeavyUser</span>
              </div>
-             {/* Mobile Global Stats Bar */}
-             <div className="flex items-center justify-between px-4 pb-3 pt-1 text-xs">
-                 <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1.5 font-medium">
-                        <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'text-notion-orange fill-notion-orange' : 'text-notion-orange'}`} />
-                        <span>{streakData.count}</span>
-                    </div>
-                    <div className="relative">
-                         <button onClick={() => setIsTagFilterOpen(!isTagFilterOpen)} className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded transition-colors ${activeFilterTagId ? 'bg-notion-bg_blue text-notion-blue' : 'text-muted-foreground'}`}>
-                            <TagIcon className="w-3.5 h-3.5" />
-                            <span className="max-w-[80px] truncate">{activeFilterTag ? activeFilterTag.label : 'All'}</span>
-                        </button>
-                        {isTagFilterOpen && (
-                            <>
-                                <div className="fixed inset-0 z-30" onClick={() => setIsTagFilterOpen(false)} />
-                                <div className="absolute top-full left-0 mt-1 w-48 bg-background border border-border rounded-md shadow-xl z-40 p-1 animate-in zoom-in-95 origin-top-left">
-                                    <button onClick={() => { setActiveFilterTagId(null); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-2 text-xs rounded-sm hover:bg-notion-hover">All Labels</button>
-                                    <div className="max-h-40 overflow-y-auto custom-scrollbar">
-                                        {tags.map(tag => (
-                                            <button key={tag.id} onClick={() => { setActiveFilterTagId(tag.id); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-2 text-xs rounded-sm flex items-center gap-2 hover:bg-notion-hover">
-                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />
-                                                <span className="truncate">{tag.label}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </>
-                        )}
-                    </div>
+             
+             <div className="flex items-center gap-3 text-xs">
+                 {/* Streak */}
+                 <div className="flex items-center gap-1.5 font-medium shrink-0">
+                    <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'text-notion-orange fill-notion-orange' : 'text-notion-orange'}`} />
+                    <span>{streakData.count}</span>
                  </div>
-                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-widest">
+                 
+                 {/* Tag Filter */}
+                 <div className="relative shrink-0">
+                     <button onClick={() => setIsTagFilterOpen(!isTagFilterOpen)} className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded transition-colors ${activeFilterTagId ? 'bg-notion-bg_blue text-notion-blue' : 'text-muted-foreground'}`}>
+                        <TagIcon className="w-3.5 h-3.5" />
+                        <span className="max-w-[60px] truncate">{activeFilterTagId === 'no_tag' ? 'No Label' : (activeFilterTag ? activeFilterTag.label : 'All')}</span>
+                    </button>
+                    {isTagFilterOpen && (
+                        <>
+                            <div className="fixed inset-0 z-30" onClick={() => setIsTagFilterOpen(false)} />
+                            <div className="absolute top-full right-0 mt-1 w-40 bg-background border border-border rounded-md shadow-xl z-40 p-1 animate-in zoom-in-95 origin-top-right">
+                                <button onClick={() => { setActiveFilterTagId(null); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-2 text-xs rounded-sm hover:bg-notion-hover">All Labels</button>
+                                <button onClick={() => { setActiveFilterTagId('no_tag'); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-2 text-xs rounded-sm hover:bg-notion-hover">No Label</button>
+                                <div className="max-h-40 overflow-y-auto custom-scrollbar">
+                                    {tags.map(tag => (
+                                        <button key={tag.id} onClick={() => { setActiveFilterTagId(tag.id); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-2 text-xs rounded-sm flex items-center gap-2 hover:bg-notion-hover">
+                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />
+                                            <span className="truncate">{tag.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </>
+                    )}
+                 </div>
+
+                 {/* Timer */}
+                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-widest shrink-0">
                     <Clock className="w-3 h-3" /> {timeLeft}
                  </div>
              </div>

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save, SkipForward, CircleCheck, ArrowLeft, Clock, MoreHorizontal, Flag } from 'lucide-react';
 import { Habit, Tag } from '../types';
@@ -221,7 +220,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
   const openCreateModal = () => {
     resetForm();
-    if (activeFilterTagId) setSelectedTags([activeFilterTagId]);
+    if (activeFilterTagId && activeFilterTagId !== 'no_tag') setSelectedTags([activeFilterTagId]);
     setIsModalOpen(true);
   };
 
@@ -350,7 +349,11 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
   const filteredHabits = useMemo(() => {
     let res = habits;
-    if (activeFilterTagId) res = res.filter(h => h.tags?.includes(activeFilterTagId));
+    if (activeFilterTagId === 'no_tag') {
+        res = res.filter(h => !h.tags || h.tags.length === 0);
+    } else if (activeFilterTagId) {
+        res = res.filter(h => h.tags?.includes(activeFilterTagId));
+    }
     if (filter === 'positive') res = res.filter(h => h.goalType !== 'negative');
     if (filter === 'negative') res = res.filter(h => h.goalType === 'negative');
     return res;

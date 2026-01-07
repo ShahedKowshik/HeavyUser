@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
     Search, Plus, Trash2, X, FileText, ChevronLeft, Folder, FolderPlus, 
@@ -202,7 +201,9 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
 
   const filteredNotes = useMemo(() => {
     let filtered = notes;
-    if (activeFilterTagId) {
+    if (activeFilterTagId === 'no_tag') {
+        filtered = filtered.filter(n => !n.tags || n.tags.length === 0);
+    } else if (activeFilterTagId) {
         filtered = filtered.filter(n => n.tags && n.tags.includes(activeFilterTagId));
     }
     return filtered
@@ -376,7 +377,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
   const handleCreateNote = async (targetFolderId: string | null = null) => {
     const newId = crypto.randomUUID();
     const timestamp = new Date().toISOString();
-    const initialTags = activeFilterTagId ? [activeFilterTagId] : [];
+    const initialTags = (activeFilterTagId && activeFilterTagId !== 'no_tag') ? [activeFilterTagId] : [];
     const newNote: Note = { id: newId, title: '', content: '', folderId: targetFolderId, createdAt: timestamp, updatedAt: timestamp, tags: initialTags };
     setNotes([newNote, ...notes]);
     setSelectedNoteId(newId);
