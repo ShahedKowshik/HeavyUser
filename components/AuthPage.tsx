@@ -1,9 +1,11 @@
+
 import React, { useState } from 'react';
 import { LayoutGrid, UserPlus, LogIn, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from './ui/card';
+import { AppIcon } from './AppIcon';
 
 const AuthPage: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -51,9 +53,7 @@ const AuthPage: React.FC = () => {
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md space-y-4">
         <div className="text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="w-12 h-12 bg-primary rounded flex items-center justify-center shadow-lg mx-auto mb-4">
-            <LayoutGrid className="w-7 h-7 text-primary-foreground" />
-          </div>
+          <AppIcon className="w-12 h-12 rounded-md shadow-lg mx-auto mb-4" />
           <h1 className="text-2xl font-black text-foreground tracking-tight">HeavyUser</h1>
           <p className="text-muted-foreground font-medium mt-1">Productivity for high-performers</p>
         </div>

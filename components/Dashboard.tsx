@@ -11,6 +11,7 @@ import RequestFeatureSection from './RequestFeatureSection';
 import ReportBugSection from './ReportBugSection';
 import { supabase } from '../lib/supabase';
 import { decryptData } from '../lib/crypto';
+import { AppIcon } from './AppIcon';
 
 // --- Sub-components extracted to prevent re-renders ---
 
@@ -530,7 +531,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       {/* Sidebar - Desktop */}
       <aside className={`hidden md:flex flex-col p-2 space-y-1 bg-notion-sidebar border-r border-border shrink-0 z-20 ${isSidebarCollapsed ? 'w-16 items-center' : 'w-52'}`}>
         <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'space-x-2 px-2'} py-3 mb-1 cursor-pointer hover:bg-notion-hover rounded-sm transition-colors`} onClick={toggleSidebar} title="Toggle Sidebar">
-          <div className="w-5 h-5 bg-foreground text-background rounded-sm flex items-center justify-center font-bold text-xs shrink-0">H</div>
+          <AppIcon className="w-5 h-5 rounded-sm shrink-0" />
           {!isSidebarCollapsed && (
              <div className="flex items-center justify-between flex-1 min-w-0">
                <h1 className="text-sm font-medium tracking-tight text-foreground truncate">HeavyUser</h1>

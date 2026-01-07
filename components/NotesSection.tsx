@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
     Search, Plus, Trash2, X, FileText, ChevronLeft, Folder, FolderPlus, 
@@ -77,7 +76,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
     if (!editor) return null;
 
     return (
-        <div className="flex items-center gap-0.5 flex-wrap border-b border-border p-2 bg-background sticky top-0 z-10">
+        <div className="flex items-center gap-0.5 flex-wrap border-b border-border px-12 py-2 bg-background sticky top-0 z-10">
             <div className="flex items-center gap-0.5 border-r border-border pr-2 mr-2">
                 <ToolbarButton 
                     onClick={() => editor.chain().focus().undo().run()} 
@@ -768,7 +767,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
         <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col relative">
            {/* Editor Container */}
            <div className="w-full max-w-3xl mx-auto flex flex-col h-full bg-background">
-               <div className="px-8 pt-8 pb-4 shrink-0 bg-background">
+               <div className="px-12 pt-12 pb-4 shrink-0 bg-background">
                    <input 
                       id="note-title-input"
                       type="text" 
@@ -802,7 +801,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                <MenuBar editor={editor} />
 
                {/* Actual Editor Content */}
-               <div className="flex-1 px-8 py-4 cursor-text" onClick={() => editor?.commands.focus()}>
+               <div className="flex-1 px-12 py-4 cursor-text" onClick={() => editor?.commands.focus()}>
                    <EditorContent editor={editor} className="h-full" />
                </div>
            </div>
