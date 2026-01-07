@@ -50,7 +50,7 @@ const AuthPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md space-y-4">
         <div className="text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
           <AppIcon className="w-12 h-12 rounded-md shadow-lg mx-auto mb-4" />
@@ -129,7 +129,7 @@ const AuthPage: React.FC = () => {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full bg-[#334155] hover:bg-[#1e293b]" disabled={loading}>
+              <Button type="submit" className="w-full bg-notion-blue hover:bg-blue-700" disabled={loading}>
                 {loading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (

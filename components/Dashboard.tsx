@@ -32,16 +32,16 @@ const NavItem: React.FC<NavItemProps> = ({ id, label, icon: Icon, count, shortcu
     title={isSidebarCollapsed ? label : undefined}
     className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-1' : 'space-x-2 px-3'} py-1 rounded-sm group min-h-[28px] ${
       activeTab === id 
-      ? 'bg-notion-hover text-foreground font-medium' 
+      ? 'bg-notion-bg_blue text-notion-blue font-medium' 
       : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground font-medium'
     }`}
   >
-    <Icon className={`w-[18px] h-[18px] transition-colors ${activeTab === id ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'}`} />
+    <Icon className={`w-[18px] h-[18px] transition-colors ${activeTab === id ? 'text-notion-blue' : 'text-muted-foreground group-hover:text-foreground'}`} />
     {!isSidebarCollapsed && (
         <>
           <span className="text-sm flex-1 text-left truncate leading-tight">{label}</span>
           {count !== undefined && count > 0 && (
-              <span className="text-xs font-medium text-muted-foreground tabular-nums">{count}</span>
+              <span className={`text-xs font-medium tabular-nums ${activeTab === id ? 'text-notion-blue' : 'text-muted-foreground'}`}>{count}</span>
           )}
         </>
     )}
@@ -61,7 +61,7 @@ const MobileNavItem: React.FC<MobileNavItemProps> = ({ id, label, icon: Icon, ac
     onClick={() => setActiveTab(id)}
     className={`flex flex-col items-center justify-center p-2 rounded ${
       activeTab === id 
-      ? 'text-foreground' 
+      ? 'text-notion-blue' 
       : 'text-muted-foreground'
     }`}
   >
@@ -113,7 +113,7 @@ const TaskTrackerWidget = ({ task, onToggle, onClose }: { task: Task, onToggle: 
 
     return (
         <div className="hidden md:flex h-7 items-center gap-2 bg-background border border-border rounded shadow-sm px-2 animate-in fade-in slide-in-from-top-2">
-            <div className={`w-1.5 h-1.5 rounded-full ${task.timerStart ? 'bg-green-500 animate-pulse' : 'bg-orange-400'}`} />
+            <div className={`w-1.5 h-1.5 rounded-full ${task.timerStart ? 'bg-notion-orange animate-pulse' : 'bg-notion-blue'}`} />
             
             <div className="flex flex-col justify-center h-full min-w-[80px] max-w-[150px]">
                 <span className="text-xs font-medium text-foreground truncate leading-none" title={task.title}>
@@ -527,7 +527,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   };
 
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans selection:bg-[#CDE8F4] selection:text-foreground">
+    <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans selection:bg-[#EBF2FF] selection:text-foreground">
       {/* Sidebar - Desktop */}
       <aside className={`hidden md:flex flex-col p-2 space-y-1 bg-notion-sidebar border-r border-border shrink-0 z-20 ${isSidebarCollapsed ? 'w-16 items-center' : 'w-52'}`}>
         <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'space-x-2 px-2'} py-3 mb-1 cursor-pointer hover:bg-notion-hover rounded-sm transition-colors`} onClick={toggleSidebar} title="Toggle Sidebar">
@@ -552,17 +552,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                 <div className="flex justify-between items-end mb-1">
                     <div>
                         <div className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider">Tracked</div>
-                        <div className="text-xs font-bold text-foreground">{formatTimeSimple(sidebarStats.totalTrackedSeconds)}</div>
+                        <div className="text-xs font-bold text-notion-blue">{formatTimeSimple(sidebarStats.totalTrackedSeconds)}</div>
                     </div>
                     <div className="text-right">
                         <div className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider">Remaining</div>
-                        <div className="text-xs font-bold text-foreground">{formatTimeSimple(sidebarStats.remainingMinutes * 60)}</div>
+                        <div className="text-xs font-bold text-notion-orange">{formatTimeSimple(sidebarStats.remainingMinutes * 60)}</div>
                     </div>
                 </div>
                 
                 <div className="h-1 w-full bg-border rounded-full overflow-hidden mb-1">
                     <div 
-                        className="h-full bg-foreground transition-all duration-500" 
+                        className="h-full bg-notion-orange transition-all duration-500" 
                         style={{ width: `${(sidebarStats.totalTrackedSeconds / Math.max(1, sidebarStats.totalTrackedSeconds + (sidebarStats.remainingMinutes * 60))) * 100}%` }}
                     />
                 </div>
@@ -698,11 +698,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               onClick={() => setIsStreakModalOpen(true)}
               className={`flex items-center gap-1.5 px-2 py-1 h-7 rounded-sm transition-all box-border text-xs ${
                 streakData.activeToday 
-                  ? 'bg-notion-bg_orange text-notion-orange font-medium' 
+                  ? 'bg-notion-orange text-white font-medium shadow-sm' 
                   : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'
               }`}
             >
-              <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'fill-current' : ''}`} />
+              <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'fill-white text-white' : ''}`} />
               <span className="tabular-nums">{streakData.count}</span>
             </button>
           </div>

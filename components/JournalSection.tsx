@@ -149,7 +149,7 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
               <button 
                 key={f} 
                 onClick={() => setFilter(f)} 
-                className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === f ? 'text-foreground bg-notion-hover' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
+                className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === f ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
               >
                 {f}
               </button>

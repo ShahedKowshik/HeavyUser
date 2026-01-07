@@ -885,10 +885,10 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
              <div className="px-4 md:px-8 pt-4 md:pt-6 mb-4 space-y-4">
                 <div className="flex flex-row items-center justify-between gap-2 sm:gap-4 border-b border-border pb-4">
                     <div className="flex items-center gap-1">
-                        <button onClick={() => setViewLayout('list')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'list' ? 'text-foreground bg-notion-hover' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>
+                        <button onClick={() => setViewLayout('list')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'list' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>
                             List
                         </button>
-                        <button onClick={() => setViewLayout('tracker')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'tracker' ? 'text-foreground bg-notion-hover' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>
+                        <button onClick={() => setViewLayout('tracker')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'tracker' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>
                             Tracker
                         </button>
                     </div>

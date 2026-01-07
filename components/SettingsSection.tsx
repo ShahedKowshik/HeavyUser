@@ -148,9 +148,9 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                 <div className="hidden md:block px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Account</div>
                 <button 
                     onClick={() => setActiveCategory('account')}
-                    className={`whitespace-nowrap w-auto md:w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'account' ? 'bg-notion-hover text-foreground font-medium shadow-sm md:shadow-none' : 'text-foreground hover:bg-notion-hover'}`}
+                    className={`whitespace-nowrap w-auto md:w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'account' ? 'bg-notion-bg_blue text-notion-blue font-medium shadow-sm md:shadow-none' : 'text-foreground hover:bg-notion-hover'}`}
                 >
-                    <User className="w-4 h-4 text-muted-foreground" /> 
+                    <User className={`w-4 h-4 ${activeCategory === 'account' ? 'text-notion-blue' : 'text-muted-foreground'}`} /> 
                     <span>My Account</span>
                 </button>
             </div>
@@ -159,9 +159,9 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                 <div className="hidden md:block px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Workspace</div>
                 <button 
                     onClick={() => setActiveCategory('workspace')}
-                    className={`whitespace-nowrap w-auto md:w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'workspace' ? 'bg-notion-hover text-foreground font-medium shadow-sm md:shadow-none' : 'text-foreground hover:bg-notion-hover'}`}
+                    className={`whitespace-nowrap w-auto md:w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'workspace' ? 'bg-notion-bg_blue text-notion-blue font-medium shadow-sm md:shadow-none' : 'text-foreground hover:bg-notion-hover'}`}
                 >
-                    <LayoutGrid className="w-4 h-4 text-muted-foreground" /> 
+                    <LayoutGrid className={`w-4 h-4 ${activeCategory === 'workspace' ? 'text-notion-blue' : 'text-muted-foreground'}`} /> 
                     <span>Settings</span>
                 </button>
             </div>
