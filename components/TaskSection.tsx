@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Square, Repeat, ChevronDown, Moon, Circle, Flame, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, LayoutTemplate, AlignJustify, History, BarChart3, GripVertical, Check, AlertCircle, ArrowRight } from 'lucide-react';
+import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Square, Repeat, ChevronDown, Moon, Circle, Flame, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, LayoutTemplate, AlignJustify, History, BarChart3, GripVertical, Check, AlertCircle, ArrowRight, Columns, Layout } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence, TaskSession } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -338,7 +338,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'active' | 'completed'>('active');
-  const [viewLayout, setViewLayout] = useState<'list' | 'tracker'>('list');
+  const [viewLayout, setViewLayout] = useState<'list' | 'calendar' | 'tracker'>('list');
   const [transitionDirection, setTransitionDirection] = useState<'left' | 'right' | 'none'>('none');
   const [grouping, setGrouping] = useState<Grouping>(() => {
       if (typeof window !== 'undefined') {
@@ -352,6 +352,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const [isRescheduleMenuOpen, setIsRescheduleMenuOpen] = useState(false);
   const [quickDateEdit, setQuickDateEdit] = useState<{ taskId: string, element: HTMLElement, value: string } | null>(null);
   const [quickPriorityEdit, setQuickPriorityEdit] = useState<{ taskId: string, element: HTMLElement, value: Priority } | null>(null);
+
+  // Calendar State
+  const [calendarDate, setCalendarDate] = useState(() => {
+      const d = new Date();
+      if (d.getHours() < (dayStartHour || 0)) d.setDate(d.getDate() - 1);
+      return d;
+  });
+  const [calendarViewMode, setCalendarViewMode] = useState<'3day' | 'week' | 'month'>('3day');
 
   useEffect(() => { localStorage.setItem('heavyuser_task_grouping', grouping); }, [grouping]);
 
@@ -573,6 +581,341 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     { label: '+30d', offset: 30 },
   ];
 
+  // Drag and Drop Handlers
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+      e.dataTransfer.setData('taskId', taskId);
+      e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = async (e: React.DragEvent, dateStr: string, timeStr?: string) => {
+      e.preventDefault();
+      const taskId = e.dataTransfer.getData('taskId');
+      if (!taskId) return;
+
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      // Optimistic update
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, dueDate: dateStr, time: timeStr } : t));
+
+      // DB update
+      await supabase.from('tasks').update({ due_date: dateStr, time: timeStr || null }).eq('id', taskId);
+  };
+
+  const renderCalendarView = () => {
+      // Calendar Logic
+      const navDate = (delta: number) => {
+          const d = new Date(calendarDate);
+          if (calendarViewMode === 'week') d.setDate(d.getDate() + (delta * 7));
+          else if (calendarViewMode === '3day') d.setDate(d.getDate() + (delta * 3));
+          else d.setMonth(d.getMonth() + delta);
+          setCalendarDate(d);
+      };
+
+      const goToday = () => {
+          const d = new Date();
+          if (d.getHours() < (dayStartHour || 0)) d.setDate(d.getDate() - 1);
+          setCalendarDate(d);
+      };
+
+      // Calculate Logical Today for highlighting
+      const nowObj = new Date();
+      if (nowObj.getHours() < (dayStartHour || 0)) nowObj.setDate(nowObj.getDate() - 1);
+      const todayStr = getLocalDateString(nowObj);
+
+      // Sidebar Data
+      const sidebarTasks = tasks.filter(t => !t.completed && (!t.dueDate || t.dueDate < todayStr));
+
+      // Grid Calculation
+      let visibleDates: { dateStr: string, dayName: string, dayNum: number, isToday: boolean }[] = [];
+      
+      if (calendarViewMode === 'week' || calendarViewMode === '3day') {
+          const startDate = new Date(calendarDate);
+          if (calendarViewMode === 'week') {
+              startDate.setDate(startDate.getDate() - startDate.getDay()); // Start Sunday
+          }
+          // For 3day, we just start at calendarDate (which defaults to today)
+          
+          const numDays = calendarViewMode === 'week' ? 7 : 3;
+          
+          visibleDates = Array.from({length: numDays}, (_, i) => {
+              const d = new Date(startDate);
+              d.setDate(d.getDate() + i);
+              return {
+                  dateStr: getLocalDateString(d),
+                  dayName: WEEKDAYS[d.getDay()],
+                  dayNum: d.getDate(),
+                  isToday: getLocalDateString(d) === todayStr
+              };
+          });
+      }
+
+      // Month Grid Calculation
+      const year = calendarDate.getFullYear();
+      const month = calendarDate.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const firstDayOfMonth = new Date(year, month, 1).getDay();
+      const monthDays: ({ dateStr: string, dayNum: number, isToday: boolean } | null)[] = [];
+      
+      for(let i=0; i<firstDayOfMonth; i++) monthDays.push(null);
+      for(let i=1; i<=daysInMonth; i++) {
+          const d = new Date(year, month, i);
+          const dateStr = getLocalDateString(d);
+          monthDays.push({ dateStr, dayNum: i, isToday: dateStr === todayStr });
+      }
+
+      const pixelPerHour = 50;
+      const startHour = 0;
+      const endHour = 24;
+
+      return (
+          <div className="flex flex-col md:flex-row h-full overflow-hidden bg-background animate-in fade-in">
+              {/* Main Calendar Area */}
+              <div className="flex-1 flex flex-col min-w-0 bg-background order-2 md:order-1">
+                  {/* Header Toolbar */}
+                  <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-background shrink-0">
+                      <div className="flex items-center gap-2">
+                          <button onClick={() => navDate(-1)} className="p-1 hover:bg-notion-hover rounded-sm"><ChevronLeft className="w-4 h-4" /></button>
+                          <button onClick={goToday} className="px-2 py-1 text-xs font-medium border border-border rounded-sm hover:bg-notion-hover transition-colors">Today</button>
+                          <button onClick={() => navDate(1)} className="p-1 hover:bg-notion-hover rounded-sm"><ChevronRight className="w-4 h-4" /></button>
+                          <span className="text-sm font-bold ml-2 w-32 text-center">
+                              {calendarViewMode === 'month' 
+                                  ? calendarDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                                  : visibleDates.length > 0 
+                                      ? visibleDates[0].dayName + ' ' + visibleDates[0].dayNum + (visibleDates.length > 1 ? ' - ' + visibleDates[visibleDates.length-1].dayNum : '')
+                                      : ''
+                              }
+                          </span>
+                      </div>
+                      <div className="flex bg-secondary p-0.5 rounded-md">
+                          <button onClick={() => setCalendarViewMode('3day')} className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${calendarViewMode === '3day' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>3 Days</button>
+                          <button onClick={() => setCalendarViewMode('week')} className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${calendarViewMode === 'week' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Week</button>
+                          <button onClick={() => setCalendarViewMode('month')} className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${calendarViewMode === 'month' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Month</button>
+                      </div>
+                  </div>
+
+                  {/* Calendar Grid Content */}
+                  <div className="flex-1 overflow-hidden relative flex flex-col">
+                      {calendarViewMode === 'week' || calendarViewMode === '3day' ? (
+                          <div className="flex flex-col flex-1 min-h-0 relative select-none">
+                              {/* Header Row */}
+                              <div className="flex border-b border-border bg-background shrink-0">
+                                  <div className="w-14 shrink-0 border-r border-border bg-background/50" />
+                                  {visibleDates.map((d) => (
+                                      <div key={d.dateStr} className={`flex-1 text-center py-2 border-r border-border last:border-0 ${d.isToday ? 'bg-notion-blue/5' : ''}`}>
+                                          <div className={`text-[10px] font-bold uppercase tracking-wider ${d.isToday ? 'text-notion-blue' : 'text-muted-foreground'}`}>{d.dayName}</div>
+                                          <div className={`text-lg font-semibold leading-none ${d.isToday ? 'text-notion-blue' : 'text-foreground'}`}>{d.dayNum}</div>
+                                      </div>
+                                  ))}
+                              </div>
+
+                              {/* No Time Section - Separate Row */}
+                              <div className="flex border-b border-border bg-background shrink-0">
+                                  <div className="w-14 shrink-0 border-r border-border bg-background/50 flex items-center justify-center p-1">
+                                      <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider text-center leading-tight">No<br/>Time</span>
+                                  </div>
+                                  {visibleDates.map((d) => {
+                                      const allDayTasks = tasks.filter(t => t.dueDate === d.dateStr && !t.completed && !t.time);
+                                      return (
+                                          <div 
+                                              key={`notime-${d.dateStr}`} 
+                                              className={`flex-1 border-r border-border last:border-0 p-1 space-y-1 ${d.isToday ? 'bg-notion-blue/5' : ''}`}
+                                              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                                              onDrop={(e) => handleDrop(e, d.dateStr, undefined)}
+                                          >
+                                               {allDayTasks.map(t => (
+                                                  <div key={t.id} onClick={() => openEditModal(t)} draggable onDragStart={(e) => handleDragStart(e, t.id)} className="bg-background border border-border rounded-sm px-1.5 py-0.5 text-[10px] shadow-sm hover:border-notion-blue cursor-pointer whitespace-normal break-words leading-tight">{t.title}</div>
+                                              ))}
+                                              {allDayTasks.length === 0 && <div className="h-4" />} {/* Min height spacer */}
+                                          </div>
+                                      );
+                                  })}
+                              </div>
+                              
+                              {/* Scrollable Time Grid */}
+                              <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+                                  <div className="flex relative" style={{ height: (endHour - startHour) * pixelPerHour }}>
+                                      {/* Time Labels */}
+                                      <div className="w-14 shrink-0 border-r border-border bg-background sticky left-0 z-20">
+                                          {Array.from({length: endHour - startHour}).map((_, i) => (
+                                              <div 
+                                                key={i} 
+                                                className={`absolute w-full text-right pr-2 text-[10px] text-muted-foreground transform ${i === 0 ? '' : '-translate-y-1/2'}`} 
+                                                style={{ top: i * pixelPerHour }}
+                                              >
+                                                  {(startHour + i) === 0 ? '12 AM' : (startHour + i) < 12 ? `${startHour + i} AM` : (startHour + i) === 12 ? '12 PM' : `${(startHour + i) - 12} PM`}
+                                              </div>
+                                          ))}
+                                      </div>
+
+                                      {/* Days Columns */}
+                                      {visibleDates.map((d, i) => {
+                                          const dayTasks = tasks.filter(t => t.dueDate === d.dateStr && !t.completed);
+                                          const scheduledTasks = dayTasks.filter(t => t.time);
+                                          
+                                          const daySessions = sessions.filter(s => getLocalDateString(new Date(s.startTime)) === d.dateStr);
+                                          
+                                          const runningTask = tasks.find(t => !!t.timerStart);
+                                          let activeSessionDisplay = null;
+                                          if (runningTask && runningTask.timerStart && getLocalDateString(new Date(runningTask.timerStart)) === d.dateStr) {
+                                              activeSessionDisplay = { startTime: runningTask.timerStart, endTime: null, taskId: runningTask.id };
+                                          }
+
+                                          return (
+                                              <div 
+                                                  key={d.dateStr} 
+                                                  onDragOver={handleDragOver}
+                                                  onDrop={(e) => {
+                                                      const rect = e.currentTarget.getBoundingClientRect();
+                                                      const offsetY = e.clientY - rect.top;
+                                                      const minutes = (offsetY / pixelPerHour) * 60;
+                                                      const hour = Math.floor(minutes / 60);
+                                                      const min = Math.floor(minutes % 60);
+                                                      const timeStr = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+                                                      handleDrop(e, d.dateStr, timeStr);
+                                                  }}
+                                                  className={`flex-1 relative border-r border-border last:border-0 ${d.isToday ? 'bg-notion-blue/5' : ''}`}
+                                              >
+                                                  {Array.from({length: endHour - startHour}).map((_, h) => (
+                                                      <div key={h} className="absolute w-full border-t border-border/40 pointer-events-none" style={{ top: h * pixelPerHour }} />
+                                                  ))}
+
+                                                  {scheduledTasks.map(t => {
+                                                      if (!t.time) return null;
+                                                      const [h, m] = t.time.split(':').map(Number);
+                                                      const top = (h * 60 + m) * (pixelPerHour / 60);
+                                                      const height = (t.plannedTime || 30) * (pixelPerHour / 60);
+                                                      return (
+                                                          <div 
+                                                              key={t.id}
+                                                              onClick={(e) => { e.stopPropagation(); openEditModal(t); }}
+                                                              draggable
+                                                              onDragStart={(e) => handleDragStart(e, t.id)}
+                                                              className="absolute left-1 right-1 rounded-sm bg-notion-bg_blue border border-notion-blue/30 px-1.5 py-0.5 text-[10px] cursor-pointer hover:brightness-95 z-10 overflow-hidden flex flex-col shadow-sm"
+                                                              style={{ top, height: Math.max(height, 20) }}
+                                                              title={`${t.title} (${t.time})`}
+                                                          >
+                                                              <span className="font-semibold text-notion-blue break-words leading-tight">{t.title}</span>
+                                                              {height > 30 && <span className="text-notion-blue/70">{t.time}</span>}
+                                                          </div>
+                                                      );
+                                                  })}
+
+                                                  {[...daySessions, ...(activeSessionDisplay ? [activeSessionDisplay] : [])].map((s, idx) => {
+                                                      const start = new Date(s.startTime);
+                                                      const startMinutes = start.getHours() * 60 + start.getMinutes();
+                                                      const top = startMinutes * (pixelPerHour / 60);
+                                                      let durationMinutes = 0;
+                                                      let isRunning = false;
+                                                      if ('duration' in s && s.duration) durationMinutes = s.duration / 60;
+                                                      else if (s.endTime) durationMinutes = (new Date(s.endTime).getTime() - start.getTime()) / 60000;
+                                                      else { isRunning = true; durationMinutes = (now - start.getTime()) / 60000; }
+                                                      const height = durationMinutes * (pixelPerHour / 60);
+                                                      return (
+                                                          <div key={s.id || 'running'} className={`absolute left-4 right-4 rounded-sm border px-1.5 py-0.5 text-[10px] z-10 pointer-events-none opacity-60 ${isRunning ? 'bg-notion-green/20 border-notion-green border-dashed animate-pulse' : 'bg-notion-bg_gray border-border'}`} style={{ top, height: Math.max(height, 10) }} />
+                                                      );
+                                                  })}
+                                              </div>
+                                          );
+                                      })}
+                                  </div>
+                              </div>
+                          </div>
+                      ) : (
+                          // Month View
+                          <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+                              <div className="grid grid-cols-7 gap-1 auto-rows-fr">
+                                  {WEEKDAYS.map(day => (
+                                      <div key={day} className="text-center text-[10px] font-bold text-muted-foreground uppercase tracking-wider py-1">{day}</div>
+                                  ))}
+                                  {monthDays.map((d, i) => {
+                                      if (!d) return <div key={`empty-${i}`} className="min-h-[100px] bg-secondary/5 rounded-sm" />;
+                                      const dayTasks = tasks.filter(t => t.dueDate === d.dateStr && !t.completed);
+                                      return (
+                                          <div 
+                                              key={d.dateStr}
+                                              onDragOver={handleDragOver}
+                                              onDrop={(e) => handleDrop(e, d.dateStr)}
+                                              className={`min-h-[100px] border rounded-sm p-1 flex flex-col gap-1 transition-colors ${d.isToday ? 'border-notion-blue bg-notion-blue/5' : 'border-border bg-background hover:bg-notion-hover'}`}
+                                          >
+                                              <div className={`text-xs font-semibold mb-1 ${d.isToday ? 'text-notion-blue' : 'text-muted-foreground'}`}>{d.dayNum}</div>
+                                              <div className="flex-1 space-y-1">
+                                                  {dayTasks.map(t => (
+                                                      <div 
+                                                          key={t.id} 
+                                                          draggable
+                                                          onDragStart={(e) => handleDragStart(e, t.id)}
+                                                          onClick={(e) => { e.stopPropagation(); openEditModal(t); }}
+                                                          className={`text-[9px] px-1 py-0.5 rounded-sm truncate cursor-pointer shadow-sm border border-transparent hover:border-black/10 ${t.time ? 'bg-notion-bg_blue text-notion-blue' : 'bg-secondary text-foreground'}`}
+                                                      >
+                                                          {t.time ? <span className="font-bold opacity-75 mr-1">{t.time}</span> : null}
+                                                          {t.title}
+                                                      </div>
+                                                  ))}
+                                              </div>
+                                          </div>
+                                      );
+                                  })}
+                              </div>
+                          </div>
+                      )}
+                  </div>
+              </div>
+
+              {/* Holding Area Sidebar (Desktop) - Moved to Right */}
+              <div 
+                  className="hidden md:flex w-64 flex-col border-l border-border bg-secondary/5 shrink-0 order-1 md:order-2"
+                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                  onDrop={async (e) => {
+                      e.preventDefault();
+                      const taskId = e.dataTransfer.getData('taskId');
+                      if (!taskId) return;
+                      
+                      // Check if already sidebar task to avoid unnecessary update, though harmless
+                      const task = tasks.find(t => t.id === taskId);
+                      if (!task) return;
+
+                      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, dueDate: '', time: undefined } : t));
+                      await supabase.from('tasks').update({ due_date: null, time: null }).eq('id', taskId);
+                  }}
+              >
+                  <div className="p-3 border-b border-border bg-background/50 backdrop-blur-sm">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Unscheduled / Overdue</h3>
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
+                      {sidebarTasks.length === 0 && (
+                          <div className="text-center py-8 text-xs text-muted-foreground italic">All caught up!</div>
+                      )}
+                      {sidebarTasks.map(t => (
+                          <div 
+                              key={t.id}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, t.id)}
+                              className={`bg-background border rounded-sm p-2 shadow-sm cursor-grab active:cursor-grabbing hover:border-notion-blue transition-colors group ${t.dueDate && t.dueDate < todayStr ? 'border-notion-red/30' : 'border-border'}`}
+                          >
+                              <div className="flex items-start justify-between gap-2">
+                                  <span className="text-sm font-medium line-clamp-2 leading-tight">{t.title}</span>
+                                  {t.dueDate && t.dueDate < todayStr && (
+                                      <span className="text-[10px] text-notion-red font-bold shrink-0">Overdue</span>
+                                  )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-1.5">
+                                  <span className={`text-[9px] px-1 rounded-sm border ${t.priority === 'Urgent' ? 'bg-notion-bg_red border-notion-red text-notion-red' : 'bg-secondary border-transparent text-muted-foreground'}`}>{t.priority}</span>
+                                  {t.time && <span className="text-[9px] text-muted-foreground flex items-center gap-0.5"><Clock className="w-2.5 h-2.5"/> {t.time}</span>}
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+          </div>
+      );
+  };
+
   const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => {
     return (
     <div className="space-y-6">
@@ -606,7 +949,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
           return (
             <div key={group.title + gIdx} className="space-y-0">
-              {/* Group Header - Same as previous */}
+              {/* Group Header */}
               {group.title && (
                 <div className="px-2 py-2 flex items-center justify-between gap-2 border-b border-border">
                   <div className="flex items-center gap-2">
@@ -737,9 +1080,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                               ))}
                               <div className="flex items-center gap-2 pt-1">
                                 <Plus className="w-3.5 h-3.5 text-muted-foreground" />
-                                <input type="text" placeholder="New subtask" className="bg-transparent border-none p-0 text-xs text-foreground focus:ring-0 placeholder:text-muted-foreground" onKeyDown={(e) => { if (e.key === 'Enter') { const val = e.currentTarget.value.trim(); if (val) { addSubtaskToTask(task.id, val); e.currentTarget.value = ''; } } }} onClick={e => e.stopPropagation()} />
-                              </div>
-                          </div>
+                                <input type="text" placeholder="New subtask" className="bg-transparent border-none p-0 text-xs text-foreground focus:ring-0 placeholder:text-muted-foreground" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addEditSubtask(e.currentTarget.value); e.currentTarget.value = ''; } }} /></div>
+                            </div>
                       )}
                     </div>
                   );
@@ -779,6 +1121,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                 <div className="flex flex-row items-center justify-between gap-2 sm:gap-4 border-b border-border pb-4">
                     <div className="flex items-center gap-1">
                         <button onClick={() => setViewLayout('list')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'list' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>List</button>
+                        <button onClick={() => setViewLayout('calendar')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'calendar' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Calendar</button>
                         <button onClick={() => setViewLayout('tracker')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'tracker' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Tracker</button>
                     </div>
                     <div className="flex items-center gap-2">
@@ -792,8 +1135,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                 </div>
              </div>
              {/* Content */}
-             <div key={`${viewLayout}-${viewMode}`} className={`px-4 md:px-8 pb-20 ${transitionDirection === 'right' ? 'animate-slide-in-from-right-12' : transitionDirection === 'left' ? 'animate-slide-in-from-left-12' : ''}`}>
-                {viewLayout === 'list' ? ( viewMode === 'active' ? renderListGroups(activeTasksGroups) : renderListGroups(completedTasksGroups) ) : renderTrackerView()}
+             <div key={`${viewLayout}-${viewMode}`} className={`px-4 md:px-8 pb-20 ${transitionDirection === 'right' ? 'animate-slide-in-from-right-12' : transitionDirection === 'left' ? 'animate-slide-in-from-left-12' : ''} h-full`}>
+                {viewLayout === 'list' ? ( viewMode === 'active' ? renderListGroups(activeTasksGroups) : renderListGroups(completedTasksGroups) ) : viewLayout === 'calendar' ? renderCalendarView() : renderTrackerView()}
              </div>
          </div>
       </div>
