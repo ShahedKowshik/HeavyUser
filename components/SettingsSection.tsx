@@ -335,7 +335,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                                     autoFocus
                                                     value={editTagLabel}
                                                     onChange={(e) => setEditTagLabel(e.target.value)}
-                                                    className="flex-1 w-24 text-sm px-1 outline-none bg-transparent min-w-0"
+                                                    className="flex-1 w-24 text-sm px-1 outline-none bg-transparent min-w-0 font-semibold"
                                                 />
                                                 <div className="relative group shrink-0">
                                                     <button 
@@ -365,10 +365,10 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                         <button 
                                             key={tag.id} 
                                             onClick={() => { setEditingTagId(tag.id); setEditTagLabel(tag.label); setEditTagColor(tag.color); }}
-                                            className="group flex items-center gap-1.5 px-2 py-1 rounded-sm text-sm font-medium border border-transparent hover:border-border transition-all hover:shadow-sm"
+                                            className="group flex items-center gap-1.5 px-2 py-1 rounded-sm text-sm font-semibold border border-black/10 transition-all hover:shadow-sm"
                                             style={{ backgroundColor: tag.color, color: textColor }}
                                         >
-                                            <span className="truncate max-w-[150px]">{tag.label}</span>
+                                            <span className="">{tag.label}</span>
                                             <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-50 transition-opacity shrink-0" />
                                         </button>
                                     );

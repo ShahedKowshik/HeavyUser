@@ -14,5 +14,6 @@ export function getContrastColor(hexColor: string) {
   const b = parseInt(hexColor.substring(5, 7), 16);
   const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
   
-  return yiq >= 128 ? '#000000' : '#FFFFFF';
+  // Adjusted threshold to 150 to prefer black text on mid-tone backgrounds for better readability
+  return yiq >= 150 ? '#000000' : '#FFFFFF';
 }

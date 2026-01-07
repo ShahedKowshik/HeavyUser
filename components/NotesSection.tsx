@@ -625,12 +625,12 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                        </div>
                        <div className="flex items-center gap-2 ml-5.5">
                            {note.tags && note.tags.length > 0 ? (
-                               <div className="flex gap-1 overflow-hidden">
+                               <div className="flex gap-1 flex-wrap">
                                     {note.tags.map(tagId => {
                                         const tag = tags.find(t => t.id === tagId);
                                         if (!tag) return null;
                                         return (
-                                            <span key={tagId} className="text-[10px] px-1 rounded-sm truncate max-w-[60px]" style={{ backgroundColor: tag.color + '40', color: tag.color }}>
+                                            <span key={tagId} className="text-[10px] px-1.5 py-0.5 rounded-sm font-semibold border border-black/10" style={{ backgroundColor: tag.color, color: getContrastColor(tag.color) }}>
                                                 {tag.label}
                                             </span>
                                         );
@@ -733,7 +733,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
                                      const tag = tags.find(t => t.id === tagId);
                                      if (!tag) return null;
                                      return (
-                                         <span key={tagId} className="px-1.5 py-0.5 rounded-sm text-xs font-medium border border-black/5 flex items-center gap-1" style={{ backgroundColor: tag.color, color: getContrastColor(tag.color) }}>
+                                         <span key={tagId} className="px-1.5 py-0.5 rounded-sm text-xs font-semibold border border-black/10 flex items-center gap-1" style={{ backgroundColor: tag.color, color: getContrastColor(tag.color) }}>
                                              {tag.label}
                                              <button onClick={() => toggleEditorTag(tagId)} className="hover:opacity-50"><X className="w-3 h-3" /></button>
                                          </span>
