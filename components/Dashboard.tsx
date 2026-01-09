@@ -1,14 +1,13 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause, BarChart3, CheckSquare, StickyNote, MoreHorizontal, ChevronDown, Ban, WifiOff } from 'lucide-react';
+import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause, BarChart3, CheckSquare, StickyNote, MoreHorizontal, ChevronDown, Ban, WifiOff } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
 import JournalSection from './JournalSection';
 import HabitSection from './HabitSection';
 import NotesSection from './NotesSection';
-import RequestFeatureSection from './RequestFeatureSection';
-import ReportBugSection from './ReportBugSection';
 import { supabase } from '../lib/supabase';
 import { decryptData } from '../lib/crypto';
 import { AppIcon } from './AppIcon';
@@ -125,7 +124,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     const enabled = user.enabledFeatures || ['tasks', 'habit', 'journal', 'notes'];
     if (typeof window !== 'undefined') {
         const savedTab = localStorage.getItem('heavyuser_active_tab') as AppTab;
-        if (savedTab && (enabled.includes(savedTab) || ['settings', 'request_feature', 'report_bug'].includes(savedTab))) return savedTab;
+        if (savedTab && (enabled.includes(savedTab) || ['settings'].includes(savedTab))) return savedTab;
     }
     return enabled.includes('tasks') ? 'tasks' : (enabled[0] as AppTab) || 'settings';
   });
@@ -255,7 +254,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   useEffect(() => { if (sessions.length > 0) saveToLocal('sessions', sessions); }, [sessions]);
 
   useEffect(() => { localStorage.setItem('heavyuser_active_tab', activeTab); }, [activeTab]);
-  useEffect(() => { if (!['settings', 'request_feature', 'report_bug'].includes(activeTab) && !enabledModules.includes(activeTab)) { setActiveTab(enabledModules.length > 0 ? (enabledModules[0] as AppTab) : 'settings'); } }, [enabledModules, activeTab]);
+  useEffect(() => { if (!['settings'].includes(activeTab) && !enabledModules.includes(activeTab)) { setActiveTab(enabledModules.length > 0 ? (enabledModules[0] as AppTab) : 'settings'); } }, [enabledModules, activeTab]);
   useEffect(() => { const interval = setInterval(() => setStatsTicker(prev => prev + 1), 60000); return () => clearInterval(interval); }, []);
 
   const toggleSidebar = () => { setIsSidebarCollapsed(prev => { const newState = !prev; localStorage.setItem('heavyuser_sidebar_collapsed', String(newState)); return newState; }); };
@@ -392,8 +391,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       case 'habit': return <HabitSection habits={habits} setHabits={setHabits} userId={userId} dayStartHour={userSettings.dayStartHour} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'journal': return <JournalSection journals={journals} setJournals={setJournals} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'notes': return <NotesSection notes={notes} setNotes={setNotes} folders={folders} setFolders={setFolders} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
-      case 'request_feature': return <RequestFeatureSection userId={userId} />;
-      case 'report_bug': return <ReportBugSection userId={userId} />;
       case 'settings': return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} tags={tags} setTags={setTags} isOnline={isOnline} />;
       default: return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} />;
     }
@@ -415,10 +412,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           
           <div className="shrink-0 mb-2 px-2 space-y-0.5 border-t border-border/40 pt-2">
                 <NavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
-                
-               {!isSidebarCollapsed && <div className="px-3 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider opacity-70 mt-1">Support</div>}
-                <NavItem id="request_feature" label="Request Feature" icon={Lightbulb} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
-                <NavItem id="report_bug" label="Report Bug" icon={Bug} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
           </div>
 
           {!isSidebarCollapsed && (

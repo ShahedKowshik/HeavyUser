@@ -49,6 +49,38 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Initialize UserJot
+  useEffect(() => {
+    const win = window as any;
+    if (win.uj) {
+      win.uj.init('cmk7h3eoq00dw14qj3ijwg5va', {
+        widget: true,
+        position: 'right',
+        theme: 'auto'
+      });
+    }
+  }, []);
+
+  // Identify User for UserJot
+  useEffect(() => {
+    if (currentUser) {
+      const win = window as any;
+      if (win.uj) {
+        const nameParts = currentUser.name.split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+
+        win.uj.identify({
+          id: currentUser.id,
+          email: currentUser.email,
+          firstName: firstName,
+          lastName: lastName,
+          avatar: currentUser.profilePicture
+        });
+      }
+    }
+  }, [currentUser]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#faf9f8] flex items-center justify-center">

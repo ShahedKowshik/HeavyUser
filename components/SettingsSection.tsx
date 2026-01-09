@@ -1,8 +1,9 @@
+
 import React, { useState } from 'react';
 import { 
   User, Trash2, TriangleAlert, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, 
   Lock, Moon, Tag as TagIcon, Plus, Pencil, Code, LayoutGrid, 
-  ListTodo, Zap, Book, File, Shield, Database, ChevronRight, Info, CheckSquare, StickyNote, Lightbulb, Bug, WifiOff
+  ListTodo, Zap, Book, File, Shield, Database, ChevronRight, Info, CheckSquare, StickyNote, Bug, WifiOff
 } from 'lucide-react';
 import { UserSettings, AppTab, Tag } from '../types';
 import { supabase } from '../lib/supabase';
@@ -30,7 +31,7 @@ const PRESET_COLORS = [
   '#e0e7ff', '#a5b4fc', '#818cf8', '#6366f1'
 ];
 
-type Category = 'account' | 'workspace' | 'support' | 'danger';
+type Category = 'account' | 'workspace' | 'danger';
 
 const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, onLogout, onNavigate, tags, setTags, isOnline = true }) => {
   const [activeCategory, setActiveCategory] = useState<Category>('workspace');
@@ -176,18 +177,6 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                 </button>
             </div>
 
-            {/* Mobile Only: Support Tab since bottom nav hides sidebar */}
-            <div className="contents md:hidden">
-                <button 
-                    onClick={() => isOnline && setActiveCategory('support')}
-                    disabled={!isOnline}
-                    className={`whitespace-nowrap w-auto md:w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'support' ? 'bg-notion-bg_blue text-notion-blue font-medium shadow-sm md:shadow-none' : 'text-foreground hover:bg-notion-hover'} ${!isOnline ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
-                >
-                    <Info className={`w-4 h-4 ${activeCategory === 'support' ? 'text-notion-blue' : 'text-muted-foreground'}`} /> 
-                    <span>Support</span>
-                </button>
-            </div>
-
             <div className="contents md:block md:space-y-1">
                 <div className="hidden md:block px-3 py-1 text-xs font-semibold text-red-500 uppercase tracking-wider mb-1">Danger Zone</div>
                 <button 
@@ -217,7 +206,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                 </div>
             )}
 
-            {!isOnline && (activeCategory === 'account' || activeCategory === 'support' || activeCategory === 'danger') && (
+            {!isOnline && (activeCategory === 'account' || activeCategory === 'danger') && (
                 <div className="max-w-3xl flex flex-col items-center justify-center py-20 text-center space-y-4 animate-in fade-in">
                     <div className="p-4 bg-notion-bg_gray rounded-full">
                         <WifiOff className="w-12 h-12 text-muted-foreground" />
@@ -403,41 +392,6 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                     );
                                 })}
                             </div>
-                        </div>
-                    </div>
-                )}
-
-                {activeCategory === 'support' && isOnline && (
-                    <div className="space-y-6 animate-in fade-in">
-                        <h2 className="text-lg font-medium text-foreground border-b border-border pb-2 mb-4">Support & Feedback</h2>
-                        <div className="grid grid-cols-1 gap-4">
-                            <button 
-                                onClick={() => onNavigate('request_feature')}
-                                className="flex items-center gap-4 p-4 border border-border rounded-lg bg-background hover:bg-notion-hover transition-colors text-left"
-                            >
-                                <div className="p-3 bg-notion-bg_blue text-notion-blue rounded-full">
-                                    <Lightbulb className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <h3 className="font-semibold text-foreground">Request Feature</h3>
-                                    <p className="text-xs text-muted-foreground">Have an idea? Let us know.</p>
-                                </div>
-                                <ChevronRight className="w-5 h-5 text-muted-foreground ml-auto" />
-                            </button>
-
-                            <button 
-                                onClick={() => onNavigate('report_bug')}
-                                className="flex items-center gap-4 p-4 border border-border rounded-lg bg-background hover:bg-notion-hover transition-colors text-left"
-                            >
-                                <div className="p-3 bg-notion-bg_red text-notion-red rounded-full">
-                                    <Bug className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <h3 className="font-semibold text-foreground">Report Bug</h3>
-                                    <p className="text-xs text-muted-foreground">Found an issue? Tell us.</p>
-                                </div>
-                                <ChevronRight className="w-5 h-5 text-muted-foreground ml-auto" />
-                            </button>
                         </div>
                     </div>
                 )}
