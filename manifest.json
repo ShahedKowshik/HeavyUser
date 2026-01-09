@@ -2,13 +2,15 @@
 {
   "name": "HeavyUser",
   "short_name": "HeavyUser",
-  "id": "/",
-  "description": "An all-in-one productivity suite for high-performers to manage tasks, habits, and journals in one unified space.",
+  "id": "com.heavyuser.pwa.v1",
+  "description": "All-in-one productivity suite for tasks, habits, and journals.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0046ff",
   "theme_color": "#ffffff",
   "orientation": "portrait",
+  "categories": ["productivity", "utilities"],
   "icons": [
     {
       "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230046ff'/><path d='M25 52 L42 69' stroke='white' stroke-width='16' stroke-linecap='square' fill='none'/><path d='M42 69 L75 28' stroke='%23ff8040' stroke-width='16' stroke-linecap='square' fill='none'/></svg>",
@@ -17,16 +19,10 @@
       "purpose": "any"
     },
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230046ff'/><g transform='scale(0.8) translate(12.5, 12.5)'><path d='M25 52 L42 69' stroke='white' stroke-width='16' stroke-linecap='square' fill='none'/><path d='M42 69 L75 28' stroke='%23ff8040' stroke-width='16' stroke-linecap='square' fill='none'/></g></svg>",
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230046ff'/><g transform='scale(0.6) translate(33.3, 33.3)'><path d='M25 52 L42 69' stroke='white' stroke-width='16' stroke-linecap='square' fill='none'/><path d='M42 69 L75 28' stroke='%23ff8040' stroke-width='16' stroke-linecap='square' fill='none'/></g></svg>",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "maskable"
-    },
-    {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230046ff'/><g transform='scale(0.8) translate(12.5, 12.5)'><path d='M25 52 L42 69' stroke='white' stroke-width='16' stroke-linecap='square' fill='none'/><path d='M42 69 L75 28' stroke='%23ff8040' stroke-width='16' stroke-linecap='square' fill='none'/></g></svg>",
-      "sizes": "192x192 512x512",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
     }
   ]
 }
