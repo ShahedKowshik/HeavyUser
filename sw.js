@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'heavyuser-v4';
+const CACHE_NAME = 'heavyuser-v5';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
