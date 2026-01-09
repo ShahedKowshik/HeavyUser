@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save, SkipForward, CircleCheck, ArrowLeft, Clock, MoreHorizontal, Flag } from 'lucide-react';
 import { Habit, Tag } from '../types';
@@ -795,16 +796,18 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                         </div>
                     </div>
 
-                    {/* Trend Chart Card */}
-                    <div className="h-56 shrink-0 bg-background border border-border rounded-lg p-4 md:p-5 flex flex-col shadow-sm overflow-hidden">
-                        <div className="flex items-center gap-2 mb-2 shrink-0">
-                            <BarChart3 className="w-5 h-5 text-muted-foreground" />
-                            <h3 className="text-base font-semibold">30-Day Trend</h3>
+                    {/* Trend Chart Card - Only for Counter Habits */}
+                    {detailHabit.useCounter && (
+                        <div className="h-56 shrink-0 bg-background border border-border rounded-lg p-4 md:p-5 flex flex-col shadow-sm overflow-hidden">
+                            <div className="flex items-center gap-2 mb-2 shrink-0">
+                                <BarChart3 className="w-5 h-5 text-muted-foreground" />
+                                <h3 className="text-base font-semibold">30-Day Trend</h3>
+                            </div>
+                            <div className="flex-1 min-h-0 w-full pt-2">
+                                <HabitTrendChart habit={detailHabit} />
+                            </div>
                         </div>
-                        <div className="flex-1 min-h-0 w-full pt-2">
-                             <HabitTrendChart habit={detailHabit} />
-                        </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* Right Panel: Calendar & History */}
