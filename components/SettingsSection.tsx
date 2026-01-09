@@ -1,9 +1,8 @@
-
 import React, { useState } from 'react';
 import { 
   User, Trash2, TriangleAlert, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, 
   Lock, Moon, Tag as TagIcon, Plus, Pencil, Code, LayoutGrid, 
-  ListTodo, Zap, Book, File, Shield, Database, ChevronRight, Info, CheckSquare, StickyNote, Lightbulb, Bug
+  ListTodo, Zap, Book, File, Shield, Database, ChevronRight, Info, CheckSquare, StickyNote, Lightbulb, Bug, WifiOff
 } from 'lucide-react';
 import { UserSettings, AppTab, Tag } from '../types';
 import { supabase } from '../lib/supabase';
@@ -17,6 +16,7 @@ interface SettingsSectionProps {
   onNavigate: (tab: AppTab) => void;
   tags: Tag[];
   setTags: React.Dispatch<React.SetStateAction<Tag[]>>;
+  isOnline?: boolean;
 }
 
 const PRESET_COLORS = [
@@ -32,8 +32,8 @@ const PRESET_COLORS = [
 
 type Category = 'account' | 'workspace' | 'support' | 'danger';
 
-const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, onLogout, onNavigate, tags, setTags }) => {
-  const [activeCategory, setActiveCategory] = useState<Category>('account');
+const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, onLogout, onNavigate, tags, setTags, isOnline = true }) => {
+  const [activeCategory, setActiveCategory] = useState<Category>('workspace');
   
   // Profile State
   const [localName, setLocalName] = useState(settings.userName);
@@ -60,6 +60,11 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
   const [editTagColor, setEditTagColor] = useState('');
 
   const handleSaveProfile = () => {
+    if (!isOnline) {
+      setToast('Cannot update settings offline');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
     onUpdate({ 
         ...settings, 
         userName: localName, 
@@ -92,12 +97,14 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
     };
     setTags([...tags, newTag]);
     setNewTagLabel('');
-    await supabase.from('tags').insert({
-      id: newTag.id,
-      user_id: settings.userId,
-      label: encryptData(newTag.label),
-      color: newTag.color
-    });
+    if (isOnline) {
+      await supabase.from('tags').insert({
+        id: newTag.id,
+        user_id: settings.userId,
+        label: encryptData(newTag.label),
+        color: newTag.color
+      });
+    }
   };
 
   const handleUpdateTag = async () => {
@@ -105,10 +112,12 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
     const updatedTags = tags.map(t => t.id === editingTagId ? { ...t, label: editTagLabel, color: editTagColor } : t);
     setTags(updatedTags);
     
-    await supabase.from('tags').update({
-        label: encryptData(editTagLabel),
-        color: editTagColor
-    }).eq('id', editingTagId);
+    if (isOnline) {
+      await supabase.from('tags').update({
+          label: encryptData(editTagLabel),
+          color: editTagColor
+      }).eq('id', editingTagId);
+    }
     
     setEditingTagId(null);
   };
@@ -116,11 +125,12 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
   const handleDeleteTag = async (id: string) => {
       if (!confirm("Delete this label?")) return;
       setTags(tags.filter(t => t.id !== id));
-      await supabase.from('tags').delete().eq('id', id);
+      if (isOnline) await supabase.from('tags').delete().eq('id', id);
       setEditingTagId(null);
   };
 
   const handleFinalDelete = async () => {
+    if (!isOnline) return;
     if (deleteKeyword.toLowerCase() === 'delete') {
       setIsDeleting(true);
       const userId = settings.userId;
@@ -146,8 +156,9 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
             <div className="contents md:block md:space-y-1">
                 <div className="hidden md:block px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Account</div>
                 <button 
-                    onClick={() => setActiveCategory('account')}
-                    className={`whitespace-nowrap w-auto md:w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'account' ? 'bg-notion-bg_blue text-notion-blue font-medium shadow-sm md:shadow-none' : 'text-foreground hover:bg-notion-hover'}`}
+                    onClick={() => isOnline && setActiveCategory('account')}
+                    disabled={!isOnline}
+                    className={`whitespace-nowrap w-auto md:w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'account' ? 'bg-notion-bg_blue text-notion-blue font-medium shadow-sm md:shadow-none' : 'text-foreground hover:bg-notion-hover'} ${!isOnline ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
                 >
                     <User className={`w-4 h-4 ${activeCategory === 'account' ? 'text-notion-blue' : 'text-muted-foreground'}`} /> 
                     <span>My Account</span>
@@ -168,8 +179,9 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
             {/* Mobile Only: Support Tab since bottom nav hides sidebar */}
             <div className="contents md:hidden">
                 <button 
-                    onClick={() => setActiveCategory('support')}
-                    className={`whitespace-nowrap w-auto md:w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'support' ? 'bg-notion-bg_blue text-notion-blue font-medium shadow-sm md:shadow-none' : 'text-foreground hover:bg-notion-hover'}`}
+                    onClick={() => isOnline && setActiveCategory('support')}
+                    disabled={!isOnline}
+                    className={`whitespace-nowrap w-auto md:w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'support' ? 'bg-notion-bg_blue text-notion-blue font-medium shadow-sm md:shadow-none' : 'text-foreground hover:bg-notion-hover'} ${!isOnline ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
                 >
                     <Info className={`w-4 h-4 ${activeCategory === 'support' ? 'text-notion-blue' : 'text-muted-foreground'}`} /> 
                     <span>Support</span>
@@ -179,8 +191,9 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
             <div className="contents md:block md:space-y-1">
                 <div className="hidden md:block px-3 py-1 text-xs font-semibold text-red-500 uppercase tracking-wider mb-1">Danger Zone</div>
                 <button 
-                    onClick={() => setActiveCategory('danger')}
-                    className={`whitespace-nowrap w-auto md:w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'danger' ? 'bg-red-50 text-red-600 font-medium shadow-sm md:shadow-none' : 'text-red-600 hover:bg-red-50'}`}
+                    onClick={() => isOnline && setActiveCategory('danger')}
+                    disabled={!isOnline}
+                    className={`whitespace-nowrap w-auto md:w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'danger' ? 'bg-red-50 text-red-600 font-medium shadow-sm md:shadow-none' : 'text-red-600 hover:bg-red-50'} ${!isOnline ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
                 >
                     <Trash2 className="w-4 h-4" /> 
                     <span>Delete Account</span>
@@ -188,7 +201,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
             </div>
             
             <div className="md:mt-auto md:pt-6 px-3 ml-auto md:ml-0 flex items-center">
-                 <button onClick={onLogout} className="whitespace-nowrap text-xs text-muted-foreground hover:text-foreground flex items-center gap-2 px-2 py-1.5 md:px-0">
+                 <button onClick={onLogout} disabled={!isOnline} className={`whitespace-nowrap text-xs text-muted-foreground hover:text-foreground flex items-center gap-2 px-2 py-1.5 md:px-0 ${!isOnline ? 'opacity-30' : ''}`}>
                      <LogOut className="w-3 h-3" /> 
                      <span className="hidden md:inline">Log out</span>
                      <span className="md:hidden">Log out</span>
@@ -204,8 +217,19 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                 </div>
             )}
 
+            {!isOnline && (activeCategory === 'account' || activeCategory === 'support' || activeCategory === 'danger') && (
+                <div className="max-w-3xl flex flex-col items-center justify-center py-20 text-center space-y-4 animate-in fade-in">
+                    <div className="p-4 bg-notion-bg_gray rounded-full">
+                        <WifiOff className="w-12 h-12 text-muted-foreground" />
+                    </div>
+                    <h2 className="text-xl font-bold">Offline Mode</h2>
+                    <p className="text-muted-foreground max-w-sm">This section requires an active internet connection to manage your cloud account or send feedback.</p>
+                    <button onClick={() => setActiveCategory('workspace')} className="text-notion-blue font-medium hover:underline">Back to Workspace Settings</button>
+                </div>
+            )}
+
             <div className="max-w-3xl space-y-8 md:space-y-10">
-                {activeCategory === 'account' && (
+                {activeCategory === 'account' && isOnline && (
                     <div className="space-y-8 animate-in fade-in">
                         <div>
                             <h2 className="text-lg font-medium text-foreground border-b border-border pb-2 mb-4">My Profile</h2>
@@ -383,7 +407,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                     </div>
                 )}
 
-                {activeCategory === 'support' && (
+                {activeCategory === 'support' && isOnline && (
                     <div className="space-y-6 animate-in fade-in">
                         <h2 className="text-lg font-medium text-foreground border-b border-border pb-2 mb-4">Support & Feedback</h2>
                         <div className="grid grid-cols-1 gap-4">
@@ -418,7 +442,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                     </div>
                 )}
 
-                {activeCategory === 'danger' && (
+                {activeCategory === 'danger' && isOnline && (
                     <div className="space-y-6 animate-in fade-in">
                         <div>
                             <h2 className="text-lg font-medium text-red-600 border-b border-red-100 pb-2 mb-4">Delete Workspace</h2>

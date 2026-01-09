@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause, BarChart3, CheckSquare, StickyNote, MoreHorizontal, ChevronDown, Ban } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Lightbulb, Bug, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause, BarChart3, CheckSquare, StickyNote, MoreHorizontal, ChevronDown, Ban, WifiOff } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
@@ -13,87 +13,107 @@ import { supabase } from '../lib/supabase';
 import { decryptData } from '../lib/crypto';
 import { AppIcon } from './AppIcon';
 
+// Define missing helper components for Nav and Widgets
+
 interface NavItemProps {
-  id: AppTab;
-  label: string;
-  icon: any;
-  count?: number;
-  shortcut?: string;
-  activeTab: AppTab;
-  setActiveTab: (id: AppTab) => void;
-  isSidebarCollapsed: boolean;
+    id: AppTab;
+    label: string;
+    icon: any;
+    activeTab: AppTab;
+    setActiveTab: (tab: AppTab) => void;
+    isSidebarCollapsed: boolean;
 }
 
-const NavItem: React.FC<NavItemProps> = ({ id, label, icon: Icon, count, activeTab, setActiveTab, isSidebarCollapsed }) => (
-  <button
-    onClick={() => setActiveTab(id)}
-    title={isSidebarCollapsed ? label : undefined}
-    className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-1' : 'space-x-2 px-3'} py-1 rounded-sm group min-h-[28px] ${
-      activeTab === id 
-      ? 'bg-notion-bg_blue text-notion-blue font-medium' 
-      : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground font-medium'
-    }`}
-  >
-    <Icon className={`w-[18px] h-[18px] transition-colors ${activeTab === id ? 'text-notion-blue' : 'text-muted-foreground group-hover:text-foreground'}`} />
-    {!isSidebarCollapsed && (
-        <>
-          <span className="text-sm flex-1 text-left truncate leading-tight">{label}</span>
-          {count !== undefined && count > 0 && (
-              <span className={`text-xs font-medium tabular-nums ${activeTab === id ? 'text-notion-blue' : 'text-muted-foreground'}`}>{count}</span>
-          )}
-        </>
-    )}
-  </button>
-);
+/** NavItem helper for the desktop sidebar */
+const NavItem: React.FC<NavItemProps> = ({ id, label, icon: Icon, activeTab, setActiveTab, isSidebarCollapsed }) => {
+  const isActive = activeTab === id;
+  return (
+    <button
+      onClick={() => setActiveTab(id)}
+      className={`w-full flex items-center gap-3 px-3 py-2 rounded-sm transition-colors ${
+        isActive 
+          ? 'bg-notion-hover text-notion-blue font-semibold' 
+          : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'
+      } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+      title={isSidebarCollapsed ? label : undefined}
+    >
+      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-notion-blue' : 'text-muted-foreground'}`} />
+      {!isSidebarCollapsed && <span className="text-sm truncate">{label}</span>}
+    </button>
+  );
+};
 
 interface MobileNavItemProps {
-  id: AppTab;
-  label: string;
-  icon: any;
-  activeTab: AppTab;
-  setActiveTab: (id: AppTab) => void;
+    id: AppTab;
+    label: string;
+    icon: any;
+    activeTab: AppTab;
+    setActiveTab: (tab: AppTab) => void;
 }
 
-const MobileNavItem: React.FC<MobileNavItemProps> = ({ id, label, icon: Icon, activeTab, setActiveTab }) => (
-  <button
-    onClick={() => setActiveTab(id)}
-    className={`flex-1 flex flex-col items-center justify-center py-2 transition-colors ${
-      activeTab === id ? 'text-notion-blue' : 'text-muted-foreground'
-    }`}
-  >
-    <Icon className={`w-6 h-6 mb-1 ${activeTab === id ? 'stroke-[2.5px]' : 'stroke-2'}`} />
-    <span className={`text-[10px] font-medium tracking-tight ${activeTab === id ? 'font-bold' : ''}`}>{label}</span>
-  </button>
-);
+/** MobileNavItem helper for the bottom navigation bar */
+const MobileNavItem: React.FC<MobileNavItemProps> = ({ id, label, icon: Icon, activeTab, setActiveTab }) => {
+  const isActive = activeTab === id;
+  return (
+    <button
+      onClick={() => setActiveTab(id)}
+      className={`flex flex-col items-center justify-center gap-1 flex-1 h-full ${
+        isActive ? 'text-notion-blue' : 'text-muted-foreground'
+      }`}
+    >
+      <Icon className="w-5 h-5" />
+      <span className="text-[10px] font-medium">{label}</span>
+    </button>
+  );
+};
 
-const TaskTrackerWidget = ({ task, onToggle, onClose }: { task: Task, onToggle: (id: string, e?: React.MouseEvent) => void, onClose: () => void }) => {
-    const [seconds, setSeconds] = useState(0);
+interface TaskTrackerWidgetProps {
+    task: Task;
+    onToggle: (id: string, e?: React.MouseEvent) => void;
+    onClose: () => void;
+}
+
+/** TaskTrackerWidget helper for floating active timer */
+const TaskTrackerWidget: React.FC<TaskTrackerWidgetProps> = ({ task, onToggle, onClose }) => {
+    const [now, setNow] = useState(Date.now());
     useEffect(() => {
-        const calculateSeconds = () => {
-             let total = (task.actualTime || 0) * 60;
-             if (task.timerStart) { total += Math.floor((Date.now() - new Date(task.timerStart).getTime()) / 1000); }
-             return total;
-        };
-        setSeconds(calculateSeconds());
-        const interval = setInterval(() => { if (task.timerStart) setSeconds(calculateSeconds()); }, 1000);
+        const interval = setInterval(() => setNow(Date.now()), 1000);
         return () => clearInterval(interval);
-    }, [task]);
-    const format = (totalSec: number) => {
-        const h = Math.floor(totalSec / 3600);
-        const m = Math.floor((totalSec % 3600) / 60);
-        const s = Math.floor(totalSec % 60);
-        return `${h > 0 ? h + ':' : ''}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }, []);
+
+    const startTime = task.timerStart ? new Date(task.timerStart).getTime() : 0;
+    const elapsedSeconds = startTime ? Math.floor((now - startTime) / 1000) : 0;
+    const totalSeconds = Math.floor((task.actualTime || 0) * 60) + elapsedSeconds;
+
+    const formatTimer = (secs: number) => {
+        const h = Math.floor(secs / 3600);
+        const m = Math.floor((secs % 3600) / 60);
+        const s = secs % 60;
+        return h > 0 
+            ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+            : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     };
-    const finishTime = useMemo(() => {
-        if (!task.plannedTime || task.plannedTime <= 0) return null;
-        return new Date(Date.now() + Math.max(0, task.plannedTime * 60 - seconds) * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
-    }, [task.plannedTime, seconds]);
+
     return (
-        <div className="hidden md:flex h-8 items-center gap-3 bg-background border border-border rounded shadow-sm px-3 animate-in fade-in slide-in-from-bottom-2">
-            <div className={`w-2 h-2 rounded-full ${task.timerStart ? 'bg-notion-orange animate-pulse' : 'bg-notion-blue'}`} />
-            <div className="flex flex-col justify-center max-w-[150px]"><span className="text-xs font-bold truncate leading-none" title={task.title}>{task.title}</span>{finishTime && <span className="text-[9px] text-muted-foreground">Finish: {finishTime}</span>}</div>
-            <div className="text-xs font-mono font-bold text-muted-foreground tabular-nums">{format(seconds)}</div>
-            <div className="h-4 w-px bg-border" /><div className="flex items-center gap-1.5"><button onClick={(e) => onToggle(task.id, e)} className="p-1 hover:bg-notion-hover rounded-sm transition-colors">{task.timerStart ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}</button>{!task.timerStart && <button onClick={onClose} className="p-1 hover:bg-notion-bg_red hover:text-notion-red rounded-sm transition-colors"><X className="w-3.5 h-3.5" /></button>}</div>
+        <div className="bg-background border border-border rounded-lg shadow-xl p-3 flex items-center gap-4 animate-in slide-in-from-right-4">
+            <div className="flex flex-col min-w-0">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tracking Task</span>
+                <span className="text-sm font-semibold truncate max-w-[150px]">{task.title}</span>
+            </div>
+            <div className="flex items-center gap-3">
+                <div className="text-lg font-mono font-bold tabular-nums text-notion-blue">
+                    {formatTimer(totalSeconds)}
+                </div>
+                <button 
+                    onClick={(e) => onToggle(task.id, e)}
+                    className="p-2 bg-notion-bg_blue text-notion-blue rounded-full hover:bg-blue-100 transition-colors"
+                >
+                    <Pause className="w-5 h-5 fill-current" />
+                </button>
+                <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground">
+                    <X className="w-4 h-4" />
+                </button>
+            </div>
         </div>
     );
 };
@@ -109,8 +129,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     }
     return enabled.includes('tasks') ? 'tasks' : (enabled[0] as AppTab) || 'settings';
   });
+  
   const userId = user.id;
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
+  // Data State
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
@@ -118,6 +141,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [sessions, setSessions] = useState<TaskSession[]>([]);
+  const [userSettings, setUserSettings] = useState<UserSettings>({
+    userName: user.name, userId: user.id, email: user.email, profilePicture: user.profilePicture, dayStartHour: user.dayStartHour, enabledFeatures: user.enabledFeatures || ['tasks', 'habit', 'journal', 'notes']
+  });
+
   const [statsTicker, setStatsTicker] = useState(0);
   const [timeLeft, setTimeLeft] = useState('');
   const [activeFilterTagId, setActiveFilterTagId] = useState<string | null>(null);
@@ -125,11 +152,107 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [trackedTaskId, setTrackedTaskId] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem('heavyuser_sidebar_collapsed') === 'true');
 
-  const [userSettings, setUserSettings] = useState<UserSettings>({
-    userName: user.name, userId: user.id, email: user.email, profilePicture: user.profilePicture, dayStartHour: user.dayStartHour, enabledFeatures: user.enabledFeatures || ['tasks', 'habit', 'journal', 'notes']
-  });
-
   const enabledModules = userSettings.enabledFeatures || ['tasks', 'habit', 'journal', 'notes'];
+
+  // Persistence Helpers
+  const saveToLocal = (key: string, data: any) => {
+    localStorage.setItem(`heavyuser_cache_${userId}_${key}`, JSON.stringify(data));
+  };
+
+  const loadFromLocal = (key: string) => {
+    const saved = localStorage.getItem(`heavyuser_cache_${userId}_${key}`);
+    return saved ? JSON.parse(saved) : null;
+  };
+
+  // 1. Initial Load: Try Local first for "Everything" offline priority
+  useEffect(() => {
+    const cachedTasks = loadFromLocal('tasks');
+    const cachedTags = loadFromLocal('tags');
+    const cachedHabits = loadFromLocal('habits');
+    const cachedJournals = loadFromLocal('journals');
+    const cachedNotes = loadFromLocal('notes');
+    const cachedFolders = loadFromLocal('folders');
+    const cachedSessions = loadFromLocal('sessions');
+
+    if (cachedTasks) setTasks(cachedTasks);
+    if (cachedTags) setTags(cachedTags);
+    if (cachedHabits) setHabits(cachedHabits);
+    if (cachedJournals) setJournals(cachedJournals);
+    if (cachedNotes) setNotes(cachedNotes);
+    if (cachedFolders) setFolders(cachedFolders);
+    if (cachedSessions) setSessions(cachedSessions);
+  }, [userId]);
+
+  // 2. Network Sync: Fetch from Supabase and overwrite Local (or merge if sophisticated)
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!isOnline) return;
+      try {
+        const [{ data: tasksData }, { data: tagsData }, { data: habitsData }, { data: journalsData }, { data: foldersData }, { data: notesData }, { data: sessionsData }] = await Promise.all([
+          supabase.from('tasks').select('*').eq('user_id', userId), 
+          supabase.from('tags').select('*').eq('user_id', userId), 
+          supabase.from('habits').select('*').eq('user_id', userId).order('created_at', { ascending: true }), 
+          supabase.from('journals').select('*').eq('user_id', userId).order('timestamp', { ascending: false }), 
+          supabase.from('folders').select('*').eq('user_id', userId).order('created_at', { ascending: true }), 
+          supabase.from('notes').select('*').eq('user_id', userId).order('updated_at', { ascending: false }), 
+          supabase.from('task_sessions').select('*').eq('user_id', userId).order('start_time', { ascending: false }).limit(500)
+        ]);
+
+        if (tasksData) {
+            const parsed = tasksData.map((t: any) => ({ id: t.id, title: decryptData(t.title), dueDate: t.due_date || '', time: t.time, completed: t.completed, completedAt: t.completed_at, priority: t.priority as Priority, subtasks: (t.subtasks || []).map((s: any) => ({ ...s, title: decryptData(s.title) })), tags: t.tags || [], recurrence: t.recurrence, notes: decryptData(t.notes), createdAt: t.created_at, updatedAt: t.updated_at, plannedTime: t.planned_time, actualTime: t.actual_time, timerStart: t.timer_start }));
+            setTasks(parsed); saveToLocal('tasks', parsed);
+        }
+        if (tagsData) {
+            const parsed = tagsData.map((t: any) => ({ id: t.id, label: decryptData(t.label), color: t.color }));
+            setTags(parsed); saveToLocal('tags', parsed);
+        }
+        if (habitsData) {
+            const parsed = habitsData.map((h: any) => ({ id: h.id, title: decryptData(h.title), icon: h.icon, target: h.target || 1, unit: h.unit || '', progress: h.progress || {}, skippedDates: h.skipped_dates || [], startDate: h.start_date || new Date().toISOString().split('T')[0], useCounter: h.use_counter !== false, tags: h.tags || [], goalType: h.goal_type || 'positive' }));
+            setHabits(parsed); saveToLocal('habits', parsed);
+        }
+        if (journalsData) {
+            const parsed = journalsData.map((j: any) => ({ id: j.id, title: decryptData(j.title), content: decryptData(j.content), timestamp: j.timestamp, rating: j.rating, entryType: j.entry_type as EntryType, tags: j.tags || [] }));
+            setJournals(parsed); saveToLocal('journals', parsed);
+        }
+        if (foldersData) {
+            const parsed = foldersData.map((f: any) => ({ id: f.id, name: decryptData(f.name) }));
+            setFolders(parsed); saveToLocal('folders', parsed);
+        }
+        if (notesData) {
+            const parsed = notesData.map((n: any) => ({ id: n.id, title: decryptData(n.title), content: decryptData(n.content), folderId: n.folder_id, createdAt: n.created_at, updatedAt: n.updated_at, tags: n.tags || [] }));
+            setNotes(parsed); saveToLocal('notes', parsed);
+        }
+        if (sessionsData) {
+            const parsed = sessionsData.map((s: any) => ({ id: s.id, taskId: s.task_id, startTime: s.start_time, endTime: s.end_time, duration: s.duration }));
+            setSessions(parsed); saveToLocal('sessions', parsed);
+        }
+      } catch (err) {
+        console.error("Sync fetch failed:", err);
+      }
+    };
+    fetchData();
+  }, [userId, isOnline]);
+
+  // Handle Online/Offline Status
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Update localStorage when state changes (Phone Wins strategy: local is primary)
+  useEffect(() => { if (tasks.length > 0) saveToLocal('tasks', tasks); }, [tasks]);
+  useEffect(() => { if (tags.length > 0) saveToLocal('tags', tags); }, [tags]);
+  useEffect(() => { if (habits.length > 0) saveToLocal('habits', habits); }, [habits]);
+  useEffect(() => { if (journals.length > 0) saveToLocal('journals', journals); }, [journals]);
+  useEffect(() => { if (notes.length > 0) saveToLocal('notes', notes); }, [notes]);
+  useEffect(() => { if (folders.length > 0) saveToLocal('folders', folders); }, [folders]);
+  useEffect(() => { if (sessions.length > 0) saveToLocal('sessions', sessions); }, [sessions]);
 
   useEffect(() => { localStorage.setItem('heavyuser_active_tab', activeTab); }, [activeTab]);
   useEffect(() => { if (!['settings', 'request_feature', 'report_bug'].includes(activeTab) && !enabledModules.includes(activeTab)) { setActiveTab(enabledModules.length > 0 ? (enabledModules[0] as AppTab) : 'settings'); } }, [enabledModules, activeTab]);
@@ -166,57 +289,55 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       const nowIso = new Date().toISOString(); const nowTime = Date.now();
       let updatedTasks = [...tasks]; let updatedSessions = [...sessions];
       const runningTask = tasks.find(t => !!t.timerStart);
-      try {
-          if (runningTask) {
-              const diffSeconds = Math.max(0, Math.floor((nowTime - new Date(runningTask.timerStart!).getTime()) / 1000));
-              const newActual = (runningTask.actualTime || 0) + (diffSeconds / 60);
-              await supabase.from('tasks').update({ timer_start: null, actual_time: newActual }).eq('id', runningTask.id);
-              updatedTasks = updatedTasks.map(t => t.id === runningTask.id ? { ...t, timerStart: null, actualTime: newActual } : t);
-              const sessionIdx = updatedSessions.findIndex(s => s.taskId === runningTask.id && !s.endTime);
-              if (sessionIdx !== -1) {
-                  await supabase.from('task_sessions').update({ end_time: nowIso, duration: diffSeconds }).eq('id', updatedSessions[sessionIdx].id);
-                  updatedSessions[sessionIdx] = { ...updatedSessions[sessionIdx], endTime: nowIso, duration: diffSeconds };
-              }
+      
+      if (runningTask) {
+          const diffSeconds = Math.max(0, Math.floor((nowTime - new Date(runningTask.timerStart!).getTime()) / 1000));
+          const newActual = (runningTask.actualTime || 0) + (diffSeconds / 60);
+          updatedTasks = updatedTasks.map(t => t.id === runningTask.id ? { ...t, timerStart: null, actualTime: newActual } : t);
+          const sessionIdx = updatedSessions.findIndex(s => s.taskId === runningTask.id && !s.endTime);
+          if (sessionIdx !== -1) {
+              updatedSessions[sessionIdx] = { ...updatedSessions[sessionIdx], endTime: nowIso, duration: diffSeconds };
+              if (isOnline) await supabase.from('task_sessions').update({ end_time: nowIso, duration: diffSeconds }).eq('id', updatedSessions[sessionIdx].id);
           }
-          if (runningTask?.id !== id) {
+          if (isOnline) await supabase.from('tasks').update({ timer_start: null, actual_time: newActual }).eq('id', runningTask.id);
+      }
+      
+      if (runningTask?.id !== id) {
+          updatedTasks = updatedTasks.map(t => t.id === id ? { ...t, timerStart: nowIso } : t);
+          const newSessionId = crypto.randomUUID();
+          const newSession: TaskSession = { id: newSessionId, taskId: id, startTime: nowIso, endTime: null, duration: 0 };
+          updatedSessions = [newSession, ...updatedSessions];
+          if (isOnline) {
               await supabase.from('tasks').update({ timer_start: nowIso }).eq('id', id);
-              updatedTasks = updatedTasks.map(t => t.id === id ? { ...t, timerStart: nowIso } : t);
-              const newSessionId = crypto.randomUUID();
               await supabase.from('task_sessions').insert({ id: newSessionId, user_id: userId, task_id: id, start_time: nowIso });
-              updatedSessions = [{ id: newSessionId, taskId: id, startTime: nowIso, endTime: null, duration: 0 }, ...updatedSessions];
           }
-          setTasks(updatedTasks); setSessions(updatedSessions);
-      } catch (err) { console.error(err); }
+      }
+      setTasks(updatedTasks); setSessions(updatedSessions);
   };
 
   const handleDeleteSession = async (sessionId: string) => {
       const session = sessions.find(s => s.id === sessionId); if(!session) return;
-      setSessions(prev => prev.filter(s => s.id !== sessionId));
-      if (!session.endTime) { setTasks(prev => prev.map(t => t.id === session.taskId ? { ...t, timerStart: null } : t)); await supabase.from('tasks').update({ timer_start: null }).eq('id', session.taskId); }
-      else {
+      const newSessions = sessions.filter(s => s.id !== sessionId);
+      setSessions(newSessions);
+      
+      if (!session.endTime) { 
+          setTasks(prev => prev.map(t => t.id === session.taskId ? { ...t, timerStart: null } : t)); 
+          if (isOnline) await supabase.from('tasks').update({ timer_start: null }).eq('id', session.taskId); 
+      } else {
           const task = tasks.find(t => t.id === session.taskId);
-          if (task) { const val = Math.max(0, (task.actualTime || 0) - (session.duration / 60)); setTasks(prev => prev.map(t => t.id === task.id ? { ...t, actualTime: val } : t)); await supabase.from('tasks').update({ actual_time: val }).eq('id', task.id); }
+          if (task) { 
+              const val = Math.max(0, (task.actualTime || 0) - (session.duration / 60)); 
+              setTasks(prev => prev.map(t => t.id === task.id ? { ...t, actualTime: val } : t)); 
+              if (isOnline) await supabase.from('tasks').update({ actual_time: val }).eq('id', task.id); 
+          }
       }
-      await supabase.from('task_sessions').delete().eq('id', sessionId);
+      if (isOnline) await supabase.from('task_sessions').delete().eq('id', sessionId);
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const [{ data: tasksData }, { data: tagsData }, { data: habitsData }, { data: journalsData }, { data: foldersData }, { data: notesData }, { data: sessionsData }] = await Promise.all([
-        supabase.from('tasks').select('*').eq('user_id', userId), supabase.from('tags').select('*').eq('user_id', userId), supabase.from('habits').select('*').eq('user_id', userId).order('created_at', { ascending: true }), supabase.from('journals').select('*').eq('user_id', userId).order('timestamp', { ascending: false }), supabase.from('folders').select('*').eq('user_id', userId).order('created_at', { ascending: true }), supabase.from('notes').select('*').eq('user_id', userId).order('updated_at', { ascending: false }), supabase.from('task_sessions').select('*').eq('user_id', userId).order('start_time', { ascending: false }).limit(500)
-      ]);
-      if (tasksData) setTasks(tasksData.map((t: any) => ({ id: t.id, title: decryptData(t.title), dueDate: t.due_date || '', time: t.time, completed: t.completed, completedAt: t.completed_at, priority: t.priority as Priority, subtasks: (t.subtasks || []).map((s: any) => ({ ...s, title: decryptData(s.title) })), tags: t.tags || [], recurrence: t.recurrence, notes: decryptData(t.notes), createdAt: t.created_at, updatedAt: t.updated_at, plannedTime: t.planned_time, actualTime: t.actual_time, timerStart: t.timer_start })));
-      if (tagsData) setTags(tagsData.map((t: any) => ({ id: t.id, label: decryptData(t.label), color: t.color })));
-      if (habitsData) setHabits(habitsData.map((h: any) => ({ id: h.id, title: decryptData(h.title), icon: h.icon, target: h.target || 1, unit: h.unit || '', progress: h.progress || {}, skippedDates: h.skipped_dates || [], startDate: h.start_date || new Date().toISOString().split('T')[0], useCounter: h.use_counter !== false, tags: h.tags || [], goalType: h.goal_type || 'positive' })));
-      if (journalsData) setJournals(journalsData.map((j: any) => ({ id: j.id, title: decryptData(j.title), content: decryptData(j.content), timestamp: j.timestamp, rating: j.rating, entryType: j.entry_type as EntryType, tags: j.tags || [] })));
-      if (foldersData) setFolders(foldersData.map((f: any) => ({ id: f.id, name: decryptData(f.name) })));
-      if (notesData) setNotes(notesData.map((n: any) => ({ id: n.id, title: decryptData(n.title), content: decryptData(n.content), folderId: n.folder_id, createdAt: n.created_at, updatedAt: n.updated_at, tags: n.tags || [] })));
-      if (sessionsData) setSessions(sessionsData.map((s: any) => ({ id: s.id, taskId: s.task_id, startTime: s.start_time, endTime: s.end_time, duration: s.duration })));
-    };
-    fetchData();
-  }, [userId]);
-
-  const handleUpdateSettings = async (newSettings: UserSettings) => { setUserSettings(newSettings); await supabase.auth.updateUser({ data: { full_name: newSettings.userName, avatar_url: newSettings.profilePicture, day_start_hour: newSettings.dayStartHour, enabled_features: newSettings.enabledFeatures } }); };
+  const handleUpdateSettings = async (newSettings: UserSettings) => { 
+      setUserSettings(newSettings); 
+      if (isOnline) await supabase.auth.updateUser({ data: { full_name: newSettings.userName, avatar_url: newSettings.profilePicture, day_start_hour: newSettings.dayStartHour, enabled_features: newSettings.enabledFeatures } }); 
+  };
 
   const sidebarStats = useMemo(() => {
       const today = getLogicalDateOffset(0); const nowTs = Date.now();
@@ -273,7 +394,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       case 'notes': return <NotesSection notes={notes} setNotes={setNotes} folders={folders} setFolders={setFolders} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'request_feature': return <RequestFeatureSection userId={userId} />;
       case 'report_bug': return <ReportBugSection userId={userId} />;
-      case 'settings': return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} tags={tags} setTags={setTags} />;
+      case 'settings': return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} tags={tags} setTags={setTags} isOnline={isOnline} />;
       default: return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} />;
     }
   };
@@ -281,7 +402,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const renderSidebar = () => (
       <aside className={`hidden md:flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'w-16' : 'w-56'} h-full border-r border-border bg-notion-sidebar`}>
           <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'space-x-2 px-2'} py-3 mb-1 cursor-pointer hover:bg-notion-hover transition-colors`} onClick={toggleSidebar}>
-              <AppIcon className="w-5 h-5" />
+              <AppIcon className="w-5 h-5" isOffline={!isOnline} />
               {!isSidebarCollapsed && <div className="flex-1 flex justify-between items-center min-w-0"><h1 className="text-sm font-bold truncate">HeavyUser</h1><ChevronLeft className="w-3.5 h-3.5 opacity-50" /></div>}
           </div>
           
@@ -302,7 +423,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
           {!isSidebarCollapsed && (
             <div className="p-4 border-t border-border bg-secondary/10 space-y-4">
-                {/* Status Pills */}
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex-1 bg-background border border-border rounded-md px-2 py-1.5 flex items-center justify-center gap-1.5 shadow-sm" title="Current Streak">
                         <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'text-notion-orange fill-notion-orange' : 'text-notion-orange'}`} />
@@ -335,7 +455,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                     </div>
                 </div>
 
-                {/* Daily Focus Card */}
                 <div className="bg-background border border-border rounded-lg p-3 shadow-sm">
                     <div className="flex items-start gap-3 mb-3">
                         <div className="p-2 bg-blue-50 text-notion-blue rounded-full shrink-0">
@@ -349,7 +468,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                         </div>
                     </div>
                     
-                    {/* Progress Bar */}
                     <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden mb-2">
                         <div className="h-full bg-notion-blue transition-all duration-500" style={{ width: `${progressPercent}%` }} />
                     </div>
@@ -360,7 +478,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                     </div>
                 </div>
                 
-                {/* Reset Timer */}
                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground justify-center opacity-60">
                     <Clock className="w-3 h-3" /> <span>Reset in {timeLeft}</span>
                 </div>
@@ -374,21 +491,19 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       {renderSidebar()}
 
       <main className="flex-1 flex flex-col min-w-0 bg-background relative overflow-hidden">
-         {/* Mobile Header - Compact Single Line */}
          <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-background z-20">
              <div className="flex items-center gap-2 shrink-0">
-                 <AppIcon className="w-6 h-6 rounded-sm" />
+                 <AppIcon className="w-6 h-6 rounded-sm" isOffline={!isOnline} />
                  <span className="font-bold text-lg">HeavyUser</span>
              </div>
              
              <div className="flex items-center gap-3 text-xs">
-                 {/* Streak */}
+                 {!isOnline && <WifiOff className="w-3.5 h-3.5 text-muted-foreground" />}
                  <div className="flex items-center gap-1.5 font-medium shrink-0">
                     <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'text-notion-orange fill-notion-orange' : 'text-notion-orange'}`} />
                     <span>{streakData.count}</span>
                  </div>
                  
-                 {/* Tag Filter */}
                  <div className="relative shrink-0">
                      <button onClick={() => setIsTagFilterOpen(!isTagFilterOpen)} className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded transition-colors ${activeFilterTagId ? 'bg-notion-bg_blue text-notion-blue' : 'text-muted-foreground'}`}>
                         <TagIcon className="w-3.5 h-3.5" />
@@ -413,19 +528,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                     )}
                  </div>
 
-                 {/* Timer */}
                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-widest shrink-0">
                     <Clock className="w-3 h-3" /> {timeLeft}
                  </div>
              </div>
          </header>
 
-         {/* Content - Added padding-bottom for mobile to prevent nav overlap */}
          <div className="flex-1 overflow-hidden relative pb-16 md:pb-0">
              {renderContent()}
          </div>
 
-         {/* Mobile Bottom Navigation - Fixed Positioning */}
          <div className="md:hidden fixed bottom-0 left-0 right-0 border-t border-border bg-background z-50">
             <div className="flex items-center justify-around h-16">
                 {enabledModules.includes('tasks') && <MobileNavItem id="tasks" label="Tasks" icon={CheckSquare} activeTab={activeTab} setActiveTab={setActiveTab} />}
@@ -436,7 +548,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             </div>
          </div>
 
-         {/* Active Timer Widget */}
          {trackedTaskId && tasks.find(t => t.id === trackedTaskId) && (
              <div className="absolute bottom-20 md:bottom-6 right-6 z-40">
                  <TaskTrackerWidget task={tasks.find(t => t.id === trackedTaskId)!} onToggle={handleToggleTimer} onClose={() => setTrackedTaskId(null)} />
