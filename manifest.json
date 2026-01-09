@@ -4,7 +4,7 @@
   "short_name": "HeavyUser",
   "id": "heavyuser-productivity-suite-v1",
   "description": "All-in-one productivity suite for tasks, habits, and journals.",
-  "start_url": "/?source=pwa",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "window-controls-overlay"],
@@ -15,13 +15,19 @@
   "categories": ["productivity", "utilities"],
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230046ff'/><path d='M25 52 L42 69' stroke='white' stroke-width='14' stroke-linecap='square' fill='none'/><path d='M42 69 L75 28' stroke='%23ff8040' stroke-width='14' stroke-linecap='square' fill='none'/></svg>",
+      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzAwNDZmZiIvPjxwYXRoIGQ9Ik0yNSA1MiBMNDIgNjkiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMTQiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIGZpbGw9Im5vbmUiLz48cGF0aCBkPSJNNDIgNjkgTDc1IDI4IiBzdHJva2U9IiNmZjgwNDAiIHN0cm9rZS13aWR0aD0iMTQiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIGZpbGw9Im5vbmUiLz48L3N2Zz4=",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230046ff'/><g transform='translate(25, 25) scale(0.5)'><path d='M25 52 L42 69' stroke='white' stroke-width='14' stroke-linecap='square' fill='none'/><path d='M42 69 L75 28' stroke='%23ff8040' stroke-width='14' stroke-linecap='square' fill='none'/></g></svg>",
+      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzAwNDZmZiIvPjxwYXRoIGQ9Ik0yNSA1MiBMNDIgNjkiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMTQiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIGZpbGw9Im5vbmUiLz48cGF0aCBkPSJNNDIgNjkgTDc1IDI4IiBzdHJva2U9IiNmZjgwNDAiIHN0cm9rZS13aWR0aD0iMTQiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIGZpbGw9Im5vbmUiLz48L3N2Zz4=",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzAwNDZmZiIvPjx1IHRyYW5zZm9ybT0idHJhbnNsYXRlKDI1LCAyNSkgc2NhbGUoMC41KSI+PHBhdGggZD0iTTI1IDUyIEw0MiA2OSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxNCIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik00MiA2OSBMNzUgMjgiIHN0cm9rZT0iI2ZmODA0MCIgc3Ryb2tlLXdpZHRoPSIxNCIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgZmlsbD0ibm9uZSIvPjwvZz48L3N2Zz4=",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "maskable"
