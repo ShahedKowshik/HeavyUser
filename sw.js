@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'heavyuser-v2';
+const CACHE_NAME = 'heavyuser-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -31,7 +31,6 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Simple Network-first strategy for dynamic data, Cache-first for assets
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(() => {
@@ -44,7 +43,6 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((response) => {
       return response || fetch(event.request).then((fetchResponse) => {
-        // Don't cache supabase or external API calls here for now to avoid size issues
         if (event.request.url.includes('supabase.co')) return fetchResponse;
         
         return caches.open(CACHE_NAME).then((cache) => {
