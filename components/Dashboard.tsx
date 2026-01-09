@@ -1,7 +1,6 @@
 
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause, BarChart3, CheckSquare, StickyNote, MoreHorizontal, ChevronDown, Ban, WifiOff } from 'lucide-react';
+import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause, BarChart3, CheckSquare, StickyNote, MoreHorizontal, ChevronDown, Ban, WifiOff, MessageSquare, Map } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
@@ -39,6 +38,29 @@ const NavItem: React.FC<NavItemProps> = ({ id, label, icon: Icon, activeTab, set
       <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-notion-blue' : 'text-muted-foreground'}`} />
       {!isSidebarCollapsed && <span className="text-sm truncate">{label}</span>}
     </button>
+  );
+};
+
+interface ExternalNavLinkProps {
+    href: string;
+    label: string;
+    icon: any;
+    isSidebarCollapsed: boolean;
+}
+
+/** Helper for external sidebar links */
+const ExternalNavLink: React.FC<ExternalNavLinkProps> = ({ href, label, icon: Icon, isSidebarCollapsed }) => {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`w-full flex items-center gap-3 px-3 py-2 rounded-sm transition-colors text-muted-foreground hover:bg-notion-hover hover:text-foreground ${isSidebarCollapsed ? 'justify-center' : ''}`}
+      title={isSidebarCollapsed ? label : undefined}
+    >
+      <Icon className="w-4 h-4 shrink-0" />
+      {!isSidebarCollapsed && <span className="text-sm truncate">{label}</span>}
+    </a>
   );
 };
 
@@ -412,6 +434,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           
           <div className="shrink-0 mb-2 px-2 space-y-0.5 border-t border-border/40 pt-2">
                 <NavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
+                <div className="py-1">
+                    <div className="border-t border-border" />
+                </div>
+                <ExternalNavLink href="https://heavyuser.userjot.com/" label="Share Feedback" icon={MessageSquare} isSidebarCollapsed={isSidebarCollapsed} />
+                <ExternalNavLink href="https://heavyuser.userjot.com/roadmap" label="View Roadmap" icon={Map} isSidebarCollapsed={isSidebarCollapsed} />
           </div>
 
           {!isSidebarCollapsed && (

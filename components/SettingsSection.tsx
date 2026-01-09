@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { 
   User, Trash2, TriangleAlert, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, 
   Lock, Moon, Tag as TagIcon, Plus, Pencil, Code, LayoutGrid, 
-  ListTodo, Zap, Book, File, Shield, Database, ChevronRight, Info, CheckSquare, StickyNote, Bug, WifiOff
+  ListTodo, Zap, Book, File, Shield, Database, ChevronRight, Info, CheckSquare, StickyNote, Bug, WifiOff, MessageSquare, Map
 } from 'lucide-react';
 import { UserSettings, AppTab, Tag } from '../types';
 import { supabase } from '../lib/supabase';
@@ -31,7 +31,7 @@ const PRESET_COLORS = [
   '#e0e7ff', '#a5b4fc', '#818cf8', '#6366f1'
 ];
 
-type Category = 'account' | 'workspace' | 'danger';
+type Category = 'account' | 'workspace' | 'feedback' | 'danger';
 
 const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, onLogout, onNavigate, tags, setTags, isOnline = true }) => {
   const [activeCategory, setActiveCategory] = useState<Category>('workspace');
@@ -174,6 +174,17 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                 >
                     <LayoutGrid className={`w-4 h-4 ${activeCategory === 'workspace' ? 'text-notion-blue' : 'text-muted-foreground'}`} /> 
                     <span>Settings</span>
+                </button>
+            </div>
+
+            <div className="contents md:block md:space-y-1">
+                <div className="hidden md:block px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Support</div>
+                <button 
+                    onClick={() => setActiveCategory('feedback')}
+                    className={`whitespace-nowrap w-auto md:w-full text-left px-3 py-1.5 rounded-sm text-sm flex items-center gap-2 transition-colors ${activeCategory === 'feedback' ? 'bg-notion-bg_blue text-notion-blue font-medium shadow-sm md:shadow-none' : 'text-foreground hover:bg-notion-hover'}`}
+                >
+                    <MessageSquare className={`w-4 h-4 ${activeCategory === 'feedback' ? 'text-notion-blue' : 'text-muted-foreground'}`} /> 
+                    <span>Feedback</span>
                 </button>
             </div>
 
@@ -391,6 +402,35 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                         </button>
                                     );
                                 })}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeCategory === 'feedback' && (
+                    <div className="space-y-6 animate-in fade-in">
+                        <div>
+                            <h2 className="text-lg font-medium text-foreground border-b border-border pb-2 mb-4">Feedback & Roadmap</h2>
+                            <p className="text-sm text-muted-foreground mb-6">
+                                Help shape the future of HeavyUser. View our roadmap, suggest new features, or report bugs.
+                            </p>
+                            
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <a href="https://heavyuser.userjot.com/" target="_blank" rel="noopener noreferrer" className="block p-4 border border-border rounded-sm hover:bg-notion-hover transition-colors group">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <MessageSquare className="w-5 h-5 text-notion-blue" />
+                                        <span className="font-semibold text-foreground">Share Feedback</span>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">Report bugs or suggest new features directly to our board.</p>
+                                </a>
+
+                                <a href="https://heavyuser.userjot.com/roadmap" target="_blank" rel="noopener noreferrer" className="block p-4 border border-border rounded-sm hover:bg-notion-hover transition-colors group">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Map className="w-5 h-5 text-notion-orange" />
+                                        <span className="font-semibold text-foreground">View Roadmap</span>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">See what's coming next and vote on your favorite ideas.</p>
+                                </a>
                             </div>
                         </div>
                     </div>
