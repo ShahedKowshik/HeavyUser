@@ -49,42 +49,32 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Initialize UserJot
+  // Initialize UserJot - "Do Not Load" Strategy
   useEffect(() => {
+    // 1. Check the Width First
+    // If the screen is smaller than 768px (Mobile), we stop right here.
+    if (window.innerWidth < 768) {
+      return;
+    }
+
+    // 2. Make a Decision: Only load if on Desktop
     const win = window as any;
     if (win.uj) {
-      // Initialize without 'widget' property to use default behavior (visible).
-      // We rely solely on the CSS below to hide it on mobile devices.
       win.uj.init('cmk7h3eoq00dw14qj3ijwg5va', {
+        widget: true,
         position: 'right',
         theme: 'auto'
       });
     }
   }, []);
 
-  // Handle UserJot responsiveness via CSS
-  useEffect(() => {
-    const style = document.createElement('style');
-    // Hide the UserJot iframe/widget container on mobile devices (< 768px)
-    // This prevents it from blocking the bottom navigation bar.
-    // We target the iframe by src to ensure we catch the UserJot widget.
-    style.innerHTML = `
-      @media (max-width: 768px) {
-        iframe[src*="userjot.com"] {
-          display: none !important;
-          visibility: hidden !important;
-          pointer-events: none !important;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
-
   // Identify User for UserJot
   useEffect(() => {
+    // Also skip identification if on mobile
+    if (window.innerWidth < 768) {
+      return;
+    }
+
     if (currentUser) {
       const win = window as any;
       if (win.uj) {
