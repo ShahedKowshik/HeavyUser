@@ -687,6 +687,38 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     const stats = getHabitStats(detailHabit, today);
     const isNegative = detailHabit.goalType === 'negative';
 
+    let averages = { avg7: '0', avg30: '0' };
+    if (detailHabit.useCounter) {
+        const getAvg = (days: number) => {
+            let sum = 0;
+            let validDaysCount = 0;
+            const parts = today.split('-').map(Number);
+            // Construct local date correctly (months are 0-indexed)
+            const d = new Date(parts[0], parts[1] - 1, parts[2]);
+            
+            for(let i=0; i<days; i++) {
+                const current = new Date(d);
+                current.setDate(current.getDate() - i);
+                
+                const y = current.getFullYear();
+                const m = String(current.getMonth() + 1).padStart(2, '0');
+                const day = String(current.getDate()).padStart(2, '0');
+                const dateStr = `${y}-${m}-${day}`;
+                
+                // Only count days that are ON or AFTER the start date
+                if (dateStr >= detailHabit.startDate) {
+                    sum += detailHabit.progress[dateStr] || 0;
+                    validDaysCount++;
+                }
+            }
+            
+            if (validDaysCount === 0) return '0';
+            const avg = sum / validDaysCount;
+            return avg % 1 === 0 ? avg.toString() : avg.toFixed(1);
+        };
+        averages = { avg7: getAvg(7), avg30: getAvg(30) };
+    }
+
     return (
         <div className="flex flex-col h-full bg-background animate-in fade-in">
             {/* Header - Fixed in Panel */}
@@ -719,7 +751,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
             </div>
 
             {/* Content Dashboard */}
-            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-6">
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-6" style={{ scrollbarGutter: 'stable' }}>
                 
                 {/* Stats Grid */}
                 <div className="grid grid-cols-2 gap-3 shrink-0">
@@ -755,6 +787,25 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                 <span className="text-xs font-normal text-muted-foreground whitespace-nowrap">/ {detailHabit.target} {detailHabit.unit}</span>
                             </div>
                         </div>
+                        
+                        {detailHabit.useCounter && (
+                            <>
+                                <div className="bg-background border border-border rounded-lg p-3 shadow-sm overflow-hidden">
+                                    <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1 truncate">7-Day Avg</div>
+                                    <div className="text-xl font-bold flex items-center gap-2 truncate">
+                                        <BarChart3 className="w-5 h-5 shrink-0 text-notion-blue" />
+                                        {averages.avg7} <span className="text-xs font-normal text-muted-foreground">{detailHabit.unit}</span>
+                                    </div>
+                                </div>
+                                <div className="bg-background border border-border rounded-lg p-3 shadow-sm overflow-hidden">
+                                    <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1 truncate">30-Day Avg</div>
+                                    <div className="text-xl font-bold flex items-center gap-2 truncate">
+                                        <BarChart3 className="w-5 h-5 shrink-0 text-notion-purple" />
+                                        {averages.avg30} <span className="text-xs font-normal text-muted-foreground">{detailHabit.unit}</span>
+                                    </div>
+                                </div>
+                            </>
+                        )}
                 </div>
 
                 {/* 1. Interactive Calendar */}
