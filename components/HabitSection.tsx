@@ -3,7 +3,7 @@ import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Se
 import { Habit, Tag, HabitFolder } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
-import { cn } from '../lib/utils';
+import { cn, getContrastColor } from '../lib/utils';
 
 interface HabitSectionProps {
   habits: Habit[];
@@ -142,46 +142,41 @@ const getHabitStats = (habit: Habit, today: string) => {
     return { streak, totalDays, successfulDays, rate };
 };
 
-// Unified color logic for all habits
+// Unified color logic for all habits with Simplified Solid Colors
 const getHabitStatusColor = (habit: Habit, count: number, isToday: boolean): string | null => {
     const isNegative = habit.goalType === 'negative';
+    const SOLID_RED = '#E03E3E';
+    const SOLID_GREEN = '#448361';
+    const SOLID_YELLOW = '#EAB308'; // Solid Yellow for intermediate states
     
     if (isNegative) {
-        // Negative Habit Logic
-        if (count === 0) return '#448361'; // Green (Success)
+        // Negative Habit: 0 is Best (Solid Green), > Target is Worst (Solid Red)
+        if (count === 0) return SOLID_GREEN; 
+        
         const limit = habit.useCounter ? habit.target : 0;
-        if (count <= limit) return '#F59E0B'; // Yellow (Warning/Within limit)
-        return '#E03E3E'; // Red (Failed)
+        if (count > limit) return SOLID_RED; // Fail
+        
+        // 1 to Limit -> Solid Yellow
+        return SOLID_YELLOW;
+
     } else {
-        // Positive Habit Logic
-        if (count >= habit.target) return '#448361'; // Green (Success)
-        if (count > 0) return '#F59E0B'; // Yellow (Partial progress)
-        // Count is 0
-        if (isToday) return null; // Pending (Transparent/Blue ring handled by UI)
-        return '#E03E3E'; // Red (Failed - Past day)
+        // Positive Habit: >= Target is Best (Solid Green), 0 is Worst (Solid Red)
+        if (count >= habit.target) return SOLID_GREEN;
+        
+        if (count === 0) {
+            if (isToday) return null;
+            return SOLID_RED;
+        }
+        
+        // 1 to Target-1 -> Solid Yellow
+        return SOLID_YELLOW;
     }
-};
-
-const interpolateColor = (color1: string, color2: string, factor: number) => {
-    const r1 = parseInt(color1.substring(1, 3), 16);
-    const g1 = parseInt(color1.substring(3, 5), 16);
-    const b1 = parseInt(color1.substring(5, 7), 16);
-
-    const r2 = parseInt(color2.substring(1, 3), 16);
-    const g2 = parseInt(color2.substring(3, 5), 16);
-    const b2 = parseInt(color2.substring(5, 7), 16);
-
-    const r = Math.round(r1 + factor * (r2 - r1));
-    const g = Math.round(g1 + factor * (g2 - g1));
-    const b = Math.round(b1 + factor * (b2 - b1));
-
-    return `rgb(${r}, ${g}, ${b})`;
 };
 
 const getProgressBarStyle = (progress: number, target: number, type: 'positive' | 'negative' | undefined) => {
     const ratio = Math.min(progress / Math.max(target, 1), 1);
     const RED = '#E03E3E';
-    const YELLOW = '#F59E0B'; // Amber/Yellow
+    const YELLOW = '#EAB308';
     const GREEN = '#448361';
 
     let backgroundColor;
@@ -192,11 +187,10 @@ const getProgressBarStyle = (progress: number, target: number, type: 'positive' 
         else if (progress <= target) backgroundColor = YELLOW;
         else backgroundColor = RED;
     } else {
-        if (ratio < 0.5) {
-            backgroundColor = interpolateColor(RED, YELLOW, ratio * 2);
-        } else {
-            backgroundColor = interpolateColor(YELLOW, GREEN, (ratio - 0.5) * 2);
-        }
+        // Positive
+        if (progress >= target) backgroundColor = GREEN;
+        else if (progress > 0) backgroundColor = YELLOW;
+        else backgroundColor = RED; 
     }
     
     return { width: `${ratio * 100}%`, backgroundColor };
@@ -530,6 +524,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
      const days = 30;
      const data = [];
      const end = new Date(today);
+     const [hoveredBar, setHoveredBar] = useState<{ x: number, y: number, data: any } | null>(null);
      
      const maxVal = Math.max(habit.target, Math.max(...Object.values(habit.progress).slice(-days).map(Number) || [0], 1));
      const yMax = Math.ceil(maxVal * 1.1);
@@ -538,25 +533,46 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
         const d = new Date(end);
         d.setDate(d.getDate() - i);
         const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        
+        // Calculate relative time
+        const diffTime = Math.abs(end.getTime() - d.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+        let relativeTime = '';
+        if (dateStr === today) relativeTime = 'Today';
+        else if (diffDays === 1) relativeTime = 'Yesterday';
+        else relativeTime = `${diffDays} days ago`;
+
         data.push({
             date: dateStr,
+            fullDate: d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
             day: d.getDate(),
             month: d.toLocaleDateString('en-US', { month: 'short' }),
             count: habit.progress[dateStr] || 0,
             skipped: habit.skippedDates.includes(dateStr),
             isStartDate: dateStr === habit.startDate,
-            isToday: dateStr === today
+            isToday: dateStr === today,
+            relativeTime
         });
      }
 
      return (
-        <div className="flex flex-col h-full w-full">
+        <div className="flex flex-col h-full w-full relative group/chart">
             <div className="flex-1 flex gap-2">
-                 {/* Y Axis Labels */}
-                 <div className="flex flex-col justify-between items-end text-[10px] text-muted-foreground w-8 font-mono py-1 shrink-0">
-                     <span>{yMax}</span>
-                     {habit.target < yMax && habit.target > 0 && <span className="text-primary font-bold">{habit.target}</span>}
-                     <span>0</span>
+                 {/* Y Axis Labels with Target Marker */}
+                 <div className="relative h-full w-12 flex-shrink-0 text-[10px] text-muted-foreground font-mono">
+                     <span className="absolute top-0 right-0">{yMax}</span>
+                     <span className="absolute bottom-0 right-0">0</span>
+                     
+                     {/* Target Label moved here to Left Axis Area */}
+                     {habit.target < yMax && habit.target > 0 && (
+                         <div 
+                            className="absolute right-0 flex items-center gap-1 translate-y-1/2"
+                            style={{ bottom: `${(habit.target / yMax) * 100}%` }}
+                         >
+                             <span className="text-[9px] font-bold text-primary">Target</span>
+                             <span className="text-primary font-bold">{habit.target}</span>
+                         </div>
+                     )}
                  </div>
 
                  {/* Chart Area */}
@@ -568,7 +584,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                       />
 
                       {/* Bars - Middle Layer (z-10) */}
-                      <div className="absolute inset-0 flex items-end justify-between px-1 z-10">
+                      <div className="absolute inset-0 flex items-end justify-between px-1 z-10" onMouseLeave={() => setHoveredBar(null)}>
                            {data.map((d, i) => {
                                 let barClass = 'bg-secondary';
                                 let barStyle: React.CSSProperties = { height: `${(d.count / yMax) * 100}%` };
@@ -576,7 +592,9 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                                 if (d.skipped) {
                                     barClass = 'bg-notion-bg_gray border border-dashed border-foreground/20';
                                 } else {
-                                    const color = getHabitStatusColor(habit, d.count, d.isToday);
+                                    // Use new gradient color logic here but generalized
+                                    // Passing false for isToday so we see the actual performance color even for today
+                                    const color = getHabitStatusColor(habit, d.count, false);
                                     if (color) {
                                         barStyle.backgroundColor = color;
                                     } else {
@@ -585,9 +603,16 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                                 }
 
                                return (
-                                   <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group/bar relative px-[1px]">
-                                       {/* Count Label on Bar */}
-                                       {d.count > 0 && (
+                                   <div 
+                                      key={i} 
+                                      className="flex-1 flex flex-col items-center justify-end h-full relative px-[1px] hover:opacity-80 transition-opacity cursor-crosshair"
+                                      onMouseEnter={(e) => {
+                                          const rect = e.currentTarget.getBoundingClientRect();
+                                          setHoveredBar({ x: rect.left + rect.width / 2, y: rect.top, data: d });
+                                      }}
+                                   >
+                                       {/* Count Label on Bar - Hidden if hovering any bar to avoid clutter with tooltip */}
+                                       {d.count > 0 && !hoveredBar && (
                                             <span className="mb-0.5 text-[8px] font-medium text-foreground/70 hidden sm:block">{d.count}</span>
                                        )}
                                        
@@ -599,23 +624,32 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                                )
                            })}
                       </div>
-
-                      {/* Target Label - Top Layer (z-30) to ensure visibility over bars */}
-                      <div 
-                        className="absolute w-full z-30 pointer-events-none" 
-                        style={{ bottom: `${(habit.target / yMax) * 100}%` }}
-                      >
-                         <div className="absolute right-0 bottom-0 mb-1 text-[9px] text-muted-foreground font-medium px-1.5 py-0.5 bg-background/95 backdrop-blur-sm rounded-sm shadow-sm border border-border/50">Target</div>
-                      </div>
                  </div>
             </div>
 
             {/* X Axis Labels */}
-            <div className="flex pl-10 mt-1 justify-between text-[9px] text-muted-foreground">
+            <div className="flex pl-14 mt-1 justify-between text-[9px] text-muted-foreground">
                 {data.filter((_, i) => i % 5 === 0).map((d, i) => (
                     <span key={i} className={d.isStartDate ? 'text-notion-blue font-bold' : ''}>{d.month} {d.day}</span>
                 ))}
             </div>
+
+            {/* Floating Tooltip */}
+            {hoveredBar && (
+                <div 
+                    className="fixed z-50 bg-foreground text-background text-xs rounded shadow-xl py-1.5 px-3 pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2 animate-in fade-in zoom-in-95 duration-150"
+                    style={{ left: hoveredBar.x, top: hoveredBar.y }}
+                >
+                    <div className="font-bold">{hoveredBar.data.fullDate}</div>
+                    <div className="flex items-center gap-2 mt-0.5 opacity-90">
+                        <span>{hoveredBar.data.count} {habit.unit || 'count'}</span>
+                        <span className="w-1 h-1 bg-background/50 rounded-full" />
+                        <span>{hoveredBar.data.relativeTime}</span>
+                    </div>
+                    {/* Tiny arrow */}
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[4px] border-t-foreground"></div>
+                </div>
+            )}
         </div>
      );
   };
@@ -673,7 +707,10 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                               const color = getHabitStatusColor(habit, count, isToday);
                               
                               if (color) {
-                                  bgStyle = { backgroundColor: color, color: color === '#F59E0B' ? 'black' : 'white' };
+                                  // Determine text color based on background luminance using getContrastColor helper
+                                  // This handles the user request for black text on yellow backgrounds
+                                  const textColor = getContrastColor(color);
+                                  bgStyle = { backgroundColor: color, color: textColor };
                               }
                               
                               if (isToday && !color) {
@@ -958,7 +995,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
         <div 
             key={habit.id} 
             onClick={() => setDetailHabitId(habit.id)}
-            className={`group bg-background rounded-xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-center ${detailHabitId === habit.id ? 'border-notion-blue bg-notion-item_hover' : 'border-border hover:bg-notion-item_hover'}`}
+            className={`group bg-background rounded-lg border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-center h-14 ${detailHabitId === habit.id ? 'border-notion-blue bg-notion-item_hover' : 'border-border hover:bg-notion-item_hover'}`}
         >
             {/* Organize Mode Buttons */}
             {organizeMode && (
@@ -968,48 +1005,54 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                 </div>
             )}
             
-            {/* Main Flex Container */}
-            <div className="flex items-center p-3 gap-3 w-full">
-                {/* Icon */}
-                <div className="w-9 h-9 rounded-lg bg-notion-bg_gray flex items-center justify-center text-lg shrink-0 shadow-sm border border-border/50">
-                    {habit.icon}
-                </div>
-                
-                {/* Title & Metadata */}
-                <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
-                    <h4 className={`text-sm font-bold truncate ${isFailedToday ? 'text-notion-red' : 'text-foreground'}`}>{habit.title}</h4>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                           <Target className="w-3 h-3" />
-                           {habit.target} {habit.unit}
+            {/* Main Flex Container - Single Line Compact */}
+            <div className="flex items-center px-3 gap-3 w-full h-full">
+                {/* Left Side: Icon -> Title -> Type -> Target */}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="text-xl shrink-0">
+                        {habit.icon}
+                    </div>
+                    
+                    <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                        <span className={`w-10 text-center shrink-0 text-[9px] px-1.5 py-0.5 rounded-sm font-bold uppercase tracking-wide ${habit.goalType === 'negative' ? 'bg-notion-bg_red text-notion-red' : 'bg-notion-bg_green text-notion-green'}`}>
+                            {habit.goalType === 'negative' ? 'Quit' : 'Build'}
                         </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                           <Flame className="w-3 h-3" />
-                           {stats.streak}d
-                        </span>
+                        
+                        <h4 className={`text-sm font-bold truncate ${isFailedToday ? 'text-notion-red' : 'text-foreground'}`}>{habit.title}</h4>
                     </div>
                 </div>
 
-                {/* Right Side Actions/Heatmap */}
-                <div className="flex items-center gap-4">
+                {/* Right Side: Streak -> Heatmap -> Button (Right to Left visual flow) */}
+                <div className="flex items-center gap-4 shrink-0">
+                    {/* Streak Counter */}
+                    <div className="flex items-center gap-1 bg-secondary/50 px-1.5 py-0.5 rounded-sm border border-black/5" title="Current Streak">
+                       <Flame className={`w-3.5 h-3.5 ${stats.streak > 0 ? 'text-notion-orange fill-notion-orange' : 'text-muted-foreground'}`} />
+                       <span className={`text-xs font-bold ${stats.streak > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>{stats.streak}d</span>
+                    </div>
+
                     {/* Mini Heatmap (Desktop only) */}
                     <div className="hidden sm:flex gap-1">
                         {last7Days.map((d, i) => {
+                             const isBeforeStart = d.dateStr < habit.startDate;
                              const count = habit.progress[d.dateStr] || 0;
                              const isSkipped = habit.skippedDates.includes(d.dateStr);
                              const isToday = d.dateStr === today;
                              const color = getHabitStatusColor(habit, count, isToday);
                              
                              let bg = 'bg-secondary';
-                             if (isSkipped) bg = 'bg-notion-bg_gray border border-dashed border-border';
-                             else if (color) bg = ''; 
+                             if (isBeforeStart) {
+                                 bg = 'bg-secondary/30 border border-transparent';
+                             } else if (isSkipped) {
+                                 bg = 'bg-notion-bg_gray border border-dashed border-border';
+                             } else if (color) {
+                                 bg = '';
+                             } 
                              
                              return (
                                  <div key={d.dateStr} className="flex flex-col items-center gap-1">
                                      <div 
-                                        className={`w-3 h-3 rounded-[1px] ${bg}`}
-                                        style={color && !isSkipped ? { backgroundColor: color } : {}}
+                                        className={`w-4 h-4 rounded-[1px] ${bg}`}
+                                        style={color && !isSkipped && !isBeforeStart ? { backgroundColor: color } : {}}
                                         title={`${d.dateStr}: ${count}`}
                                      />
                                  </div>
@@ -1032,20 +1075,20 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                                 updateDayStatus(habit.id, today, isDone ? 0 : habit.target, false);
                             }
                         }}
-                        className={`w-10 h-10 rounded-[4px] flex items-center justify-center transition-all shadow-sm border ${
+                        className={`w-8 h-8 rounded-[4px] flex items-center justify-center transition-all shadow-sm border ${
                             isCompletedToday 
                             ? 'bg-notion-green text-white border-notion-green hover:bg-green-600' 
                             : 'bg-background border-border text-muted-foreground hover:border-notion-blue hover:text-notion-blue'
                         }`}
                     >
-                         {isCompletedToday ? <Check className="w-5 h-5" /> : (habit.useCounter ? <Plus className="w-5 h-5" /> : <Check className="w-5 h-5" />)}
+                         {isCompletedToday ? <Check className="w-4 h-4" /> : (habit.useCounter ? <Plus className="w-4 h-4" /> : <Check className="w-4 h-4" />)}
                     </button>
                 </div>
             </div>
             
-            {/* Progress Bar (Bottom) - Only show if using counter */}
+            {/* Progress Bar (Bottom Edge - Absolute) - Only show if using counter */}
             {habit.useCounter && (
-                <div className="h-1 w-full bg-secondary mt-auto">
+                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-secondary w-full">
                      <div 
                         className="h-full transition-all duration-500" 
                         style={getProgressBarStyle(progressToday, habit.target, habit.goalType)}
@@ -1079,11 +1122,9 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                                  <ArrowUpDown className="w-4 h-4" />
                              </button>
 
-                             {organizeMode && (
-                                 <button onClick={() => openFolderModal()} className="flex items-center gap-1.5 px-2 py-1 bg-secondary text-foreground hover:bg-notion-hover rounded-sm shadow-sm transition-all text-sm font-medium">
-                                     <FolderPlus className="w-3.5 h-3.5" /> Group
-                                 </button>
-                             )}
+                             <button onClick={() => openFolderModal()} className="flex items-center gap-1.5 px-2 py-1 bg-secondary text-foreground hover:bg-notion-hover rounded-sm shadow-sm transition-all text-sm font-medium">
+                                 <FolderPlus className="w-3.5 h-3.5" /> Group
+                             </button>
 
                              <button onClick={openCreateModal} className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0">
                                 <Plus className="w-4 h-4" /> New
@@ -1119,14 +1160,16 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                                          <span className="text-xs text-muted-foreground bg-notion-item_hover px-1.5 rounded-sm">{folderHabits.length}</span>
                                      </div>
                                      
-                                     {organizeMode && (
-                                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                             <button onClick={() => moveFolder(folder.sortOrder, 'up')} className="p-1 text-muted-foreground hover:text-foreground"><ArrowUp className="w-3 h-3" /></button>
-                                             <button onClick={() => moveFolder(folder.sortOrder, 'down')} className="p-1 text-muted-foreground hover:text-foreground"><ArrowDown className="w-3 h-3" /></button>
-                                             <button onClick={() => openFolderModal(folder)} className="p-1 text-muted-foreground hover:text-foreground"><Settings className="w-3 h-3" /></button>
-                                             <button onClick={() => handleDeleteFolder(folder.id)} className="p-1 text-muted-foreground hover:text-notion-red"><Trash2 className="w-3 h-3" /></button>
-                                         </div>
-                                     )}
+                                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                         {organizeMode && (
+                                             <>
+                                                <button onClick={() => moveFolder(folder.sortOrder, 'up')} className="p-1 text-muted-foreground hover:text-foreground"><ArrowUp className="w-3 h-3" /></button>
+                                                <button onClick={() => moveFolder(folder.sortOrder, 'down')} className="p-1 text-muted-foreground hover:text-foreground"><ArrowDown className="w-3 h-3" /></button>
+                                             </>
+                                         )}
+                                         <button onClick={() => openFolderModal(folder)} className="p-1 text-muted-foreground hover:text-foreground"><Settings className="w-3 h-3" /></button>
+                                         <button onClick={() => handleDeleteFolder(folder.id)} className="p-1 text-muted-foreground hover:text-notion-red"><Trash2 className="w-3 h-3" /></button>
+                                     </div>
                                  </div>
                                  <div className="grid gap-4 grid-cols-1 xl:grid-cols-2">
                                      {folderHabits.map(renderHabitCard)}
@@ -1150,7 +1193,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
 
         {/* Detail Panel - Always visible on desktop (placeholder if empty) */}
         <div className={`
-            w-full md:w-[400px] border-l border-border bg-background z-20 
+            w-full md:w-[500px] border-l border-border bg-background z-20 
             absolute inset-0 md:static shadow-2xl md:shadow-none 
             animate-in slide-in-from-right-10 duration-300
             ${!detailHabitId ? 'hidden md:block' : ''}
@@ -1279,12 +1322,14 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                          <button onClick={() => setIsFolderModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
                      </div>
                      <form onSubmit={handleSaveFolder} className="p-4 space-y-4">
-                         <div className="flex gap-3">
-                             <div className="space-y-1">
+                         <div className="flex gap-3 items-end">
+                             <div className="space-y-1 shrink-0">
                                  <label className="text-xs font-semibold text-muted-foreground uppercase">Icon</label>
-                                 <input type="text" value={folderIcon} onChange={e => setFolderIcon(e.target.value)} className="w-10 h-9 text-center text-lg border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none" />
+                                 <div className="w-10 h-9">
+                                     <input type="text" value={folderIcon} onChange={e => setFolderIcon(e.target.value)} className="w-full h-full text-center text-lg border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none" />
+                                 </div>
                              </div>
-                             <div className="space-y-1 flex-1">
+                             <div className="space-y-1 flex-1 min-w-0">
                                  <label className="text-xs font-semibold text-muted-foreground uppercase">Name</label>
                                  <input autoFocus required type="text" value={folderName} onChange={e => setFolderName(e.target.value)} placeholder="Morning Routine" className="w-full h-9 px-3 border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none text-sm" />
                              </div>
