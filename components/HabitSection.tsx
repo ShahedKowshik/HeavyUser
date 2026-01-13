@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save, SkipForward, CircleCheck, ArrowLeft, Clock, MoreHorizontal, Flag, FolderPlus, Folder, ArrowUp, ArrowDown, GripVertical, Pencil } from 'lucide-react';
+import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save, SkipForward, CircleCheck, ArrowLeft, Clock, MoreHorizontal, Flag, FolderPlus, Folder, ArrowUp, ArrowDown, GripVertical, Pencil, ArrowUpDown } from 'lucide-react';
 import { Habit, Tag, HabitFolder } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -509,124 +509,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
 
   // --- Analytics Components ---
 
-  const HabitHeatmap = ({ habit }: { habit: Habit }) => {
-    // Show last 52 weeks (~1 year)
-    const weeksToShow = 52;
-    const todayDate = new Date(today);
-    
-    // Find the previous week start to align grid
-    const startOfWeekDate = new Date(todayDate);
-    const currentDay = startOfWeekDate.getDay();
-    const diff = (currentDay - startWeekDay + 7) % 7;
-    startOfWeekDate.setDate(startOfWeekDate.getDate() - diff);
-    
-    // Calculate grid start date
-    const gridStartDate = new Date(startOfWeekDate);
-    gridStartDate.setDate(gridStartDate.getDate() - ((weeksToShow - 1) * 7));
-
-    const weeks = [];
-    let current = new Date(gridStartDate);
-
-    const habitStartDate = new Date(habit.startDate);
-    habitStartDate.setHours(0,0,0,0);
-
-    for (let w = 0; w < weeksToShow; w++) {
-        const days = [];
-        for (let d = 0; d < 7; d++) {
-            const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
-            const dateObj = new Date(current);
-            dateObj.setHours(0,0,0,0);
-
-            // Respect start date
-            const isBeforeStart = dateObj < habitStartDate;
-            const isStartDate = dateStr === habit.startDate;
-            const isFuture = dateStr > today;
-            const isToday = dateStr === today;
-            
-            days.push({
-                date: dateStr,
-                count: habit.progress[dateStr] || 0,
-                isSkipped: habit.skippedDates.includes(dateStr),
-                isFuture,
-                isBeforeStart,
-                isStartDate,
-                isToday,
-                month: current.getMonth(),
-                day: current.getDate()
-            });
-            current.setDate(current.getDate() + 1);
-        }
-        weeks.push(days);
-    }
-
-    const chunks = [weeks.slice(0, 26), weeks.slice(26, 52)];
-
-    return (
-        <div className="flex flex-col w-full select-none gap-6">
-            {chunks.map((chunkWeeks, chunkIndex) => (
-                <div key={chunkIndex} className="flex flex-col w-full">
-                    {/* Month Labels */}
-                    <div className="flex pl-6 mb-1 text-[10px] text-muted-foreground">
-                        {chunkWeeks.map((week, i) => {
-                             const showLabel = week[0].day <= 7;
-                             return (
-                                <div key={i} className="flex-1 text-center overflow-hidden">
-                                    {showLabel ? MONTH_NAMES[week[0].month] : ''}
-                                </div>
-                             );
-                        })}
-                    </div>
-
-                    <div className="flex gap-[2px]">
-                        <div className="flex flex-col justify-between py-[1px] text-[9px] text-muted-foreground w-4 shrink-0">
-                            <span>{weekdays[1].slice(0, 3)}</span>
-                            <span>{weekdays[3].slice(0, 3)}</span>
-                            <span>{weekdays[5].slice(0, 3)}</span>
-                        </div>
-                        
-                        <div className="flex flex-1 gap-[2px]">
-                            {chunkWeeks.map((week, i) => (
-                                <div key={i} className="flex flex-col gap-[2px] flex-1">
-                                    {week.map((day, j) => {
-                                        let bgClass = 'bg-secondary';
-                                        let bgStyle: React.CSSProperties = {};
-
-                                        if (day.isFuture) {
-                                            bgClass = 'bg-transparent border border-border/30';
-                                        } else if (day.isBeforeStart) {
-                                            bgClass = 'bg-secondary/20'; 
-                                        } else if (day.isSkipped) {
-                                            bgClass = 'bg-notion-bg_gray opacity-40 border border-dashed border-foreground/10';
-                                        } else {
-                                            const color = getHabitStatusColor(habit, day.count, day.isToday);
-                                            if (color) {
-                                                bgStyle = { backgroundColor: color };
-                                            } else {
-                                                bgClass = 'bg-secondary';
-                                            }
-                                        }
-
-                                        const markerClass = day.isStartDate ? 'ring-2 ring-inset ring-notion-blue z-10' : '';
-
-                                        return (
-                                            <div 
-                                                key={day.date}
-                                                title={`${day.date}: ${day.count} ${habit.unit || ''} ${day.isStartDate ? '(Start)' : ''}`}
-                                                className={`w-full aspect-square rounded-[0.5px] transition-colors relative ${bgClass} ${markerClass}`}
-                                                style={bgStyle}
-                                            />
-                                        );
-                                    })}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-  };
-
   const HabitTrendChart = ({ habit }: { habit: Habit }) => {
      // Last 30 days
      const days = 30;
@@ -813,7 +695,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
           </div>
           <h3 className="text-sm font-semibold text-foreground">No habit selected</h3>
           <p className="text-xs text-muted-foreground mt-2 max-w-[200px] leading-relaxed">
-              Select a habit from the list to view its analytics, heatmap, and history.
+              Select a habit from the list to view its analytics and history.
           </p>
       </div>
   );
@@ -959,18 +841,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                         </div>
                     </div>
                 )}
-
-                {/* 3. Heatmap Card */}
-                <div className="bg-background border border-border rounded-lg p-4 flex flex-col shadow-sm shrink-0 overflow-hidden">
-                    <div className="flex items-center gap-2 mb-3 shrink-0">
-                        <Activity className="w-4 h-4 text-muted-foreground" />
-                        <h3 className="text-sm font-semibold">Heatmap</h3>
-                    </div>
-                    <div className="w-full pt-2">
-                            <HabitHeatmap habit={detailHabit} />
-                    </div>
-                </div>
-
             </div>
 
              {/* Edit Day Popover */}
@@ -1212,9 +1082,9 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                     <button 
                         onClick={() => setOrganizeMode(!organizeMode)} 
                         className={`p-1.5 rounded-sm transition-colors ${organizeMode ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-notion-hover'}`}
-                        title="Organize / Sort"
+                        title="Reorder Folders & Habits"
                     >
-                        <ArrowUp className="w-4 h-4" />
+                        <ArrowUpDown className="w-4 h-4" />
                     </button>
 
                     <button 
@@ -1252,13 +1122,18 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                             <div className="flex items-center gap-2 group/folder">
                                 <span className="text-xl">{folder.icon}</span>
                                 <h3 className="text-sm font-bold text-foreground">{folder.name}</h3>
+
+                                {/* Edit/Delete - Always accessible on hover */}
+                                <div className="flex items-center gap-1 ml-2 opacity-0 group-hover/folder:opacity-100 transition-opacity">
+                                    <button onClick={() => openFolderModal(folder)} className="p-1 hover:bg-notion-hover rounded text-muted-foreground hover:text-foreground" title="Edit Folder"><Pencil className="w-3 h-3" /></button>
+                                    <button onClick={() => handleDeleteFolder(folder.id)} className="p-1 hover:bg-notion-bg_red hover:text-notion-red rounded text-muted-foreground" title="Delete Folder"><Trash2 className="w-3 h-3" /></button>
+                                </div>
+
                                 {organizeMode && (
-                                    <div className="flex items-center gap-1 ml-2 opacity-50 group-hover/folder:opacity-100 transition-opacity">
+                                    <div className="flex items-center gap-1 ml-auto md:ml-2">
+                                        <div className="w-px h-3 bg-border mx-1" />
                                         <button onClick={() => moveFolder(folderIndex, 'up')} className="p-1 hover:bg-notion-hover rounded text-muted-foreground"><ArrowUp className="w-3 h-3" /></button>
                                         <button onClick={() => moveFolder(folderIndex, 'down')} className="p-1 hover:bg-notion-hover rounded text-muted-foreground"><ArrowDown className="w-3 h-3" /></button>
-                                        <div className="w-px h-3 bg-border mx-1" />
-                                        <button onClick={() => openFolderModal(folder)} className="p-1 hover:bg-notion-hover rounded text-muted-foreground"><Pencil className="w-3 h-3" /></button>
-                                        <button onClick={() => handleDeleteFolder(folder.id)} className="p-1 hover:bg-notion-bg_red hover:text-notion-red rounded text-muted-foreground"><Trash2 className="w-3 h-3" /></button>
                                     </div>
                                 )}
                             </div>
