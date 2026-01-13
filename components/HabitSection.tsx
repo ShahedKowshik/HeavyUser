@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save, SkipForward, CircleCheck, ArrowLeft, Clock, MoreHorizontal, Flag, FolderPlus, Folder, ArrowUp, ArrowDown, GripVertical, Pencil, ArrowUpDown } from 'lucide-react';
 import { Habit, Tag, HabitFolder } from '../types';
@@ -994,7 +995,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
     return (
         <div 
             key={habit.id} 
-            onClick={() => setDetailHabitId(habit.id)}
+            onClick={(e) => { e.stopPropagation(); setDetailHabitId(habit.id); }}
             className={`group bg-background rounded-lg border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-center h-14 ${detailHabitId === habit.id ? 'border-notion-blue bg-notion-item_hover' : 'border-border hover:bg-notion-item_hover'}`}
         >
             {/* Organize Mode Buttons */}
@@ -1103,9 +1104,16 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
     <div className="flex h-full bg-background overflow-hidden relative">
         {/* Main List Panel */}
         <div className={`flex-1 flex flex-col min-w-0 border-r border-border ${detailHabitId ? 'hidden md:flex' : 'flex'}`}>
-            <div className="flex-1 overflow-y-auto custom-scrollbar" style={{ scrollbarGutter: 'stable' }}>
+            <div 
+                className="flex-1 overflow-y-auto custom-scrollbar" 
+                style={{ scrollbarGutter: 'stable' }}
+                onClick={() => setDetailHabitId(null)}
+            >
                  {/* Header Controls */}
-                 <div className="px-4 md:px-8 pt-4 md:pt-6 mb-4 space-y-4">
+                 <div 
+                    className="px-4 md:px-8 pt-4 md:pt-6 mb-4 space-y-4"
+                    onClick={(e) => e.stopPropagation()}
+                 >
                      <div className="flex flex-row items-center justify-between gap-2 sm:gap-4 border-b border-border pb-4">
                         <div className="flex items-center gap-1">
                              <button onClick={() => setFilter('all')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === 'all' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>All</button>
