@@ -52,25 +52,6 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Initialize UserJot - "Do Not Load" Strategy
-  useEffect(() => {
-    // 1. Check the Width First
-    // If the screen is smaller than 768px (Mobile), we stop right here.
-    if (window.innerWidth < 768) {
-      return;
-    }
-
-    // 2. Make a Decision: Only load if on Desktop
-    const win = window as any;
-    if (win.uj) {
-      win.uj.init('cmk7h3eoq00dw14qj3ijwg5va', {
-        widget: true,
-        position: 'right',
-        theme: 'auto'
-      });
-    }
-  }, []);
-
   // Identify User for UserJot
   useEffect(() => {
     // Also skip identification if on mobile
