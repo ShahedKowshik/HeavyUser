@@ -62,7 +62,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
   const [editTagLabel, setEditTagLabel] = useState('');
   const [editTagColor, setEditTagColor] = useState('');
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = (overrides: Partial<UserSettings> = {}) => {
     if (!isOnline) {
       setToast('Cannot update settings offline');
       setTimeout(() => setToast(null), 3000);
@@ -74,7 +74,8 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
         profilePicture: localProfilePic.trim() || undefined,
         dayStartHour: localDayStartHour,
         startWeekDay: localStartWeekDay,
-        enabledFeatures: localEnabledFeatures
+        enabledFeatures: localEnabledFeatures,
+        ...overrides
     });
     setToast('Settings updated');
     setTimeout(() => setToast(null), 3000);
@@ -255,7 +256,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                         <label className="text-xs font-medium text-muted-foreground">Avatar URL</label>
                                         <input type="text" value={localProfilePic} onChange={e => setLocalProfilePic(e.target.value)} placeholder="https://..." className="w-full text-sm border border-border rounded-sm px-2 py-1.5 focus:border-notion-blue focus:ring-1 focus:ring-notion-blue outline-none bg-transparent" />
                                     </div>
-                                    <button onClick={handleSaveProfile} className="w-full sm:w-auto px-3 py-1 bg-notion-blue text-white rounded-sm text-sm hover:bg-blue-600 transition-colors">Update</button>
+                                    <button onClick={() => handleSaveProfile()} className="w-full sm:w-auto px-3 py-1 bg-notion-blue text-white rounded-sm text-sm hover:bg-blue-600 transition-colors">Update</button>
                                 </div>
                             </div>
                         </div>
@@ -317,7 +318,11 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                     </div>
                                     <select 
                                         value={localDayStartHour} 
-                                        onChange={e => { setLocalDayStartHour(parseInt(e.target.value)); handleSaveProfile(); }}
+                                        onChange={e => { 
+                                            const val = parseInt(e.target.value);
+                                            setLocalDayStartHour(val); 
+                                            handleSaveProfile({ dayStartHour: val }); 
+                                        }}
                                         className="text-sm border border-border rounded-sm bg-transparent px-2 py-1 outline-none focus:ring-1 focus:ring-notion-blue"
                                     >
                                         {Array.from({length: 24}).map((_, i) => (
@@ -332,7 +337,11 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                     </div>
                                     <select 
                                         value={localStartWeekDay} 
-                                        onChange={e => { setLocalStartWeekDay(parseInt(e.target.value)); handleSaveProfile(); }}
+                                        onChange={e => { 
+                                            const val = parseInt(e.target.value);
+                                            setLocalStartWeekDay(val); 
+                                            handleSaveProfile({ startWeekDay: val }); 
+                                        }}
                                         className="text-sm border border-border rounded-sm bg-transparent px-2 py-1 outline-none focus:ring-1 focus:ring-notion-blue"
                                     >
                                         <option value={0}>Sunday</option>

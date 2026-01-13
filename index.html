@@ -324,14 +324,12 @@
 window.$ujq=window.$ujq||[];
 window.uj=window.uj||new Proxy({},{get:(_,p)=>(...a)=>window.$ujq.push([p,...a])});
 
-// Initialize UserJot immediately if desktop
-if (window.innerWidth >= 768) {
-  window.uj.init('cmk7h3eoq00dw14qj3ijwg5va', {
-    widget: true,
-    position: 'right',
-    theme: 'auto'
-  });
-}
+// Initialize UserJot always to prevent "Project ID not set" errors on resize/identify
+window.uj.init('cmk7h3eoq00dw14qj3ijwg5va', {
+  widget: window.innerWidth >= 768, // Only show widget on desktop
+  position: 'right',
+  theme: 'auto'
+});
 
 document.head.appendChild(Object.assign(document.createElement('script'),{src:'https://cdn.userjot.com/sdk/v2/uj.js',type:'module',async:!0}));
 </script>
