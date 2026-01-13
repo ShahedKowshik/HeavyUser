@@ -1,10 +1,12 @@
+
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause, BarChart3, CheckSquare, StickyNote, MoreHorizontal, ChevronDown, Ban, WifiOff, MessageSquare, Map } from 'lucide-react';
-import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder } from '../types';
+import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
 import JournalSection from './JournalSection';
-import { HabitSection } from './HabitSection';
+import HabitSection from './HabitSection';
 import NotesSection from './NotesSection';
 import { supabase } from '../lib/supabase';
 import { decryptData } from '../lib/crypto';
@@ -157,7 +159,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
-  const [habitFolders, setHabitFolders] = useState<HabitFolder[]>([]);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -196,7 +197,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     const cachedTasks = loadFromLocal('tasks');
     const cachedTags = loadFromLocal('tags');
     const cachedHabits = loadFromLocal('habits');
-    const cachedHabitFolders = loadFromLocal('habitFolders');
     const cachedJournals = loadFromLocal('journals');
     const cachedNotes = loadFromLocal('notes');
     const cachedFolders = loadFromLocal('folders');
@@ -205,7 +205,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     if (cachedTasks) setTasks(cachedTasks);
     if (cachedTags) setTags(cachedTags);
     if (cachedHabits) setHabits(cachedHabits);
-    if (cachedHabitFolders) setHabitFolders(cachedHabitFolders);
     if (cachedJournals) setJournals(cachedJournals);
     if (cachedNotes) setNotes(cachedNotes);
     if (cachedFolders) setFolders(cachedFolders);
@@ -217,11 +216,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     const fetchData = async () => {
       if (!isOnline) return;
       try {
-        const [{ data: tasksData }, { data: tagsData }, { data: habitsData }, { data: habitFoldersData }, { data: journalsData }, { data: foldersData }, { data: notesData }, { data: sessionsData }] = await Promise.all([
+        const [{ data: tasksData }, { data: tagsData }, { data: habitsData }, { data: journalsData }, { data: foldersData }, { data: notesData }, { data: sessionsData }] = await Promise.all([
           supabase.from('tasks').select('*').eq('user_id', userId), 
           supabase.from('tags').select('*').eq('user_id', userId), 
-          supabase.from('habits').select('*').eq('user_id', userId).order('sort_order', { ascending: true }), 
-          supabase.from('habit_folders').select('*').eq('user_id', userId).order('sort_order', { ascending: true }),
+          supabase.from('habits').select('*').eq('user_id', userId).order('created_at', { ascending: true }), 
           supabase.from('journals').select('*').eq('user_id', userId).order('timestamp', { ascending: false }), 
           supabase.from('folders').select('*').eq('user_id', userId).order('created_at', { ascending: true }), 
           supabase.from('notes').select('*').eq('user_id', userId).order('updated_at', { ascending: false }), 
@@ -237,12 +235,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             setTags(parsed); saveToLocal('tags', parsed);
         }
         if (habitsData) {
-            const parsed = habitsData.map((h: any) => ({ id: h.id, title: decryptData(h.title), icon: h.icon, target: h.target || 1, unit: h.unit || '', progress: h.progress || {}, skippedDates: h.skipped_dates || [], startDate: h.start_date || new Date().toISOString().split('T')[0], useCounter: h.use_counter !== false, tags: h.tags || [], goalType: h.goal_type || 'positive', folderId: h.folder_id, sortOrder: h.sort_order || 0 }));
+            const parsed = habitsData.map((h: any) => ({ id: h.id, title: decryptData(h.title), icon: h.icon, target: h.target || 1, unit: h.unit || '', progress: h.progress || {}, skippedDates: h.skipped_dates || [], startDate: h.start_date || new Date().toISOString().split('T')[0], useCounter: h.use_counter !== false, tags: h.tags || [], goalType: h.goal_type || 'positive' }));
             setHabits(parsed); saveToLocal('habits', parsed);
-        }
-        if (habitFoldersData) {
-            const parsed = habitFoldersData.map((f: any) => ({ id: f.id, name: decryptData(f.name), icon: f.icon, sortOrder: f.sort_order || 0 }));
-            setHabitFolders(parsed); saveToLocal('habitFolders', parsed);
         }
         if (journalsData) {
             const parsed = journalsData.map((j: any) => ({ id: j.id, title: decryptData(j.title), content: decryptData(j.content), timestamp: j.timestamp, rating: j.rating, entryType: j.entry_type as EntryType, tags: j.tags || [] }));
@@ -283,7 +277,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   useEffect(() => { if (tasks.length > 0) saveToLocal('tasks', tasks); }, [tasks]);
   useEffect(() => { if (tags.length > 0) saveToLocal('tags', tags); }, [tags]);
   useEffect(() => { if (habits.length > 0) saveToLocal('habits', habits); }, [habits]);
-  useEffect(() => { if (habitFolders.length > 0) saveToLocal('habitFolders', habitFolders); }, [habitFolders]);
   useEffect(() => { if (journals.length > 0) saveToLocal('journals', journals); }, [journals]);
   useEffect(() => { if (notes.length > 0) saveToLocal('notes', notes); }, [notes]);
   useEffect(() => { if (folders.length > 0) saveToLocal('folders', folders); }, [folders]);
@@ -432,7 +425,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const renderContent = () => {
     switch (activeTab) {
       case 'tasks': return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} />;
-      case 'habit': return <HabitSection habits={habits} setHabits={setHabits} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} habitFolders={habitFolders} setHabitFolders={setHabitFolders} />;
+      case 'habit': return <HabitSection habits={habits} setHabits={setHabits} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'journal': return <JournalSection journals={journals} setJournals={setJournals} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'notes': return <NotesSection notes={notes} setNotes={setNotes} folders={folders} setFolders={setFolders} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'settings': return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} tags={tags} setTags={setTags} isOnline={isOnline} />;
@@ -449,4 +442,154 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           
           <nav className="flex-1 space-y-0.5 w-full overflow-y-auto custom-scrollbar px-2 py-2">
             {enabledModules.includes('tasks') && <NavItem id="tasks" label="Tasks" icon={CheckSquare} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
-            {enabledModules.includes('habit') && <NavItem id="habit" label="Habits" icon={Zap} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebar
+            {enabledModules.includes('habit') && <NavItem id="habit" label="Habits" icon={Zap} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
+            {enabledModules.includes('journal') && <NavItem id="journal" label="Journal" icon={Book} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
+            {enabledModules.includes('notes') && <NavItem id="notes" label="Notes" icon={StickyNote} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
+          </nav>
+          
+          <div className="shrink-0 mb-2 px-2 space-y-0.5 border-t border-border/40 pt-2">
+                <NavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
+                <div className="py-1">
+                    <div className="border-t border-border" />
+                </div>
+                <ExternalNavLink href="https://heavyuser.userjot.com/" label="Share Feedback" icon={MessageSquare} isSidebarCollapsed={isSidebarCollapsed} />
+                <ExternalNavLink href="https://heavyuser.userjot.com/roadmap" label="View Roadmap" icon={Map} isSidebarCollapsed={isSidebarCollapsed} />
+          </div>
+
+          {!isSidebarCollapsed && (
+            <div className="p-4 border-t border-border bg-secondary/10 space-y-4">
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 bg-background border border-border rounded-md px-2 py-1.5 flex items-center justify-center gap-1.5 shadow-sm" title="Current Streak">
+                        <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'text-notion-orange fill-notion-orange' : 'text-notion-orange'}`} />
+                        <span className="text-xs font-bold tabular-nums">{streakData.count}</span>
+                    </div>
+                    
+                    <div className="flex-1 relative">
+                         <button onClick={() => setIsTagFilterOpen(!isTagFilterOpen)} className={`w-full bg-background border border-border rounded-md px-2 py-1.5 flex items-center justify-center gap-1.5 shadow-sm hover:bg-notion-hover transition-colors ${activeFilterTagId ? 'text-notion-blue' : 'text-muted-foreground'}`} title="Filter by Tag">
+                            <TagIcon className="w-3.5 h-3.5" />
+                            <span className="text-xs font-medium max-w-[60px] truncate">{activeFilterTagId === 'no_tag' ? 'No Label' : (activeFilterTag ? activeFilterTag.label : 'All')}</span>
+                        </button>
+                        {isTagFilterOpen && (
+                            <>
+                                <div className="fixed inset-0 z-40" onClick={() => setIsTagFilterOpen(false)} />
+                                <div className="absolute bottom-full left-0 mb-2 w-40 bg-background border border-border rounded-md shadow-xl z-50 p-1 animate-in zoom-in-95">
+                                    <button onClick={() => { setActiveFilterTagId(null); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between hover:bg-notion-hover">All Labels</button>
+                                    <button onClick={() => { setActiveFilterTagId('no_tag'); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between hover:bg-notion-hover">No Label</button>
+                                    <div className="h-px bg-border my-1" />
+                                    <div className="max-h-40 overflow-y-auto custom-scrollbar">
+                                        {tags.map(tag => (
+                                            <button key={tag.id} onClick={() => { setActiveFilterTagId(tag.id); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center gap-2 hover:bg-notion-hover">
+                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />
+                                                <span className="truncate">{tag.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                <div className="bg-background border border-border rounded-lg p-3 shadow-sm">
+                    <div className="flex items-start gap-3 mb-3">
+                        <div className="p-2 bg-blue-50 text-notion-blue rounded-full shrink-0">
+                            <Activity className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                            <div className="text-xs font-bold text-foreground truncate">Daily Focus</div>
+                            <div className="text-[10px] text-muted-foreground truncate">
+                                {sidebarStats.finishTime ? `Ends at ${sidebarStats.finishTime}` : 'All caught up!'}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden mb-2">
+                        <div className="h-full bg-notion-blue transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+                    </div>
+
+                    <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
+                        <span>{Math.floor(sidebarStats.totalTrackedSeconds/60)}m done</span>
+                        <span>{sidebarStats.remainingMinutes}m left</span>
+                    </div>
+                </div>
+                
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground justify-center opacity-60">
+                    <Clock className="w-3 h-3" /> <span>Reset in {timeLeft}</span>
+                </div>
+            </div>
+          )}
+      </aside>
+  );
+
+  return (
+    <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans">
+      {renderSidebar()}
+
+      <main className="flex-1 flex flex-col min-w-0 bg-background relative overflow-hidden">
+         <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-background z-20">
+             <div className="flex items-center gap-2 shrink-0">
+                 <AppIcon className="w-6 h-6 rounded-sm" isOffline={!isOnline} />
+                 <span className="font-bold text-lg">HeavyUser</span>
+             </div>
+             
+             <div className="flex items-center gap-3 text-xs">
+                 {!isOnline && <WifiOff className="w-3.5 h-3.5 text-muted-foreground" />}
+                 <div className="flex items-center gap-1.5 font-medium shrink-0">
+                    <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'text-notion-orange fill-notion-orange' : 'text-notion-orange'}`} />
+                    <span>{streakData.count}</span>
+                 </div>
+                 
+                 <div className="relative shrink-0">
+                     <button onClick={() => setIsTagFilterOpen(!isTagFilterOpen)} className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded transition-colors ${activeFilterTagId ? 'bg-notion-bg_blue text-notion-blue' : 'text-muted-foreground'}`}>
+                        <TagIcon className="w-3.5 h-3.5" />
+                        <span className="max-w-[60px] truncate">{activeFilterTagId === 'no_tag' ? 'No Label' : (activeFilterTag ? activeFilterTag.label : 'All')}</span>
+                    </button>
+                    {isTagFilterOpen && (
+                        <>
+                            <div className="fixed inset-0 z-30" onClick={() => setIsTagFilterOpen(false)} />
+                            <div className="absolute top-full right-0 mt-1 w-40 bg-background border border-border rounded-md shadow-xl z-40 p-1 animate-in zoom-in-95 origin-top-right">
+                                <button onClick={() => { setActiveFilterTagId(null); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-2 text-xs rounded-sm hover:bg-notion-hover">All Labels</button>
+                                <button onClick={() => { setActiveFilterTagId('no_tag'); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-2 text-xs rounded-sm hover:bg-notion-hover">No Label</button>
+                                <div className="max-h-40 overflow-y-auto custom-scrollbar">
+                                    {tags.map(tag => (
+                                        <button key={tag.id} onClick={() => { setActiveFilterTagId(tag.id); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-2 text-xs rounded-sm flex items-center gap-2 hover:bg-notion-hover">
+                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />
+                                            <span className="truncate">{tag.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </>
+                    )}
+                 </div>
+
+                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-widest shrink-0">
+                    <Clock className="w-3 h-3" /> {timeLeft}
+                 </div>
+             </div>
+         </header>
+
+         <div className="flex-1 overflow-hidden relative pb-16 md:pb-0">
+             {renderContent()}
+         </div>
+
+         <div className="md:hidden fixed bottom-0 left-0 right-0 border-t border-border bg-background z-50">
+            <div className="flex items-center justify-around h-16">
+                {enabledModules.includes('tasks') && <MobileNavItem id="tasks" label="Tasks" icon={CheckSquare} activeTab={activeTab} setActiveTab={setActiveTab} />}
+                {enabledModules.includes('habit') && <MobileNavItem id="habit" label="Habits" icon={Zap} activeTab={activeTab} setActiveTab={setActiveTab} />}
+                {enabledModules.includes('journal') && <MobileNavItem id="journal" label="Journal" icon={Book} activeTab={activeTab} setActiveTab={setActiveTab} />}
+                {enabledModules.includes('notes') && <MobileNavItem id="notes" label="Notes" icon={StickyNote} activeTab={activeTab} setActiveTab={setActiveTab} />}
+                <MobileNavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} />
+            </div>
+         </div>
+
+         {trackedTaskId && tasks.find(t => t.id === trackedTaskId) && (
+             <div className="absolute bottom-20 md:bottom-6 right-6 z-40">
+                 <TaskTrackerWidget task={tasks.find(t => t.id === trackedTaskId)!} onToggle={handleToggleTimer} onClose={() => setTrackedTaskId(null)} />
+             </div>
+         )}
+      </main>
+    </div>
+  );
+};
+export default Dashboard;
