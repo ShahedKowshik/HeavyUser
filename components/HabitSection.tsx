@@ -1008,17 +1008,20 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
             
             {/* Main Flex Container - Single Line Compact */}
             <div className="flex items-center px-3 gap-3 w-full h-full">
-                {/* Left Side: Icon -> Title -> Type -> Target */}
+                {/* Left Side: Badge -> Icon -> Title */}
                 <div className="flex items-center gap-3 min-w-0 flex-1">
+                    {/* Badge moved first */}
+                    <span className={`w-10 text-center shrink-0 text-[9px] px-1.5 py-0.5 rounded-sm font-bold uppercase tracking-wide ${habit.goalType === 'negative' ? 'bg-notion-bg_red text-notion-red' : 'bg-notion-bg_green text-notion-green'}`}>
+                        {habit.goalType === 'negative' ? 'Quit' : 'Build'}
+                    </span>
+
+                    {/* Icon */}
                     <div className="text-xl shrink-0">
                         {habit.icon}
                     </div>
                     
+                    {/* Title */}
                     <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                        <span className={`w-10 text-center shrink-0 text-[9px] px-1.5 py-0.5 rounded-sm font-bold uppercase tracking-wide ${habit.goalType === 'negative' ? 'bg-notion-bg_red text-notion-red' : 'bg-notion-bg_green text-notion-green'}`}>
-                            {habit.goalType === 'negative' ? 'Quit' : 'Build'}
-                        </span>
-                        
                         <h4 className={`text-sm font-bold truncate ${isFailedToday ? 'text-notion-red' : 'text-foreground'}`}>{habit.title}</h4>
                     </div>
                 </div>
@@ -1222,11 +1225,11 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                         {/* Icon & Title */}
                         <div className="flex gap-4">
                             <div className="space-y-1">
-                                <label className="text-xs font-semibold text-muted-foreground uppercase">Icon</label>
-                                <input type="text" value={icon} onChange={e => setIcon(e.target.value)} className="w-12 h-10 text-center text-xl border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none" />
+                                <label className="block text-xs font-semibold text-muted-foreground uppercase">Icon</label>
+                                <input type="text" value={icon} onChange={e => setIcon(e.target.value)} className="w-16 h-10 text-center text-xl border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none" />
                             </div>
                             <div className="space-y-1 flex-1">
-                                <label className="text-xs font-semibold text-muted-foreground uppercase">Title</label>
+                                <label className="block text-xs font-semibold text-muted-foreground uppercase">Title</label>
                                 <input autoFocus required type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Drink Water" className="w-full h-10 px-3 border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none text-sm" />
                             </div>
                         </div>
