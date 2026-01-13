@@ -140,6 +140,26 @@ const getHabitStats = (habit: Habit, today: string) => {
     return { streak, totalDays, successfulDays, rate };
 };
 
+// Unified color logic for all habits
+const getHabitStatusColor = (habit: Habit, count: number, isToday: boolean): string | null => {
+    const isNegative = habit.goalType === 'negative';
+    
+    if (isNegative) {
+        // Negative Habit Logic
+        if (count === 0) return '#448361'; // Green (Success)
+        const limit = habit.useCounter ? habit.target : 0;
+        if (count <= limit) return '#F59E0B'; // Yellow (Warning/Within limit)
+        return '#E03E3E'; // Red (Failed)
+    } else {
+        // Positive Habit Logic
+        if (count >= habit.target) return '#448361'; // Green (Success)
+        if (count > 0) return '#F59E0B'; // Yellow (Partial progress)
+        // Count is 0
+        if (isToday) return null; // Pending (Transparent/Blue ring handled by UI)
+        return '#E03E3E'; // Red (Failed - Past day)
+    }
+};
+
 const interpolateColor = (color1: string, color2: string, factor: number) => {
     const r1 = parseInt(color1.substring(1, 3), 16);
     const g1 = parseInt(color1.substring(3, 5), 16);
@@ -166,11 +186,9 @@ const getProgressBarStyle = (progress: number, target: number, type: 'positive' 
     const goalType = type || 'positive';
 
     if (goalType === 'negative') {
-        if (ratio < 0.5) {
-            backgroundColor = interpolateColor(GREEN, YELLOW, ratio * 2);
-        } else {
-            backgroundColor = interpolateColor(YELLOW, RED, (ratio - 0.5) * 2);
-        }
+        if (progress === 0) backgroundColor = GREEN;
+        else if (progress <= target) backgroundColor = YELLOW;
+        else backgroundColor = RED;
     } else {
         if (ratio < 0.5) {
             backgroundColor = interpolateColor(RED, YELLOW, ratio * 2);
@@ -393,6 +411,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
             const isBeforeStart = dateObj < habitStartDate;
             const isStartDate = dateStr === habit.startDate;
             const isFuture = dateStr > today;
+            const isToday = dateStr === today;
             
             days.push({
                 date: dateStr,
@@ -401,6 +420,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                 isFuture,
                 isBeforeStart,
                 isStartDate,
+                isToday,
                 month: current.getMonth(),
                 day: current.getDate()
             });
@@ -408,8 +428,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
         }
         weeks.push(days);
     }
-
-    const limit = (!habit.useCounter && habit.goalType === 'negative') ? 0 : habit.target;
 
     // Split weeks into 2 chunks of 26 weeks each
     const chunks = [weeks.slice(0, 26), weeks.slice(26, 52)];
@@ -445,20 +463,21 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                 <div key={i} className="flex flex-col gap-[2px] flex-1">
                                     {week.map((day, j) => {
                                         let bgClass = 'bg-secondary';
+                                        let bgStyle: React.CSSProperties = {};
+
                                         if (day.isFuture) {
                                             bgClass = 'bg-transparent border border-border/30';
                                         } else if (day.isBeforeStart) {
                                             bgClass = 'bg-secondary/20'; // Faded for before start
                                         } else if (day.isSkipped) {
                                             bgClass = 'bg-notion-bg_gray opacity-40 border border-dashed border-foreground/10';
-                                        } else if (habit.goalType === 'negative') {
-                                            if (day.count > limit) bgClass = 'bg-notion-red'; 
-                                            else if (day.count > 0) bgClass = 'bg-[#F59E0B]'; // Safe = Yellow/Amber
-                                            else bgClass = 'bg-notion-green'; // Success = Solid Green
                                         } else {
-                                            if (day.count >= habit.target) bgClass = 'bg-notion-green';
-                                            else if (day.count > 0) bgClass = 'bg-notion-orange';
-                                            else bgClass = 'bg-secondary';
+                                            const color = getHabitStatusColor(habit, day.count, day.isToday);
+                                            if (color) {
+                                                bgStyle = { backgroundColor: color };
+                                            } else {
+                                                bgClass = 'bg-secondary';
+                                            }
                                         }
 
                                         const markerClass = day.isStartDate ? 'ring-2 ring-inset ring-notion-blue z-10' : '';
@@ -468,6 +487,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                                 key={day.date}
                                                 title={`${day.date}: ${day.count} ${habit.unit || ''} ${day.isStartDate ? '(Start)' : ''}`}
                                                 className={`w-full aspect-square rounded-[0.5px] transition-colors relative ${bgClass} ${markerClass}`}
+                                                style={bgStyle}
                                             />
                                         );
                                     })}
@@ -500,7 +520,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
             month: d.toLocaleDateString('en-US', { month: 'short' }),
             count: habit.progress[dateStr] || 0,
             skipped: habit.skippedDates.includes(dateStr),
-            isStartDate: dateStr === habit.startDate
+            isStartDate: dateStr === habit.startDate,
+            isToday: dateStr === today
         });
      }
 
@@ -528,15 +549,18 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                       {/* Bars */}
                       <div className="absolute inset-0 flex items-end justify-between px-1 z-10">
                            {data.map((d, i) => {
-                                let barColor = 'bg-secondary';
-                                if (d.skipped) barColor = 'bg-notion-bg_gray border border-dashed border-foreground/20';
-                                else if (habit.goalType === 'negative') {
-                                    if (d.count > habit.target) barColor = 'bg-notion-red';
-                                    else if (d.count > 0) barColor = 'bg-[#F59E0B]';
-                                    else barColor = 'bg-notion-green'; // Solid Green for Success 0
+                                let barClass = 'bg-secondary';
+                                let barStyle: React.CSSProperties = { height: `${(d.count / yMax) * 100}%` };
+
+                                if (d.skipped) {
+                                    barClass = 'bg-notion-bg_gray border border-dashed border-foreground/20';
                                 } else {
-                                    if (d.count >= habit.target) barColor = 'bg-notion-green';
-                                    else if (d.count > 0) barColor = 'bg-notion-orange';
+                                    const color = getHabitStatusColor(habit, d.count, d.isToday);
+                                    if (color) {
+                                        barStyle.backgroundColor = color;
+                                    } else {
+                                        barClass = 'bg-secondary';
+                                    }
                                 }
 
                                return (
@@ -547,8 +571,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                        )}
                                        
                                        <div 
-                                          className={`w-full rounded-t-[1px] transition-all min-h-[1px] ${barColor} ${d.isStartDate ? 'ring-1 ring-inset ring-notion-blue z-20' : ''}`} 
-                                          style={{ height: `${(d.count / yMax) * 100}%` }} 
+                                          className={`w-full rounded-t-[1px] transition-all min-h-[1px] ${barClass} ${d.isStartDate ? 'ring-1 ring-inset ring-notion-blue z-20' : ''}`} 
+                                          style={barStyle} 
                                        />
                                    </div>
                                )
@@ -588,10 +612,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
         setCalendarDate(d);
       };
       
-      const limit = (!habit.useCounter && habit.goalType === 'negative') ? 0 : habit.target;
-
       return (
-          <div className="flex flex-col h-full select-none">
+          <div className="flex flex-col select-none">
               <div className="flex items-center justify-between mb-2 shrink-0">
                   <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-notion-hover rounded text-muted-foreground"><ChevronLeft className="w-4 h-4" /></button>
                   <span className="text-sm font-semibold">{calendarDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</span>
@@ -600,9 +622,9 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
               <div className="grid grid-cols-7 gap-1 mb-2 text-center">
                   {WEEKDAYS.map(d => <div key={d} className="text-[10px] text-muted-foreground font-bold">{d.slice(0, 2)}</div>)}
               </div>
-              <div className="grid grid-cols-7 gap-1 flex-1 content-start">
+              <div className="grid grid-cols-7 gap-1 content-start">
                   {days.map((day, idx) => {
-                      if (!day) return <div key={`empty-${idx}`} className="aspect-square" />;
+                      if (!day) return <div key={`empty-${idx}`} className="h-9" />;
                       
                       const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                       const count = habit.progress[dateStr] || 0;
@@ -613,18 +635,26 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                       const isStartDate = dateStr === habit.startDate;
                       
                       let bgClass = 'bg-secondary text-muted-foreground';
+                      let bgStyle: React.CSSProperties = {};
                       
                       if (!isFuture && !isBeforeStart) {
                           if (isSkipped) {
                               bgClass = 'bg-notion-bg_gray border border-dashed border-border opacity-50';
-                          } else if (habit.goalType === 'negative') {
-                              if (count > limit) bgClass = 'bg-notion-bg_red text-notion-red font-bold';
-                              else if (isToday) bgClass = 'bg-notion-bg_blue text-notion-blue border border-notion-blue';
-                              else bgClass = 'bg-notion-bg_green text-notion-green';
                           } else {
-                              if (count >= limit) bgClass = 'bg-notion-bg_green text-notion-green font-bold';
-                              else if (count > 0) bgClass = 'bg-notion-bg_orange text-notion-orange';
-                              else if (isToday) bgClass = 'bg-notion-bg_blue text-notion-blue border border-notion-blue';
+                              const color = getHabitStatusColor(habit, count, isToday);
+                              
+                              if (color) {
+                                  bgStyle = { backgroundColor: color, color: color === '#F59E0B' ? 'black' : 'white' };
+                              }
+                              
+                              if (isToday && !color) {
+                                  // Pending state for today
+                                  bgClass += ' ring-2 ring-notion-blue';
+                              }
+                              
+                              if (isToday && color) {
+                                  bgClass += ' ring-2 ring-notion-blue';
+                              }
                           }
                       } else {
                           bgClass = 'bg-transparent text-muted-foreground/30';
@@ -639,7 +669,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                   if (isFuture || isBeforeStart) return;
                                   setDayEdit({ date: dateStr, count, isSkipped });
                               }}
-                              className={`aspect-square rounded-[2px] flex items-center justify-center text-xs cursor-pointer hover:opacity-80 transition-opacity ${bgClass} ${markerClass}`}
+                              className={`h-9 rounded-[2px] flex items-center justify-center text-xs cursor-pointer hover:opacity-80 transition-opacity ${bgClass} ${markerClass}`}
+                              style={bgStyle}
                               title={isStartDate ? 'Start Date' : undefined}
                           >
                               {day}
@@ -654,6 +685,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
   const renderDetailView = () => {
     if (!detailHabit) return null;
     const stats = getHabitStats(detailHabit, today);
+    const isNegative = detailHabit.goalType === 'negative';
 
     return (
         <div className="flex flex-col h-full bg-background animate-in fade-in">
@@ -699,10 +731,12 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                             </div>
                         </div>
                         <div className="bg-background border border-border rounded-lg p-3 shadow-sm overflow-hidden">
-                            <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1 truncate">Success Rate</div>
+                            <div className={`text-[10px] uppercase font-bold text-muted-foreground mb-1 truncate ${isNegative ? 'text-notion-red' : ''}`}>
+                                {isNegative ? 'Failure Rate' : 'Success Rate'}
+                            </div>
                             <div className="text-xl font-bold flex items-center gap-2 truncate">
-                                <Activity className="w-5 h-5 shrink-0 text-notion-blue" />
-                                {stats.rate}%
+                                <Activity className={`w-5 h-5 shrink-0 ${isNegative ? 'text-notion-red' : 'text-notion-blue'}`} />
+                                {isNegative ? 100 - stats.rate : stats.rate}%
                             </div>
                         </div>
                         <div className="bg-background border border-border rounded-lg p-3 shadow-sm overflow-hidden">
@@ -723,18 +757,12 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                         </div>
                 </div>
 
-                {/* Heatmap Card */}
-                <div className="bg-background border border-border rounded-lg p-4 flex flex-col shadow-sm shrink-0 overflow-hidden">
-                    <div className="flex items-center gap-2 mb-3 shrink-0">
-                        <Activity className="w-4 h-4 text-muted-foreground" />
-                        <h3 className="text-sm font-semibold">Heatmap</h3>
-                    </div>
-                    <div className="w-full pt-2">
-                            <HabitHeatmap habit={detailHabit} />
-                    </div>
+                {/* 1. Interactive Calendar */}
+                <div className="h-auto shrink-0 bg-background border border-border rounded-lg p-4 shadow-sm">
+                    <MiniCalendar habit={detailHabit} />
                 </div>
 
-                {/* Trend Chart Card - Only for Counter Habits */}
+                {/* 2. Trend Chart Card - Only for Counter Habits */}
                 {detailHabit.useCounter && (
                     <div className="h-56 shrink-0 bg-background border border-border rounded-lg p-4 flex flex-col shadow-sm overflow-hidden">
                         <div className="flex items-center gap-2 mb-2 shrink-0">
@@ -746,68 +774,19 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                         </div>
                     </div>
                 )}
-                
-                {/* Interactive Calendar */}
-                <div className="h-auto shrink-0 bg-background border border-border rounded-lg p-4 shadow-sm">
-                    <MiniCalendar habit={detailHabit} />
-                </div>
 
-                {/* Log History */}
-                <div className="bg-background border border-border rounded-lg flex flex-col shadow-sm overflow-hidden">
-                    <div className="px-4 py-3 border-b border-border shrink-0 bg-secondary/20">
-                        <h3 className="text-xs font-semibold flex items-center gap-2 uppercase tracking-wider text-muted-foreground">
-                            Recent Logs
-                        </h3>
+                {/* 3. Heatmap Card */}
+                <div className="bg-background border border-border rounded-lg p-4 flex flex-col shadow-sm shrink-0 overflow-hidden">
+                    <div className="flex items-center gap-2 mb-3 shrink-0">
+                        <Activity className="w-4 h-4 text-muted-foreground" />
+                        <h3 className="text-sm font-semibold">Heatmap</h3>
                     </div>
-                    <div className="flex-col">
-                        {Array.from({length: 7}).map((_, i) => {
-                            const d = new Date(today);
-                            d.setDate(d.getDate() - i);
-                            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                            
-                            if (dateStr < detailHabit.startDate) return null;
-
-                            const count = detailHabit.progress[dateStr] || 0;
-                            const isSkipped = detailHabit.skippedDates.includes(dateStr);
-                            const isSuccess = (detailHabit.goalType === 'negative' ? count <= (detailHabit.useCounter ? detailHabit.target : 0) : count >= detailHabit.target);
-                            
-                            return (
-                                <div key={dateStr} className="flex items-center justify-between p-3 border-b border-border last:border-0 hover:bg-notion-hover transition-colors group">
-                                    <div className="flex flex-col">
-                                        <span className="text-sm font-medium text-foreground">{formatDate(dateStr)}</span>
-                                        <span className="text-[10px] text-muted-foreground">{d.toLocaleDateString('en-US', { weekday: 'long' })}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        {detailHabit.useCounter ? (
-                                            <span className={`text-sm font-mono font-bold ${isSuccess ? 'text-notion-green' : 'text-muted-foreground'}`}>
-                                                {count} {detailHabit.unit}
-                                            </span>
-                                        ) : (
-                                            <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-sm ${isSuccess ? 'bg-notion-bg_green text-notion-green' : 'bg-secondary text-muted-foreground'}`}>
-                                                {isSuccess ? (detailHabit.goalType === 'negative' ? 'Success' : 'Completed') : (detailHabit.goalType === 'negative' ? 'Failed' : 'Missed')}
-                                            </span>
-                                        )}
-                                        
-                                        <div className="w-px h-4 bg-border mx-1" />
-                                        <button 
-                                            onClick={() => toggleSkip(detailHabit.id, dateStr)}
-                                            className={`p-1.5 rounded text-[10px] uppercase font-bold tracking-wide transition-colors ${isSkipped ? 'bg-notion-bg_gray text-foreground border border-border' : 'text-muted-foreground opacity-50 hover:opacity-100 hover:bg-secondary'}`}
-                                            title={isSkipped ? "Unskip" : "Skip"}
-                                        >
-                                            <SkipForward className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button 
-                                            onClick={() => setDayEdit({ date: dateStr, count, isSkipped })}
-                                            className="p-1.5 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            <MoreHorizontal className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                    <div className="w-full pt-2">
+                            <HabitHeatmap habit={detailHabit} />
                     </div>
                 </div>
+
+                {/* Recent Logs (Removed) */}
 
             </div>
 
