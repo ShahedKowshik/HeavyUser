@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save, SkipForward, CircleCheck, ArrowLeft, Clock, MoreHorizontal, Flag, FolderPlus, Folder, ArrowUp, ArrowDown, GripVertical, Pencil } from 'lucide-react';
 import { Habit, Tag, HabitFolder } from '../types';
@@ -1190,7 +1191,14 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
             </div>
 
             <div className="space-y-8">
-                {/* Render Folders */}
+                {/* 1. Render Ungrouped Habits First */}
+                {groupedHabits['uncategorized'].length > 0 && (
+                     <div className={`grid ${gridClasses} gap-4`}>
+                         {groupedHabits['uncategorized'].map(h => renderHabitCard(h))}
+                     </div>
+                )}
+
+                {/* 2. Render Folders */}
                 {sortedFolders.map((folder, folderIndex) => {
                     const folderHabits = groupedHabits[folder.id] || [];
                     if (folderHabits.length === 0 && !organizeMode) return null; // Hide empty folders unless organizing
@@ -1218,20 +1226,12 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                     );
                 })}
 
-                {/* Render Ungrouped */}
-                {(groupedHabits['uncategorized'].length > 0 || (habitFolders.length === 0 && filteredHabits.length === 0)) && (
-                     <div className="space-y-3">
-                        {habitFolders.length > 0 && <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider pl-1">Ungrouped</h3>}
-                        <div className={`grid ${gridClasses} gap-4`}>
-                             {groupedHabits['uncategorized'].map(h => renderHabitCard(h))}
-                             {filteredHabits.length === 0 && (
-                                <div className="col-span-full text-center py-20 opacity-50">
-                                    <Zap className="w-16 h-16 text-muted-foreground mx-auto mb-4 bg-notion-bg_gray rounded-full p-4" />
-                                    <p className="font-medium text-muted-foreground">No habits found</p>
-                                </div>
-                            )}
-                        </div>
-                     </div>
+                {/* 3. Empty State */}
+                {filteredHabits.length === 0 && (
+                    <div className="col-span-full text-center py-20 opacity-50">
+                        <Zap className="w-16 h-16 text-muted-foreground mx-auto mb-4 bg-notion-bg_gray rounded-full p-4" />
+                        <p className="font-medium text-muted-foreground">No habits found</p>
+                    </div>
                 )}
             </div>
 
