@@ -1041,8 +1041,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                 </button>
                             )}
                         </div>
-                        {/* Only show metadata if not selected */}
-                        {!isSelected && (
+                        {/* Only show metadata if not selected AND panel is closed */}
+                        {!isSelected && !isPanelOpen && (
                             <div className="hidden md:flex items-center gap-2 shrink-0 text-xs">
                                 <div className="w-24 flex justify-end items-center">
                                     {(task.plannedTime || task.actualTime || isTimerRunning) ? (
@@ -1148,7 +1148,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
       {/* Task Side Panel */}
       {isPanelOpen && (
-        <div className="w-full md:w-[450px] bg-background border-l border-border flex flex-col h-full z-20 md:z-0 absolute md:static inset-0 shadow-2xl md:shadow-none animate-in slide-in-from-right-12 duration-300">
+        <div className="w-full md:w-[500px] bg-background border-l border-border flex flex-col h-full z-20 md:z-0 absolute md:static inset-0 shadow-2xl md:shadow-none animate-in slide-in-from-right-12 duration-300">
             {/* Panel Header */}
             <div className="flex items-center justify-between p-4 border-b border-border shrink-0 bg-background">
                 <button onClick={() => setIsPanelOpen(false)} className="md:hidden text-sm font-medium text-muted-foreground hover:text-foreground flex items-center gap-1">
@@ -1170,7 +1170,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
             <div className="flex-1 overflow-y-auto custom-scrollbar px-4 md:px-8 py-2 md:py-4 space-y-6">
                  {/* Title Input */}
                  <div className="pt-2 pb-4">
-                     <input type="text" placeholder="Task Name" value={title} onChange={e => setTitle(e.target.value)} className="w-full text-2xl font-bold text-foreground placeholder:text-muted-foreground/50 border-none focus:ring-0 bg-transparent px-0" autoFocus />
+                     <input type="text" placeholder="Task Name" value={title} onChange={e => setTitle(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') handleSaveTask(e); }} className="w-full text-2xl font-bold text-foreground placeholder:text-muted-foreground/50 border-none focus:ring-0 bg-transparent px-0" autoFocus />
                  </div>
                  
                  <div className="space-y-4 text-sm">
@@ -1178,7 +1178,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                     <div className="flex flex-col md:flex-row md:items-start md:min-h-[32px] gap-2 md:gap-0">
                         <div className="w-24 md:w-32 flex items-center gap-2 text-muted-foreground shrink-0 mt-1.5 md:mt-0"><Calendar className="w-4 h-4" /> <span>Date</span></div>
                         <div className="flex-1">
-                            <div className="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar pb-1 md:pb-0 items-center">
+                            <div className="flex flex-wrap gap-2 pb-1 md:pb-0 items-center">
                                 {quickDates.map(qd => (
                                     <button key={qd.label} type="button" onClick={() => handleQuickDate(qd.offset)} className={`px-3 py-1 text-xs rounded-sm whitespace-nowrap transition-colors border ${dueDate === getLocalDateString(new Date(new Date().setDate(new Date().getDate() + qd.offset))) ? 'bg-notion-bg_blue text-notion-blue border-notion-blue/20' : 'border-border/50 text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>{qd.label}</button>
                                 ))}
@@ -1204,7 +1204,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                     {/* Priority */}
                     <div className="flex flex-col md:flex-row md:items-center min-h-[32px] gap-2 md:gap-0">
                         <div className="w-24 md:w-32 flex items-center gap-2 text-muted-foreground shrink-0"><CheckSquare className="w-4 h-4" /> <span>Priority</span></div>
-                        <div className="flex w-full md:w-auto bg-secondary p-0.5 rounded-md">
+                        <div className="flex flex-wrap w-full md:w-auto bg-secondary p-0.5 rounded-md">
                             {priorities.map(p => (
                                 <button key={p} type="button" onClick={() => setPriority(p)} className={`flex-1 md:flex-none md:px-3 flex items-center justify-center gap-1.5 py-1.5 md:py-1 text-xs font-medium rounded-sm transition-all ${priority === p ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{getPriorityIcon(p)}<span>{p}</span></button>
                             ))}
