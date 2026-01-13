@@ -1,8 +1,9 @@
 
 
+
 import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save, SkipForward, CircleCheck, ArrowLeft, Clock, MoreHorizontal, Flag } from 'lucide-react';
-import { Habit, Tag } from '../types';
+import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save, SkipForward, CircleCheck, ArrowLeft, Clock, MoreHorizontal, Flag, FolderPlus, Folder, ArrowUp, ArrowDown, GripVertical, Pencil } from 'lucide-react';
+import { Habit, Tag, HabitFolder } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
 import { cn } from '../lib/utils';
@@ -10,6 +11,8 @@ import { cn } from '../lib/utils';
 interface HabitSectionProps {
   habits: Habit[];
   setHabits: React.Dispatch<React.SetStateAction<Habit[]>>;
+  habitFolders: HabitFolder[];
+  setHabitFolders: React.Dispatch<React.SetStateAction<HabitFolder[]>>;
   userId: string;
   dayStartHour?: number;
   startWeekDay?: number;
@@ -209,7 +212,7 @@ const getRotatedWeekdays = (startDay: number) => {
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, dayStartHour, startWeekDay = 0, tags, setTags, activeFilterTagId }) => {
+const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFolders, setHabitFolders, userId, dayStartHour, startWeekDay = 0, tags, setTags, activeFilterTagId }) => {
   const today = getLogicalDate(dayStartHour);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -228,6 +231,13 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
   const [goalType, setGoalType] = useState<'positive' | 'negative'>('positive');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [formStartDate, setFormStartDate] = useState('');
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+  const [folderName, setFolderName] = useState('');
+  const [folderIcon, setFolderIcon] = useState('📁');
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+  const [organizeMode, setOrganizeMode] = useState(false);
 
   const detailHabit = useMemo(() => habits.find(h => h.id === detailHabitId), [habits, detailHabitId]);
   const weekdays = getRotatedWeekdays(startWeekDay);
@@ -242,6 +252,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     setSelectedTags([]);
     setFormStartDate(today);
     setEditingHabitId(null);
+    setSelectedFolderId(null);
   };
 
   const openCreateModal = () => {
@@ -260,6 +271,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     setGoalType(h.goalType || 'positive');
     setSelectedTags(h.tags || []);
     setFormStartDate(h.startDate || today);
+    setSelectedFolderId(h.folderId || null);
     setIsModalOpen(true);
   };
 
@@ -272,7 +284,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     try {
         if (editingHabitId) {
             setHabits(prev => prev.map(h => h.id === editingHabitId ? { 
-                ...h, title, target, unit, icon, useCounter, goalType, tags: selectedTags, startDate: formStartDate 
+                ...h, title, target, unit, icon, useCounter, goalType, tags: selectedTags, startDate: formStartDate, folderId: selectedFolderId
             } : h));
             
             await supabase.from('habits').update({
@@ -283,9 +295,13 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                 use_counter: useCounter,
                 goal_type: goalType,
                 tags: selectedTags,
-                start_date: formStartDate
+                start_date: formStartDate,
+                folder_id: selectedFolderId
             }).eq('id', editingHabitId);
         } else {
+            const habitsInFolder = habits.filter(h => h.folderId === (selectedFolderId || null));
+            const sortOrder = habitsInFolder.length;
+
             const newHabit: Habit = {
                 id: crypto.randomUUID(),
                 title,
@@ -297,7 +313,9 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                 progress: {},
                 skippedDates: [],
                 tags: selectedTags,
-                goalType
+                goalType,
+                folderId: selectedFolderId || null,
+                sortOrder
             };
             
             setHabits(prev => [...prev, newHabit]);
@@ -314,7 +332,9 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                 progress: {},
                 skipped_dates: [],
                 tags: selectedTags,
-                goal_type: goalType
+                goal_type: goalType,
+                folder_id: selectedFolderId || null,
+                sort_order: sortOrder
             });
         }
         setIsModalOpen(false);
@@ -365,13 +385,95 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     }).eq('id', habitId);
   };
 
-  const toggleSkip = async (habitId: string, date: string) => {
-      const habit = habits.find(h => h.id === habitId);
-      if (!habit) return;
-      const isSkipped = habit.skippedDates.includes(date);
-      const count = habit.progress[date] || 0;
-      updateDayStatus(habitId, date, count, !isSkipped);
+  const openFolderModal = (folder?: HabitFolder) => {
+      if (folder) {
+          setEditingFolderId(folder.id);
+          setFolderName(folder.name);
+          setFolderIcon(folder.icon);
+      } else {
+          setEditingFolderId(null);
+          setFolderName('');
+          setFolderIcon('📁');
+      }
+      setIsFolderModalOpen(true);
   };
+
+  const handleSaveFolder = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!folderName.trim()) return;
+
+      if (editingFolderId) {
+          setHabitFolders(prev => prev.map(f => f.id === editingFolderId ? { ...f, name: folderName, icon: folderIcon } : f));
+          await supabase.from('habit_folders').update({ name: encryptData(folderName), icon: folderIcon }).eq('id', editingFolderId);
+      } else {
+          const newFolder: HabitFolder = {
+              id: crypto.randomUUID(),
+              name: folderName,
+              icon: folderIcon,
+              sortOrder: habitFolders.length
+          };
+          setHabitFolders(prev => [...prev, newFolder]);
+          await supabase.from('habit_folders').insert({
+              id: newFolder.id,
+              user_id: userId,
+              name: encryptData(folderName),
+              icon: folderIcon,
+              sort_order: newFolder.sortOrder
+          });
+      }
+      setIsFolderModalOpen(false);
+  };
+
+  const handleDeleteFolder = async (folderId: string) => {
+      if (!confirm("Delete folder and move habits to ungrouped?")) return;
+      setHabitFolders(prev => prev.filter(f => f.id !== folderId));
+      setHabits(prev => prev.map(h => h.folderId === folderId ? { ...h, folderId: null } : h));
+      await supabase.from('habits').update({ folder_id: null }).eq('folder_id', folderId);
+      await supabase.from('habit_folders').delete().eq('id', folderId);
+  };
+
+  const moveFolder = async (index: number, direction: 'up' | 'down') => {
+      const folders = [...sortedFolders];
+      if (direction === 'up' && index > 0) {
+          [folders[index], folders[index - 1]] = [folders[index - 1], folders[index]];
+      } else if (direction === 'down' && index < folders.length - 1) {
+          [folders[index], folders[index + 1]] = [folders[index + 1], folders[index]];
+      } else return;
+      
+      const updatedFolders = folders.map((f, i) => ({ ...f, sortOrder: i }));
+      setHabitFolders(updatedFolders); // Optimistic update of state logic (needs to propagate to original state if sortedFolders is derived)
+      
+      // Update DB
+      for (const f of updatedFolders) {
+          await supabase.from('habit_folders').update({ sort_order: f.sortOrder }).eq('id', f.id);
+      }
+  };
+
+  const moveHabit = async (habitId: string, folderId: string | null, direction: 'up' | 'down') => {
+     const habitsInGroup = groupedHabits[folderId || 'uncategorized'];
+     const index = habitsInGroup.findIndex(h => h.id === habitId);
+     if (index === -1) return;
+     
+     const newHabitsInGroup = [...habitsInGroup];
+     if (direction === 'up' && index > 0) {
+         [newHabitsInGroup[index], newHabitsInGroup[index-1]] = [newHabitsInGroup[index-1], newHabitsInGroup[index]];
+     } else if (direction === 'down' && index < newHabitsInGroup.length - 1) {
+         [newHabitsInGroup[index], newHabitsInGroup[index+1]] = [newHabitsInGroup[index+1], newHabitsInGroup[index]];
+     } else return;
+
+     // Update sort orders in DB and State
+     const updates = newHabitsInGroup.map((h, i) => ({ id: h.id, sortOrder: i }));
+     
+     setHabits(prev => prev.map(h => {
+         const update = updates.find(u => u.id === h.id);
+         return update ? { ...h, sortOrder: update.sortOrder } : h;
+     }));
+
+     for(const u of updates) {
+         await supabase.from('habits').update({ sort_order: u.sortOrder }).eq('id', u.id);
+     }
+  };
+
 
   const filteredHabits = useMemo(() => {
     let res = habits;
@@ -384,6 +486,30 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     if (filter === 'negative') res = res.filter(h => h.goalType === 'negative');
     return res;
   }, [habits, activeFilterTagId, filter]);
+
+  const sortedFolders = useMemo(() => [...habitFolders].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)), [habitFolders]);
+
+  const groupedHabits = useMemo(() => {
+      const groups: Record<string, Habit[]> = {};
+      habitFolders.forEach(f => { groups[f.id] = []; });
+      groups['uncategorized'] = [];
+
+      filteredHabits.forEach(h => {
+          if (h.folderId && groups[h.folderId]) {
+              groups[h.folderId].push(h);
+          } else {
+              groups['uncategorized'].push(h);
+          }
+      });
+
+      // Sort
+      Object.keys(groups).forEach(key => {
+          groups[key].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+      });
+
+      return groups;
+  }, [filteredHabits, habitFolders]);
+
 
   // --- Analytics Components ---
 
@@ -705,7 +831,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
             let sum = 0;
             let validDaysCount = 0;
             const parts = today.split('-').map(Number);
-            // Construct local date correctly (months are 0-indexed)
             const d = new Date(parts[0], parts[1] - 1, parts[2]);
             
             for(let i=0; i<days; i++) {
@@ -717,7 +842,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                 const day = String(current.getDate()).padStart(2, '0');
                 const dateStr = `${y}-${m}-${day}`;
                 
-                // Only count days that are ON or AFTER the start date
                 if (dateStr >= detailHabit.startDate) {
                     sum += detailHabit.progress[dateStr] || 0;
                     validDaysCount++;
@@ -849,8 +973,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                     </div>
                 </div>
 
-                {/* Recent Logs (Removed) */}
-
             </div>
 
              {/* Edit Day Popover */}
@@ -914,6 +1036,110 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     );
   };
 
+  const renderHabitCard = (habit: Habit) => {
+    const progressToday = habit.progress[today] || 0;
+    const stats = getHabitStats(habit, today);
+    
+    let isCompletedToday = false;
+    let isFailedToday = false;
+    
+    const limit = (!habit.useCounter && habit.goalType === 'negative') ? 0 : habit.target;
+
+    if (habit.goalType === 'negative') {
+        isCompletedToday = progressToday <= limit;
+        isFailedToday = progressToday > limit;
+    } else {
+        isCompletedToday = progressToday >= limit;
+    }
+
+    return (
+        <div 
+            key={habit.id} 
+            onClick={() => setDetailHabitId(habit.id)}
+            className={`group bg-background rounded-sm border hover:bg-notion-item_hover transition-colors cursor-pointer relative overflow-hidden flex flex-col ${detailHabitId === habit.id ? 'border-notion-blue bg-notion-item_hover' : 'border-border'}`}
+        >
+            {organizeMode && (
+                <div className="absolute top-1 right-1 z-20 flex bg-background/80 backdrop-blur rounded shadow-sm border border-border">
+                    <button onClick={(e) => { e.stopPropagation(); moveHabit(habit.id, habit.folderId || null, 'up'); }} className="p-1 hover:bg-notion-hover text-muted-foreground"><ArrowUp className="w-3 h-3" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); moveHabit(habit.id, habit.folderId || null, 'down'); }} className="p-1 hover:bg-notion-hover text-muted-foreground"><ArrowDown className="w-3 h-3" /></button>
+                </div>
+            )}
+            
+            <div className="p-4 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-md bg-notion-bg_gray flex items-center justify-center text-2xl shrink-0">
+                    {habit.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                    <h4 className={`text-base font-semibold truncate ${isFailedToday ? 'text-notion-red' : 'text-foreground'}`}>{habit.title}</h4>
+                    <div className="flex items-center gap-2 mt-1">
+                        <span className={`text-[10px] uppercase tracking-wide font-bold ${habit.goalType === 'negative' ? 'text-notion-red' : 'text-notion-green'}`}>
+                            {habit.goalType === 'negative' ? 'Quit' : 'Build'}
+                        </span>
+                        {habit.useCounter && (
+                            <span className="text-xs text-muted-foreground">
+                                {progressToday} / {habit.target} {habit.unit}
+                            </span>
+                        )}
+                    </div>
+                </div>
+                
+                {/* Streak and Action Button Aligned */}
+                <div className="flex items-center gap-3">
+                    {stats.streak > 0 && (
+                        <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                            <Flame className="w-4 h-4 text-notion-orange fill-notion-orange" /> {stats.streak}
+                        </div>
+                    )}
+                    {/* Quick Action Button - Fixed for Mobile */}
+                    {!organizeMode && (
+                        <div 
+                            onClick={(e) => e.stopPropagation()} 
+                            className="shrink-0 relative z-10" 
+                        >
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation(); 
+                                    if (habit.useCounter) {
+                                        const newCount = progressToday + 1;
+                                        updateDayStatus(habit.id, today, newCount, false);
+                                    } else {
+                                        if (habit.goalType === 'negative') {
+                                            updateDayStatus(habit.id, today, progressToday === 0 ? 1 : 0, false);
+                                        } else {
+                                            updateDayStatus(habit.id, today, isCompletedToday ? 0 : 1, false);
+                                        }
+                                    }
+                                }}
+                                className={`w-12 h-12 rounded-md flex items-center justify-center transition-colors bg-notion-bg_gray hover:bg-notion-hover border border-border shadow-sm ${
+                                    habit.useCounter 
+                                        ? 'text-muted-foreground'
+                                        : isCompletedToday && !isFailedToday
+                                            ? 'bg-notion-green text-white border-transparent'
+                                            : isFailedToday 
+                                                ? 'bg-notion-red text-white border-transparent'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                            >
+                                {habit.useCounter ? <Plus className="w-5 h-5" /> : (isCompletedToday && !isFailedToday ? <Check className="w-5 h-5" /> : (isFailedToday ? <X className="w-5 h-5"/> : <Check className="w-5 h-5" />))}
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+            
+            {/* Color-Scaled Progress Bar */}
+            <div className="h-1 w-full bg-border/30 mt-auto">
+                {habit.useCounter && !isFailedToday && (
+                    <div 
+                        className="h-full transition-all"
+                        style={getProgressBarStyle(progressToday, habit.target, habit.goalType)}
+                    />
+                )}
+            </div>
+        </div>
+    );
+  };
+
   const renderListView = () => {
     // Dynamic grid classes based on whether the side panel (detailHabit) is open
     const gridClasses = detailHabit 
@@ -937,117 +1163,78 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                     ))}
                 </div>
                 
-                <button 
-                    onClick={openCreateModal}
-                    className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0"
-                >
-                    <Plus className="w-4 h-4" /> New
-                </button>
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={() => setOrganizeMode(!organizeMode)} 
+                        className={`p-1.5 rounded-sm transition-colors ${organizeMode ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-notion-hover'}`}
+                        title="Organize / Sort"
+                    >
+                        <ArrowUp className="w-4 h-4" />
+                    </button>
+
+                    <button 
+                        onClick={() => openFolderModal()}
+                        className="p-1.5 rounded-sm text-muted-foreground hover:bg-notion-hover hover:text-foreground transition-colors"
+                        title="New Folder"
+                    >
+                        <FolderPlus className="w-4 h-4" />
+                    </button>
+
+                    <button 
+                        onClick={openCreateModal}
+                        className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0"
+                    >
+                        <Plus className="w-4 h-4" /> New
+                    </button>
+                </div>
             </div>
 
-            <div className={`grid ${gridClasses} gap-4`}>
-                {filteredHabits.length === 0 ? (
-                <div className="col-span-full text-center py-20 opacity-50">
-                    <Zap className="w-16 h-16 text-muted-foreground mx-auto mb-4 bg-notion-bg_gray rounded-full p-4" />
-                    <p className="font-medium text-muted-foreground">No habits found</p>
-                </div>
-                ) : (
-                    filteredHabits.map(habit => {
-                        const progressToday = habit.progress[today] || 0;
-                        const stats = getHabitStats(habit, today);
-                        
-                        let isCompletedToday = false;
-                        let isFailedToday = false;
-                        
-                        const limit = (!habit.useCounter && habit.goalType === 'negative') ? 0 : habit.target;
+            <div className="space-y-8">
+                {/* Render Folders */}
+                {sortedFolders.map((folder, folderIndex) => {
+                    const folderHabits = groupedHabits[folder.id] || [];
+                    if (folderHabits.length === 0 && !organizeMode) return null; // Hide empty folders unless organizing
 
-                        if (habit.goalType === 'negative') {
-                            isCompletedToday = progressToday <= limit;
-                            isFailedToday = progressToday > limit;
-                        } else {
-                            isCompletedToday = progressToday >= limit;
-                        }
-                        
-                        return (
-                            <div 
-                                key={habit.id} 
-                                onClick={() => setDetailHabitId(habit.id)}
-                                className={`group bg-background rounded-sm border hover:bg-notion-item_hover transition-colors cursor-pointer relative overflow-hidden flex flex-col ${detailHabitId === habit.id ? 'border-notion-blue bg-notion-item_hover' : 'border-border'}`}
-                            >
-                                <div className="p-4 flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-md bg-notion-bg_gray flex items-center justify-center text-2xl shrink-0">
-                                        {habit.icon}
+                    return (
+                        <div key={folder.id} className="space-y-3">
+                            <div className="flex items-center gap-2 group/folder">
+                                <span className="text-xl">{folder.icon}</span>
+                                <h3 className="text-sm font-bold text-foreground">{folder.name}</h3>
+                                {organizeMode && (
+                                    <div className="flex items-center gap-1 ml-2 opacity-50 group-hover/folder:opacity-100 transition-opacity">
+                                        <button onClick={() => moveFolder(folderIndex, 'up')} className="p-1 hover:bg-notion-hover rounded text-muted-foreground"><ArrowUp className="w-3 h-3" /></button>
+                                        <button onClick={() => moveFolder(folderIndex, 'down')} className="p-1 hover:bg-notion-hover rounded text-muted-foreground"><ArrowDown className="w-3 h-3" /></button>
+                                        <div className="w-px h-3 bg-border mx-1" />
+                                        <button onClick={() => openFolderModal(folder)} className="p-1 hover:bg-notion-hover rounded text-muted-foreground"><Pencil className="w-3 h-3" /></button>
+                                        <button onClick={() => handleDeleteFolder(folder.id)} className="p-1 hover:bg-notion-bg_red hover:text-notion-red rounded text-muted-foreground"><Trash2 className="w-3 h-3" /></button>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className={`text-base font-semibold truncate ${isFailedToday ? 'text-notion-red' : 'text-foreground'}`}>{habit.title}</h4>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className={`text-[10px] uppercase tracking-wide font-bold ${habit.goalType === 'negative' ? 'text-notion-red' : 'text-notion-green'}`}>
-                                                {habit.goalType === 'negative' ? 'Quit' : 'Build'}
-                                            </span>
-                                            {habit.useCounter && (
-                                                <span className="text-xs text-muted-foreground">
-                                                    {progressToday} / {habit.target} {habit.unit}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Streak and Action Button Aligned */}
-                                    <div className="flex items-center gap-3">
-                                        {stats.streak > 0 && (
-                                            <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                                                <Flame className="w-4 h-4 text-notion-orange fill-notion-orange" /> {stats.streak}
-                                            </div>
-                                        )}
-                                        {/* Quick Action Button - Fixed for Mobile */}
-                                        <div 
-                                            onClick={(e) => e.stopPropagation()} 
-                                            className="shrink-0 relative z-10" 
-                                        >
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation(); 
-                                                    if (habit.useCounter) {
-                                                        const newCount = progressToday + 1;
-                                                        updateDayStatus(habit.id, today, newCount, false);
-                                                    } else {
-                                                        if (habit.goalType === 'negative') {
-                                                            updateDayStatus(habit.id, today, progressToday === 0 ? 1 : 0, false);
-                                                        } else {
-                                                            updateDayStatus(habit.id, today, isCompletedToday ? 0 : 1, false);
-                                                        }
-                                                    }
-                                                }}
-                                                className={`w-12 h-12 rounded-md flex items-center justify-center transition-colors bg-notion-bg_gray hover:bg-notion-hover border border-border shadow-sm ${
-                                                    habit.useCounter 
-                                                        ? 'text-muted-foreground'
-                                                        : isCompletedToday && !isFailedToday
-                                                            ? 'bg-notion-green text-white border-transparent'
-                                                            : isFailedToday 
-                                                                ? 'bg-notion-red text-white border-transparent'
-                                                                : 'text-muted-foreground hover:text-foreground'
-                                                }`}
-                                            >
-                                                {habit.useCounter ? <Plus className="w-5 h-5" /> : (isCompletedToday && !isFailedToday ? <Check className="w-5 h-5" /> : (isFailedToday ? <X className="w-5 h-5"/> : <Check className="w-5 h-5" />))}
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                {/* Color-Scaled Progress Bar */}
-                                <div className="h-1 w-full bg-border/30 mt-auto">
-                                    {habit.useCounter && !isFailedToday && (
-                                        <div 
-                                            className="h-full transition-all"
-                                            style={getProgressBarStyle(progressToday, habit.target, habit.goalType)}
-                                        />
-                                    )}
-                                </div>
+                                )}
                             </div>
-                        );
-                    })
+                            <div className={`grid ${gridClasses} gap-4`}>
+                                {folderHabits.map(h => renderHabitCard(h))}
+                                {folderHabits.length === 0 && <div className="col-span-full py-4 text-center text-xs text-muted-foreground border border-dashed border-border rounded-sm">Empty folder</div>}
+                            </div>
+                        </div>
+                    );
+                })}
+
+                {/* Render Ungrouped */}
+                {(groupedHabits['uncategorized'].length > 0 || (habitFolders.length === 0 && filteredHabits.length === 0)) && (
+                     <div className="space-y-3">
+                        {habitFolders.length > 0 && <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider pl-1">Ungrouped</h3>}
+                        <div className={`grid ${gridClasses} gap-4`}>
+                             {groupedHabits['uncategorized'].map(h => renderHabitCard(h))}
+                             {filteredHabits.length === 0 && (
+                                <div className="col-span-full text-center py-20 opacity-50">
+                                    <Zap className="w-16 h-16 text-muted-foreground mx-auto mb-4 bg-notion-bg_gray rounded-full p-4" />
+                                    <p className="font-medium text-muted-foreground">No habits found</p>
+                                </div>
+                            )}
+                        </div>
+                     </div>
                 )}
             </div>
+
             </div>
         </div>
     );
@@ -1066,6 +1253,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
             </div>
           )}
 
+        {/* Create/Edit Habit Modal */}
         {isModalOpen && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
                 <div className="bg-background w-full max-w-md rounded-md shadow-2xl border border-border flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95">
@@ -1086,6 +1274,20 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                     <button type="button" onClick={() => setGoalType('positive')} className={`flex-1 py-1.5 text-xs font-medium rounded-sm transition-all ${goalType === 'positive' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Build (Positive)</button>
                                     <button type="button" onClick={() => setGoalType('negative')} className={`flex-1 py-1.5 text-xs font-medium rounded-sm transition-all ${goalType === 'negative' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Quit (Negative)</button>
                                 </div>
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-muted-foreground text-xs uppercase font-bold tracking-wide">Folder</label>
+                                <select 
+                                    value={selectedFolderId || ''} 
+                                    onChange={(e) => setSelectedFolderId(e.target.value || null)} 
+                                    className="w-full h-9 px-2 border border-border rounded-sm bg-transparent text-sm focus:ring-1 focus:ring-notion-blue outline-none"
+                                >
+                                    <option value="">Ungrouped</option>
+                                    {habitFolders.map(f => (
+                                        <option key={f.id} value={f.id}>{f.icon} {f.name}</option>
+                                    ))}
+                                </select>
                             </div>
                             
                             <div className="flex flex-col gap-1.5">
@@ -1118,6 +1320,27 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                         
                         <div className="pt-4 border-t border-border flex justify-end">
                             <button type="submit" className="px-4 py-2 bg-notion-blue text-white rounded-sm text-sm font-medium hover:bg-blue-600 transition-colors shadow-sm">Save Habit</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        )}
+
+        {/* Create/Edit Folder Modal */}
+        {isFolderModalOpen && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                <div className="bg-background w-full max-w-sm rounded-md shadow-2xl border border-border flex flex-col animate-in zoom-in-95">
+                     <div className="p-4 border-b border-border flex justify-between items-center">
+                        <h3 className="font-bold text-foreground">{editingFolderId ? 'Edit Folder' : 'New Folder'}</h3>
+                        <button onClick={() => setIsFolderModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4"/></button>
+                    </div>
+                    <form onSubmit={handleSaveFolder} className="p-6 space-y-4">
+                        <div className="flex gap-2">
+                             <input type="text" value={folderIcon} onChange={(e) => setFolderIcon(e.target.value)} className="w-10 h-9 text-center border border-border rounded-sm bg-transparent focus:ring-1 focus:ring-notion-blue text-lg" />
+                             <input autoFocus type="text" value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="Folder Name" className="flex-1 h-9 px-2 border border-border rounded-sm bg-transparent focus:ring-1 focus:ring-notion-blue text-sm" />
+                        </div>
+                        <div className="flex justify-end pt-2">
+                            <button type="submit" className="px-4 py-2 bg-notion-blue text-white rounded-sm text-sm font-medium hover:bg-blue-600 transition-colors shadow-sm">Save Folder</button>
                         </div>
                     </form>
                 </div>

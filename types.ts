@@ -76,6 +76,13 @@ export interface JournalEntry {
   tags?: string[];
 }
 
+export interface HabitFolder {
+  id: string;
+  name: string; // Encrypted
+  icon: string; // Emoji
+  sortOrder: number;
+}
+
 export interface Habit {
   id: string;
   title: string;
@@ -90,6 +97,8 @@ export interface Habit {
   completedDates?: string[];
   tags?: string[];
   goalType?: 'positive' | 'negative'; // 'positive' = Build habit, 'negative' = Quit/Limit habit
+  folderId?: string | null;
+  sortOrder?: number;
 }
 
 export interface Folder {

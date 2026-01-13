@@ -1,8 +1,9 @@
 
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause, BarChart3, CheckSquare, StickyNote, MoreHorizontal, ChevronDown, Ban, WifiOff, MessageSquare, Map } from 'lucide-react';
-import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession } from '../types';
+import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
 import JournalSection from './JournalSection';
@@ -159,6 +160,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
+  const [habitFolders, setHabitFolders] = useState<HabitFolder[]>([]);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -197,6 +199,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     const cachedTasks = loadFromLocal('tasks');
     const cachedTags = loadFromLocal('tags');
     const cachedHabits = loadFromLocal('habits');
+    const cachedHabitFolders = loadFromLocal('habitFolders');
     const cachedJournals = loadFromLocal('journals');
     const cachedNotes = loadFromLocal('notes');
     const cachedFolders = loadFromLocal('folders');
@@ -205,6 +208,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     if (cachedTasks) setTasks(cachedTasks);
     if (cachedTags) setTags(cachedTags);
     if (cachedHabits) setHabits(cachedHabits);
+    if (cachedHabitFolders) setHabitFolders(cachedHabitFolders);
     if (cachedJournals) setJournals(cachedJournals);
     if (cachedNotes) setNotes(cachedNotes);
     if (cachedFolders) setFolders(cachedFolders);
@@ -216,10 +220,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     const fetchData = async () => {
       if (!isOnline) return;
       try {
-        const [{ data: tasksData }, { data: tagsData }, { data: habitsData }, { data: journalsData }, { data: foldersData }, { data: notesData }, { data: sessionsData }] = await Promise.all([
+        const [{ data: tasksData }, { data: tagsData }, { data: habitsData }, { data: habitFoldersData }, { data: journalsData }, { data: foldersData }, { data: notesData }, { data: sessionsData }] = await Promise.all([
           supabase.from('tasks').select('*').eq('user_id', userId), 
           supabase.from('tags').select('*').eq('user_id', userId), 
-          supabase.from('habits').select('*').eq('user_id', userId).order('created_at', { ascending: true }), 
+          supabase.from('habits').select('*').eq('user_id', userId).order('sort_order', { ascending: true }), 
+          supabase.from('habit_folders').select('*').eq('user_id', userId).order('sort_order', { ascending: true }), 
           supabase.from('journals').select('*').eq('user_id', userId).order('timestamp', { ascending: false }), 
           supabase.from('folders').select('*').eq('user_id', userId).order('created_at', { ascending: true }), 
           supabase.from('notes').select('*').eq('user_id', userId).order('updated_at', { ascending: false }), 
@@ -235,8 +240,31 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             setTags(parsed); saveToLocal('tags', parsed);
         }
         if (habitsData) {
-            const parsed = habitsData.map((h: any) => ({ id: h.id, title: decryptData(h.title), icon: h.icon, target: h.target || 1, unit: h.unit || '', progress: h.progress || {}, skippedDates: h.skipped_dates || [], startDate: h.start_date || new Date().toISOString().split('T')[0], useCounter: h.use_counter !== false, tags: h.tags || [], goalType: h.goal_type || 'positive' }));
+            const parsed = habitsData.map((h: any) => ({ 
+              id: h.id, 
+              title: decryptData(h.title), 
+              icon: h.icon, 
+              target: h.target || 1, 
+              unit: h.unit || '', 
+              progress: h.progress || {}, 
+              skippedDates: h.skipped_dates || [], 
+              startDate: h.start_date || new Date().toISOString().split('T')[0], 
+              useCounter: h.use_counter !== false, 
+              tags: h.tags || [], 
+              goalType: h.goal_type || 'positive',
+              folderId: h.folder_id,
+              sortOrder: h.sort_order || 0
+            }));
             setHabits(parsed); saveToLocal('habits', parsed);
+        }
+        if (habitFoldersData) {
+            const parsed = habitFoldersData.map((f: any) => ({
+              id: f.id,
+              name: decryptData(f.name),
+              icon: f.icon,
+              sortOrder: f.sort_order || 0
+            }));
+            setHabitFolders(parsed); saveToLocal('habitFolders', parsed);
         }
         if (journalsData) {
             const parsed = journalsData.map((j: any) => ({ id: j.id, title: decryptData(j.title), content: decryptData(j.content), timestamp: j.timestamp, rating: j.rating, entryType: j.entry_type as EntryType, tags: j.tags || [] }));
@@ -277,6 +305,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   useEffect(() => { if (tasks.length > 0) saveToLocal('tasks', tasks); }, [tasks]);
   useEffect(() => { if (tags.length > 0) saveToLocal('tags', tags); }, [tags]);
   useEffect(() => { if (habits.length > 0) saveToLocal('habits', habits); }, [habits]);
+  useEffect(() => { if (habitFolders.length > 0) saveToLocal('habitFolders', habitFolders); }, [habitFolders]);
   useEffect(() => { if (journals.length > 0) saveToLocal('journals', journals); }, [journals]);
   useEffect(() => { if (notes.length > 0) saveToLocal('notes', notes); }, [notes]);
   useEffect(() => { if (folders.length > 0) saveToLocal('folders', folders); }, [folders]);
@@ -425,7 +454,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const renderContent = () => {
     switch (activeTab) {
       case 'tasks': return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} />;
-      case 'habit': return <HabitSection habits={habits} setHabits={setHabits} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
+      case 'habit': return <HabitSection habits={habits} setHabits={setHabits} habitFolders={habitFolders} setHabitFolders={setHabitFolders} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'journal': return <JournalSection journals={journals} setJournals={setJournals} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'notes': return <NotesSection notes={notes} setNotes={setNotes} folders={folders} setFolders={setFolders} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'settings': return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} tags={tags} setTags={setTags} isOnline={isOnline} />;
