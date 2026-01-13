@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Square, Repeat, ChevronDown, Moon, Circle, Flame, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, LayoutTemplate, AlignJustify, History, BarChart3, GripVertical, Check, AlertCircle, ArrowRight, Columns, Layout } from 'lucide-react';
@@ -14,6 +15,7 @@ interface TaskSectionProps {
   setTags: React.Dispatch<React.SetStateAction<Tag[]>>;
   userId: string;
   dayStartHour?: number;
+  startWeekDay?: number;
   onTaskComplete?: () => void;
   activeFilterTagId?: string | null;
   onToggleTimer: (id: string, e?: React.MouseEvent) => void;
@@ -27,7 +29,10 @@ type Sorting = 'date' | 'priority' | 'title';
 const priorities: Priority[] = ['Urgent', 'High', 'Normal', 'Low'];
 const priorityOrder: Record<Priority, number> = { 'Urgent': 0, 'High': 1, 'Normal': 2, 'Low': 3 };
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const getRotatedWeekdays = (startDay: number) => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return [...days.slice(startDay), ...days.slice(0, startDay)];
+};
 
 const PLANNED_TIME_OPTIONS = [
     { label: '1m', value: 1 },
@@ -108,13 +113,14 @@ const getPriorityIcon = (p: Priority) => {
 };
 
 // Reusable Calendar Content without shortcuts
-const CalendarContent = ({ value, onChange, onClose, dayStartHour }: any) => {
+const CalendarContent = ({ value, onChange, onClose, dayStartHour, startWeekDay = 0 }: any) => {
     const getLogicalDate = () => {
         const d = new Date();
         if (d.getHours() < dayStartHour) d.setDate(d.getDate() - 1);
         return d;
     };
     const [viewDate, setViewDate] = useState(() => value ? new Date(value) : getLogicalDate());
+    const weekdays = getRotatedWeekdays(startWeekDay);
 
     const handleDayClick = (day: number) => {
         const d = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
@@ -128,7 +134,8 @@ const CalendarContent = ({ value, onChange, onClose, dayStartHour }: any) => {
     };
 
     const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
-    const firstDayOfWeek = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
+    // Adjust first day of week based on startWeekDay
+    const firstDayOfWeek = (new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay() - startWeekDay + 7) % 7;
     const monthName = viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const isSelected = (day: number) => value && new Date(value).getDate() === day && new Date(value).getMonth() === viewDate.getMonth() && new Date(value).getFullYear() === viewDate.getFullYear();
     const isToday = (day: number) => { const t = getLogicalDate(); return t.getDate() === day && t.getMonth() === viewDate.getMonth() && t.getFullYear() === viewDate.getFullYear(); };
@@ -148,7 +155,7 @@ const CalendarContent = ({ value, onChange, onClose, dayStartHour }: any) => {
                 <button type="button" onClick={() => changeMonth(1)} className="p-0.5 text-muted-foreground hover:bg-notion-hover rounded-sm"><ChevronRight className="w-4 h-4" /></button>
             </div>
             <div className="grid grid-cols-7 gap-0.5 text-center mb-1">
-                {WEEKDAYS.map(d => <div key={d} className="text-[10px] text-muted-foreground">{d.slice(0, 2)}</div>)}
+                {weekdays.map(d => <div key={d} className="text-[10px] text-muted-foreground">{d.slice(0, 2)}</div>)}
             </div>
             <div className="grid grid-cols-7 gap-0.5">
                 {Array.from({ length: firstDayOfWeek }).map((_, i) => <div key={`empty-${i}`} />)}
@@ -165,7 +172,7 @@ const CalendarContent = ({ value, onChange, onClose, dayStartHour }: any) => {
     );
 };
 
-const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRef }: any) => {
+const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, startWeekDay = 0, triggerRef }: any) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [coords, setCoords] = useState({ top: 0, left: 0 });
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -215,7 +222,7 @@ const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRef
         return createPortal(
             <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
                 <div onClick={e => e.stopPropagation()} className="animate-in zoom-in-95">
-                    <CalendarContent value={value} onChange={onChange} onClose={onClose} dayStartHour={dayStartHour} />
+                    <CalendarContent value={value} onChange={onChange} onClose={onClose} dayStartHour={dayStartHour} startWeekDay={startWeekDay} />
                 </div>
             </div>,
             document.body
@@ -224,7 +231,7 @@ const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, triggerRef
 
     return createPortal(
         <div ref={containerRef} style={{ position: 'fixed', top: coords.top, left: coords.left, zIndex: 9999 }} className="animate-in zoom-in-95 origin-top-left">
-            <CalendarContent value={value} onChange={onChange} onClose={onClose} dayStartHour={dayStartHour} />
+            <CalendarContent value={value} onChange={onChange} onClose={onClose} dayStartHour={dayStartHour} startWeekDay={startWeekDay} />
         </div>,
         document.body
     );
@@ -334,7 +341,7 @@ const mapTaskToDb = (task: Task, userId: string) => ({
     timer_start: task.timerStart
 });
 
-export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, onTaskComplete, activeFilterTagId, onToggleTimer, sessions, onDeleteSession }) => {
+export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, startWeekDay = 0, onTaskComplete, activeFilterTagId, onToggleTimer, sessions, onDeleteSession }) => {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
@@ -634,11 +641,15 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
       // Grid Calculation
       let visibleDates: { dateStr: string, dayName: string, dayNum: number, isToday: boolean }[] = [];
+      const weekdays = getRotatedWeekdays(startWeekDay);
       
       if (calendarViewMode === 'week' || calendarViewMode === '3day') {
           const startDate = new Date(calendarDate);
           if (calendarViewMode === 'week') {
-              startDate.setDate(startDate.getDate() - startDate.getDay()); // Start Sunday
+              // Calculate start of week based on startWeekDay
+              const currentDay = startDate.getDay();
+              const diff = (currentDay - startWeekDay + 7) % 7;
+              startDate.setDate(startDate.getDate() - diff);
           }
           // For 3day, we just start at calendarDate (which defaults to today)
           
@@ -649,7 +660,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
               d.setDate(d.getDate() + i);
               return {
                   dateStr: getLocalDateString(d),
-                  dayName: WEEKDAYS[d.getDay()],
+                  dayName: weekdays[i % 7] || d.toLocaleDateString('en-US', { weekday: 'short' }),
                   dayNum: d.getDate(),
                   isToday: getLocalDateString(d) === todayStr
               };
@@ -660,10 +671,13 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
       const year = calendarDate.getFullYear();
       const month = calendarDate.getMonth();
       const daysInMonth = new Date(year, month + 1, 0).getDate();
+      // Adjust first day of month based on startWeekDay
       const firstDayOfMonth = new Date(year, month, 1).getDay();
+      const monthStartOffset = (firstDayOfMonth - startWeekDay + 7) % 7;
+
       const monthDays: ({ dateStr: string, dayNum: number, isToday: boolean } | null)[] = [];
       
-      for(let i=0; i<firstDayOfMonth; i++) monthDays.push(null);
+      for(let i=0; i<monthStartOffset; i++) monthDays.push(null);
       for(let i=1; i<=daysInMonth; i++) {
           const d = new Date(year, month, i);
           const dateStr = getLocalDateString(d);
@@ -831,7 +845,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                           // Month View
                           <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
                               <div className="grid grid-cols-7 gap-1 auto-rows-fr">
-                                  {WEEKDAYS.map(day => (
+                                  {weekdays.map(day => (
                                       <div key={day} className="text-center text-[10px] font-bold text-muted-foreground uppercase tracking-wider py-1">{day}</div>
                                   ))}
                                   {monthDays.map((d, i) => {
@@ -1078,7 +1092,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                           <div className="pl-10 pr-4 pb-2 space-y-1">
                               {task.subtasks.map(st => (
                                 <div key={st.id} className="flex items-center gap-2 py-0.5 group/sub">
-                                  <button onClick={(e) => { e.stopPropagation(); toggleSubtaskInTask(task.id, st.id); }} className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center transition-all ${st.completed ? 'bg-notion-blue border-notion-blue text-white' : 'border-muted-foreground/40 hover:bg-notion-hover'}`}>{st.completed && <CheckSquare className="w-2.5 h-2.5" />}</button>
+                                  <button onClick={(e) => { e.stopPropagation(); toggleSubtaskInTask(task.id, st.id); }} className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center transition-all ${st.completed ? 'bg-notion-blue border-notion-blue text-white' : 'border-muted-foreground/40 hover:border-notion-blue bg-background'}`}>{st.completed && <CheckSquare className="w-2.5 h-2.5" />}</button>
                                   <span className={`text-xs ${st.completed ? 'text-muted-foreground line-through' : 'text-foreground'}`}>{st.title}</span>
                                   <button onClick={(e) => { e.stopPropagation(); deleteSubtaskInTask(task.id, st.id); }} className="opacity-0 group-hover/sub:opacity-100 ml-auto p-0.5 hover:bg-notion-bg_red hover:text-notion-red rounded-sm"><Trash2 className="w-3 h-3" /></button>
                                 </div>
@@ -1206,7 +1220,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                     <span>{dueDate ? formatRelativeDate(dueDate) : 'Empty'}</span>
                                     {dueDate && <X className="w-3 h-3 opacity-50 hover:opacity-100" onClick={(e) => { e.stopPropagation(); setDueDate(''); }} />}
                                 </button>
-                                {isDatePickerOpen && <TaskDatePicker value={dueDate} onChange={setDueDate} onClose={() => setIsDatePickerOpen(false)} dayStartHour={dayStartHour} triggerRef={dateButtonRef} />}
+                                {isDatePickerOpen && <TaskDatePicker value={dueDate} onChange={setDueDate} onClose={() => setIsDatePickerOpen(false)} dayStartHour={dayStartHour} startWeekDay={startWeekDay} triggerRef={dateButtonRef} />}
                             </div>
                             {!dueDate && quickDates.slice(0, 2).map(qd => (
                                 <button key={qd.label} type="button" onClick={() => handleQuickDate(qd.offset)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 bg-secondary/30 hover:bg-secondary rounded-sm transition-colors">{qd.label}</button>
@@ -1365,7 +1379,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
         </div>
       )}
       
-      {quickDateEdit && <TaskDatePicker value={quickDateEdit.value} onChange={async (date: string) => { const taskId = quickDateEdit.taskId; setTasks(prev => prev.map(t => t.id === taskId ? { ...t, dueDate: date } : t)); setQuickDateEdit(null); await supabase.from('tasks').update({ due_date: date || null }).eq('id', taskId); }} onClose={() => setQuickDateEdit(null)} dayStartHour={dayStartHour} triggerRef={{ current: quickDateEdit.element } as React.RefObject<HTMLElement>} />}
+      {quickDateEdit && <TaskDatePicker value={quickDateEdit.value} onChange={async (date: string) => { const taskId = quickDateEdit.taskId; setTasks(prev => prev.map(t => t.id === taskId ? { ...t, dueDate: date } : t)); setQuickDateEdit(null); await supabase.from('tasks').update({ due_date: date || null }).eq('id', taskId); }} onClose={() => setQuickDateEdit(null)} dayStartHour={dayStartHour} startWeekDay={startWeekDay} triggerRef={{ current: quickDateEdit.element } as React.RefObject<HTMLElement>} />}
       {quickPriorityEdit && <TaskPriorityPicker value={quickPriorityEdit.value} onChange={async (p: Priority) => { const taskId = quickPriorityEdit.taskId; setTasks(prev => prev.map(t => t.id === taskId ? { ...t, priority: p } : t)); setQuickPriorityEdit(null); await supabase.from('tasks').update({ priority: p }).eq('id', taskId); }} onClose={() => setQuickPriorityEdit(null)} triggerRef={{ current: quickPriorityEdit.element } as React.RefObject<HTMLElement>} />}
       
       {/* Recurrence modal (Kept as modal since it's a sub-dialog) */}

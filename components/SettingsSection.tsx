@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { 
   User, Trash2, TriangleAlert, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, 
@@ -42,6 +43,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
   
   // Modules & Prefs State
   const [localDayStartHour, setLocalDayStartHour] = useState(settings.dayStartHour || 0);
+  const [localStartWeekDay, setLocalStartWeekDay] = useState(settings.startWeekDay || 0);
   const [localEnabledFeatures, setLocalEnabledFeatures] = useState<string[]>(settings.enabledFeatures || ['tasks', 'habit', 'journal', 'notes']);
 
   // Data Management State
@@ -71,6 +73,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
         userName: localName, 
         profilePicture: localProfilePic.trim() || undefined,
         dayStartHour: localDayStartHour,
+        startWeekDay: localStartWeekDay,
         enabledFeatures: localEnabledFeatures
     });
     setToast('Settings updated');
@@ -306,20 +309,41 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
 
                         <div>
                             <h2 className="text-lg font-medium text-foreground border-b border-border pb-2 mb-4">Preferences</h2>
-                            <div className="flex items-center justify-between max-w-sm py-2 w-full">
-                                <div>
-                                    <div className="text-sm font-medium">Day Start Hour</div>
-                                    <div className="text-xs text-muted-foreground">When your day resets (Night Owl mode)</div>
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between max-w-sm py-2 w-full">
+                                    <div>
+                                        <div className="text-sm font-medium">Day Start Hour</div>
+                                        <div className="text-xs text-muted-foreground">When your day resets (Night Owl mode)</div>
+                                    </div>
+                                    <select 
+                                        value={localDayStartHour} 
+                                        onChange={e => { setLocalDayStartHour(parseInt(e.target.value)); handleSaveProfile(); }}
+                                        className="text-sm border border-border rounded-sm bg-transparent px-2 py-1 outline-none focus:ring-1 focus:ring-notion-blue"
+                                    >
+                                        {Array.from({length: 24}).map((_, i) => (
+                                            <option key={i} value={i}>{i}:00</option>
+                                        ))}
+                                    </select>
                                 </div>
-                                <select 
-                                    value={localDayStartHour} 
-                                    onChange={e => { setLocalDayStartHour(parseInt(e.target.value)); handleSaveProfile(); }}
-                                    className="text-sm border border-border rounded-sm bg-transparent px-2 py-1 outline-none focus:ring-1 focus:ring-notion-blue"
-                                >
-                                    {Array.from({length: 24}).map((_, i) => (
-                                        <option key={i} value={i}>{i}:00</option>
-                                    ))}
-                                </select>
+                                <div className="flex items-center justify-between max-w-sm py-2 w-full">
+                                    <div>
+                                        <div className="text-sm font-medium">Start Week Day</div>
+                                        <div className="text-xs text-muted-foreground">Start of the week for calendars</div>
+                                    </div>
+                                    <select 
+                                        value={localStartWeekDay} 
+                                        onChange={e => { setLocalStartWeekDay(parseInt(e.target.value)); handleSaveProfile(); }}
+                                        className="text-sm border border-border rounded-sm bg-transparent px-2 py-1 outline-none focus:ring-1 focus:ring-notion-blue"
+                                    >
+                                        <option value={0}>Sunday</option>
+                                        <option value={1}>Monday</option>
+                                        <option value={2}>Tuesday</option>
+                                        <option value={3}>Wednesday</option>
+                                        <option value={4}>Thursday</option>
+                                        <option value={5}>Friday</option>
+                                        <option value={6}>Saturday</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
 

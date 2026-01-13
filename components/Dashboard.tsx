@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause, BarChart3, CheckSquare, StickyNote, MoreHorizontal, ChevronDown, Ban, WifiOff, MessageSquare, Map } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession } from '../types';
@@ -163,7 +164,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [sessions, setSessions] = useState<TaskSession[]>([]);
   const [userSettings, setUserSettings] = useState<UserSettings>({
-    userName: user.name, userId: user.id, email: user.email, profilePicture: user.profilePicture, dayStartHour: user.dayStartHour, enabledFeatures: user.enabledFeatures || ['tasks', 'habit', 'journal', 'notes']
+    userName: user.name, 
+    userId: user.id, 
+    email: user.email, 
+    profilePicture: user.profilePicture, 
+    dayStartHour: user.dayStartHour, 
+    startWeekDay: user.startWeekDay,
+    enabledFeatures: user.enabledFeatures || ['tasks', 'habit', 'journal', 'notes']
   });
 
   const [statsTicker, setStatsTicker] = useState(0);
@@ -357,7 +364,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
   const handleUpdateSettings = async (newSettings: UserSettings) => { 
       setUserSettings(newSettings); 
-      if (isOnline) await supabase.auth.updateUser({ data: { full_name: newSettings.userName, avatar_url: newSettings.profilePicture, day_start_hour: newSettings.dayStartHour, enabled_features: newSettings.enabledFeatures } }); 
+      if (isOnline) await supabase.auth.updateUser({ 
+          data: { 
+              full_name: newSettings.userName, 
+              avatar_url: newSettings.profilePicture, 
+              day_start_hour: newSettings.dayStartHour, 
+              enabled_features: newSettings.enabledFeatures,
+              start_week_day: newSettings.startWeekDay
+          } 
+      }); 
   };
 
   const sidebarStats = useMemo(() => {
@@ -409,12 +424,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'tasks': return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} />;
-      case 'habit': return <HabitSection habits={habits} setHabits={setHabits} userId={userId} dayStartHour={userSettings.dayStartHour} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
+      case 'tasks': return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} />;
+      case 'habit': return <HabitSection habits={habits} setHabits={setHabits} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'journal': return <JournalSection journals={journals} setJournals={setJournals} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'notes': return <NotesSection notes={notes} setNotes={setNotes} folders={folders} setFolders={setFolders} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'settings': return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} tags={tags} setTags={setTags} isOnline={isOnline} />;
-      default: return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} />;
+      default: return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} />;
     }
   };
 

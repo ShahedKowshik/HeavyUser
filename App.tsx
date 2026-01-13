@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import AuthPage from './components/AuthPage';
 import Dashboard from './components/Dashboard';
@@ -21,6 +22,7 @@ const App: React.FC = () => {
           name: session.user.user_metadata.full_name || 'User',
           profilePicture: session.user.user_metadata.avatar_url,
           dayStartHour: session.user.user_metadata.day_start_hour || 0,
+          startWeekDay: session.user.user_metadata.start_week_day || 0,
           enabledFeatures: session.user.user_metadata.enabled_features || ['tasks', 'habit', 'journal', 'notes'],
         });
       }
@@ -38,6 +40,7 @@ const App: React.FC = () => {
           name: session.user.user_metadata.full_name || 'User',
           profilePicture: session.user.user_metadata.avatar_url,
           dayStartHour: session.user.user_metadata.day_start_hour || 0,
+          startWeekDay: session.user.user_metadata.start_week_day || 0,
           enabledFeatures: session.user.user_metadata.enabled_features || ['tasks', 'habit', 'journal', 'notes'],
         });
       } else {

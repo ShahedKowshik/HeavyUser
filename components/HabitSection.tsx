@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save, SkipForward, CircleCheck, ArrowLeft, Clock, MoreHorizontal, Flag } from 'lucide-react';
 import { Habit, Tag } from '../types';
@@ -11,6 +12,7 @@ interface HabitSectionProps {
   setHabits: React.Dispatch<React.SetStateAction<Habit[]>>;
   userId: string;
   dayStartHour?: number;
+  startWeekDay?: number;
   tags: Tag[];
   setTags: React.Dispatch<React.SetStateAction<Tag[]>>;
   activeFilterTagId?: string | null;
@@ -200,10 +202,14 @@ const getProgressBarStyle = (progress: number, target: number, type: 'positive' 
     return { width: `${ratio * 100}%`, backgroundColor };
 };
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const getRotatedWeekdays = (startDay: number) => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return [...days.slice(startDay), ...days.slice(0, startDay)];
+};
+
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, dayStartHour, tags, setTags, activeFilterTagId }) => {
+const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, dayStartHour, startWeekDay = 0, tags, setTags, activeFilterTagId }) => {
   const today = getLogicalDate(dayStartHour);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -224,6 +230,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
   const [formStartDate, setFormStartDate] = useState('');
 
   const detailHabit = useMemo(() => habits.find(h => h.id === detailHabitId), [habits, detailHabitId]);
+  const weekdays = getRotatedWeekdays(startWeekDay);
 
   const resetForm = () => {
     setTitle('');
@@ -385,9 +392,12 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     const weeksToShow = 52;
     const todayDate = new Date(today);
     
-    // Find the previous Sunday to align grid
+    // Find the previous week start to align grid
     const startOfWeekDate = new Date(todayDate);
-    startOfWeekDate.setDate(todayDate.getDate() - todayDate.getDay());
+    // Adjust logic to align to the correct start week day
+    const currentDay = startOfWeekDate.getDay();
+    const diff = (currentDay - startWeekDay + 7) % 7;
+    startOfWeekDate.setDate(startOfWeekDate.getDate() - diff);
     
     // Calculate grid start date
     const gridStartDate = new Date(startOfWeekDate);
@@ -450,11 +460,11 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                     </div>
 
                     <div className="flex gap-[2px]">
-                        {/* Day Labels */}
+                        {/* Day Labels - Adjusted based on startWeekDay to show alternating days */}
                         <div className="flex flex-col justify-between py-[1px] text-[9px] text-muted-foreground w-4 shrink-0">
-                            <span>Mon</span>
-                            <span>Wed</span>
-                            <span>Fri</span>
+                            <span>{weekdays[1].slice(0, 3)}</span>
+                            <span>{weekdays[3].slice(0, 3)}</span>
+                            <span>{weekdays[5].slice(0, 3)}</span>
                         </div>
                         
                         {/* Heatmap Grid */}
@@ -594,11 +604,13 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
   const MiniCalendar = ({ habit }: { habit: Habit }) => {
       const y = calendarDate.getFullYear();
       const m = calendarDate.getMonth();
-      const firstDay = new Date(y, m, 1).getDay();
       const daysInMonth = new Date(y, m + 1, 0).getDate();
+      // Adjust first day based on startWeekDay
+      const firstDayOfMonth = new Date(y, m, 1).getDay();
+      const monthStartOffset = (firstDayOfMonth - startWeekDay + 7) % 7;
       
       const days = [];
-      for (let i = 0; i < firstDay; i++) days.push(null);
+      for (let i = 0; i < monthStartOffset; i++) days.push(null);
       for (let i = 1; i <= daysInMonth; i++) days.push(i);
 
       // Pad end to make sure grid is consistent
@@ -620,7 +632,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                   <button onClick={() => changeMonth(1)} className="p-1 hover:bg-notion-hover rounded text-muted-foreground"><ChevronRight className="w-4 h-4" /></button>
               </div>
               <div className="grid grid-cols-7 gap-1 mb-2 text-center">
-                  {WEEKDAYS.map(d => <div key={d} className="text-[10px] text-muted-foreground font-bold">{d.slice(0, 2)}</div>)}
+                  {weekdays.map(d => <div key={d} className="text-[10px] text-muted-foreground font-bold">{d.slice(0, 2)}</div>)}
               </div>
               <div className="grid grid-cols-7 gap-1 content-start">
                   {days.map((day, idx) => {

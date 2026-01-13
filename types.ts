@@ -10,6 +10,7 @@ export interface User {
   name: string;
   profilePicture?: string;
   dayStartHour?: number; // 0-23
+  startWeekDay?: number; // 0-6 (0 = Sunday, 1 = Monday, etc.)
   enabledFeatures?: string[];
 }
 
@@ -112,5 +113,6 @@ export interface UserSettings {
   email: string;
   profilePicture?: string;
   dayStartHour?: number;
+  startWeekDay?: number;
   enabledFeatures?: string[];
 }
