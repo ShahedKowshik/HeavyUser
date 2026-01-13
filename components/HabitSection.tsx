@@ -1,7 +1,4 @@
 
-
-
-
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save, SkipForward, CircleCheck, ArrowLeft, Clock, MoreHorizontal, Flag, FolderPlus, Folder, ArrowUp, ArrowDown, GripVertical, Pencil } from 'lucide-react';
 import { Habit, Tag, HabitFolder } from '../types';
@@ -442,9 +439,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
       } else return;
       
       const updatedFolders = folders.map((f, i) => ({ ...f, sortOrder: i }));
-      setHabitFolders(updatedFolders); // Optimistic update of state logic (needs to propagate to original state if sortedFolders is derived)
+      setHabitFolders(updatedFolders); // Optimistic update
       
-      // Update DB
       for (const f of updatedFolders) {
           await supabase.from('habit_folders').update({ sort_order: f.sortOrder }).eq('id', f.id);
       }
@@ -462,7 +458,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
          [newHabitsInGroup[index], newHabitsInGroup[index+1]] = [newHabitsInGroup[index+1], newHabitsInGroup[index]];
      } else return;
 
-     // Update sort orders in DB and State
      const updates = newHabitsInGroup.map((h, i) => ({ id: h.id, sortOrder: i }));
      
      setHabits(prev => prev.map(h => {
@@ -521,7 +516,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
     
     // Find the previous week start to align grid
     const startOfWeekDate = new Date(todayDate);
-    // Adjust logic to align to the correct start week day
     const currentDay = startOfWeekDate.getDay();
     const diff = (currentDay - startWeekDay + 7) % 7;
     startOfWeekDate.setDate(startOfWeekDate.getDate() - diff);
@@ -533,7 +527,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
     const weeks = [];
     let current = new Date(gridStartDate);
 
-    // Pre-calculate habit start for comparison
     const habitStartDate = new Date(habit.startDate);
     habitStartDate.setHours(0,0,0,0);
 
@@ -566,7 +559,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
         weeks.push(days);
     }
 
-    // Split weeks into 2 chunks of 26 weeks each
     const chunks = [weeks.slice(0, 26), weeks.slice(26, 52)];
 
     return (
@@ -576,7 +568,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                     {/* Month Labels */}
                     <div className="flex pl-6 mb-1 text-[10px] text-muted-foreground">
                         {chunkWeeks.map((week, i) => {
-                             // Only show month label on the first week of the month (roughly)
                              const showLabel = week[0].day <= 7;
                              return (
                                 <div key={i} className="flex-1 text-center overflow-hidden">
@@ -587,14 +578,12 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                     </div>
 
                     <div className="flex gap-[2px]">
-                        {/* Day Labels - Adjusted based on startWeekDay to show alternating days */}
                         <div className="flex flex-col justify-between py-[1px] text-[9px] text-muted-foreground w-4 shrink-0">
                             <span>{weekdays[1].slice(0, 3)}</span>
                             <span>{weekdays[3].slice(0, 3)}</span>
                             <span>{weekdays[5].slice(0, 3)}</span>
                         </div>
                         
-                        {/* Heatmap Grid */}
                         <div className="flex flex-1 gap-[2px]">
                             {chunkWeeks.map((week, i) => (
                                 <div key={i} className="flex flex-col gap-[2px] flex-1">
@@ -605,7 +594,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                                         if (day.isFuture) {
                                             bgClass = 'bg-transparent border border-border/30';
                                         } else if (day.isBeforeStart) {
-                                            bgClass = 'bg-secondary/20'; // Faded for before start
+                                            bgClass = 'bg-secondary/20'; 
                                         } else if (day.isSkipped) {
                                             bgClass = 'bg-notion-bg_gray opacity-40 border border-dashed border-foreground/10';
                                         } else {
@@ -645,7 +634,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
      const end = new Date(today);
      
      const maxVal = Math.max(habit.target, Math.max(...Object.values(habit.progress).slice(-days).map(Number) || [0], 1));
-     const yMax = Math.ceil(maxVal * 1.1); // Add breathing room
+     const yMax = Math.ceil(maxVal * 1.1);
 
      for (let i = days - 1; i >= 0; i--) {
         const d = new Date(end);
@@ -668,7 +657,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                  {/* Y Axis Labels */}
                  <div className="flex flex-col justify-between items-end text-[10px] text-muted-foreground w-8 font-mono py-1 shrink-0">
                      <span>{yMax}</span>
-                     {/* Show target label if it's nicely between 0 and max */}
                      {habit.target < yMax && habit.target > 0 && <span className="text-primary font-bold">{habit.target}</span>}
                      <span>0</span>
                  </div>
@@ -732,7 +720,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
       const y = calendarDate.getFullYear();
       const m = calendarDate.getMonth();
       const daysInMonth = new Date(y, m + 1, 0).getDate();
-      // Adjust first day based on startWeekDay
       const firstDayOfMonth = new Date(y, m, 1).getDay();
       const monthStartOffset = (firstDayOfMonth - startWeekDay + 7) % 7;
       
@@ -740,7 +727,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
       for (let i = 0; i < monthStartOffset; i++) days.push(null);
       for (let i = 1; i <= daysInMonth; i++) days.push(i);
 
-      // Pad end to make sure grid is consistent
       while (days.length % 7 !== 0) {
           days.push(null);
       }
@@ -787,7 +773,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                               }
                               
                               if (isToday && !color) {
-                                  // Pending state for today
                                   bgClass += ' ring-2 ring-notion-blue';
                               }
                               
@@ -821,8 +806,20 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
       );
   };
 
+  const renderEmptyState = () => (
+      <div className="flex flex-col h-full bg-background animate-in fade-in justify-center items-center text-center p-8 select-none opacity-50">
+          <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mb-4">
+              <Activity className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-sm font-semibold text-foreground">No habit selected</h3>
+          <p className="text-xs text-muted-foreground mt-2 max-w-[200px] leading-relaxed">
+              Select a habit from the list to view its analytics, heatmap, and history.
+          </p>
+      </div>
+  );
+
   const renderDetailView = () => {
-    if (!detailHabit) return null;
+    if (!detailHabit) return renderEmptyState(); // Fallback
     const stats = getHabitStats(detailHabit, today);
     const isNegative = detailHabit.goalType === 'negative';
 
@@ -1053,51 +1050,99 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
         isCompletedToday = progressToday >= limit;
     }
 
+    // NEW: Calculate last 7 days for heatmap
+    const last7Days = Array.from({length: 7}, (_, i) => {
+        const parts = today.split('-').map(Number);
+        const d = new Date(parts[0], parts[1] - 1, parts[2]);
+        d.setDate(d.getDate() - (6 - i));
+        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return {
+            dateStr,
+            dayLetter: d.toLocaleDateString('en-US', { weekday: 'narrow' })
+        };
+    });
+
     return (
         <div 
             key={habit.id} 
             onClick={() => setDetailHabitId(habit.id)}
-            className={`group bg-background rounded-sm border hover:bg-notion-item_hover transition-colors cursor-pointer relative overflow-hidden flex flex-col ${detailHabitId === habit.id ? 'border-notion-blue bg-notion-item_hover' : 'border-border'}`}
+            className={`group bg-background rounded-xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-center ${detailHabitId === habit.id ? 'border-notion-blue bg-notion-item_hover' : 'border-border hover:bg-notion-item_hover'}`}
         >
+            {/* Organize Mode Buttons */}
             {organizeMode && (
-                <div className="absolute top-1 right-1 z-20 flex bg-background/80 backdrop-blur rounded shadow-sm border border-border">
+                <div className="absolute top-1 right-2 z-20 flex bg-background/80 backdrop-blur rounded shadow-sm border border-border">
                     <button onClick={(e) => { e.stopPropagation(); moveHabit(habit.id, habit.folderId || null, 'up'); }} className="p-1 hover:bg-notion-hover text-muted-foreground"><ArrowUp className="w-3 h-3" /></button>
                     <button onClick={(e) => { e.stopPropagation(); moveHabit(habit.id, habit.folderId || null, 'down'); }} className="p-1 hover:bg-notion-hover text-muted-foreground"><ArrowDown className="w-3 h-3" /></button>
                 </div>
             )}
             
-            <div className="p-4 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-md bg-notion-bg_gray flex items-center justify-center text-2xl shrink-0">
+            {/* Main Flex Container */}
+            <div className="flex items-center p-3 gap-3 w-full">
+                {/* Icon */}
+                <div className="w-9 h-9 rounded-lg bg-notion-bg_gray flex items-center justify-center text-lg shrink-0 shadow-sm border border-border/50">
                     {habit.icon}
                 </div>
-                <div className="flex-1 min-w-0">
-                    <h4 className={`text-base font-semibold truncate ${isFailedToday ? 'text-notion-red' : 'text-foreground'}`}>{habit.title}</h4>
-                    <div className="flex items-center gap-2 mt-1">
-                        <span className={`text-[10px] uppercase tracking-wide font-bold ${habit.goalType === 'negative' ? 'text-notion-red' : 'text-notion-green'}`}>
+                
+                {/* Title & Metadata */}
+                <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+                    <h4 className={`text-sm font-bold truncate ${isFailedToday ? 'text-notion-red' : 'text-foreground'}`}>{habit.title}</h4>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium h-3.5">
+                        <span className={`uppercase tracking-wide ${habit.goalType === 'negative' ? 'text-notion-red' : 'text-notion-green'}`}>
                             {habit.goalType === 'negative' ? 'Quit' : 'Build'}
                         </span>
                         {habit.useCounter && (
-                            <span className="text-xs text-muted-foreground">
-                                {progressToday} / {habit.target} {habit.unit}
+                            <span className="truncate">• {progressToday} / {habit.target} {habit.unit}</span>
+                        )}
+                        {stats.streak > 0 && (
+                            <span className="flex items-center gap-0.5 ml-1 text-notion-orange">
+                                <Flame className="w-3 h-3 fill-notion-orange" /> {stats.streak}
                             </span>
                         )}
                     </div>
                 </div>
-                
-                {/* Streak and Action Button Aligned */}
-                <div className="flex items-center gap-3">
-                    {stats.streak > 0 && (
-                        <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                            <Flame className="w-4 h-4 text-notion-orange fill-notion-orange" /> {stats.streak}
-                        </div>
-                    )}
-                    {/* Quick Action Button - Fixed for Mobile */}
+
+                {/* Right Side: Heatmap + Action */}
+                <div className="flex items-center gap-3 shrink-0 ml-auto">
+                    {/* Heatmap */}
+                    <div className="flex items-center gap-1">
+                        {last7Days.map(({ dateStr }) => {
+                            const count = habit.progress[dateStr] || 0;
+                            const isSkipped = habit.skippedDates.includes(dateStr);
+                            const isToday = dateStr === today;
+                            const isBeforeStart = dateStr < habit.startDate;
+                            
+                            let bgClass = '';
+                            let style = {};
+
+                            if (isBeforeStart) {
+                                bgClass = 'bg-secondary/40';
+                            } else if (isSkipped) {
+                                bgClass = 'bg-notion-bg_gray border border-dashed border-muted-foreground/30';
+                            } else {
+                                const color = getHabitStatusColor(habit, count, isToday);
+                                if (color) {
+                                    style = { backgroundColor: color };
+                                } else {
+                                    bgClass = 'bg-secondary';
+                                    if (isToday) bgClass = 'bg-transparent border border-border';
+                                }
+                            }
+
+                            return (
+                                <div 
+                                    key={dateStr} 
+                                    className={`w-3.5 h-3.5 rounded-[2px] transition-all relative ${bgClass} ${isToday ? 'ring-1 ring-notion-blue ring-offset-1 ring-offset-background' : ''}`}
+                                    style={style}
+                                    title={`${dateStr}: ${count}`}
+                                />
+                            );
+                        })}
+                    </div>
+
+                    {/* Action Button */}
                     {!organizeMode && (
-                        <div 
-                            onClick={(e) => e.stopPropagation()} 
-                            className="shrink-0 relative z-10" 
-                        >
-                            <button
+                        <div onClick={(e) => e.stopPropagation()} className="relative z-10">
+                             <button
                                 onClick={(e) => {
                                     e.stopPropagation(); 
                                     if (habit.useCounter) {
@@ -1111,45 +1156,44 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                                         }
                                     }
                                 }}
-                                className={`w-12 h-12 rounded-md flex items-center justify-center transition-colors bg-notion-bg_gray hover:bg-notion-hover border border-border shadow-sm ${
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all shadow-sm active:scale-95 border ${
                                     habit.useCounter 
-                                        ? 'text-muted-foreground'
+                                        ? 'bg-secondary text-foreground hover:bg-notion-hover border-border'
                                         : isCompletedToday && !isFailedToday
-                                            ? 'bg-notion-green text-white border-transparent'
+                                            ? 'bg-notion-green text-white border-transparent hover:brightness-110'
                                             : isFailedToday 
-                                                ? 'bg-notion-red text-white border-transparent'
-                                                : 'text-muted-foreground hover:text-foreground'
+                                                ? 'bg-notion-red text-white border-transparent hover:brightness-110'
+                                                : 'bg-secondary text-muted-foreground hover:text-foreground hover:bg-notion-hover border-border'
                                 }`}
                             >
-                                {habit.useCounter ? <Plus className="w-5 h-5" /> : (isCompletedToday && !isFailedToday ? <Check className="w-5 h-5" /> : (isFailedToday ? <X className="w-5 h-5"/> : <Check className="w-5 h-5" />))}
+                                 {habit.useCounter ? <Plus className="w-4 h-4" /> : (isCompletedToday && !isFailedToday ? <Check className="w-4 h-4" /> : (isFailedToday ? <X className="w-4 h-4"/> : <Check className="w-4 h-4" />))}
                             </button>
                         </div>
                     )}
                 </div>
             </div>
             
-            {/* Color-Scaled Progress Bar */}
-            <div className="h-1 w-full bg-border/30 mt-auto">
-                {habit.useCounter && !isFailedToday && (
+            {/* Progress Bar (Absolute Bottom) */}
+            {habit.useCounter && !isFailedToday && (
+                <div className="h-0.5 w-full bg-border/30 absolute bottom-0 left-0 right-0 pointer-events-none">
                     <div 
                         className="h-full transition-all"
                         style={getProgressBarStyle(progressToday, habit.target, habit.goalType)}
                     />
-                )}
-            </div>
+                </div>
+            )}
         </div>
     );
   };
 
   const renderListView = () => {
     // Dynamic grid classes based on whether the side panel (detailHabit) is open
-    const gridClasses = detailHabit 
-      ? "grid-cols-1 xl:grid-cols-2" // When panel open, restrict columns
-      : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"; // Default responsive grid
+    // Updated: Always assume space is reserved on desktop
+    const gridClasses = "grid-cols-1 xl:grid-cols-2";
 
     return (
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-            <div className="pb-20 px-4 md:px-8 pt-4 md:pt-6">
+            <div className="pb-20 p-4">
             {/* Notion-style Header */}
             <div className="flex flex-row items-center justify-between gap-2 sm:gap-4 border-b border-border pb-4 mb-6">
                 <div className="flex items-center gap-1">
@@ -1247,11 +1291,17 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
           </div>
 
           {/* Detail Side Panel */}
-          {detailHabit && (
-            <div className="w-full md:w-[500px] bg-background border-l border-border flex flex-col h-full z-20 md:z-0 absolute md:static inset-0 shadow-2xl md:shadow-none animate-in slide-in-from-right-12 duration-300">
-                {renderDetailView()} 
-            </div>
-          )}
+          <div className={`
+              w-full md:w-[450px] xl:w-[500px] 
+              bg-background md:border-l border-border 
+              flex flex-col h-full 
+              z-20 md:z-0 
+              absolute md:static inset-0 
+              ${detailHabit ? 'block' : 'hidden md:flex'} 
+              bg-background
+          `}>
+              {detailHabit ? renderDetailView() : renderEmptyState()} 
+          </div>
 
         {/* Create/Edit Habit Modal */}
         {isModalOpen && (
