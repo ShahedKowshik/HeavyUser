@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save, SkipForward, CircleCheck, ArrowLeft, Clock, MoreHorizontal, Flag, FolderPlus, Folder, ArrowUp, ArrowDown, GripVertical, Pencil, ArrowUpDown } from 'lucide-react';
 import { Habit, Tag, HabitFolder } from '../types';
@@ -236,6 +235,9 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
   const [folderIcon, setFolderIcon] = useState('📁');
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [organizeMode, setOrganizeMode] = useState(false);
+  
+  const [newTagInput, setNewTagInput] = useState('');
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
 
   const detailHabit = useMemo(() => habits.find(h => h.id === detailHabitId), [habits, detailHabitId]);
   const weekdays = getRotatedWeekdays(startWeekDay);
@@ -271,6 +273,20 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
     setFormStartDate(h.startDate || today);
     setSelectedFolderId(h.folderId || null);
     setIsModalOpen(true);
+  };
+  
+  const handleInlineCreateTag = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTagInput.trim()) return;
+    setIsCreatingTag(true);
+    try {
+        const newTag = await createNewTag(newTagInput, userId);
+        setTags(prev => [...prev, newTag]);
+        setSelectedTags(prev => [...prev, newTag.id]);
+        setNewTagInput('');
+    } finally {
+        setIsCreatingTag(false);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -545,15 +561,13 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
 
                  {/* Chart Area */}
                  <div className="flex-1 relative border-l border-b border-border min-h-[120px]">
-                      {/* Target Line */}
+                      {/* Target Line - Behind Bars */}
                       <div 
-                        className="absolute w-full border-t border-dashed border-foreground/30 z-0" 
+                        className="absolute w-full border-t border-dashed border-foreground/30 z-0 pointer-events-none" 
                         style={{ bottom: `${(habit.target / yMax) * 100}%` }}
-                      >
-                         <div className="absolute right-0 bottom-full mb-0.5 text-[9px] text-muted-foreground font-medium px-1 bg-background/80 backdrop-blur-sm rounded-sm">Target</div>
-                      </div>
+                      />
 
-                      {/* Bars */}
+                      {/* Bars - Middle Layer (z-10) */}
                       <div className="absolute inset-0 flex items-end justify-between px-1 z-10">
                            {data.map((d, i) => {
                                 let barClass = 'bg-secondary';
@@ -584,6 +598,14 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                                    </div>
                                )
                            })}
+                      </div>
+
+                      {/* Target Label - Top Layer (z-30) to ensure visibility over bars */}
+                      <div 
+                        className="absolute w-full z-30 pointer-events-none" 
+                        style={{ bottom: `${(habit.target / yMax) * 100}%` }}
+                      >
+                         <div className="absolute right-0 bottom-0 mb-1 text-[9px] text-muted-foreground font-medium px-1.5 py-0.5 bg-background/95 backdrop-blur-sm rounded-sm shadow-sm border border-border/50">Target</div>
                       </div>
                  </div>
             </div>
@@ -940,7 +962,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
         >
             {/* Organize Mode Buttons */}
             {organizeMode && (
-                <div className="absolute top-1 right-2 z-20 flex bg-background/80 backdrop-blur rounded shadow-sm border border-border">
+                <div className="absolute top-1 right-2 z-20 flex bg-background/80 backdrop-blur-sm rounded shadow-sm border border-border">
                     <button onClick={(e) => { e.stopPropagation(); moveHabit(habit.id, habit.folderId || null, 'up'); }} className="p-1 hover:bg-notion-hover text-muted-foreground"><ArrowUp className="w-3 h-3" /></button>
                     <button onClick={(e) => { e.stopPropagation(); moveHabit(habit.id, habit.folderId || null, 'down'); }} className="p-1 hover:bg-notion-hover text-muted-foreground"><ArrowDown className="w-3 h-3" /></button>
                 </div>
@@ -956,322 +978,325 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                 {/* Title & Metadata */}
                 <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
                     <h4 className={`text-sm font-bold truncate ${isFailedToday ? 'text-notion-red' : 'text-foreground'}`}>{habit.title}</h4>
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium h-3.5">
-                        <span className={`uppercase tracking-wide ${habit.goalType === 'negative' ? 'text-notion-red' : 'text-notion-green'}`}>
-                            {habit.goalType === 'negative' ? 'Quit' : 'Build'}
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                           <Target className="w-3 h-3" />
+                           {habit.target} {habit.unit}
                         </span>
-                        {habit.useCounter && (
-                            <span className="truncate">• {progressToday} / {habit.target} {habit.unit}</span>
-                        )}
-                        {stats.streak > 0 && (
-                            <span className="flex items-center gap-0.5 ml-1 text-notion-orange">
-                                <Flame className="w-3 h-3 fill-notion-orange" /> {stats.streak}
-                            </span>
-                        )}
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                           <Flame className="w-3 h-3" />
+                           {stats.streak}d
+                        </span>
                     </div>
                 </div>
 
-                {/* Right Side: Heatmap + Action */}
-                <div className="flex items-center gap-3 shrink-0 ml-auto">
-                    {/* Heatmap */}
-                    <div className="flex items-center gap-1">
-                        {last7Days.map(({ dateStr }) => {
-                            const count = habit.progress[dateStr] || 0;
-                            const isSkipped = habit.skippedDates.includes(dateStr);
-                            const isToday = dateStr === today;
-                            const isBeforeStart = dateStr < habit.startDate;
-                            
-                            let bgClass = '';
-                            let style = {};
-
-                            if (isBeforeStart) {
-                                bgClass = 'bg-secondary/40';
-                            } else if (isSkipped) {
-                                bgClass = 'bg-notion-bg_gray border border-dashed border-muted-foreground/30';
-                            } else {
-                                const color = getHabitStatusColor(habit, count, isToday);
-                                if (color) {
-                                    style = { backgroundColor: color };
-                                } else {
-                                    bgClass = 'bg-secondary';
-                                    if (isToday) bgClass = 'bg-transparent border border-border';
-                                }
-                            }
-
-                            return (
-                                <div 
-                                    key={dateStr} 
-                                    className={`w-3.5 h-3.5 rounded-[2px] transition-all relative ${bgClass} ${isToday ? 'ring-1 ring-notion-blue ring-offset-1 ring-offset-background' : ''}`}
-                                    style={style}
-                                    title={`${dateStr}: ${count}`}
-                                />
-                            );
+                {/* Right Side Actions/Heatmap */}
+                <div className="flex items-center gap-4">
+                    {/* Mini Heatmap (Desktop only) */}
+                    <div className="hidden sm:flex gap-1">
+                        {last7Days.map((d, i) => {
+                             const count = habit.progress[d.dateStr] || 0;
+                             const isSkipped = habit.skippedDates.includes(d.dateStr);
+                             const isToday = d.dateStr === today;
+                             const color = getHabitStatusColor(habit, count, isToday);
+                             
+                             let bg = 'bg-secondary';
+                             if (isSkipped) bg = 'bg-notion-bg_gray border border-dashed border-border';
+                             else if (color) bg = ''; 
+                             
+                             return (
+                                 <div key={d.dateStr} className="flex flex-col items-center gap-1">
+                                     <div 
+                                        className={`w-3 h-3 rounded-[1px] ${bg}`}
+                                        style={color && !isSkipped ? { backgroundColor: color } : {}}
+                                        title={`${d.dateStr}: ${count}`}
+                                     />
+                                 </div>
+                             )
                         })}
                     </div>
 
-                    {/* Action Button */}
-                    {!organizeMode && (
-                        <div onClick={(e) => e.stopPropagation()} className="relative z-10">
-                             <button
-                                onClick={(e) => {
-                                    e.stopPropagation(); 
-                                    if (habit.useCounter) {
-                                        const newCount = progressToday + 1;
-                                        updateDayStatus(habit.id, today, newCount, false);
-                                    } else {
-                                        if (habit.goalType === 'negative') {
-                                            updateDayStatus(habit.id, today, progressToday === 0 ? 1 : 0, false);
-                                        } else {
-                                            updateDayStatus(habit.id, today, isCompletedToday ? 0 : 1, false);
-                                        }
-                                    }
-                                }}
-                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all shadow-sm active:scale-95 border ${
-                                    habit.useCounter 
-                                        ? 'bg-secondary text-foreground hover:bg-notion-hover border-border'
-                                        : isCompletedToday && !isFailedToday
-                                            ? 'bg-notion-green text-white border-transparent hover:brightness-110'
-                                            : isFailedToday 
-                                                ? 'bg-notion-red text-white border-transparent hover:brightness-110'
-                                                : 'bg-secondary text-muted-foreground hover:text-foreground hover:bg-notion-hover border-border'
-                                }`}
-                            >
-                                 {habit.useCounter ? <Plus className="w-4 h-4" /> : (isCompletedToday && !isFailedToday ? <Check className="w-4 h-4" /> : (isFailedToday ? <X className="w-4 h-4"/> : <Check className="w-4 h-4" />))}
-                            </button>
-                        </div>
-                    )}
+                    {/* Quick Action Button */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (habit.useCounter) {
+                                // Increment
+                                const current = habit.progress[today] || 0;
+                                updateDayStatus(habit.id, today, current + 1, false);
+                            } else {
+                                // Toggle Complete
+                                const current = habit.progress[today] || 0;
+                                const isDone = current >= habit.target;
+                                updateDayStatus(habit.id, today, isDone ? 0 : habit.target, false);
+                            }
+                        }}
+                        className={`w-10 h-10 rounded-[4px] flex items-center justify-center transition-all shadow-sm border ${
+                            isCompletedToday 
+                            ? 'bg-notion-green text-white border-notion-green hover:bg-green-600' 
+                            : 'bg-background border-border text-muted-foreground hover:border-notion-blue hover:text-notion-blue'
+                        }`}
+                    >
+                         {isCompletedToday ? <Check className="w-5 h-5" /> : (habit.useCounter ? <Plus className="w-5 h-5" /> : <Check className="w-5 h-5" />)}
+                    </button>
                 </div>
             </div>
             
-            {/* Progress Bar (Absolute Bottom) */}
-            {habit.useCounter && !isFailedToday && (
-                <div className="h-0.5 w-full bg-border/30 absolute bottom-0 left-0 right-0 pointer-events-none">
-                    <div 
-                        className="h-full transition-all"
+            {/* Progress Bar (Bottom) - Only show if using counter */}
+            {habit.useCounter && (
+                <div className="h-1 w-full bg-secondary mt-auto">
+                     <div 
+                        className="h-full transition-all duration-500" 
                         style={getProgressBarStyle(progressToday, habit.target, habit.goalType)}
-                    />
+                     />
                 </div>
             )}
         </div>
     );
   };
 
-  const renderListView = () => {
-    // Dynamic grid classes based on whether the side panel (detailHabit) is open
-    // Updated: Always assume space is reserved on desktop
-    const gridClasses = "grid-cols-1 xl:grid-cols-2";
-
-    return (
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-            <div className="pb-20 p-4">
-            {/* Notion-style Header */}
-            <div className="flex flex-row items-center justify-between gap-2 sm:gap-4 border-b border-border pb-4 mb-6">
-                <div className="flex items-center gap-1">
-                    {(['all', 'positive', 'negative'] as const).map(f => (
-                        <button 
-                            key={f}
-                            onClick={() => setFilter(f)}
-                            className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === f ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
-                        >
-                            {f === 'all' ? 'All' : f === 'positive' ? 'Build' : 'Quit'}
-                        </button>
-                    ))}
-                </div>
-                
-                <div className="flex items-center gap-2">
-                    <button 
-                        onClick={() => setOrganizeMode(!organizeMode)} 
-                        className={`p-1.5 rounded-sm transition-colors ${organizeMode ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-notion-hover'}`}
-                        title="Reorder Folders & Habits"
-                    >
-                        <ArrowUpDown className="w-4 h-4" />
-                    </button>
-
-                    <button 
-                        onClick={() => openFolderModal()}
-                        className="p-1.5 rounded-sm text-muted-foreground hover:bg-notion-hover hover:text-foreground transition-colors"
-                        title="New Folder"
-                    >
-                        <FolderPlus className="w-4 h-4" />
-                    </button>
-
-                    <button 
-                        onClick={openCreateModal}
-                        className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0"
-                    >
-                        <Plus className="w-4 h-4" /> New
-                    </button>
-                </div>
-            </div>
-
-            <div className="space-y-8">
-                {/* 1. Render Ungrouped Habits First */}
-                {groupedHabits['uncategorized'].length > 0 && (
-                     <div className={`grid ${gridClasses} gap-4`}>
-                         {groupedHabits['uncategorized'].map(h => renderHabitCard(h))}
-                     </div>
-                )}
-
-                {/* 2. Render Folders */}
-                {sortedFolders.map((folder, folderIndex) => {
-                    const folderHabits = groupedHabits[folder.id] || [];
-                    if (folderHabits.length === 0 && !organizeMode) return null; // Hide empty folders unless organizing
-
-                    return (
-                        <div key={folder.id} className="space-y-3">
-                            <div className="flex items-center gap-2 group/folder">
-                                <span className="text-xl">{folder.icon}</span>
-                                <h3 className="text-sm font-bold text-foreground">{folder.name}</h3>
-
-                                {/* Edit/Delete - Always accessible on hover */}
-                                <div className="flex items-center gap-1 ml-2 opacity-0 group-hover/folder:opacity-100 transition-opacity">
-                                    <button onClick={() => openFolderModal(folder)} className="p-1 hover:bg-notion-hover rounded text-muted-foreground hover:text-foreground" title="Edit Folder"><Pencil className="w-3 h-3" /></button>
-                                    <button onClick={() => handleDeleteFolder(folder.id)} className="p-1 hover:bg-notion-bg_red hover:text-notion-red rounded text-muted-foreground" title="Delete Folder"><Trash2 className="w-3 h-3" /></button>
-                                </div>
-
-                                {organizeMode && (
-                                    <div className="flex items-center gap-1 ml-auto md:ml-2">
-                                        <div className="w-px h-3 bg-border mx-1" />
-                                        <button onClick={() => moveFolder(folderIndex, 'up')} className="p-1 hover:bg-notion-hover rounded text-muted-foreground"><ArrowUp className="w-3 h-3" /></button>
-                                        <button onClick={() => moveFolder(folderIndex, 'down')} className="p-1 hover:bg-notion-hover rounded text-muted-foreground"><ArrowDown className="w-3 h-3" /></button>
-                                    </div>
-                                )}
-                            </div>
-                            <div className={`grid ${gridClasses} gap-4`}>
-                                {folderHabits.map(h => renderHabitCard(h))}
-                                {folderHabits.length === 0 && <div className="col-span-full py-4 text-center text-xs text-muted-foreground border border-dashed border-border rounded-sm">Empty folder</div>}
-                            </div>
+  return (
+    <div className="flex h-full bg-background overflow-hidden relative">
+        {/* Main List Panel */}
+        <div className={`flex-1 flex flex-col min-w-0 border-r border-border ${detailHabitId ? 'hidden md:flex' : 'flex'}`}>
+            <div className="flex-1 overflow-y-auto custom-scrollbar" style={{ scrollbarGutter: 'stable' }}>
+                 {/* Header Controls */}
+                 <div className="px-4 md:px-8 pt-4 md:pt-6 mb-4 space-y-4">
+                     <div className="flex flex-row items-center justify-between gap-2 sm:gap-4 border-b border-border pb-4">
+                        <div className="flex items-center gap-1">
+                             <button onClick={() => setFilter('all')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === 'all' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>All</button>
+                             <button onClick={() => setFilter('positive')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === 'positive' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Build</button>
+                             <button onClick={() => setFilter('negative')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === 'negative' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Quit</button>
                         </div>
-                    );
-                })}
+                        
+                        <div className="flex items-center gap-2">
+                             <button 
+                                onClick={() => setOrganizeMode(!organizeMode)} 
+                                className={`p-1.5 rounded-sm transition-colors ${organizeMode ? 'bg-notion-hover text-foreground' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
+                                title="Organize Habits"
+                             >
+                                 <ArrowUpDown className="w-4 h-4" />
+                             </button>
 
-                {/* 3. Empty State */}
-                {filteredHabits.length === 0 && (
-                    <div className="col-span-full text-center py-20 opacity-50">
-                        <Zap className="w-16 h-16 text-muted-foreground mx-auto mb-4 bg-notion-bg_gray rounded-full p-4" />
-                        <p className="font-medium text-muted-foreground">No habits found</p>
-                    </div>
-                )}
-            </div>
+                             {organizeMode && (
+                                 <button onClick={() => openFolderModal()} className="flex items-center gap-1.5 px-2 py-1 bg-secondary text-foreground hover:bg-notion-hover rounded-sm shadow-sm transition-all text-sm font-medium">
+                                     <FolderPlus className="w-3.5 h-3.5" /> Group
+                                 </button>
+                             )}
 
+                             <button onClick={openCreateModal} className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0">
+                                <Plus className="w-4 h-4" /> New
+                             </button>
+                        </div>
+                     </div>
+                 </div>
+
+                 {/* Habits List */}
+                 <div className="px-4 md:px-8 pb-20 space-y-8 animate-in fade-in">
+                     
+                     {/* Uncategorized First (No Header) */}
+                     {groupedHabits['uncategorized'] && groupedHabits['uncategorized'].length > 0 && (
+                         <div className="space-y-3">
+                             <div className="grid gap-4 grid-cols-1 xl:grid-cols-2">
+                                 {groupedHabits['uncategorized'].map(renderHabitCard)}
+                             </div>
+                         </div>
+                     )}
+
+                     {sortedFolders.map(folder => {
+                         const folderHabits = groupedHabits[folder.id];
+                         if (!folderHabits || folderHabits.length === 0) {
+                             if (!organizeMode) return null; // Don't show empty folders unless organizing
+                         }
+                         
+                         return (
+                             <div key={folder.id} className="space-y-3">
+                                 <div className="flex items-center justify-between group">
+                                     <div className="flex items-center gap-2">
+                                         <span className="text-lg">{folder.icon}</span>
+                                         <h3 className="text-sm font-bold text-foreground">{folder.name}</h3>
+                                         <span className="text-xs text-muted-foreground bg-notion-item_hover px-1.5 rounded-sm">{folderHabits.length}</span>
+                                     </div>
+                                     
+                                     {organizeMode && (
+                                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                             <button onClick={() => moveFolder(folder.sortOrder, 'up')} className="p-1 text-muted-foreground hover:text-foreground"><ArrowUp className="w-3 h-3" /></button>
+                                             <button onClick={() => moveFolder(folder.sortOrder, 'down')} className="p-1 text-muted-foreground hover:text-foreground"><ArrowDown className="w-3 h-3" /></button>
+                                             <button onClick={() => openFolderModal(folder)} className="p-1 text-muted-foreground hover:text-foreground"><Settings className="w-3 h-3" /></button>
+                                             <button onClick={() => handleDeleteFolder(folder.id)} className="p-1 text-muted-foreground hover:text-notion-red"><Trash2 className="w-3 h-3" /></button>
+                                         </div>
+                                     )}
+                                 </div>
+                                 <div className="grid gap-4 grid-cols-1 xl:grid-cols-2">
+                                     {folderHabits.map(renderHabitCard)}
+                                 </div>
+                             </div>
+                         );
+                     })}
+                     
+                     {habits.length === 0 && (
+                         <div className="text-center py-20 opacity-50">
+                             <div className="w-16 h-16 bg-notion-bg_gray rounded-full flex items-center justify-center mx-auto mb-4">
+                                 <Zap className="w-8 h-8 text-muted-foreground" />
+                             </div>
+                             <p className="font-medium text-muted-foreground">No habits found</p>
+                             <button onClick={openCreateModal} className="mt-4 text-notion-blue hover:underline text-sm">Create your first habit</button>
+                         </div>
+                     )}
+                 </div>
             </div>
         </div>
-    );
-  };
 
-  return (
-      <div className="flex h-full bg-background overflow-hidden relative">
-          <div className={`flex-1 min-w-0 flex flex-col ${detailHabit ? 'hidden md:flex' : 'flex'}`}>
-            {renderListView()}
-          </div>
+        {/* Detail Panel - Always visible on desktop (placeholder if empty) */}
+        <div className={`
+            w-full md:w-[400px] border-l border-border bg-background z-20 
+            absolute inset-0 md:static shadow-2xl md:shadow-none 
+            animate-in slide-in-from-right-10 duration-300
+            ${!detailHabitId ? 'hidden md:block' : ''}
+        `}>
+            {detailHabitId ? renderDetailView() : renderEmptyState()}
+        </div>
 
-          {/* Detail Side Panel */}
-          <div className={`
-              w-full md:w-[450px] xl:w-[500px] 
-              bg-background md:border-l border-border 
-              flex flex-col h-full 
-              z-20 md:z-0 
-              absolute md:static inset-0 
-              ${detailHabit ? 'block' : 'hidden md:flex'} 
-              bg-background
-          `}>
-              {detailHabit ? renderDetailView() : renderEmptyState()} 
-          </div>
-
-        {/* Create/Edit Habit Modal */}
+        {/* Create/Edit Modal */}
         {isModalOpen && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-                <div className="bg-background w-full max-w-md rounded-md shadow-2xl border border-border flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95">
-                    <div className="p-4 border-b border-border flex justify-between items-center">
-                        <h3 className="font-bold text-foreground">{editingHabitId ? 'Edit Habit' : 'New Habit'}</h3>
-                        <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4"/></button>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setIsModalOpen(false)}>
+                <div className="bg-background w-full max-w-md rounded-lg shadow-2xl border border-border flex flex-col max-h-[90vh] animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                        <span className="font-semibold text-foreground">{editingHabitId ? 'Edit Habit' : 'New Habit'}</span>
+                        <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
                     </div>
-                    <form onSubmit={handleSave} className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
-                        <div className="flex gap-2">
-                            <input type="text" value={icon} onChange={(e) => setIcon(e.target.value)} className="w-10 h-9 text-center border border-border rounded-sm bg-transparent focus:ring-1 focus:ring-notion-blue text-lg" />
-                            <input autoFocus type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Habit Title" className="flex-1 h-9 px-2 border border-border rounded-sm bg-transparent focus:ring-1 focus:ring-notion-blue text-sm" />
-                        </div>
-                        
-                        <div className="space-y-4 text-sm">
-                            <div className="flex flex-col gap-1.5">
-                                <label className="text-muted-foreground text-xs uppercase font-bold tracking-wide">Goal Type</label>
-                                <div className="flex bg-secondary p-1 rounded-md">
-                                    <button type="button" onClick={() => setGoalType('positive')} className={`flex-1 py-1.5 text-xs font-medium rounded-sm transition-all ${goalType === 'positive' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Build (Positive)</button>
-                                    <button type="button" onClick={() => setGoalType('negative')} className={`flex-1 py-1.5 text-xs font-medium rounded-sm transition-all ${goalType === 'negative' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Quit (Negative)</button>
-                                </div>
-                            </div>
-
-                            <div className="flex flex-col gap-1.5">
-                                <label className="text-muted-foreground text-xs uppercase font-bold tracking-wide">Folder</label>
-                                <select 
-                                    value={selectedFolderId || ''} 
-                                    onChange={(e) => setSelectedFolderId(e.target.value || null)} 
-                                    className="w-full h-9 px-2 border border-border rounded-sm bg-transparent text-sm focus:ring-1 focus:ring-notion-blue outline-none"
-                                >
-                                    <option value="">Ungrouped</option>
-                                    {habitFolders.map(f => (
-                                        <option key={f.id} value={f.id}>{f.icon} {f.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            
-                            <div className="flex flex-col gap-1.5">
-                                <label className="text-muted-foreground text-xs uppercase font-bold tracking-wide">Tracking Method</label>
-                                <div className="flex bg-secondary p-1 rounded-md">
-                                    <button type="button" onClick={() => setUseCounter(false)} className={`flex-1 py-1.5 text-xs font-medium rounded-sm transition-all ${!useCounter ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Checkbox</button>
-                                    <button type="button" onClick={() => setUseCounter(true)} className={`flex-1 py-1.5 text-xs font-medium rounded-sm transition-all ${useCounter ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Counter</button>
-                                </div>
-                            </div>
-
-                            {useCounter && (
-                                <div className="grid grid-cols-2 gap-4 animate-in fade-in">
-                                    <div className="space-y-1">
-                                        <label className="text-muted-foreground text-xs uppercase font-bold tracking-wide">Daily Target</label>
-                                        <input type="number" value={target} onChange={(e) => setTarget(parseInt(e.target.value) || 0)} placeholder="Target" className="w-full h-9 px-2 border border-border rounded-sm bg-transparent text-sm focus:ring-1 focus:ring-notion-blue" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-muted-foreground text-xs uppercase font-bold tracking-wide">Unit</label>
-                                        <input type="text" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="e.g. mins" className="w-full h-9 px-2 border border-border rounded-sm bg-transparent text-sm focus:ring-1 focus:ring-notion-blue" />
-                                    </div>
-                                </div>
-                            )}
-
+                    
+                    <form onSubmit={handleSave} className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+                        {/* Icon & Title */}
+                        <div className="flex gap-4">
                             <div className="space-y-1">
-                                <label className="text-muted-foreground text-xs uppercase font-bold tracking-wide">Start Date</label>
-                                <input type="date" value={formStartDate} onChange={(e) => setFormStartDate(e.target.value)} className="w-full h-9 px-2 border border-border rounded-sm bg-transparent text-sm focus:ring-1 focus:ring-notion-blue" />
-                                <p className="text-[10px] text-muted-foreground">Analytics will start from this date.</p>
+                                <label className="text-xs font-semibold text-muted-foreground uppercase">Icon</label>
+                                <input type="text" value={icon} onChange={e => setIcon(e.target.value)} className="w-12 h-10 text-center text-xl border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none" />
+                            </div>
+                            <div className="space-y-1 flex-1">
+                                <label className="text-xs font-semibold text-muted-foreground uppercase">Title</label>
+                                <input autoFocus required type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Drink Water" className="w-full h-10 px-3 border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none text-sm" />
                             </div>
                         </div>
-                        
-                        <div className="pt-4 border-t border-border flex justify-end">
-                            <button type="submit" className="px-4 py-2 bg-notion-blue text-white rounded-sm text-sm font-medium hover:bg-blue-600 transition-colors shadow-sm">Save Habit</button>
+
+                        {/* Goal Configuration */}
+                        <div className="grid grid-cols-2 gap-4">
+                             <div className="space-y-1">
+                                <label className="text-xs font-semibold text-muted-foreground uppercase">Goal Type</label>
+                                <div className="flex bg-secondary p-1 rounded-sm">
+                                    <button type="button" onClick={() => setGoalType('positive')} className={`flex-1 text-xs py-1 rounded-sm transition-colors ${goalType === 'positive' ? 'bg-white shadow-sm text-notion-green font-medium' : 'text-muted-foreground'}`}>Build</button>
+                                    <button type="button" onClick={() => setGoalType('negative')} className={`flex-1 text-xs py-1 rounded-sm transition-colors ${goalType === 'negative' ? 'bg-white shadow-sm text-notion-red font-medium' : 'text-muted-foreground'}`}>Quit</button>
+                                </div>
+                             </div>
+                             
+                             <div className="space-y-1">
+                                <label className="text-xs font-semibold text-muted-foreground uppercase">Tracking</label>
+                                <div className="flex bg-secondary p-1 rounded-sm">
+                                    <button type="button" onClick={() => setUseCounter(false)} className={`flex-1 text-xs py-1 rounded-sm transition-colors ${!useCounter ? 'bg-white shadow-sm text-foreground font-medium' : 'text-muted-foreground'}`}>Check</button>
+                                    <button type="button" onClick={() => setUseCounter(true)} className={`flex-1 text-xs py-1 rounded-sm transition-colors ${useCounter ? 'bg-white shadow-sm text-foreground font-medium' : 'text-muted-foreground'}`}>Count</button>
+                                </div>
+                             </div>
                         </div>
+
+                        {/* Target & Unit */}
+                        <div className="grid grid-cols-2 gap-4">
+                             <div className="space-y-1">
+                                <label className="text-xs font-semibold text-muted-foreground uppercase">Daily Target</label>
+                                <input type="number" min="1" value={target} onChange={e => setTarget(parseInt(e.target.value) || 1)} className="w-full h-9 px-3 border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none text-sm" />
+                             </div>
+                             <div className="space-y-1">
+                                <label className="text-xs font-semibold text-muted-foreground uppercase">Unit (Optional)</label>
+                                <input type="text" value={unit} onChange={e => setUnit(e.target.value)} placeholder="times, mins..." className="w-full h-9 px-3 border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none text-sm" />
+                             </div>
+                        </div>
+
+                        {/* Folder Selection */}
+                        <div className="space-y-1">
+                             <label className="text-xs font-semibold text-muted-foreground uppercase">Group / Folder</label>
+                             <select 
+                                value={selectedFolderId || ''} 
+                                onChange={(e) => setSelectedFolderId(e.target.value || null)}
+                                className="w-full h-9 px-3 border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none text-sm"
+                             >
+                                 <option value="">No Group</option>
+                                 {habitFolders.map(f => (
+                                     <option key={f.id} value={f.id}>{f.icon} {f.name}</option>
+                                 ))}
+                             </select>
+                        </div>
+                        
+                        {/* Tags */}
+                        <div className="space-y-1">
+                             <label className="text-xs font-semibold text-muted-foreground uppercase">Tags</label>
+                             <div className="flex flex-wrap gap-2">
+                                 {tags.map(tag => (
+                                     <button 
+                                         key={tag.id} 
+                                         type="button" 
+                                         onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(t => t !== tag.id) : [...prev, tag.id])}
+                                         className={`px-2 py-1 rounded-sm text-xs border ${selectedTags.includes(tag.id) ? 'border-transparent text-white' : 'border-border text-muted-foreground bg-transparent'}`}
+                                         style={selectedTags.includes(tag.id) ? { backgroundColor: tag.color, color: '#fff' } : {}}
+                                     >
+                                         {tag.label}
+                                     </button>
+                                 ))}
+                                 <div className="flex items-center gap-1 border border-border rounded-sm px-2 bg-transparent">
+                                      <input 
+                                          type="text" 
+                                          placeholder="New tag..." 
+                                          value={newTagInput}
+                                          onChange={e => setNewTagInput(e.target.value)}
+                                          onKeyDown={e => { if (e.key === 'Enter') handleInlineCreateTag(e); }}
+                                          className="w-16 h-7 text-xs bg-transparent border-none outline-none min-w-0"
+                                      />
+                                      {newTagInput && <button type="button" onClick={handleInlineCreateTag} className="text-notion-blue hover:text-blue-600"><Plus className="w-3 h-3" /></button>}
+                                 </div>
+                             </div>
+                        </div>
+
+                        {/* Start Date */}
+                        <div className="space-y-1">
+                             <label className="text-xs font-semibold text-muted-foreground uppercase">Start Date</label>
+                             <input type="date" value={formStartDate} onChange={e => setFormStartDate(e.target.value)} className="w-full h-9 px-3 border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none text-sm" />
+                        </div>
+
                     </form>
+                    
+                    <div className="px-6 py-4 border-t border-border flex justify-end">
+                        <button onClick={handleSave} className="px-4 py-1.5 bg-notion-blue text-white rounded-sm text-sm font-medium hover:bg-blue-600 transition-colors">Save Habit</button>
+                    </div>
                 </div>
             </div>
         )}
 
-        {/* Create/Edit Folder Modal */}
+        {/* Folder Modal */}
         {isFolderModalOpen && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-                <div className="bg-background w-full max-w-sm rounded-md shadow-2xl border border-border flex flex-col animate-in zoom-in-95">
-                     <div className="p-4 border-b border-border flex justify-between items-center">
-                        <h3 className="font-bold text-foreground">{editingFolderId ? 'Edit Folder' : 'New Folder'}</h3>
-                        <button onClick={() => setIsFolderModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4"/></button>
-                    </div>
-                    <form onSubmit={handleSaveFolder} className="p-6 space-y-4">
-                        <div className="flex gap-2">
-                             <input type="text" value={folderIcon} onChange={(e) => setFolderIcon(e.target.value)} className="w-10 h-9 text-center border border-border rounded-sm bg-transparent focus:ring-1 focus:ring-notion-blue text-lg" />
-                             <input autoFocus type="text" value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="Folder Name" className="flex-1 h-9 px-2 border border-border rounded-sm bg-transparent focus:ring-1 focus:ring-notion-blue text-sm" />
-                        </div>
-                        <div className="flex justify-end pt-2">
-                            <button type="submit" className="px-4 py-2 bg-notion-blue text-white rounded-sm text-sm font-medium hover:bg-blue-600 transition-colors shadow-sm">Save Folder</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setIsFolderModalOpen(false)}>
+                 <div className="bg-background w-full max-w-sm rounded-lg shadow-xl border border-border flex flex-col animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                     <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                         <span className="font-semibold text-foreground">{editingFolderId ? 'Edit Group' : 'New Group'}</span>
+                         <button onClick={() => setIsFolderModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+                     </div>
+                     <form onSubmit={handleSaveFolder} className="p-4 space-y-4">
+                         <div className="flex gap-3">
+                             <div className="space-y-1">
+                                 <label className="text-xs font-semibold text-muted-foreground uppercase">Icon</label>
+                                 <input type="text" value={folderIcon} onChange={e => setFolderIcon(e.target.value)} className="w-10 h-9 text-center text-lg border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none" />
+                             </div>
+                             <div className="space-y-1 flex-1">
+                                 <label className="text-xs font-semibold text-muted-foreground uppercase">Name</label>
+                                 <input autoFocus required type="text" value={folderName} onChange={e => setFolderName(e.target.value)} placeholder="Morning Routine" className="w-full h-9 px-3 border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none text-sm" />
+                             </div>
+                         </div>
+                         <div className="flex justify-end pt-2">
+                             <button type="submit" className="px-3 py-1.5 bg-notion-blue text-white rounded-sm text-xs font-medium hover:bg-blue-600 transition-colors">Save Group</button>
+                         </div>
+                     </form>
+                 </div>
+             </div>
         )}
-      </div>
+    </div>
   );
 };
 
