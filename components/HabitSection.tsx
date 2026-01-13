@@ -477,55 +477,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                     </div>
                 </div>
             ))}
-
-            {/* Legend - Responsive wrapping */}
-            <div className="flex flex-wrap justify-end gap-x-4 gap-y-2 mt-1 text-[10px] text-muted-foreground">
-                 <div className="flex items-center gap-1.5" title="Dates before you started tracking this habit">
-                     <div className="w-2.5 h-2.5 rounded-[1px] bg-secondary/20" />
-                     <span>Before Start</span>
-                 </div>
-                 <div className="flex items-center gap-1.5" title="Start Date">
-                     <div className="w-2.5 h-2.5 rounded-[1px] bg-secondary ring-2 ring-inset ring-notion-blue" />
-                     <span>Start Date</span>
-                 </div>
-                 
-                 {habit.goalType === 'negative' ? (
-                     <>
-                        <div className="flex items-center gap-1.5" title="Goal met (Zero activity)">
-                             <div className="w-2.5 h-2.5 rounded-[1px] bg-notion-green" />
-                             <span>Success</span>
-                        </div>
-                        <div className="flex items-center gap-1.5" title="Activity recorded but within limit">
-                            <div className="w-2.5 h-2.5 rounded-[1px] bg-[#F59E0B]" />
-                            <span>Safe (In Limit)</span>
-                        </div>
-                        <div className="flex items-center gap-1.5" title="Limit exceeded">
-                            <div className="w-2.5 h-2.5 rounded-[1px] bg-notion-red" />
-                            <span>Failed</span>
-                        </div>
-                     </>
-                 ) : (
-                     <>
-                        <div className="flex items-center gap-1.5" title="No activity recorded">
-                            <div className="w-2.5 h-2.5 rounded-[1px] bg-secondary border border-border/50" />
-                            <span>None</span>
-                        </div>
-                        <div className="flex items-center gap-1.5" title="Started but didn't reach target">
-                            <div className="w-2.5 h-2.5 rounded-[1px] bg-notion-orange" />
-                            <span>Partial</span>
-                        </div>
-                        <div className="flex items-center gap-1.5" title="Daily target reached">
-                            <div className="w-2.5 h-2.5 rounded-[1px] bg-notion-green" />
-                            <span>Done</span>
-                        </div>
-                     </>
-                 )}
-                 
-                 <div className="flex items-center gap-1.5" title="Day marked as skipped">
-                     <div className="w-2.5 h-2.5 rounded-[1px] bg-notion-bg_gray border border-dashed border-foreground/30" />
-                     <span>Skipped</span>
-                 </div>
-            </div>
         </div>
     );
   };
@@ -599,16 +550,6 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                                           className={`w-full rounded-t-[1px] transition-all min-h-[1px] ${barColor} ${d.isStartDate ? 'ring-1 ring-inset ring-notion-blue z-20' : ''}`} 
                                           style={{ height: `${(d.count / yMax) * 100}%` }} 
                                        />
-                                       
-                                       {d.isStartDate && (
-                                           <div className="absolute bottom-0 w-full h-1 bg-notion-blue" title="Start Date"></div>
-                                       )}
-                                       
-                                       {/* Tooltip */}
-                                       <div className="opacity-0 group-hover/bar:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 mb-2 text-xs bg-foreground text-background px-2 py-1 rounded shadow-lg whitespace-nowrap z-20 pointer-events-none border border-border">
-                                           <div className="font-bold">{d.month} {d.day} {d.isStartDate && '(Start)'}</div>
-                                           <div>{d.count} {habit.unit}</div>
-                                       </div>
                                    </div>
                                )
                            })}
@@ -715,27 +656,27 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
     const stats = getHabitStats(detailHabit, today);
 
     return (
-        <div className="flex flex-col h-full bg-background overflow-hidden animate-in fade-in">
-            {/* Header - Fixed & Sticky */}
-            <div className="shrink-0 h-14 border-b border-border flex items-center justify-between px-4 md:px-6 bg-background/95 backdrop-blur-sm z-10 sticky top-0">
+        <div className="flex flex-col h-full bg-background animate-in fade-in">
+            {/* Header - Fixed in Panel */}
+            <div className="shrink-0 h-14 border-b border-border flex items-center justify-between px-4 bg-background z-10 sticky top-0">
                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                     <button onClick={() => setDetailHabitId(null)} className="p-1 hover:bg-notion-hover rounded-sm text-muted-foreground hover:text-foreground transition-colors shrink-0">
+                     <button onClick={() => setDetailHabitId(null)} className="md:hidden p-1 hover:bg-notion-hover rounded-sm text-muted-foreground hover:text-foreground transition-colors shrink-0">
                          <ArrowLeft className="w-5 h-5" />
                      </button>
-                     <div className="w-px h-4 bg-border mx-1 shrink-0" />
-                     <span className="text-2xl shrink-0">{detailHabit.icon}</span>
+                     <div className="w-px h-4 bg-border mx-1 shrink-0 md:hidden" />
+                     <span className="text-xl shrink-0">{detailHabit.icon}</span>
                      <div className="min-w-0 flex-1">
-                         <h2 className="text-base font-bold text-foreground leading-tight truncate">{detailHabit.title}</h2>
+                         <h2 className="text-sm font-bold text-foreground leading-tight truncate">{detailHabit.title}</h2>
                          <div className="flex items-center gap-2 text-xs text-muted-foreground leading-tight truncate">
-                            <span className={`uppercase font-bold text-[10px] shrink-0 ${detailHabit.goalType === 'negative' ? 'text-notion-red' : 'text-notion-green'}`}>
+                            <span className={`uppercase font-bold text-[9px] shrink-0 ${detailHabit.goalType === 'negative' ? 'text-notion-red' : 'text-notion-green'}`}>
                                 {detailHabit.goalType === 'negative' ? 'Quit' : 'Build'}
                             </span>
                             <span className="shrink-0">•</span>
-                            <span className="truncate">Target: {detailHabit.target} {detailHabit.unit}</span>
+                            <span className="truncate">{detailHabit.target} {detailHabit.unit}</span>
                          </div>
                      </div>
                  </div>
-                 <div className="flex items-center gap-2 shrink-0">
+                 <div className="flex items-center gap-1 shrink-0">
                      <button onClick={() => openEditModal(detailHabit)} className="p-2 text-muted-foreground hover:bg-notion-hover hover:text-foreground rounded-sm transition-colors">
                          <Settings className="w-4 h-4" />
                      </button>
@@ -745,134 +686,126 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                  </div>
             </div>
 
-            {/* Content Dashboard - Scrollable on Mobile, Fixed on Desktop */}
-            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 p-4 md:p-6 overflow-y-auto lg:overflow-hidden">
+            {/* Content Dashboard */}
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-6">
                 
-                {/* Left Panel: Analytics */}
-                <div className="lg:col-span-8 flex flex-col gap-4 md:gap-6 lg:overflow-y-auto custom-scrollbar lg:pr-2">
-                    
-                    {/* Stats Row */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 shrink-0">
-                         <div className="bg-background border border-border rounded-lg p-3 md:p-4 shadow-sm overflow-hidden">
-                             <div className="text-[10px] md:text-xs uppercase font-bold text-muted-foreground mb-1 truncate">Streak</div>
-                             <div className="text-xl md:text-2xl font-bold flex items-center gap-2 truncate">
-                                 <Flame className={`w-6 h-6 shrink-0 ${stats.streak > 0 ? 'text-notion-orange fill-notion-orange' : 'text-muted-foreground'}`} />
-                                 {stats.streak} <span className="text-xs md:text-sm font-normal text-muted-foreground">days</span>
-                             </div>
-                         </div>
-                         <div className="bg-background border border-border rounded-lg p-3 md:p-4 shadow-sm overflow-hidden">
-                             <div className="text-[10px] md:text-xs uppercase font-bold text-muted-foreground mb-1 truncate">Success Rate</div>
-                             <div className="text-xl md:text-2xl font-bold flex items-center gap-2 truncate">
-                                 <Activity className="w-6 h-6 shrink-0 text-notion-blue" />
-                                 {stats.rate}%
-                             </div>
-                         </div>
-                         <div className="bg-background border border-border rounded-lg p-3 md:p-4 shadow-sm overflow-hidden">
-                             <div className="text-[10px] md:text-xs uppercase font-bold text-muted-foreground mb-1 truncate">Total Days</div>
-                             <div className="text-xl md:text-2xl font-bold flex items-center gap-2 truncate">
-                                 <Trophy className="w-6 h-6 shrink-0 text-notion-yellow" />
-                                 {stats.totalDays}
-                             </div>
-                         </div>
-                         <div className="bg-background border border-border rounded-lg p-3 md:p-4 shadow-sm overflow-hidden">
-                             <div className="text-[10px] md:text-xs uppercase font-bold text-muted-foreground mb-1 truncate">Today</div>
-                             <div className="text-xl md:text-2xl font-bold flex flex-wrap items-baseline gap-x-2 gap-y-0">
-                                 <span className={detailHabit.progress[today] >= detailHabit.target ? 'text-notion-green' : 'text-foreground'}>
-                                     {detailHabit.progress[today] || 0}
-                                 </span>
-                                 <span className="text-xs md:text-sm font-normal text-muted-foreground whitespace-nowrap">/ {detailHabit.target} {detailHabit.unit}</span>
-                             </div>
-                         </div>
-                    </div>
-
-                    {/* Heatmap Card */}
-                    <div className="bg-background border border-border rounded-lg p-4 md:p-5 flex flex-col shadow-sm shrink-0 overflow-hidden">
-                        <div className="flex items-center gap-2 mb-3 shrink-0">
-                            <Activity className="w-5 h-5 text-muted-foreground" />
-                            <h3 className="text-base font-semibold">Heatmap (Last 365 Days)</h3>
-                        </div>
-                        <div className="w-full pt-2">
-                             <HabitHeatmap habit={detailHabit} />
-                        </div>
-                    </div>
-
-                    {/* Trend Chart Card - Only for Counter Habits */}
-                    {detailHabit.useCounter && (
-                        <div className="h-56 shrink-0 bg-background border border-border rounded-lg p-4 md:p-5 flex flex-col shadow-sm overflow-hidden">
-                            <div className="flex items-center gap-2 mb-2 shrink-0">
-                                <BarChart3 className="w-5 h-5 text-muted-foreground" />
-                                <h3 className="text-base font-semibold">30-Day Trend</h3>
-                            </div>
-                            <div className="flex-1 min-h-0 w-full pt-2">
-                                <HabitTrendChart habit={detailHabit} />
+                {/* Stats Grid */}
+                <div className="grid grid-cols-2 gap-3 shrink-0">
+                        <div className="bg-background border border-border rounded-lg p-3 shadow-sm overflow-hidden">
+                            <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1 truncate">Streak</div>
+                            <div className="text-xl font-bold flex items-center gap-2 truncate">
+                                <Flame className={`w-5 h-5 shrink-0 ${stats.streak > 0 ? 'text-notion-orange fill-notion-orange' : 'text-muted-foreground'}`} />
+                                {stats.streak} <span className="text-xs font-normal text-muted-foreground">days</span>
                             </div>
                         </div>
-                    )}
+                        <div className="bg-background border border-border rounded-lg p-3 shadow-sm overflow-hidden">
+                            <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1 truncate">Success Rate</div>
+                            <div className="text-xl font-bold flex items-center gap-2 truncate">
+                                <Activity className="w-5 h-5 shrink-0 text-notion-blue" />
+                                {stats.rate}%
+                            </div>
+                        </div>
+                        <div className="bg-background border border-border rounded-lg p-3 shadow-sm overflow-hidden">
+                            <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1 truncate">Total Days</div>
+                            <div className="text-xl font-bold flex items-center gap-2 truncate">
+                                <Trophy className="w-5 h-5 shrink-0 text-notion-yellow" />
+                                {stats.totalDays}
+                            </div>
+                        </div>
+                        <div className="bg-background border border-border rounded-lg p-3 shadow-sm overflow-hidden">
+                            <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1 truncate">Today</div>
+                            <div className="text-xl font-bold flex flex-wrap items-baseline gap-x-2 gap-y-0">
+                                <span className={detailHabit.progress[today] >= detailHabit.target ? 'text-notion-green' : 'text-foreground'}>
+                                    {detailHabit.progress[today] || 0}
+                                </span>
+                                <span className="text-xs font-normal text-muted-foreground whitespace-nowrap">/ {detailHabit.target} {detailHabit.unit}</span>
+                            </div>
+                        </div>
                 </div>
 
-                {/* Right Panel: Calendar & History */}
-                <div className="lg:col-span-4 flex flex-col gap-4 md:gap-6 lg:h-full lg:min-h-0">
-                    
-                    {/* Interactive Calendar - Fixed Height, No Scroll */}
-                    <div className="h-auto shrink-0 bg-background border border-border rounded-lg p-4 md:p-5 shadow-sm">
-                        <MiniCalendar habit={detailHabit} />
+                {/* Heatmap Card */}
+                <div className="bg-background border border-border rounded-lg p-4 flex flex-col shadow-sm shrink-0 overflow-hidden">
+                    <div className="flex items-center gap-2 mb-3 shrink-0">
+                        <Activity className="w-4 h-4 text-muted-foreground" />
+                        <h3 className="text-sm font-semibold">Heatmap</h3>
                     </div>
+                    <div className="w-full pt-2">
+                            <HabitHeatmap habit={detailHabit} />
+                    </div>
+                </div>
 
-                    {/* Scrollable Log History - Fixed Height on mobile to allow scroll within, flex on desktop */}
-                    <div className="h-[400px] lg:h-auto lg:flex-1 min-h-0 bg-background border border-border rounded-lg flex flex-col shadow-sm overflow-hidden">
-                        <div className="px-5 py-4 border-b border-border shrink-0 bg-secondary/20">
-                            <h3 className="text-sm font-semibold flex items-center gap-2">
-                                <Clock className="w-4 h-4 text-muted-foreground" /> Recent Logs (Last 7 Days)
-                            </h3>
+                {/* Trend Chart Card - Only for Counter Habits */}
+                {detailHabit.useCounter && (
+                    <div className="h-56 shrink-0 bg-background border border-border rounded-lg p-4 flex flex-col shadow-sm overflow-hidden">
+                        <div className="flex items-center gap-2 mb-2 shrink-0">
+                            <BarChart3 className="w-4 h-4 text-muted-foreground" />
+                            <h3 className="text-sm font-semibold">30-Day Trend</h3>
                         </div>
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
-                            {Array.from({length: 7}).map((_, i) => {
-                                const d = new Date(today);
-                                d.setDate(d.getDate() - i);
-                                const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                                
-                                if (dateStr < detailHabit.startDate) return null;
+                        <div className="flex-1 min-h-0 w-full pt-2">
+                            <HabitTrendChart habit={detailHabit} />
+                        </div>
+                    </div>
+                )}
+                
+                {/* Interactive Calendar */}
+                <div className="h-auto shrink-0 bg-background border border-border rounded-lg p-4 shadow-sm">
+                    <MiniCalendar habit={detailHabit} />
+                </div>
 
-                                const count = detailHabit.progress[dateStr] || 0;
-                                const isSkipped = detailHabit.skippedDates.includes(dateStr);
-                                const isSuccess = (detailHabit.goalType === 'negative' ? count <= (detailHabit.useCounter ? detailHabit.target : 0) : count >= detailHabit.target);
-                                
-                                return (
-                                    <div key={dateStr} className="flex items-center justify-between p-4 border-b border-border last:border-0 hover:bg-notion-hover transition-colors group">
-                                        <div className="flex flex-col">
-                                            <span className="text-sm font-medium text-foreground">{formatDate(dateStr)}</span>
-                                            <span className="text-xs text-muted-foreground">{d.toLocaleDateString('en-US', { weekday: 'long' })}</span>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            {detailHabit.useCounter ? (
-                                                <span className={`text-sm font-mono font-bold ${isSuccess ? 'text-notion-green' : 'text-muted-foreground'}`}>
-                                                    {count} {detailHabit.unit}
-                                                </span>
-                                            ) : (
-                                                <span className={`text-xs font-bold uppercase tracking-wide px-2 py-0.5 rounded-sm ${isSuccess ? 'bg-notion-bg_green text-notion-green' : 'bg-secondary text-muted-foreground'}`}>
-                                                    {isSuccess ? (detailHabit.goalType === 'negative' ? 'Success' : 'Completed') : (detailHabit.goalType === 'negative' ? 'Failed' : 'Missed')}
-                                                </span>
-                                            )}
-                                            
-                                            <div className="w-px h-4 bg-border mx-1" />
-                                            <button 
-                                                onClick={() => toggleSkip(detailHabit.id, dateStr)}
-                                                className={`p-1.5 rounded text-[10px] uppercase font-bold tracking-wide transition-colors ${isSkipped ? 'bg-notion-bg_gray text-foreground border border-border' : 'text-muted-foreground opacity-50 hover:opacity-100 hover:bg-secondary'}`}
-                                                title={isSkipped ? "Unskip" : "Skip"}
-                                            >
-                                                <SkipForward className="w-3.5 h-3.5" />
-                                            </button>
-                                            <button 
-                                                onClick={() => setDayEdit({ date: dateStr, count, isSkipped })}
-                                                className="p-1.5 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
-                                                <MoreHorizontal className="w-4 h-4" />
-                                            </button>
-                                        </div>
+                {/* Log History */}
+                <div className="bg-background border border-border rounded-lg flex flex-col shadow-sm overflow-hidden">
+                    <div className="px-4 py-3 border-b border-border shrink-0 bg-secondary/20">
+                        <h3 className="text-xs font-semibold flex items-center gap-2 uppercase tracking-wider text-muted-foreground">
+                            Recent Logs
+                        </h3>
+                    </div>
+                    <div className="flex-col">
+                        {Array.from({length: 7}).map((_, i) => {
+                            const d = new Date(today);
+                            d.setDate(d.getDate() - i);
+                            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                            
+                            if (dateStr < detailHabit.startDate) return null;
+
+                            const count = detailHabit.progress[dateStr] || 0;
+                            const isSkipped = detailHabit.skippedDates.includes(dateStr);
+                            const isSuccess = (detailHabit.goalType === 'negative' ? count <= (detailHabit.useCounter ? detailHabit.target : 0) : count >= detailHabit.target);
+                            
+                            return (
+                                <div key={dateStr} className="flex items-center justify-between p-3 border-b border-border last:border-0 hover:bg-notion-hover transition-colors group">
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-medium text-foreground">{formatDate(dateStr)}</span>
+                                        <span className="text-[10px] text-muted-foreground">{d.toLocaleDateString('en-US', { weekday: 'long' })}</span>
                                     </div>
-                                );
-                            })}
-                        </div>
+                                    <div className="flex items-center gap-3">
+                                        {detailHabit.useCounter ? (
+                                            <span className={`text-sm font-mono font-bold ${isSuccess ? 'text-notion-green' : 'text-muted-foreground'}`}>
+                                                {count} {detailHabit.unit}
+                                            </span>
+                                        ) : (
+                                            <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-sm ${isSuccess ? 'bg-notion-bg_green text-notion-green' : 'bg-secondary text-muted-foreground'}`}>
+                                                {isSuccess ? (detailHabit.goalType === 'negative' ? 'Success' : 'Completed') : (detailHabit.goalType === 'negative' ? 'Failed' : 'Missed')}
+                                            </span>
+                                        )}
+                                        
+                                        <div className="w-px h-4 bg-border mx-1" />
+                                        <button 
+                                            onClick={() => toggleSkip(detailHabit.id, dateStr)}
+                                            className={`p-1.5 rounded text-[10px] uppercase font-bold tracking-wide transition-colors ${isSkipped ? 'bg-notion-bg_gray text-foreground border border-border' : 'text-muted-foreground opacity-50 hover:opacity-100 hover:bg-secondary'}`}
+                                            title={isSkipped ? "Unskip" : "Skip"}
+                                        >
+                                            <SkipForward className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button 
+                                            onClick={() => setDayEdit({ date: dateStr, count, isSkipped })}
+                                            className="p-1.5 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <MoreHorizontal className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
 
@@ -880,7 +813,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
 
              {/* Edit Day Popover */}
              {dayEdit && (
-              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4" onClick={() => setDayEdit(null)}>
+              <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4" onClick={() => setDayEdit(null)}>
                   <div className="bg-background p-6 rounded-lg shadow-xl border border-border w-full max-w-sm space-y-6 animate-in zoom-in-95 flex flex-col" onClick={e => e.stopPropagation()}>
                       <div className="text-center">
                           <h4 className="font-bold text-foreground text-lg">Update Status</h4>
@@ -940,144 +873,160 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
   };
 
   const renderListView = () => {
+    // Dynamic grid classes based on whether the side panel (detailHabit) is open
+    const gridClasses = detailHabit 
+      ? "grid-cols-1 xl:grid-cols-2" // When panel open, restrict columns
+      : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"; // Default responsive grid
+
     return (
-        <div className="pb-20 px-4 md:px-8 pt-4 md:pt-6">
-          {/* Notion-style Header */}
-          <div className="flex flex-row items-center justify-between gap-2 sm:gap-4 border-b border-border pb-4 mb-6">
-            <div className="flex items-center gap-1">
-                {(['all', 'positive', 'negative'] as const).map(f => (
-                    <button 
-                        key={f}
-                        onClick={() => setFilter(f)}
-                        className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === f ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
-                    >
-                        {f === 'all' ? 'All' : f === 'positive' ? 'Build' : 'Quit'}
-                    </button>
-                ))}
-            </div>
-            
-            <button 
-                onClick={openCreateModal}
-                className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0"
-            >
-                <Plus className="w-4 h-4" /> New
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredHabits.length === 0 ? (
-               <div className="col-span-full text-center py-20 opacity-50">
-                   <Zap className="w-16 h-16 text-muted-foreground mx-auto mb-4 bg-notion-bg_gray rounded-full p-4" />
-                   <p className="font-medium text-muted-foreground">No habits found</p>
-               </div>
-            ) : (
-                filteredHabits.map(habit => {
-                    const progressToday = habit.progress[today] || 0;
-                    const stats = getHabitStats(habit, today);
-                    
-                    let isCompletedToday = false;
-                    let isFailedToday = false;
-                    
-                    const limit = (!habit.useCounter && habit.goalType === 'negative') ? 0 : habit.target;
-
-                    if (habit.goalType === 'negative') {
-                        isCompletedToday = progressToday <= limit;
-                        isFailedToday = progressToday > limit;
-                    } else {
-                        isCompletedToday = progressToday >= limit;
-                    }
-                    
-                    return (
-                        <div 
-                            key={habit.id} 
-                            onClick={() => setDetailHabitId(habit.id)}
-                            className="group bg-background rounded-sm border border-border hover:bg-notion-item_hover transition-colors cursor-pointer relative overflow-hidden flex flex-col"
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="pb-20 px-4 md:px-8 pt-4 md:pt-6">
+            {/* Notion-style Header */}
+            <div className="flex flex-row items-center justify-between gap-2 sm:gap-4 border-b border-border pb-4 mb-6">
+                <div className="flex items-center gap-1">
+                    {(['all', 'positive', 'negative'] as const).map(f => (
+                        <button 
+                            key={f}
+                            onClick={() => setFilter(f)}
+                            className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === f ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
                         >
-                             <div className="p-4 flex items-center gap-4">
-                                 <div className="w-12 h-12 rounded-md bg-notion-bg_gray flex items-center justify-center text-2xl shrink-0">
-                                     {habit.icon}
-                                 </div>
-                                 <div className="flex-1 min-w-0">
-                                     <h4 className={`text-base font-semibold truncate ${isFailedToday ? 'text-notion-red' : 'text-foreground'}`}>{habit.title}</h4>
-                                     <div className="flex items-center gap-2 mt-1">
-                                         <span className={`text-[10px] uppercase tracking-wide font-bold ${habit.goalType === 'negative' ? 'text-notion-red' : 'text-notion-green'}`}>
-                                             {habit.goalType === 'negative' ? 'Quit' : 'Build'}
-                                         </span>
-                                         {habit.useCounter && (
-                                             <span className="text-xs text-muted-foreground">
-                                                 {progressToday} / {habit.target} {habit.unit}
-                                             </span>
-                                         )}
-                                     </div>
-                                 </div>
-                                 
-                                 {/* Streak and Action Button Aligned */}
-                                 <div className="flex items-center gap-3">
-                                     {stats.streak > 0 && (
-                                         <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                                            <Flame className="w-4 h-4 text-notion-orange fill-notion-orange" /> {stats.streak}
-                                         </div>
-                                     )}
-                                     {/* Quick Action Button - Fixed for Mobile */}
-                                     <div 
-                                        onClick={(e) => e.stopPropagation()} 
-                                        className="shrink-0 relative z-10" 
-                                     >
-                                         <button
-                                             onClick={(e) => {
-                                                 e.stopPropagation(); 
-                                                 if (habit.useCounter) {
-                                                     const newCount = progressToday + 1;
-                                                     updateDayStatus(habit.id, today, newCount, false);
-                                                 } else {
-                                                     if (habit.goalType === 'negative') {
-                                                         updateDayStatus(habit.id, today, progressToday === 0 ? 1 : 0, false);
-                                                     } else {
-                                                         updateDayStatus(habit.id, today, isCompletedToday ? 0 : 1, false);
-                                                     }
-                                                 }
-                                             }}
-                                             className={`w-12 h-12 rounded-md flex items-center justify-center transition-colors bg-notion-bg_gray hover:bg-notion-hover border border-border shadow-sm ${
-                                                 habit.useCounter 
-                                                    ? 'text-muted-foreground'
-                                                    : isCompletedToday && !isFailedToday
-                                                        ? 'bg-notion-green text-white border-transparent'
-                                                        : isFailedToday 
-                                                            ? 'bg-notion-red text-white border-transparent'
-                                                            : 'text-muted-foreground hover:text-foreground'
-                                             }`}
-                                         >
-                                             {habit.useCounter ? <Plus className="w-5 h-5" /> : (isCompletedToday && !isFailedToday ? <Check className="w-5 h-5" /> : (isFailedToday ? <X className="w-5 h-5"/> : <Check className="w-5 h-5" />))}
-                                         </button>
-                                     </div>
-                                 </div>
-                             </div>
-                             
-                             {/* Color-Scaled Progress Bar */}
-                             <div className="h-1 w-full bg-border/30 mt-auto">
-                                 {habit.useCounter && !isFailedToday && (
-                                     <div 
-                                        className="h-full transition-all"
-                                        style={getProgressBarStyle(progressToday, habit.target, habit.goalType)}
-                                     />
-                                 )}
-                             </div>
-                        </div>
-                    );
-                })
-            )}
-          </div>
+                            {f === 'all' ? 'All' : f === 'positive' ? 'Build' : 'Quit'}
+                        </button>
+                    ))}
+                </div>
+                
+                <button 
+                    onClick={openCreateModal}
+                    className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0"
+                >
+                    <Plus className="w-4 h-4" /> New
+                </button>
+            </div>
+
+            <div className={`grid ${gridClasses} gap-4`}>
+                {filteredHabits.length === 0 ? (
+                <div className="col-span-full text-center py-20 opacity-50">
+                    <Zap className="w-16 h-16 text-muted-foreground mx-auto mb-4 bg-notion-bg_gray rounded-full p-4" />
+                    <p className="font-medium text-muted-foreground">No habits found</p>
+                </div>
+                ) : (
+                    filteredHabits.map(habit => {
+                        const progressToday = habit.progress[today] || 0;
+                        const stats = getHabitStats(habit, today);
+                        
+                        let isCompletedToday = false;
+                        let isFailedToday = false;
+                        
+                        const limit = (!habit.useCounter && habit.goalType === 'negative') ? 0 : habit.target;
+
+                        if (habit.goalType === 'negative') {
+                            isCompletedToday = progressToday <= limit;
+                            isFailedToday = progressToday > limit;
+                        } else {
+                            isCompletedToday = progressToday >= limit;
+                        }
+                        
+                        return (
+                            <div 
+                                key={habit.id} 
+                                onClick={() => setDetailHabitId(habit.id)}
+                                className={`group bg-background rounded-sm border hover:bg-notion-item_hover transition-colors cursor-pointer relative overflow-hidden flex flex-col ${detailHabitId === habit.id ? 'border-notion-blue bg-notion-item_hover' : 'border-border'}`}
+                            >
+                                <div className="p-4 flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-md bg-notion-bg_gray flex items-center justify-center text-2xl shrink-0">
+                                        {habit.icon}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className={`text-base font-semibold truncate ${isFailedToday ? 'text-notion-red' : 'text-foreground'}`}>{habit.title}</h4>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className={`text-[10px] uppercase tracking-wide font-bold ${habit.goalType === 'negative' ? 'text-notion-red' : 'text-notion-green'}`}>
+                                                {habit.goalType === 'negative' ? 'Quit' : 'Build'}
+                                            </span>
+                                            {habit.useCounter && (
+                                                <span className="text-xs text-muted-foreground">
+                                                    {progressToday} / {habit.target} {habit.unit}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Streak and Action Button Aligned */}
+                                    <div className="flex items-center gap-3">
+                                        {stats.streak > 0 && (
+                                            <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                                                <Flame className="w-4 h-4 text-notion-orange fill-notion-orange" /> {stats.streak}
+                                            </div>
+                                        )}
+                                        {/* Quick Action Button - Fixed for Mobile */}
+                                        <div 
+                                            onClick={(e) => e.stopPropagation()} 
+                                            className="shrink-0 relative z-10" 
+                                        >
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation(); 
+                                                    if (habit.useCounter) {
+                                                        const newCount = progressToday + 1;
+                                                        updateDayStatus(habit.id, today, newCount, false);
+                                                    } else {
+                                                        if (habit.goalType === 'negative') {
+                                                            updateDayStatus(habit.id, today, progressToday === 0 ? 1 : 0, false);
+                                                        } else {
+                                                            updateDayStatus(habit.id, today, isCompletedToday ? 0 : 1, false);
+                                                        }
+                                                    }
+                                                }}
+                                                className={`w-12 h-12 rounded-md flex items-center justify-center transition-colors bg-notion-bg_gray hover:bg-notion-hover border border-border shadow-sm ${
+                                                    habit.useCounter 
+                                                        ? 'text-muted-foreground'
+                                                        : isCompletedToday && !isFailedToday
+                                                            ? 'bg-notion-green text-white border-transparent'
+                                                            : isFailedToday 
+                                                                ? 'bg-notion-red text-white border-transparent'
+                                                                : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                            >
+                                                {habit.useCounter ? <Plus className="w-5 h-5" /> : (isCompletedToday && !isFailedToday ? <Check className="w-5 h-5" /> : (isFailedToday ? <X className="w-5 h-5"/> : <Check className="w-5 h-5" />))}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {/* Color-Scaled Progress Bar */}
+                                <div className="h-1 w-full bg-border/30 mt-auto">
+                                    {habit.useCounter && !isFailedToday && (
+                                        <div 
+                                            className="h-full transition-all"
+                                            style={getProgressBarStyle(progressToday, habit.target, habit.goalType)}
+                                        />
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+            </div>
         </div>
     );
   };
 
   return (
-      <>
-        {detailHabit ? renderDetailView() : renderListView()}
+      <div className="flex h-full bg-background overflow-hidden relative">
+          <div className={`flex-1 min-w-0 flex flex-col ${detailHabit ? 'hidden md:flex' : 'flex'}`}>
+            {renderListView()}
+          </div>
+
+          {/* Detail Side Panel */}
+          {detailHabit && (
+            <div className="w-full md:w-[500px] bg-background border-l border-border flex flex-col h-full z-20 md:z-0 absolute md:static inset-0 shadow-2xl md:shadow-none animate-in slide-in-from-right-12 duration-300">
+                {renderDetailView()} 
+            </div>
+          )}
 
         {isModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-                <div className="bg-background w-full max-w-md rounded-md shadow-2xl border border-border flex flex-col max-h-[85vh] overflow-hidden">
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                <div className="bg-background w-full max-w-md rounded-md shadow-2xl border border-border flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95">
                     <div className="p-4 border-b border-border flex justify-between items-center">
                         <h3 className="font-bold text-foreground">{editingHabitId ? 'Edit Habit' : 'New Habit'}</h3>
                         <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4"/></button>
@@ -1132,7 +1081,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, userId, 
                 </div>
             </div>
         )}
-      </>
+      </div>
   );
 };
 
