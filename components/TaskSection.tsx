@@ -723,13 +723,165 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   const renderCalendarView = () => {
-      return (
-        <div className="flex flex-col h-full items-center justify-center text-muted-foreground text-sm p-8">
-            <Calendar className="w-12 h-12 mb-4 opacity-20" />
-            <p>Calendar View is available but best viewed on larger screens.</p>
-            <button onClick={() => setViewLayout('list')} className="mt-4 text-notion-blue hover:underline">Switch to List</button>
+    const dateStr = getLocalDateString(calendarDate);
+    const dayTasks = safeTasks.filter(t => t.dueDate === dateStr);
+
+    const untimedTasks = dayTasks.filter(t => !t.time);
+    const timedTasks = dayTasks.filter(t => !!t.time).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+    const changeDate = (days: number) => {
+        const d = new Date(calendarDate);
+        d.setDate(d.getDate() + days);
+        setCalendarDate(d);
+    };
+
+    const goToToday = () => {
+        const d = new Date();
+        if (d.getHours() < (dayStartHour || 0)) d.setDate(d.getDate() - 1);
+        setCalendarDate(d);
+    };
+    
+    const isToday = dateStr === getLocalDateString(new Date());
+
+    // Grid Configuration
+    const startHour = dayStartHour || 0;
+    const hourHeight = 60; // 60px per hour
+    
+    const getCurrentTimeTop = () => {
+        const d = new Date();
+        const h = d.getHours();
+        const m = d.getMinutes();
+        let adjustedH = h;
+        if (adjustedH < startHour) adjustedH += 24;
+        const relativeH = adjustedH - startHour;
+        return (relativeH * hourHeight) + ((m / 60) * hourHeight);
+    };
+
+    const getTaskStyle = (task: Task) => {
+        if (!task.time) return {};
+        const [h, m] = task.time.split(':').map(Number);
+        const duration = task.plannedTime || 30; // Default 30m
+        
+        let adjustedH = h;
+        if (adjustedH < startHour) adjustedH += 24;
+        
+        const relativeH = adjustedH - startHour;
+        const top = (relativeH * hourHeight) + ((m / 60) * hourHeight);
+        const height = (duration / 60) * hourHeight;
+        
+        return {
+            top: `${top}px`,
+            height: `${Math.max(height, 28)}px`, // Minimum height
+            left: '60px',
+            right: '10px'
+        };
+    };
+    
+    const hours = Array.from({ length: 24 }, (_, i) => (startHour + i) % 24);
+
+    return (
+        <div className="flex flex-col h-full bg-background animate-in fade-in overflow-hidden">
+            <div className="flex items-center justify-between py-4 mb-2 border-b border-border shrink-0 px-1">
+                 <div className="flex items-center gap-2">
+                     <button onClick={() => changeDate(-1)} className="p-1 hover:bg-notion-hover rounded-sm text-muted-foreground transition-colors"><ChevronLeft className="w-5 h-5" /></button>
+                     <div className="flex flex-col md:flex-row md:items-baseline gap-1 md:gap-3">
+                        <span className="font-bold text-lg">
+                            {calendarDate.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' })}
+                        </span>
+                        {!isToday && (
+                            <button onClick={goToToday} className="text-xs text-notion-blue hover:underline font-medium">
+                                Jump to Today
+                            </button>
+                        )}
+                     </div>
+                     <button onClick={() => changeDate(1)} className="p-1 hover:bg-notion-hover rounded-sm text-muted-foreground transition-colors"><ChevronRight className="w-5 h-5" /></button>
+                 </div>
+                 <button 
+                    onClick={() => {
+                        openCreatePanel();
+                        setDueDate(dateStr);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium"
+                 >
+                    <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Add Task</span>
+                 </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar relative flex flex-col">
+                {/* All Day Section */}
+                {untimedTasks.length > 0 && (
+                    <div className="shrink-0 border-b border-border p-2 bg-secondary/20">
+                        <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">All Day</h3>
+                        <div className="space-y-1">
+                            {untimedTasks.map(task => (
+                                <div 
+                                    key={task.id}
+                                    onClick={() => openEditPanel(task)}
+                                    className={`bg-background rounded-sm border border-border p-2 hover:shadow-sm cursor-pointer transition-all flex items-center gap-2 ${task.completed ? 'opacity-60' : ''}`}
+                                >
+                                    <div className={`w-3 h-3 border rounded-sm flex items-center justify-center ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'border-muted-foreground/40'}`}>
+                                        {task.completed && <Check className="w-2 h-2" />}
+                                    </div>
+                                    <span className={`text-xs truncate ${task.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{task.title}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Time Grid Scrollable Area */}
+                <div className="relative flex-1 min-h-[1440px]"> 
+                    {/* Background Grid */}
+                    {hours.map((h, i) => (
+                        <div key={h} className="absolute w-full border-t border-border/40 flex pointer-events-none" style={{ top: `${i * hourHeight}px`, height: `${hourHeight}px` }}>
+                            <div className="w-14 text-right pr-3 text-[10px] text-muted-foreground -mt-2 bg-background font-medium">
+                                {h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`}
+                            </div>
+                            <div className="flex-1 border-l border-border/40" />
+                        </div>
+                    ))}
+
+                    {/* Current Time Line */}
+                    {isToday && (
+                        <div 
+                            className="absolute left-14 right-0 border-t-2 border-notion-red z-20 pointer-events-none flex items-center"
+                            style={{ top: `${getCurrentTimeTop()}px` }}
+                        >
+                            <div className="w-2 h-2 rounded-full bg-notion-red -ml-1" />
+                        </div>
+                    )}
+
+                    {/* Timed Tasks */}
+                    {timedTasks.map(task => {
+                        const style = getTaskStyle(task);
+                        const isShort = parseInt(style.height as string) < 40;
+                        const borderColor = getPriorityLineColor(task.priority).replace('bg-', 'border-');
+                        const bgColor = task.completed ? 'bg-secondary' : 'bg-notion-bg_blue';
+                        const textColor = task.completed ? 'text-muted-foreground' : 'text-notion-blue';
+
+                        return (
+                            <div 
+                                key={task.id}
+                                style={{ ...style, position: 'absolute' }}
+                                onClick={() => openEditPanel(task)}
+                                className={`rounded-md border-l-4 ${borderColor} ${bgColor} border-y border-r border-gray-200/50 p-1.5 cursor-pointer hover:shadow-md transition-all z-10 flex flex-col overflow-hidden ${task.completed ? 'opacity-60' : ''}`}
+                            >
+                                <div className={`text-xs font-semibold truncate ${textColor} ${task.completed ? 'line-through' : ''}`}>
+                                    {task.title}
+                                </div>
+                                {!isShort && (
+                                    <div className="text-[10px] opacity-80 truncate flex items-center gap-1">
+                                        {task.time} 
+                                        {task.plannedTime ? ` (${formatDuration(task.plannedTime)})` : ''}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
         </div>
-      );
+    );
   };
 
   const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => {
