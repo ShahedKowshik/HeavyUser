@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book } from 'lucide-react';
-import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder } from '../types';
+import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
 import JournalSection from './JournalSection';
@@ -158,6 +158,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [tags, setTags] = useState<Tag[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [habitFolders, setHabitFolders] = useState<HabitFolder[]>([]);
+  const [taskFolders, setTaskFolders] = useState<TaskFolder[]>([]);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -197,6 +198,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     const cachedTags = loadFromLocal('tags');
     const cachedHabits = loadFromLocal('habits');
     const cachedHabitFolders = loadFromLocal('habitFolders');
+    const cachedTaskFolders = loadFromLocal('taskFolders');
     const cachedJournals = loadFromLocal('journals');
     const cachedNotes = loadFromLocal('notes');
     const cachedFolders = loadFromLocal('folders');
@@ -206,6 +208,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     if (cachedTags) setTags(cachedTags);
     if (cachedHabits) setHabits(cachedHabits);
     if (cachedHabitFolders) setHabitFolders(cachedHabitFolders);
+    if (cachedTaskFolders) setTaskFolders(cachedTaskFolders);
     if (cachedJournals) setJournals(cachedJournals);
     if (cachedNotes) setNotes(cachedNotes);
     if (cachedFolders) setFolders(cachedFolders);
@@ -217,11 +220,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     const fetchData = async () => {
       if (!isOnline) return;
       try {
-        const [{ data: tasksData }, { data: tagsData }, { data: habitsData }, { data: habitFoldersData }, { data: journalsData }, { data: foldersData }, { data: notesData }, { data: sessionsData }] = await Promise.all([
+        const [{ data: tasksData }, { data: tagsData }, { data: habitsData }, { data: habitFoldersData }, { data: taskFoldersData }, { data: journalsData }, { data: foldersData }, { data: notesData }, { data: sessionsData }] = await Promise.all([
           supabase.from('tasks').select('*').eq('user_id', userId), 
           supabase.from('tags').select('*').eq('user_id', userId), 
           supabase.from('habits').select('*').eq('user_id', userId).order('sort_order', { ascending: true }), 
           supabase.from('habit_folders').select('*').eq('user_id', userId).order('sort_order', { ascending: true }), 
+          supabase.from('task_folders').select('*').eq('user_id', userId).order('sort_order', { ascending: true }),
           supabase.from('journals').select('*').eq('user_id', userId).order('timestamp', { ascending: false }), 
           supabase.from('folders').select('*').eq('user_id', userId).order('created_at', { ascending: true }), 
           supabase.from('notes').select('*').eq('user_id', userId).order('updated_at', { ascending: false }), 
@@ -229,7 +233,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         ]);
 
         if (tasksData) {
-            const parsed = tasksData.map((t: any) => ({ id: t.id, title: decryptData(t.title), dueDate: t.due_date || '', time: t.time, completed: t.completed, completedAt: t.completed_at, priority: t.priority as Priority, subtasks: (t.subtasks || []).map((s: any) => ({ ...s, title: decryptData(s.title) })), tags: t.tags || [], recurrence: t.recurrence, notes: decryptData(t.notes), createdAt: t.created_at, updatedAt: t.updated_at, plannedTime: t.planned_time, actualTime: t.actual_time, timerStart: t.timer_start }));
+            const parsed = tasksData.map((t: any) => ({ id: t.id, title: decryptData(t.title), dueDate: t.due_date || '', time: t.time, completed: t.completed, completedAt: t.completed_at, priority: t.priority as Priority, subtasks: (t.subtasks || []).map((s: any) => ({ ...s, title: decryptData(s.title) })), tags: t.tags || [], folderId: t.folder_id, recurrence: t.recurrence, notes: decryptData(t.notes), createdAt: t.created_at, updatedAt: t.updated_at, plannedTime: t.planned_time, actualTime: t.actual_time, timerStart: t.timer_start }));
             setTasks(parsed); saveToLocal('tasks', parsed);
         }
         if (tagsData) {
@@ -262,6 +266,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               sortOrder: f.sort_order || 0
             }));
             setHabitFolders(parsed); saveToLocal('habitFolders', parsed);
+        }
+        if (taskFoldersData) {
+            const parsed = taskFoldersData.map((f: any) => ({
+              id: f.id,
+              name: decryptData(f.name),
+              sortOrder: f.sort_order || 0
+            }));
+            setTaskFolders(parsed); saveToLocal('taskFolders', parsed);
         }
         if (journalsData) {
             const parsed = journalsData.map((j: any) => ({ id: j.id, title: decryptData(j.title), content: decryptData(j.content), timestamp: j.timestamp, rating: j.rating, entryType: j.entry_type as EntryType, tags: j.tags || [] }));
@@ -303,6 +315,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   useEffect(() => { if (tags.length > 0) saveToLocal('tags', tags); }, [tags]);
   useEffect(() => { if (habits.length > 0) saveToLocal('habits', habits); }, [habits]);
   useEffect(() => { if (habitFolders.length > 0) saveToLocal('habitFolders', habitFolders); }, [habitFolders]);
+  useEffect(() => { if (taskFolders.length > 0) saveToLocal('taskFolders', taskFolders); }, [taskFolders]);
   useEffect(() => { if (journals.length > 0) saveToLocal('journals', journals); }, [journals]);
   useEffect(() => { if (notes.length > 0) saveToLocal('notes', notes); }, [notes]);
   useEffect(() => { if (folders.length > 0) saveToLocal('folders', folders); }, [folders]);
@@ -450,12 +463,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'tasks': return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} />;
+      case 'tasks': return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} taskFolders={taskFolders} setTaskFolders={setTaskFolders} />;
       case 'habit': return <HabitSection habits={habits} setHabits={setHabits} habitFolders={habitFolders} setHabitFolders={setHabitFolders} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'journal': return <JournalSection journals={journals} setJournals={setJournals} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'notes': return <NotesSection notes={notes} setNotes={setNotes} folders={folders} setFolders={setFolders} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'settings': return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} tags={tags} setTags={setTags} isOnline={isOnline} />;
-      default: return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} />;
+      default: return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} taskFolders={taskFolders} setTaskFolders={setTaskFolders} />;
     }
   };
 
@@ -548,74 +561,57 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   );
 
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans">
+    <div className="flex h-full flex-col md:flex-row overflow-hidden bg-background font-sans text-foreground">
+      {/* Desktop Sidebar */}
       {renderSidebar()}
+      
+      {/* Mobile Nav Bottom Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-border z-30 flex items-center justify-around px-2 pb-safe">
+        {enabledModules.includes('tasks') && <MobileNavItem id="tasks" label="Tasks" icon={CheckSquare} activeTab={activeTab} setActiveTab={setActiveTab} />}
+        {enabledModules.includes('habit') && <MobileNavItem id="habit" label="Habits" icon={Zap} activeTab={activeTab} setActiveTab={setActiveTab} />}
+        {enabledModules.includes('journal') && <MobileNavItem id="journal" label="Journal" icon={Book} activeTab={activeTab} setActiveTab={setActiveTab} />}
+        {enabledModules.includes('notes') && <MobileNavItem id="notes" label="Notes" icon={StickyNote} activeTab={activeTab} setActiveTab={setActiveTab} />}
+        <MobileNavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} />
+      </div>
 
-      <main className="flex-1 flex flex-col min-w-0 bg-background relative overflow-hidden">
-         <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-background z-20">
-             <div className="flex items-center gap-2 shrink-0">
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
+          
+          {/* Top Bar for Mobile - Shows Title/Greeting */}
+          <div className="md:hidden h-14 border-b border-border flex items-center justify-between px-4 bg-background shrink-0">
+             <div className="flex items-center gap-2">
                  <AppIcon className="w-6 h-6 rounded-sm" isOffline={!isOnline} />
-                 <span className="font-bold text-lg">HeavyUser</span>
+                 <h1 className="font-bold text-lg tracking-tight">HeavyUser</h1>
              </div>
-             
-             <div className="flex items-center gap-3 text-xs">
-                 {!isOnline && <WifiOff className="w-3.5 h-3.5 text-muted-foreground" />}
-                 <div className="flex items-center gap-1.5 font-medium shrink-0">
-                    <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'text-notion-orange fill-notion-orange' : 'text-notion-orange'}`} />
-                    <span>{streakData.count}</span>
+             <div className="flex items-center gap-3">
+                 <div className="flex items-center gap-1.5 bg-secondary/50 px-2 py-1 rounded-full border border-border">
+                    <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'text-notion-orange fill-notion-orange' : 'text-muted-foreground'}`} />
+                    <span className="text-xs font-bold">{streakData.count}</span>
                  </div>
-                 
-                 <div className="relative shrink-0">
-                     <button onClick={() => setIsTagFilterOpen(!isTagFilterOpen)} className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded transition-colors ${activeFilterTagId ? 'bg-notion-bg_blue text-notion-blue' : 'text-muted-foreground'}`}>
-                        <TagIcon className="w-3.5 h-3.5" />
-                        <span className="max-w-[60px] truncate">{activeFilterTagId === 'no_tag' ? 'No Label' : (activeFilterTag ? activeFilterTag.label : 'All')}</span>
-                    </button>
-                    {isTagFilterOpen && (
-                        <>
-                            <div className="fixed inset-0 z-30" onClick={() => setIsTagFilterOpen(false)} />
-                            <div className="absolute top-full right-0 mt-1 w-40 bg-background border border-border rounded-md shadow-xl z-40 p-1 animate-in zoom-in-95 origin-top-right">
-                                <button onClick={() => { setActiveFilterTagId(null); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-2 text-xs rounded-sm hover:bg-notion-hover">All Labels</button>
-                                <button onClick={() => { setActiveFilterTagId('no_tag'); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-2 text-xs rounded-sm hover:bg-notion-hover">No Label</button>
-                                <div className="max-h-40 overflow-y-auto custom-scrollbar">
-                                    {tags.map(tag => (
-                                        <button key={tag.id} onClick={() => { setActiveFilterTagId(tag.id); setIsTagFilterOpen(false); }} className="w-full text-left px-2 py-2 text-xs rounded-sm flex items-center gap-2 hover:bg-notion-hover">
-                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />
-                                            <span className="truncate">{tag.label}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </>
-                    )}
-                 </div>
-
-                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-widest shrink-0">
-                    <Clock className="w-3 h-3" /> {timeLeft}
-                 </div>
+                 {/* Only show tracking widget on mobile if tracking */}
+                 {trackedTaskId && (
+                     <div className="w-2 h-2 rounded-full bg-notion-blue animate-pulse" />
+                 )}
              </div>
-         </header>
+          </div>
 
-         <div className="flex-1 overflow-hidden relative pb-16 md:pb-0">
+          <div className="flex-1 overflow-hidden relative">
              {renderContent()}
-         </div>
+          </div>
 
-         <div className="md:hidden fixed bottom-0 left-0 right-0 border-t border-border bg-background z-50">
-            <div className="flex items-center justify-around h-16">
-                {enabledModules.includes('tasks') && <MobileNavItem id="tasks" label="Tasks" icon={CheckSquare} activeTab={activeTab} setActiveTab={setActiveTab} />}
-                {enabledModules.includes('habit') && <MobileNavItem id="habit" label="Habits" icon={Zap} activeTab={activeTab} setActiveTab={setActiveTab} />}
-                {enabledModules.includes('journal') && <MobileNavItem id="journal" label="Journal" icon={Book} activeTab={activeTab} setActiveTab={setActiveTab} />}
-                {enabledModules.includes('notes') && <MobileNavItem id="notes" label="Notes" icon={StickyNote} activeTab={activeTab} setActiveTab={setActiveTab} />}
-                <MobileNavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} />
-            </div>
-         </div>
-
-         {trackedTaskId && tasks.find(t => t.id === trackedTaskId) && (
-             <div className="absolute bottom-20 md:bottom-6 right-6 z-40">
-                 <TaskTrackerWidget task={tasks.find(t => t.id === trackedTaskId)!} onToggle={handleToggleTimer} onClose={() => setTrackedTaskId(null)} />
+          {/* Floating Widget for Active Task Tracking */}
+          {trackedTaskId && (
+             <div className="absolute bottom-20 md:bottom-6 right-4 md:right-6 z-40">
+                {(() => {
+                    const t = tasks.find(task => task.id === trackedTaskId);
+                    if (!t) return null;
+                    return <TaskTrackerWidget task={t} onToggle={handleToggleTimer} onClose={() => handleToggleTimer(t.id)} />;
+                })()}
              </div>
-         )}
+          )}
       </main>
     </div>
   );
 };
+
 export default Dashboard;

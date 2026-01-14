@@ -34,6 +34,12 @@ export interface Recurrence {
   yearDays?: { month: number; day: number }[]; // month: 0-11, day: 1-31
 }
 
+export interface TaskFolder {
+  id: string;
+  name: string; // Encrypted
+  sortOrder: number;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -44,6 +50,7 @@ export interface Task {
   priority: Priority;
   subtasks: Subtask[];
   tags?: string[];
+  folderId?: string | null;
   notes?: string;
   recurrence?: Recurrence | null;
   createdAt?: string; // ISO string
