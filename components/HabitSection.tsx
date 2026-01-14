@@ -797,7 +797,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
     return (
         <div className="flex flex-col h-full bg-background">
             {/* Header - Fixed in Panel */}
-            <div className="shrink-0 h-14 border-b border-border flex items-center justify-between px-4 bg-background z-10 sticky top-0">
+            <div className="shrink-0 h-14 border-b border-border flex items-center justify-between px-4 bg-background z-10">
                  <div className="flex items-center gap-3 min-w-0 flex-1">
                      <button onClick={() => setDetailHabitId(null)} className="md:hidden p-1 hover:bg-notion-hover rounded-sm text-muted-foreground hover:text-foreground transition-colors shrink-0">
                          <ArrowLeft className="w-5 h-5" />
@@ -1202,10 +1202,11 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
             </div>
         </div>
 
-        {/* Detail Panel - Always visible on desktop (placeholder if empty) */}
+        {/* Detail Panel */}
         <div className={`
-            w-full md:w-[500px] border-l border-border bg-background z-20 
-            absolute inset-0 md:static shadow-2xl md:shadow-none 
+            w-full md:w-[500px] border-l border-border bg-background z-20
+            absolute inset-0 md:static shadow-2xl md:shadow-none
+            animate-slide-in-from-right-12
             ${!detailHabitId ? 'hidden md:block' : ''}
         `}>
             {detailHabitId ? renderDetailView() : renderEmptyState()}
