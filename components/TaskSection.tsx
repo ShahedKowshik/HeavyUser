@@ -184,7 +184,7 @@ const GroupHeaderIcon = ({ title, dayStartHour = 0 }: { title: string, dayStartH
 };
 
 // Reusable Calendar Content
-const CalendarContent = ({ value, onChange, onClose, dayStartHour, startWeekDay = 0 }: any) => {
+const CalendarContent = ({ value, onChange, onClose, dayStartHour, startWeekDay = 0, hideClear = false }: any) => {
     const getLogicalDate = () => {
         const d = new Date();
         if (d.getHours() < dayStartHour) d.setDate(d.getDate() - 1);
@@ -231,7 +231,7 @@ const CalendarContent = ({ value, onChange, onClose, dayStartHour, startWeekDay 
                     );
                 })}
             </div>
-            {value && (
+            {value && !hideClear && (
                 <div className="mt-2 border-t border-border pt-2">
                     <button type="button" onClick={() => { onChange(''); onClose(); }} className="w-full text-xs text-destructive hover:bg-notion-bg_red py-1 px-2 rounded-sm transition-colors flex items-center justify-center gap-1">
                         <Trash2 className="w-3 h-3" /> Clear Date
@@ -349,6 +349,13 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     const parts = dateStr.split('-').map(Number);
     const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const getQuickDateLabel = (offset: number) => {
+      const d = new Date();
+      if (d.getHours() < (dayStartHour || 0)) d.setDate(d.getDate() - 1);
+      d.setDate(d.getDate() + offset);
+      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   };
 
   const rescheduleOverdue = async (tasksToReschedule: Task[], daysOffset: number) => {
@@ -805,7 +812,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         value={title}
                         onChange={e => setTitle(e.target.value)}
                         onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleSaveTask(e); } }}
-                        className="w-full text-xl md:text-2xl font-bold text-foreground placeholder:text-muted-foreground/40 bg-transparent resize-none leading-tight border border-transparent hover:border-border focus:border-border rounded-md p-3 transition-colors outline-none"
+                        className="w-full text-xl md:text-2xl font-bold text-foreground placeholder:text-muted-foreground/40 bg-transparent resize-none leading-tight border border-border hover:border-border focus:border-border rounded-md p-3 transition-colors outline-none"
                         rows={1}
                         style={{ minHeight: '3.5rem', height: 'auto' }}
                         onInput={(e) => { e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px'; }}
@@ -818,37 +825,37 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                     {/* Priority Button */}
                     <button 
                         onClick={() => setActivePopover(activePopover === 'priority' ? null : 'priority')}
-                        className={`flex items-center gap-2 px-3 h-8 rounded-md text-xs font-medium border transition-colors ${activePopover === 'priority' ? 'bg-secondary border-border text-foreground' : 'bg-transparent border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
+                        className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'priority' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
                     >
-                        <Flag className="w-4 h-4" />
-                        <span>{priority}</span>
+                        <Flag className="w-4 h-4 shrink-0" />
+                        <span className="truncate">{priority}</span>
                     </button>
                     
                     {/* Date Button */}
                     <button 
                         onClick={() => setActivePopover(activePopover === 'date' ? null : 'date')}
-                        className={`flex items-center gap-2 px-3 h-8 rounded-md text-xs font-medium border transition-colors ${activePopover === 'date' ? 'bg-secondary border-border text-foreground' : 'bg-transparent border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
+                        className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'date' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
                     >
-                        <Calendar className="w-4 h-4" />
-                        <span>{dueDate ? formatRelativeDate(dueDate) : 'Date'}</span>
+                        <Calendar className="w-4 h-4 shrink-0" />
+                        <span className="truncate">{dueDate ? formatRelativeDate(dueDate) : 'Date'}</span>
                     </button>
 
                     {/* Labels Button */}
                     <button 
                         onClick={() => setActivePopover(activePopover === 'tags' ? null : 'tags')}
-                        className={`flex items-center gap-2 px-3 h-8 rounded-md text-xs font-medium border transition-colors ${activePopover === 'tags' ? 'bg-secondary border-border text-foreground' : 'bg-transparent border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
+                        className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'tags' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
                     >
-                        <TagIcon className="w-4 h-4" />
-                        <span>{selectedTags.length > 0 ? `${selectedTags.length} Labels` : 'Labels'}</span>
+                        <TagIcon className="w-4 h-4 shrink-0" />
+                        <span className="truncate">{selectedTags.length > 0 ? `${selectedTags.length} Labels` : 'Labels'}</span>
                     </button>
 
                     {/* Repeat Button */}
                     <button 
                         onClick={() => setActivePopover(activePopover === 'repeat' ? null : 'repeat')}
-                        className={`flex items-center gap-2 px-3 h-8 rounded-md text-xs font-medium border transition-colors ${activePopover === 'repeat' ? 'bg-secondary border-border text-foreground' : 'bg-transparent border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
+                        className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'repeat' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
                     >
-                        <Repeat className="w-4 h-4" />
-                        <span>{createRecurrence ? (createRecurrence.interval > 1 ? `Every ${createRecurrence.interval} ${createRecurrence.type}` : `Daily`) : 'Repeat'}</span>
+                        <Repeat className="w-4 h-4 shrink-0" />
+                        <span className="truncate">{createRecurrence ? (createRecurrence.interval > 1 ? `Every ${createRecurrence.interval} ${createRecurrence.type}` : `Daily`) : 'Repeat'}</span>
                     </button>
                 </div>
 
@@ -870,20 +877,45 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         )}
                         
                         {activePopover === 'date' && (
-                            <div className="flex flex-col gap-4">
-                                <div className="flex gap-2 overflow-x-auto pb-1">
-                                    <button onClick={() => handleQuickDate(0)} className="px-3 py-1.5 bg-background border border-border rounded-sm text-xs font-medium hover:bg-notion-hover shrink-0">Today</button>
-                                    <button onClick={() => handleQuickDate(1)} className="px-3 py-1.5 bg-background border border-border rounded-sm text-xs font-medium hover:bg-notion-hover shrink-0">Tomorrow</button>
-                                    <button onClick={() => handleQuickDate(7)} className="px-3 py-1.5 bg-background border border-border rounded-sm text-xs font-medium hover:bg-notion-hover shrink-0">Next Week</button>
-                                    <button onClick={() => handleQuickDate(30)} className="px-3 py-1.5 bg-background border border-border rounded-sm text-xs font-medium hover:bg-notion-hover shrink-0">Next Month</button>
+                            <div className="flex flex-col md:flex-row gap-4">
+                                <div className="md:border-r border-border md:pr-4">
+                                    <CalendarContent 
+                                        value={dueDate} 
+                                        onChange={(d: string) => setDueDate(d)} 
+                                        onClose={() => setActivePopover(null)} 
+                                        dayStartHour={dayStartHour} 
+                                        startWeekDay={startWeekDay}
+                                        hideClear={true}
+                                    />
                                 </div>
-                                <CalendarContent 
-                                    value={dueDate} 
-                                    onChange={(d: string) => setDueDate(d)} 
-                                    onClose={() => setActivePopover(null)} 
-                                    dayStartHour={dayStartHour} 
-                                    startWeekDay={startWeekDay} 
-                                />
+                                <div className="flex flex-col gap-1 w-full md:w-48 pt-1">
+                                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1 px-2">Quick Select</div>
+                                    <button onClick={() => handleQuickDate(0)} className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm flex items-center justify-between group">
+                                        <span>Today</span>
+                                        <span className="text-[10px] text-muted-foreground group-hover:text-foreground/70">{getQuickDateLabel(0)}</span>
+                                    </button>
+                                    <button onClick={() => handleQuickDate(1)} className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm flex items-center justify-between group">
+                                        <span>Tomorrow</span>
+                                        <span className="text-[10px] text-muted-foreground group-hover:text-foreground/70">{getQuickDateLabel(1)}</span>
+                                    </button>
+                                    <button onClick={() => handleQuickDate(7)} className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm flex items-center justify-between group">
+                                        <span>Next Week</span>
+                                        <span className="text-[10px] text-muted-foreground group-hover:text-foreground/70">{getQuickDateLabel(7)}</span>
+                                    </button>
+                                    <button onClick={() => handleQuickDate(30)} className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm flex items-center justify-between group">
+                                        <span>Next Month</span>
+                                        <span className="text-[10px] text-muted-foreground group-hover:text-foreground/70">{getQuickDateLabel(30)}</span>
+                                    </button>
+                                    
+                                    {dueDate && (
+                                        <>
+                                            <div className="h-px bg-border my-1 mx-2" />
+                                            <button onClick={() => { setDueDate(''); setActivePopover(null); }} className="w-full text-left px-2 py-1.5 text-xs text-destructive hover:bg-notion-bg_red rounded-sm flex items-center gap-2">
+                                                <Trash2 className="w-3.5 h-3.5" /> <span>Clear Date</span>
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         )}
 
@@ -1007,7 +1039,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         placeholder="Type something..." 
                         value={createNotes} 
                         onChange={e => setCreateNotes(e.target.value)} 
-                        className="flex-1 w-full text-sm text-foreground bg-transparent border border-transparent hover:border-border focus:border-border rounded-md p-4 resize-none placeholder:text-muted-foreground/50 leading-relaxed transition-colors outline-none" 
+                        className="flex-1 w-full text-sm text-foreground bg-transparent border border-border hover:border-border focus:border-border rounded-md p-4 resize-none placeholder:text-muted-foreground/50 leading-relaxed transition-colors outline-none" 
                     />
                 </div>
             </div>
