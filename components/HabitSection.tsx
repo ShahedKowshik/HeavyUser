@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Minus, Settings, Check, Tag as TagIcon, Flame, BarChart3, Activity, SkipForward, CircleCheck, ArrowLeft, FolderPlus, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { Habit, Tag, HabitFolder } from '../types';
@@ -804,7 +805,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                          <ArrowLeft className="w-5 h-5" />
                      </button>
                      <div className="w-px h-4 bg-border mx-1 shrink-0 md:hidden" />
-                     <span className="text-xl shrink-0">{detailHabit.icon}</span>
+                     <span className="w-8 h-8 flex items-center justify-center text-xl shrink-0">{detailHabit.icon}</span>
                      <div className="min-w-0 flex-1">
                          <h2 className="text-sm font-bold text-foreground leading-tight truncate">{detailHabit.title}</h2>
                          <div className="flex items-center gap-2 text-xs text-muted-foreground leading-tight truncate">
@@ -1017,7 +1018,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                     </span>
 
                     {/* Icon */}
-                    <div className="text-xl shrink-0">
+                    <div className="w-8 h-8 flex items-center justify-center text-xl shrink-0">
                         {habit.icon}
                     </div>
                     
@@ -1167,7 +1168,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                              <div key={folder.id} className="space-y-3">
                                  <div className="flex items-center justify-between group">
                                      <div className="flex items-center gap-2">
-                                         <span className="text-lg">{folder.icon}</span>
+                                         <span className="w-8 h-8 flex items-center justify-center text-xl shrink-0">{folder.icon}</span>
                                          <h3 className="text-sm font-bold text-foreground">{folder.name}</h3>
                                          <span className="text-xs text-muted-foreground bg-notion-item_hover px-1.5 rounded-sm">{folderHabits.length}</span>
                                      </div>

@@ -543,7 +543,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
   
   const getGroupingKey = (dateStr: string) => {
-    if (!dateStr) return 'No Date';
+    if (!dateStr) return 'Backlog';
     const diffDays = getDayDiff(dateStr);
     if (diffDays < 0) return 'Overdue';
     if (diffDays === 0) return 'Today';
@@ -576,7 +576,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
     if (grouping === 'none') return [{ title: '', tasks: base }];
     
-    const groupOrder = ['Overdue', 'Yesterday', 'Today', 'Tomorrow', 'Upcoming', 'No Date'];
+    const groupOrder = ['Overdue', 'Yesterday', 'Today', 'Tomorrow', 'Upcoming', 'Backlog'];
     const groups: Record<string, Task[]> = {};
     
     base.forEach(t => {
@@ -691,16 +691,46 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
       {groups.map((group, gIdx) => {
           if (!group || !group.tasks) return null;
           
+          const totalTracked = group.tasks.reduce((acc, t) => acc + (t.actualTime || 0), 0);
+          const totalRemaining = group.tasks.reduce((acc, t) => {
+              if (t.completed) return acc;
+              return acc + Math.max(0, (t.plannedTime || 0) - (t.actualTime || 0));
+          }, 0);
+
           return (
             <div key={group.title + gIdx} className="space-y-0">
               {/* Group Header */}
               {group.title && (
                 <div className="px-2 py-2 flex items-center justify-between gap-2 border-b border-border mb-2">
-                  <div className="flex items-center gap-2">
-                      <span className={`text-sm font-semibold text-foreground ${group.title === 'Overdue' ? 'text-notion-red' : ''}`}>
+                  <div className="flex items-center gap-2 overflow-hidden">
+                      <span className={`text-sm font-semibold text-foreground ${group.title === 'Overdue' ? 'text-notion-red' : ''} shrink-0`}>
                         {group.title}
                       </span>
-                      <span className="text-xs text-muted-foreground bg-notion-item_hover px-1.5 rounded-sm">{group.tasks.length}</span>
+                      <span className="text-xs text-muted-foreground bg-notion-item_hover px-1.5 rounded-sm shrink-0">{group.tasks.length}</span>
+                      
+                      {/* Stats */}
+                      {(totalTracked > 0 || totalRemaining > 0) && (
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground ml-2 truncate">
+                              {totalTracked > 0 && (
+                                  <span className="flex items-center gap-1">
+                                      <span className="hidden sm:inline opacity-70">Tracked:</span>
+                                      <span className="font-medium">{formatDuration(totalTracked)}</span>
+                                  </span>
+                              )}
+                              {totalTracked > 0 && totalRemaining > 0 && <span className="opacity-30">•</span>}
+                              {totalRemaining > 0 && (
+                                  <span className="flex items-center gap-1">
+                                      <span className="hidden sm:inline opacity-70">Remaining:</span>
+                                      <span className="font-medium">{formatDuration(totalRemaining)}</span>
+                                  </span>
+                              )}
+                              <span className="sm:hidden">
+                                  {totalTracked > 0 ? formatDuration(totalTracked) : ''}
+                                  {(totalTracked > 0 && totalRemaining > 0) ? ' / ' : ''}
+                                  {totalRemaining > 0 ? `-${formatDuration(totalRemaining)}` : ''}
+                              </span>
+                          </div>
+                      )}
                       
                       {group.title === 'Overdue' && (
                           <div className="relative ml-2">
@@ -735,6 +765,11 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                 {group.tasks.map((task) => {
                   const isSelected = task.id === selectedTaskId;
                   const priorityColorClass = getPriorityLineColor(task.priority);
+
+                  // Determine if date should be shown
+                  const isGroupedByDate = grouping === 'date';
+                  const isTodayOrTomorrow = group.title === 'Today' || group.title === 'Tomorrow';
+                  const showDateBadge = !isGroupedByDate || !isTodayOrTomorrow;
 
                   return (
                     <div 
@@ -783,8 +818,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                             <span className="font-medium truncate">{task.priority}</span>
                                         </div>
 
-                                        {/* Date - Reduced padding */}
-                                        {task.dueDate && (
+                                        {/* Date - Conditional Rendering */}
+                                        {task.dueDate && showDateBadge && (
                                             <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 shadow-sm ${getRelativeTimeColor(task.dueDate)}`}>
                                                 <Calendar className="w-3 h-3" />
                                                 <span className="font-medium">{formatRelativeDate(task.dueDate)}</span>
