@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, BarChart3, Check, AlertCircle, ArrowRight, Settings, FileText, Archive, CalendarClock, Layers } from 'lucide-react';
+import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, BarChart3, Check, AlertCircle, ArrowRight, Settings, FileText, Archive, CalendarClock, Layers, Moon } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence, TaskSession } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -126,19 +126,37 @@ const getPriorityIcon = (p: Priority) => {
     }
 };
 
-const GroupHeaderIcon = ({ title }: { title: string }) => {
+const GroupHeaderIcon = ({ title, dayStartHour = 0 }: { title: string, dayStartHour?: number }) => {
     let icon = <Calendar className="w-3.5 h-3.5" />;
     let colorClass = "text-muted-foreground bg-secondary";
 
+    const getLogicalDate = () => {
+        const d = new Date();
+        if (d.getHours() < dayStartHour) {
+            d.setDate(d.getDate() - 1);
+        }
+        return d;
+    };
+
+    const logicalToday = getLogicalDate();
+
     switch (title) {
         case 'Today':
-            icon = <span className="text-[10px] font-bold">{new Date().getDate()}</span>;
+            icon = (
+                <div className="relative flex items-center justify-center w-full h-full">
+                    <span className="text-[10px] font-bold">{logicalToday.getDate()}</span>
+                </div>
+            );
             colorClass = "text-notion-blue bg-notion-bg_blue border-notion-blue/20";
             break;
         case 'Tomorrow':
-            const tmrw = new Date();
+            const tmrw = new Date(logicalToday);
             tmrw.setDate(tmrw.getDate() + 1);
-            icon = <span className="text-[10px] font-bold">{tmrw.getDate()}</span>;
+            icon = (
+                <div className="relative flex items-center justify-center w-full h-full">
+                    <span className="text-[10px] font-bold">{tmrw.getDate()}</span>
+                </div>
+            );
             colorClass = "text-notion-orange bg-notion-bg_orange border-notion-orange/20";
             break;
         case 'Backlog':
@@ -715,13 +733,12 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => {
-    if (!groups || !Array.isArray(groups)) {
-        return null;
-    }
+    // Safety check to prevent blank screen if groups is null/undefined
+    const safeGroups = Array.isArray(groups) ? groups : [];
 
     return (
     <div className="space-y-6">
-      {groups.length === 0 && (
+      {safeGroups.length === 0 && (
          <div className="text-center py-20 opacity-50">
              <div className="w-16 h-16 bg-notion-bg_gray rounded-full flex items-center justify-center mx-auto mb-4">
                  <CircleCheck className="w-8 h-8 text-muted-foreground" />
@@ -729,7 +746,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
              <p className="font-medium text-muted-foreground">No tasks found</p>
          </div>
       )}
-      {groups.map((group, gIdx) => {
+      {safeGroups.map((group, gIdx) => {
           if (!group || !group.tasks) return null;
           
           const totalTracked = group.tasks.reduce((acc, t) => acc + (t.actualTime || 0), 0);
@@ -742,18 +759,27 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
           const completedTasks = group.tasks.filter(t => t.completed).length;
           const completionPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
+          // Night Owl Logic for Header Indicators
+          const isNightOwl = new Date().getHours() < (dayStartHour || 0);
+          const showMoon = grouping === 'date' && (group.title === 'Today' || group.title === 'Tomorrow') && isNightOwl;
+
           return (
             <div key={group.title + gIdx} className="space-y-0">
               {/* Group Header */}
               {group.title && (
                 <div className="pl-0 pr-2 py-2 flex items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2 overflow-hidden">
-                      {grouping === 'date' && <GroupHeaderIcon title={group.title} />}
+                      {grouping === 'date' && <GroupHeaderIcon title={group.title} dayStartHour={dayStartHour} />}
                       <span className={`text-sm font-semibold text-foreground ${group.title === 'Overdue' ? 'text-notion-red' : ''} shrink-0`}>
                         {group.title}
                       </span>
                       <span className="text-xs text-muted-foreground bg-notion-item_hover px-1.5 rounded-sm shrink-0">{group.tasks.length}</span>
                       
+                      {/* Moon Icon moved here */}
+                      {showMoon && (
+                          <Moon className="w-3.5 h-3.5 text-notion-blue fill-current ml-1 animate-pulse" />
+                      )}
+
                       {group.title === 'Overdue' && (
                           <div className="relative ml-2">
                               <button 
@@ -783,15 +809,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                   
                   {/* Right Side Stats */}
                   <div className="flex items-center gap-4 ml-auto">
-                        {/* Progress Bar (Swapped) */}
-                        <div className="flex items-center gap-2 w-20 md:w-32">
-                            <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
-                                <div className="h-full bg-notion-green transition-all duration-500" style={{ width: `${completionPercentage}%` }} />
-                            </div>
-                            <span className="text-[9px] text-muted-foreground w-6 text-right tabular-nums">{completionPercentage}%</span>
-                        </div>
-
-                        {/* Stats Text (Swapped) */}
+                        {/* Stats Text */}
                         {(totalTracked > 0 || totalRemaining > 0) && (
                             <div className="flex items-center gap-2 text-[10px] text-muted-foreground truncate">
                                 {totalTracked > 0 && (
@@ -809,6 +827,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                 )}
                             </div>
                         )}
+                        
+                        {/* Progress Bar */}
+                        <div className="flex items-center gap-2 w-20 md:w-32">
+                            <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                                <div className="h-full bg-notion-green transition-all duration-500" style={{ width: `${completionPercentage}%` }} />
+                            </div>
+                            <span className="text-[9px] text-muted-foreground w-6 text-right tabular-nums">{completionPercentage}%</span>
+                        </div>
                   </div>
                 </div>
               )}
@@ -822,6 +848,9 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                   const isGroupedByDate = grouping === 'date';
                   const isTodayOrTomorrow = group.title === 'Today' || group.title === 'Tomorrow';
                   const showDateBadge = !isGroupedByDate || !isTodayOrTomorrow;
+
+                  // Safety check for subtasks
+                  const subtasks = task.subtasks || [];
 
                   return (
                     <div 
@@ -855,10 +884,17 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
                             {/* Content */}
                             <div className="flex-1 min-w-0 space-y-1">
-                                <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-2 mb-0.5">
                                      <h4 className={`text-sm font-semibold leading-normal transition-colors ${task.completed ? 'text-muted-foreground line-through decoration-border' : 'text-foreground'}`}>
                                         {task.title}
                                      </h4>
+                                     {/* Subtasks Inline Indicator */}
+                                     {subtasks.length > 0 && (
+                                         <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm h-fit">
+                                            <ListChecks className="w-3 h-3" />
+                                            <span>{subtasks.filter(s => s.completed).length}/{subtasks.length}</span>
+                                        </div>
+                                     )}
                                 </div>
                                 
                                 {/* Metadata Row - Expanded details - CHANGED to text-[10px] */}
@@ -913,14 +949,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                                 </div>
                                             );
                                         })}
-
-                                        {/* Subtasks (Moved After Tags) - Reduced padding */}
-                                        {task.subtasks.length > 0 && (
-                                             <div className="flex items-center gap-1 text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-sm border border-foreground/10 shadow-sm">
-                                                <ListChecks className="w-3 h-3" />
-                                                <span>{task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}</span>
-                                            </div>
-                                        )}
                                 </div>
                             </div>
 
