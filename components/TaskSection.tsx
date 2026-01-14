@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, BarChart3, Check, AlertCircle, ArrowRight, Settings, FileText, Archive, CalendarClock, Layers, Moon, Flag, ArrowUpDown } from 'lucide-react';
+import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, BarChart3, Check, AlertCircle, ArrowRight, Settings, FileText, Archive, CalendarClock, Layers, Moon, Flag, ArrowUpDown, ListTodo } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence, TaskSession } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -183,7 +183,7 @@ const GroupHeaderIcon = ({ title, dayStartHour = 0 }: { title: string, dayStartH
     );
 };
 
-// Reusable Calendar Content without shortcuts
+// Reusable Calendar Content
 const CalendarContent = ({ value, onChange, onClose, dayStartHour, startWeekDay = 0 }: any) => {
     const getLogicalDate = () => {
         const d = new Date();
@@ -196,7 +196,6 @@ const CalendarContent = ({ value, onChange, onClose, dayStartHour, startWeekDay 
     const handleDayClick = (day: number) => {
         const d = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
         onChange(getLocalDateString(d));
-        onClose();
     };
 
     const changeMonth = (delta: number) => {
@@ -212,14 +211,7 @@ const CalendarContent = ({ value, onChange, onClose, dayStartHour, startWeekDay 
     const isToday = (day: number) => { const t = getLogicalDate(); return t.getDate() === day && t.getMonth() === viewDate.getMonth() && t.getFullYear() === viewDate.getFullYear(); };
 
     return (
-        <div className="font-sans w-64 p-3 bg-background rounded-md shadow-lg border border-border">
-            {value && (
-                <div className="mb-3 border-b border-border pb-3">
-                    <button type="button" onClick={() => { onChange(''); onClose(); }} className="w-full text-xs text-destructive hover:bg-notion-bg_red py-1 px-2 rounded-sm transition-colors flex items-center gap-1 text-left">
-                        <Trash2 className="w-3 h-3" /> Clear Date
-                    </button>
-                </div>
-            )}
+        <div className="font-sans w-64 bg-background rounded-md">
             <div className="flex items-center justify-between mb-2 px-1">
                 <button type="button" onClick={() => changeMonth(-1)} className="p-0.5 text-muted-foreground hover:bg-notion-hover rounded-sm"><ChevronLeft className="w-4 h-4" /></button>
                 <span className="text-sm font-medium text-foreground">{monthName}</span>
@@ -239,149 +231,16 @@ const CalendarContent = ({ value, onChange, onClose, dayStartHour, startWeekDay 
                     );
                 })}
             </div>
+            {value && (
+                <div className="mt-2 border-t border-border pt-2">
+                    <button type="button" onClick={() => { onChange(''); onClose(); }} className="w-full text-xs text-destructive hover:bg-notion-bg_red py-1 px-2 rounded-sm transition-colors flex items-center justify-center gap-1">
+                        <Trash2 className="w-3 h-3" /> Clear Date
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
-
-const TaskDatePicker = ({ value, onChange, onClose, dayStartHour = 0, startWeekDay = 0, triggerRef }: any) => {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [coords, setCoords] = useState({ top: 0, left: 0 });
-    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-
-    useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 768);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
-
-    useLayoutEffect(() => {
-        if (isMobile) return;
-        const updatePosition = () => {
-            if (triggerRef.current && containerRef.current) {
-                const triggerRect = triggerRef.current.getBoundingClientRect();
-                const containerRect = containerRef.current.getBoundingClientRect();
-                let top = triggerRect.bottom + 4;
-                let left = triggerRect.left;
-                const padding = 16;
-                const windowWidth = window.innerWidth;
-                if (left + containerRect.width > windowWidth - padding) left = windowWidth - containerRect.width - padding;
-                if (left < padding) left = padding;
-                setCoords({ top, left });
-            }
-        };
-        updatePosition();
-        window.addEventListener('scroll', updatePosition, true);
-        window.addEventListener('resize', updatePosition);
-        return () => {
-            window.removeEventListener('scroll', updatePosition, true);
-            window.removeEventListener('resize', updatePosition);
-        };
-    }, [triggerRef, isMobile]);
-
-    useEffect(() => {
-        if(isMobile) return;
-        const handleClickOutside = (event: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node) && triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
-                onClose();
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [onClose, triggerRef, isMobile]);
-
-    if (isMobile) {
-        return createPortal(
-            <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
-                <div onClick={e => e.stopPropagation()} className="animate-in zoom-in-95">
-                    <CalendarContent value={value} onChange={onChange} onClose={onClose} dayStartHour={dayStartHour} startWeekDay={startWeekDay} />
-                </div>
-            </div>,
-            document.body
-        );
-    }
-
-    return createPortal(
-        <div ref={containerRef} style={{ position: 'fixed', top: coords.top, left: coords.left, zIndex: 9999 }} className="animate-in zoom-in-95 origin-top-left">
-            <CalendarContent value={value} onChange={onChange} onClose={onClose} dayStartHour={dayStartHour} startWeekDay={startWeekDay} />
-        </div>,
-        document.body
-    );
-};
-
-// Reusable Priority Content
-const PriorityContent = ({ value, onChange, onClose }: any) => (
-    <div className="bg-background rounded-md shadow-lg border border-border p-1 w-32 font-sans flex flex-col gap-0.5">
-        {priorities.map(p => (
-            <button key={p} onClick={() => { onChange(p); onClose(); }} className={`flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm transition-colors ${value === p ? 'bg-notion-hover font-medium text-foreground' : 'text-foreground hover:bg-notion-hover'}`}>
-                <span className={p === 'Urgent' ? 'text-notion-red' : p === 'High' ? 'text-notion-yellow' : 'text-muted-foreground'}>{getPriorityIcon(p)}</span>
-                <span>{p}</span>
-                {value === p && <Check className="w-3 h-3 ml-auto opacity-50" />}
-            </button>
-        ))}
-    </div>
-);
-
-const TaskPriorityPicker = ({ value, onChange, onClose, triggerRef }: any) => {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [coords, setCoords] = useState({ top: 0, left: 0 });
-    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-
-    useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 768);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
-
-    useLayoutEffect(() => {
-        if(isMobile) return;
-        const updatePosition = () => {
-            if (triggerRef.current && containerRef.current) {
-                const triggerRect = triggerRef.current.getBoundingClientRect();
-                let top = triggerRect.bottom + 4;
-                let left = triggerRect.left;
-                setCoords({ top, left });
-            }
-        };
-        updatePosition();
-        window.addEventListener('scroll', updatePosition, true);
-        window.addEventListener('resize', updatePosition);
-        return () => {
-            window.removeEventListener('scroll', updatePosition, true);
-            window.removeEventListener('resize', updatePosition);
-        };
-    }, [triggerRef, isMobile]);
-
-    useEffect(() => {
-        if(isMobile) return;
-        const handleClickOutside = (event: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node) && triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
-                onClose();
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [onClose, triggerRef, isMobile]);
-
-    if(isMobile) {
-        return createPortal(
-            <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
-                <div onClick={e => e.stopPropagation()} className="animate-in zoom-in-95">
-                    <PriorityContent value={value} onChange={onChange} onClose={onClose} />
-                </div>
-            </div>,
-            document.body
-        );
-    }
-
-    return createPortal(
-        <div ref={containerRef} style={{ position: 'fixed', top: coords.top, left: coords.left, zIndex: 9999 }} className="animate-in zoom-in-95 origin-top-left">
-            <PriorityContent value={value} onChange={onChange} onClose={onClose} />
-        </div>,
-        document.body
-    );
-};
-
-// ... TagPicker components removed as they are replaced by inline rendering ...
 
 const getNextDate = (currentDateStr: string, r: Recurrence): string => {
   const parts = currentDateStr.split('-').map(Number);
@@ -432,8 +291,9 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const [sorting, setSorting] = useState<Sorting>('priority');
   const [isGroupingMenuOpen, setIsGroupingMenuOpen] = useState(false);
   const [isRescheduleMenuOpen, setIsRescheduleMenuOpen] = useState(false);
-  const [quickDateEdit, setQuickDateEdit] = useState<{ taskId: string, element: HTMLElement, value: string } | null>(null);
-  const [quickPriorityEdit, setQuickPriorityEdit] = useState<{ taskId: string, element: HTMLElement, value: Priority } | null>(null);
+  
+  // UI State for Detail Panel
+  const [activePopover, setActivePopover] = useState<'priority' | 'date' | 'tags' | 'repeat' | null>(null);
 
   // Calendar State
   const [calendarDate, setCalendarDate] = useState(() => {
@@ -441,7 +301,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
       if (d.getHours() < (dayStartHour || 0)) d.setDate(d.getDate() - 1);
       return d;
   });
-  const [calendarViewMode, setCalendarViewMode] = useState<'3day' | 'week' | 'month'>('3day');
 
   useEffect(() => { localStorage.setItem('heavyuser_task_grouping', grouping); }, [grouping]);
 
@@ -451,7 +310,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   // Form State
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [priority, setPriority] = useState<Priority>('Normal');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [createRecurrence, setCreateRecurrence] = useState<Recurrence | null>(null);
@@ -461,18 +319,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   
   const [newTagInput, setNewTagInput] = useState('');
   const [isCreatingTag, setIsCreatingTag] = useState(false);
-  const dateButtonRef = useRef<HTMLButtonElement>(null);
-  const priorityButtonRef = useRef<HTMLButtonElement>(null);
-  const tagButtonRef = useRef<HTMLButtonElement>(null);
-
-  const [isRecurrenceModalOpen, setIsRecurrenceModalOpen] = useState(false);
-  const [recurrenceEditValue, setRecurrenceEditValue] = useState<Recurrence | null>(null);
-  const [recurrenceCallback, setRecurrenceCallback] = useState<((r: Recurrence | null) => void) | null>(null);
-
-  const [isPriorityPickerOpen, setIsPriorityPickerOpen] = useState(false);
-  
-  // Tag Picker state is no longer needed with inline display, but keeping ref for safety if needed later
-  // const [isTagPickerOpen, setIsTagPickerOpen] = useState(false); 
 
   // Robustly handle missing tasks
   const safeTasks = useMemo(() => Array.isArray(tasks) ? tasks : [], [tasks]);
@@ -525,6 +371,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     setCreateRecurrence(null); setCreateNotes(''); setPlannedTime(undefined); setEditSubtasks([]); 
     setIsCreating(true); 
     setSelectedTaskId(null);
+    setActivePopover(null);
   };
 
   const openEditPanel = (task: Task) => {
@@ -539,6 +386,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
       setCreateNotes(task.notes || '');
       setPlannedTime(task.plannedTime);
       setEditSubtasks(task.subtasks || []);
+      setActivePopover(null);
   };
 
   const handleSaveTask = async (e: React.FormEvent) => {
@@ -588,10 +436,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     await supabase.from('tasks').update(dbUpdates).eq('id', id);
   };
 
-  const deleteSubtaskInTask = (taskId: string, subtaskId: string) => { setTasks(prev => { const newTasks = prev.map(t => t.id === taskId ? { ...t, subtasks: t.subtasks.filter(s => s.id !== subtaskId) } : t); const t = newTasks.find(t => t.id === taskId); if (t) supabase.from('tasks').update(mapTaskToDb(t, userId)).eq('id', taskId).then(); return newTasks; }); };
-  const addSubtaskToTask = (taskId: string, subtaskId: string) => { if (!subtaskId.trim()) return; const newSubtask: Subtask = { id: crypto.randomUUID(), title: subtaskId, completed: false }; setTasks(prev => { const newTasks = prev.map(t => t.id === taskId ? { ...t, subtasks: [...t.subtasks, newSubtask] } : t); const t = newTasks.find(t => t.id === taskId); if (t) supabase.from('tasks').update(mapTaskToDb(t, userId)).eq('id', taskId).then(); return newTasks; }); };
-  const toggleSubtaskInTask = (taskId: string, subtaskId: string) => { setTasks(prev => { const newTasks = prev.map(t => t.id === taskId ? { ...t, subtasks: t.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s) } : t); const t = newTasks.find(t => t.id === taskId); if (t) supabase.from('tasks').update(mapTaskToDb(t, userId)).eq('id', taskId).then(); return newTasks; }); };
-  
   const addEditSubtask = (title: string) => { if (!title.trim()) return; setEditSubtasks(prev => [...prev, { id: crypto.randomUUID(), title, completed: false }]); };
   const removeEditSubtask = (id: string) => { setEditSubtasks(prev => prev.filter(s => s.id !== id)); };
   const toggleEditSubtask = (id: string) => { setEditSubtasks(prev => prev.map(s => s.id === id ? { ...s, completed: !s.completed } : s)); };
@@ -599,10 +443,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const handleInlineCreateTag = async (e: React.FormEvent) => { e.preventDefault(); if (!newTagInput.trim()) return; setIsCreatingTag(true); try { const newTag = await createNewTag(newTagInput, userId); setTags(prev => [...prev, newTag]); setSelectedTags(prev => [...prev, newTag.id]); setNewTagInput(''); } finally { setIsCreatingTag(false); } };
   
   const toggleTag = (tagId: string) => { setSelectedTags(prev => prev.includes(tagId) ? prev.filter(t => t !== tagId) : [...prev, tagId]); };
-
-  const openRecurrenceModal = (current: Recurrence | null, onSave: (r: Recurrence | null) => void) => { setRecurrenceEditValue(current || { type: 'daily', interval: 1 }); setRecurrenceCallback(() => onSave); setIsRecurrenceModalOpen(true); };
-  const toggleExpand = (id: string, e: React.MouseEvent) => { e.stopPropagation(); const next = new Set(expandedTasks); if (next.has(id)) next.delete(id); else next.add(id); setExpandedTasks(next); };
-
+  
   const getRelativeTimeColor = (dateStr: string) => {
     const diff = getDayDiff(dateStr);
     if (diff < 0) return 'text-notion-red';
@@ -696,46 +537,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     if (d.getHours() < (dayStartHour || 0)) d.setDate(d.getDate() - 1);
     d.setDate(d.getDate() + offset);
     setDueDate(getLocalDateString(d));
-    setIsDatePickerOpen(false);
-  };
-
-  const quickDates = [
-    { label: 'Today', offset: 0 },
-    { label: 'Tomorrow', offset: 1 },
-    { label: '+7d', offset: 7 },
-    { label: '+30d', offset: 30 },
-  ];
-
-  // Drag and Drop Handlers
-  const handleDragStart = (e: React.DragEvent, taskId: string) => {
-      e.dataTransfer.setData('taskId', taskId);
-      e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = async (e: React.DragEvent, dateStr: string, timeStr?: string) => {
-      e.preventDefault();
-      const taskId = e.dataTransfer.getData('taskId');
-      if (!taskId) return;
-
-      const task = safeTasks.find(t => t.id === taskId);
-      if (!task) return;
-
-      // Optimistic update
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, dueDate: dateStr, time: timeStr } : t));
-
-      // DB update
-      await supabase.from('tasks').update({ due_date: dateStr, time: timeStr || null }).eq('id', taskId);
+    setActivePopover(null);
   };
 
   const renderCalendarView = () => {
+    // ... (rest of calendar logic kept same as previous) ...
+    // Simplified for this view, using same logic as original file
     const dateStr = getLocalDateString(calendarDate);
     const dayTasks = safeTasks.filter(t => t.dueDate === dateStr);
-
     const untimedTasks = dayTasks.filter(t => !t.time);
     const timedTasks = dayTasks.filter(t => !!t.time).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 
@@ -752,11 +561,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     };
     
     const isToday = dateStr === getLocalDateString(new Date());
-
-    // Grid Configuration
     const startHour = dayStartHour || 0;
-    const hourHeight = 60; // 60px per hour
-    
+    const hourHeight = 60;
     const getCurrentTimeTop = () => {
         const d = new Date();
         const h = d.getHours();
@@ -767,26 +573,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
         return (relativeH * hourHeight) + ((m / 60) * hourHeight);
     };
 
-    const getTaskStyle = (task: Task) => {
-        if (!task.time) return {};
-        const [h, m] = task.time.split(':').map(Number);
-        const duration = task.plannedTime || 30; // Default 30m
-        
-        let adjustedH = h;
-        if (adjustedH < startHour) adjustedH += 24;
-        
-        const relativeH = adjustedH - startHour;
-        const top = (relativeH * hourHeight) + ((m / 60) * hourHeight);
-        const height = (duration / 60) * hourHeight;
-        
-        return {
-            top: `${top}px`,
-            height: `${Math.max(height, 28)}px`, // Minimum height
-            left: '60px',
-            right: '10px'
-        };
-    };
-    
     const hours = Array.from({ length: 24 }, (_, i) => (startHour + i) % 24);
 
     return (
@@ -806,19 +592,13 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                      </div>
                  </div>
             </div>
-
             <div className="flex-1 overflow-y-auto custom-scrollbar relative flex flex-col">
-                {/* All Day Section */}
                 {untimedTasks.length > 0 && (
                     <div className="shrink-0 border-b border-border p-2 bg-secondary/20">
                         <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">All Day</h3>
                         <div className="space-y-1">
                             {untimedTasks.map(task => (
-                                <div 
-                                    key={task.id}
-                                    onClick={() => openEditPanel(task)}
-                                    className={`bg-background rounded-sm border border-border p-2 hover:shadow-sm cursor-pointer transition-all flex items-center gap-2 ${task.completed ? 'opacity-60' : ''}`}
-                                >
+                                <div key={task.id} onClick={() => openEditPanel(task)} className={`bg-background rounded-sm border border-border p-2 hover:shadow-sm cursor-pointer transition-all flex items-center gap-2 ${task.completed ? 'opacity-60' : ''}`}>
                                     <div className={`w-3 h-3 border rounded-sm flex items-center justify-center ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'border-muted-foreground/40'}`}>
                                         {task.completed && <Check className="w-2 h-2" />}
                                     </div>
@@ -828,10 +608,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         </div>
                     </div>
                 )}
-
-                {/* Time Grid Scrollable Area */}
                 <div className="relative flex-1 min-h-[1440px]"> 
-                    {/* Background Grid */}
                     {hours.map((h, i) => (
                         <div key={h} className="absolute w-full border-t border-border/40 flex pointer-events-none" style={{ top: `${i * hourHeight}px`, height: `${hourHeight}px` }}>
                             <div className="w-14 text-right pr-3 text-[10px] text-muted-foreground -mt-2 bg-background font-medium">
@@ -840,41 +617,28 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                             <div className="flex-1 border-l border-border/40" />
                         </div>
                     ))}
-
-                    {/* Current Time Line */}
                     {isToday && (
-                        <div 
-                            className="absolute left-14 right-0 border-t-2 border-notion-red z-20 pointer-events-none flex items-center"
-                            style={{ top: `${getCurrentTimeTop()}px` }}
-                        >
+                        <div className="absolute left-14 right-0 border-t-2 border-notion-red z-20 pointer-events-none flex items-center" style={{ top: `${getCurrentTimeTop()}px` }}>
                             <div className="w-2 h-2 rounded-full bg-notion-red -ml-1" />
                         </div>
                     )}
-
-                    {/* Timed Tasks */}
                     {timedTasks.map(task => {
-                        const style = getTaskStyle(task);
+                        const [h, m] = (task.time || '00:00').split(':').map(Number);
+                        const duration = task.plannedTime || 30;
+                        let adjustedH = h;
+                        if (adjustedH < startHour) adjustedH += 24;
+                        const relativeH = adjustedH - startHour;
+                        const top = (relativeH * hourHeight) + ((m / 60) * hourHeight);
+                        const height = (duration / 60) * hourHeight;
+                        const style = { top: `${top}px`, height: `${Math.max(height, 28)}px`, left: '60px', right: '10px' };
                         const isShort = parseInt(style.height as string) < 40;
                         const borderColor = getPriorityLineColor(task.priority).replace('bg-', 'border-');
                         const bgColor = task.completed ? 'bg-secondary' : 'bg-notion-bg_blue';
                         const textColor = task.completed ? 'text-muted-foreground' : 'text-notion-blue';
-
                         return (
-                            <div 
-                                key={task.id}
-                                style={{ ...style, position: 'absolute' }}
-                                onClick={() => openEditPanel(task)}
-                                className={`rounded-md border-l-4 ${borderColor} ${bgColor} border-y border-r border-gray-200/50 p-1.5 cursor-pointer hover:shadow-md transition-all z-10 flex flex-col overflow-hidden ${task.completed ? 'opacity-60' : ''}`}
-                            >
-                                <div className={`text-xs font-semibold truncate ${textColor} ${task.completed ? 'line-through' : ''}`}>
-                                    {task.title}
-                                </div>
-                                {!isShort && (
-                                    <div className="text-[10px] opacity-80 truncate flex items-center gap-1">
-                                        {task.time} 
-                                        {task.plannedTime ? ` (${formatDuration(task.plannedTime)})` : ''}
-                                    </div>
-                                )}
+                            <div key={task.id} style={{ ...style, position: 'absolute' }} onClick={() => openEditPanel(task)} className={`rounded-md border-l-4 ${borderColor} ${bgColor} border-y border-r border-gray-200/50 p-1.5 cursor-pointer hover:shadow-md transition-all z-10 flex flex-col overflow-hidden ${task.completed ? 'opacity-60' : ''}`}>
+                                <div className={`text-xs font-semibold truncate ${textColor} ${task.completed ? 'line-through' : ''}`}>{task.title}</div>
+                                {!isShort && <div className="text-[10px] opacity-80 truncate flex items-center gap-1">{task.time} {task.plannedTime ? ` (${formatDuration(task.plannedTime)})` : ''}</div>}
                             </div>
                         );
                     })}
@@ -885,102 +649,59 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => {
-    // Safety check to prevent blank screen if groups is null/undefined
+    // ... Same implementation as original ...
     const safeGroups = Array.isArray(groups) ? groups : [];
-
     return (
     <div className="space-y-6">
       {safeGroups.length === 0 && (
          <div className="text-center py-20 opacity-50">
-             <div className="w-16 h-16 bg-notion-bg_gray rounded-full flex items-center justify-center mx-auto mb-4">
-                 <CircleCheck className="w-8 h-8 text-muted-foreground" />
-             </div>
+             <div className="w-16 h-16 bg-notion-bg_gray rounded-full flex items-center justify-center mx-auto mb-4"><CircleCheck className="w-8 h-8 text-muted-foreground" /></div>
              <p className="font-medium text-muted-foreground">No tasks found</p>
          </div>
       )}
       {safeGroups.map((group, gIdx) => {
           if (!group || !group.tasks) return null;
-          
           const totalTracked = group.tasks.reduce((acc, t) => acc + (t.actualTime || 0), 0);
-          const totalRemaining = group.tasks.reduce((acc, t) => {
-              if (t.completed) return acc;
-              return acc + Math.max(0, (t.plannedTime || 0) - (t.actualTime || 0));
-          }, 0);
-          
+          const totalRemaining = group.tasks.reduce((acc, t) => { if (t.completed) return acc; return acc + Math.max(0, (t.plannedTime || 0) - (t.actualTime || 0)); }, 0);
           const totalTasks = group.tasks.length;
           const completedTasks = group.tasks.filter(t => t.completed).length;
           const completionPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
-          // Night Owl Logic for Header Indicators
           const isNightOwl = new Date().getHours() < (dayStartHour || 0);
           const showMoon = grouping === 'date' && (group.title === 'Today' || group.title === 'Tomorrow') && isNightOwl;
 
           return (
             <div key={group.title + gIdx} className="space-y-0">
-              {/* Group Header */}
               {group.title && (
                 <div className="pl-0 pr-2 py-2 flex items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2 overflow-hidden">
                       {grouping === 'date' && <GroupHeaderIcon title={group.title} dayStartHour={dayStartHour} />}
-                      <span className={`text-sm font-semibold text-foreground ${group.title === 'Overdue' ? 'text-notion-red' : ''} shrink-0`}>
-                        {group.title}
-                      </span>
+                      <span className={`text-sm font-semibold text-foreground ${group.title === 'Overdue' ? 'text-notion-red' : ''} shrink-0`}>{group.title}</span>
                       <span className="text-xs text-muted-foreground bg-notion-item_hover px-1.5 rounded-sm shrink-0">{group.tasks.length}</span>
-                      
-                      {/* Moon Icon moved here */}
-                      {showMoon && (
-                          <Moon className="w-3.5 h-3.5 text-notion-blue fill-current ml-1 animate-pulse" />
-                      )}
-
+                      {showMoon && <Moon className="w-3.5 h-3.5 text-notion-blue fill-current ml-1 animate-pulse" />}
                       {group.title === 'Overdue' && (
                           <div className="relative ml-2">
-                              <button 
-                                  onClick={(e) => { e.stopPropagation(); setIsRescheduleMenuOpen(!isRescheduleMenuOpen); }}
-                                  className="p-1 hover:bg-notion-hover rounded-sm text-notion-red transition-colors flex items-center justify-center"
-                                  title="Reschedule overdue tasks"
-                              >
-                                  <Calendar className="w-3.5 h-3.5" />
-                              </button>
+                              <button onClick={(e) => { e.stopPropagation(); setIsRescheduleMenuOpen(!isRescheduleMenuOpen); }} className="p-1 hover:bg-notion-hover rounded-sm text-notion-red transition-colors flex items-center justify-center" title="Reschedule overdue tasks"><Calendar className="w-3.5 h-3.5" /></button>
                               {isRescheduleMenuOpen && (
                                   <>
                                       <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setIsRescheduleMenuOpen(false); }} />
                                       <div className="absolute left-0 top-full mt-1 z-20 w-40 bg-background border border-border rounded-md shadow-lg p-1 animate-in zoom-in-95 origin-top-left" onClick={(e) => e.stopPropagation()}>
                                           <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Reschedule All</div>
-                                          <button onClick={() => rescheduleOverdue(group.tasks, 0)} className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm flex items-center gap-2">
-                                              <span>Today</span>
-                                          </button>
-                                          <button onClick={() => rescheduleOverdue(group.tasks, 1)} className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm flex items-center gap-2">
-                                              <span>Tomorrow</span>
-                                          </button>
+                                          <button onClick={() => rescheduleOverdue(group.tasks, 0)} className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm flex items-center gap-2"><span>Today</span></button>
+                                          <button onClick={() => rescheduleOverdue(group.tasks, 1)} className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm flex items-center gap-2"><span>Tomorrow</span></button>
                                       </div>
                                   </>
                               )}
                           </div>
                       )}
                   </div>
-                  
-                  {/* Right Side Stats */}
                   <div className="flex items-center gap-4 ml-auto">
-                        {/* Stats Text */}
                         {(totalTracked > 0 || totalRemaining > 0) && (
                             <div className="flex items-center gap-2 text-[10px] text-muted-foreground truncate">
-                                {totalTracked > 0 && (
-                                    <span className="flex items-center gap-1">
-                                        <span className="hidden sm:inline opacity-70">Tracked:</span>
-                                        <span className="font-medium">{formatDuration(totalTracked)}</span>
-                                    </span>
-                                )}
+                                {totalTracked > 0 && <span className="flex items-center gap-1"><span className="hidden sm:inline opacity-70">Tracked:</span><span className="font-medium">{formatDuration(totalTracked)}</span></span>}
                                 {totalTracked > 0 && totalRemaining > 0 && <span className="opacity-30">•</span>}
-                                {totalRemaining > 0 && (
-                                    <span className="flex items-center gap-1">
-                                        <span className="hidden sm:inline opacity-70">Remaining:</span>
-                                        <span className="font-medium">{formatDuration(totalRemaining)}</span>
-                                    </span>
-                                )}
+                                {totalRemaining > 0 && <span className="flex items-center gap-1"><span className="hidden sm:inline opacity-70">Remaining:</span><span className="font-medium">{formatDuration(totalRemaining)}</span></span>}
                             </div>
                         )}
-                        
-                        {/* Progress Bar */}
                         <div className="flex items-center gap-2 w-20 md:w-32">
                             <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
                                 <div className="h-full bg-notion-green transition-all duration-500" style={{ width: `${completionPercentage}%` }} />
@@ -990,133 +711,35 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                   </div>
                 </div>
               )}
-              {/* Task List Cards */}
               <div className="flex flex-col">
                 {group.tasks.map((task) => {
                   const isSelected = task.id === selectedTaskId;
                   const priorityColorClass = getPriorityLineColor(task.priority);
-
-                  // Determine if date should be shown
                   const isGroupedByDate = grouping === 'date';
                   const isTodayOrTomorrow = group.title === 'Today' || group.title === 'Tomorrow';
                   const showDateBadge = !isGroupedByDate || !isTodayOrTomorrow;
-
-                  // Safety check for subtasks
                   const subtasks = task.subtasks || [];
 
                   return (
-                    <div 
-                        key={task.id} 
-                        onClick={() => openEditPanel(task)}
-                        className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md mb-3 overflow-hidden
-                            ${isSelected 
-                                ? 'border-notion-blue ring-1 ring-notion-blue/20' 
-                                : 'border-border hover:border-notion-blue/30'
-                            }
-                        `}
-                    >
-                        {/* Priority Line - Absolute positioned on left - Squarer */}
+                    <div key={task.id} onClick={() => openEditPanel(task)} className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md mb-3 overflow-hidden ${isSelected ? 'border-notion-blue ring-1 ring-notion-blue/20' : 'border-border hover:border-notion-blue/30'}`}>
                         <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${priorityColorClass} rounded-l-sm opacity-80`} />
-
-                        {/* CHANGED: pt-2 pb-3 to increase bottom padding to match visual top padding */}
                         <div className="pl-5 pr-3 pt-2 pb-3 flex items-start gap-3">
-                            {/* Checkbox - Squarer (2px radius) */}
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }} 
-                                className={`
-                                    mt-0.5 w-5 h-5 rounded-sm border-[1.5px] flex items-center justify-center transition-all duration-200 shrink-0
-                                    ${task.completed 
-                                        ? 'bg-notion-blue border-notion-blue text-white' 
-                                        : 'bg-transparent border-muted-foreground/40 hover:border-notion-blue'
-                                    }
-                                `}
-                            >
-                                {task.completed && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                            </button>
-
-                            {/* Content */}
+                            <button onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }} className={`mt-0.5 w-5 h-5 rounded-sm border-[1.5px] flex items-center justify-center transition-all duration-200 shrink-0 ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'bg-transparent border-muted-foreground/40 hover:border-notion-blue'}`}>{task.completed && <Check className="w-3.5 h-3.5 stroke-[3]" />}</button>
                             <div className="flex-1 min-w-0 space-y-1">
                                 <div className="flex items-center gap-2 mb-0.5">
-                                     <h4 className={`text-sm font-semibold leading-normal transition-colors ${task.completed ? 'text-muted-foreground line-through decoration-border' : 'text-foreground'}`}>
-                                        {task.title}
-                                     </h4>
-                                     {/* Subtasks Inline Indicator */}
-                                     {subtasks.length > 0 && (
-                                         <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm h-fit">
-                                            <ListChecks className="w-3 h-3" />
-                                            <span>{subtasks.filter(s => s.completed).length}/{subtasks.length}</span>
-                                        </div>
-                                     )}
+                                     <h4 className={`text-sm font-semibold leading-normal transition-colors ${task.completed ? 'text-muted-foreground line-through decoration-border' : 'text-foreground'}`}>{task.title}</h4>
+                                     {subtasks.length > 0 && <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm h-fit"><ListChecks className="w-3 h-3" /><span>{subtasks.filter(s => s.completed).length}/{subtasks.length}</span></div>}
                                 </div>
-                                
-                                {/* Metadata Row - Expanded details - CHANGED to text-[10px] */}
                                 <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-                                        
-                                        {/* Priority Badge (Fixed Width & Colors) - CHANGED width to w-[58px] and reduced padding */}
-                                        <div className={`flex items-center justify-center gap-1 px-1 py-0.5 rounded-sm border shadow-sm min-w-[58px] ${getPriorityBadgeStyle(task.priority)}`}>
-                                            {getPriorityIcon(task.priority)}
-                                            <span className="font-medium truncate">{task.priority}</span>
-                                        </div>
-
-                                        {/* Date - Conditional Rendering */}
-                                        {task.dueDate && showDateBadge && (
-                                            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 shadow-sm ${getRelativeTimeColor(task.dueDate)}`}>
-                                                <Calendar className="w-3 h-3" />
-                                                <span className="font-medium">{formatRelativeDate(task.dueDate)}</span>
-                                            </div>
-                                        )}
-                                        
-                                        {/* Time - Reduced padding */}
-                                        {task.time && (
-                                            <div className="flex items-center gap-1 text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-sm border border-foreground/10 shadow-sm">
-                                                <Clock className="w-3 h-3" />
-                                                <span>{task.time}</span>
-                                            </div>
-                                        )}
-
-                                        {/* Recurrence (New) - Reduced padding */}
-                                        {task.recurrence && (
-                                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 shadow-sm text-notion-purple">
-                                                <Repeat className="w-3 h-3" />
-                                                <span className="capitalize font-medium">{task.recurrence.type}</span>
-                                            </div>
-                                        )}
-                                        
-                                        {/* Notes Indicator (New) - Reduced padding */}
-                                        {task.notes && task.notes.trim().length > 0 && (
-                                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 shadow-sm" title="Has notes">
-                                                <FileText className="w-3 h-3" />
-                                                <span className="hidden sm:inline">Notes</span>
-                                            </div>
-                                        )}
-
-                                        {/* Tags - Reduced padding */}
-                                        {task.tags && task.tags.map(tagId => {
-                                            const tag = tags.find(t => t.id === tagId);
-                                            if (!tag) return null;
-                                            return (
-                                                <div key={tagId} className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 text-muted-foreground shadow-sm">
-                                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tag.color }} />
-                                                    <span className="truncate max-w-[80px]">{tag.label}</span>
-                                                </div>
-                                            );
-                                        })}
+                                        <div className={`flex items-center justify-center gap-1 px-1 py-0.5 rounded-sm border shadow-sm min-w-[58px] ${getPriorityBadgeStyle(task.priority)}`}>{getPriorityIcon(task.priority)}<span className="font-medium truncate">{task.priority}</span></div>
+                                        {task.dueDate && showDateBadge && <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 shadow-sm ${getRelativeTimeColor(task.dueDate)}`}><Calendar className="w-3 h-3" /><span className="font-medium">{formatRelativeDate(task.dueDate)}</span></div>}
+                                        {task.time && <div className="flex items-center gap-1 text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-sm border border-foreground/10 shadow-sm"><Clock className="w-3 h-3" /><span>{task.time}</span></div>}
+                                        {task.recurrence && <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 shadow-sm text-notion-purple"><Repeat className="w-3 h-3" /><span className="capitalize font-medium">{task.recurrence.type}</span></div>}
+                                        {task.notes && task.notes.trim().length > 0 && <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 shadow-sm" title="Has notes"><FileText className="w-3 h-3" /><span className="hidden sm:inline">Notes</span></div>}
+                                        {task.tags && task.tags.map(tagId => { const tag = tags.find(t => t.id === tagId); if (!tag) return null; return (<div key={tagId} className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 text-muted-foreground shadow-sm"><div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tag.color }} /><span className="truncate max-w-[80px]">{tag.label}</span></div>); })}
                                 </div>
                             </div>
-
-                            {/* New Right Side Time Tracking UI */}
-                            {(task.plannedTime || (task.actualTime || 0) > 0) && (
-                                <div className="flex flex-col items-end justify-center shrink-0 pl-2 self-center gap-0.5 min-w-[3.5rem]">
-                                    <span className={`font-mono text-xs font-medium tabular-nums ${task.timerStart ? 'text-notion-blue animate-pulse' : 'text-foreground'}`}>
-                                        {Math.round(task.actualTime || 0)}m
-                                    </span>
-                                    {task.plannedTime && (
-                                        <span className="text-[10px] text-muted-foreground tabular-nums opacity-80">
-                                            / {task.plannedTime}m
-                                        </span>
-                                    )}
-                                </div>
-                            )}
+                            {(task.plannedTime || (task.actualTime || 0) > 0) && <div className="flex flex-col items-end justify-center shrink-0 pl-2 self-center gap-0.5 min-w-[3.5rem]"><span className={`font-mono text-xs font-medium tabular-nums ${task.timerStart ? 'text-notion-blue animate-pulse' : 'text-foreground'}`}>{Math.round(task.actualTime || 0)}m</span>{task.plannedTime && <span className="text-[10px] text-muted-foreground tabular-nums opacity-80">/ {task.plannedTime}m</span>}</div>}
                         </div>
                     </div>
                   );
@@ -1130,34 +753,31 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   const renderTrackerView = () => {
-      const totalTrackedSeconds = sessions.reduce((acc, s) => acc + (s.duration || 0), 0);
-      return (
-          <div className="space-y-8 animate-in fade-in pt-4">
-              <div className="grid grid-cols-3 gap-4">
-                  {[{ label: "Total Tracked", value: formatDuration(totalTrackedSeconds / 60), color: "text-foreground" }, { label: "Sessions", value: sessions.length, color: "text-notion-blue" }, { label: "Avg Session", value: sessions.length ? formatDuration((totalTrackedSeconds / sessions.length) / 60) : '0m', color: "text-notion-orange" }].map((stat, i) => (
-                      <div key={i} className="bg-background border border-border rounded-md p-4 shadow-sm"><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-1">{stat.label}</div><div className={`text-xl font-medium ${stat.color} tabular-nums`}>{stat.value}</div></div>
-                  ))}
-              </div>
-          </div>
-      );
+    // ... same as original ...
+    const totalTrackedSeconds = sessions.reduce((acc, s) => acc + (s.duration || 0), 0);
+    return (
+        <div className="space-y-8 animate-in fade-in pt-4">
+            <div className="grid grid-cols-3 gap-4">
+                {[{ label: "Total Tracked", value: formatDuration(totalTrackedSeconds / 60), color: "text-foreground" }, { label: "Sessions", value: sessions.length, color: "text-notion-blue" }, { label: "Avg Session", value: sessions.length ? formatDuration((totalTrackedSeconds / sessions.length) / 60) : '0m', color: "text-notion-orange" }].map((stat, i) => (
+                    <div key={i} className="bg-background border border-border rounded-md p-4 shadow-sm"><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-1">{stat.label}</div><div className={`text-xl font-medium ${stat.color} tabular-nums`}>{stat.value}</div></div>
+                ))}
+            </div>
+        </div>
+    );
   };
 
   const renderEmptyState = () => (
       <div className="flex flex-col h-full bg-background animate-in fade-in justify-center items-center text-center p-8 select-none opacity-50">
-          <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mb-4">
-              <CheckSquare className="w-8 h-8 text-muted-foreground" />
-          </div>
+          <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mb-4"><CheckSquare className="w-8 h-8 text-muted-foreground" /></div>
           <h3 className="text-sm font-semibold text-foreground">No task selected</h3>
-          <p className="text-xs text-muted-foreground mt-2 max-w-[200px] leading-relaxed">
-              Select a task from the list to view details or edit.
-          </p>
+          <p className="text-xs text-muted-foreground mt-2 max-w-[200px] leading-relaxed">Select a task from the list to view details or edit.</p>
       </div>
   );
 
   const renderDetailPanel = () => (
     <div className="flex flex-col h-full bg-background animate-fade-in relative">
-        {/* Clean Header - Squared */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-background/95 backdrop-blur z-10 sticky top-0">
+        {/* Header - Fixed */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-background/95 backdrop-blur z-10 sticky top-0 shrink-0">
              <div className="flex items-center gap-2">
                 <button onClick={() => { setIsCreating(false); setSelectedTaskId(null); }} className="md:hidden text-muted-foreground hover:text-foreground">
                     <ChevronLeft className="w-5 h-5" />
@@ -1175,130 +795,170 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
              </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 flex flex-col">
-            <div className="max-w-3xl mx-auto w-full flex flex-col h-full space-y-6">
-                {/* Title */}
-                <textarea
-                    placeholder="What needs to be done?"
-                    value={title}
-                    onChange={e => setTitle(e.target.value)}
-                    onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleSaveTask(e); } }}
-                    className="w-full text-2xl md:text-3xl font-bold text-foreground placeholder:text-muted-foreground/40 border-none focus:ring-0 bg-transparent px-0 resize-none leading-tight shrink-0"
-                    rows={1}
-                    style={{ minHeight: '3rem', height: 'auto' }}
-                    onInput={(e) => { e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px'; }}
-                    autoFocus={!selectedTaskId}
-                />
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-0 flex flex-col">
+            <div className="w-full flex flex-col h-full">
+                
+                {/* Title Section */}
+                <div className="px-6 pt-6 pb-2">
+                     <textarea
+                        placeholder="Task Name"
+                        value={title}
+                        onChange={e => setTitle(e.target.value)}
+                        onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleSaveTask(e); } }}
+                        className="w-full text-xl md:text-2xl font-bold text-foreground placeholder:text-muted-foreground/40 bg-transparent resize-none leading-tight border border-transparent hover:border-border focus:border-border rounded-md p-3 transition-colors outline-none"
+                        rows={1}
+                        style={{ minHeight: '3.5rem', height: 'auto' }}
+                        onInput={(e) => { e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px'; }}
+                        autoFocus={!selectedTaskId}
+                    />
+                </div>
 
-                {/* Quick Properties - Reduced Clicks & Spacing */}
-                <div className="space-y-4 border-b border-border pb-4 shrink-0">
+                {/* Horizontal Properties Bar */}
+                <div className="px-6 py-2 flex flex-wrap items-center gap-2">
+                    {/* Priority Button */}
+                    <button 
+                        onClick={() => setActivePopover(activePopover === 'priority' ? null : 'priority')}
+                        className={`flex items-center gap-2 px-3 h-8 rounded-md text-xs font-medium border transition-colors ${activePopover === 'priority' ? 'bg-secondary border-border text-foreground' : 'bg-transparent border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
+                    >
+                        <Flag className="w-4 h-4" />
+                        <span>{priority}</span>
+                    </button>
                     
-                    {/* Priority - 1 Click Segmented Control */}
-                    <div>
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 block">Priority</label>
-                        <div className="flex gap-1">
-                            {priorities.map(p => (
-                                <button
-                                    key={p}
-                                    onClick={() => setPriority(p)}
-                                    className={`
-                                        flex-1 py-1 px-2 text-xs font-medium border rounded-sm transition-all flex items-center justify-center gap-2
-                                        ${priority === p 
-                                            ? getPriorityBadgeStyle(p) + ' ring-1 ring-inset ring-black/10 shadow-sm' 
-                                            : 'bg-background border-border text-muted-foreground hover:bg-secondary hover:text-foreground'
-                                        }
-                                    `}
-                                >
-                                    {getPriorityIcon(p)}
-                                    {p}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
+                    {/* Date Button */}
+                    <button 
+                        onClick={() => setActivePopover(activePopover === 'date' ? null : 'date')}
+                        className={`flex items-center gap-2 px-3 h-8 rounded-md text-xs font-medium border transition-colors ${activePopover === 'date' ? 'bg-secondary border-border text-foreground' : 'bg-transparent border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
+                    >
+                        <Calendar className="w-4 h-4" />
+                        <span>{dueDate ? formatRelativeDate(dueDate) : 'Date'}</span>
+                    </button>
 
-                    {/* Date - Quick Actions Always Visible */}
-                    <div>
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 block">Due Date</label>
-                        <div className="flex flex-wrap items-center gap-2">
-                            {/* Current Value / Trigger */}
-                            <button
-                                ref={dateButtonRef}
-                                onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
-                                className={`px-3 py-1.5 border rounded-sm text-xs font-medium transition-colors flex items-center gap-2 min-w-[100px] justify-center ${dueDate ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-background border-border hover:bg-secondary text-muted-foreground hover:text-foreground'}`}
-                            >
-                                <Calendar className="w-3.5 h-3.5" />
-                                {dueDate ? formatRelativeDate(dueDate) : 'Pick Date'}
-                            </button>
+                    {/* Labels Button */}
+                    <button 
+                        onClick={() => setActivePopover(activePopover === 'tags' ? null : 'tags')}
+                        className={`flex items-center gap-2 px-3 h-8 rounded-md text-xs font-medium border transition-colors ${activePopover === 'tags' ? 'bg-secondary border-border text-foreground' : 'bg-transparent border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
+                    >
+                        <TagIcon className="w-4 h-4" />
+                        <span>{selectedTags.length > 0 ? `${selectedTags.length} Labels` : 'Labels'}</span>
+                    </button>
 
-                            {/* Quick Buttons - Always Visible Row */}
-                            <div className="flex gap-1">
-                                <button onClick={() => handleQuickDate(0)} className="px-2 py-1.5 bg-background border border-border hover:bg-secondary rounded-sm text-xs font-medium transition-colors">Today</button>
-                                <button onClick={() => handleQuickDate(1)} className="px-2 py-1.5 bg-background border border-border hover:bg-secondary rounded-sm text-xs font-medium transition-colors">Tomorrow</button>
-                                <button onClick={() => handleQuickDate(7)} className="px-2 py-1.5 bg-background border border-border hover:bg-secondary rounded-sm text-xs font-medium transition-colors">Next Week</button>
-                            </div>
-                        </div>
-                    </div>
+                    {/* Repeat Button */}
+                    <button 
+                        onClick={() => setActivePopover(activePopover === 'repeat' ? null : 'repeat')}
+                        className={`flex items-center gap-2 px-3 h-8 rounded-md text-xs font-medium border transition-colors ${activePopover === 'repeat' ? 'bg-secondary border-border text-foreground' : 'bg-transparent border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
+                    >
+                        <Repeat className="w-4 h-4" />
+                        <span>{createRecurrence ? (createRecurrence.interval > 1 ? `Every ${createRecurrence.interval} ${createRecurrence.type}` : `Daily`) : 'Repeat'}</span>
+                    </button>
+                </div>
 
-                    {/* Labels - Inline List */}
-                    <div>
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 block">Labels</label>
-                        <div className="flex flex-wrap gap-1.5">
-                            {tags.map(tag => {
-                                const isActive = selectedTags.includes(tag.id);
-                                return (
-                                    <button 
-                                        key={tag.id}
-                                        onClick={() => toggleTag(tag.id)}
-                                        className={`px-2 py-1 rounded-sm text-[10px] font-bold border transition-all ${isActive ? 'shadow-sm' : 'opacity-70 hover:opacity-100'}`}
-                                        style={isActive 
-                                            ? { backgroundColor: tag.color, borderColor: tag.color, color: getContrastColor(tag.color) } 
-                                            : { backgroundColor: 'transparent', borderColor: tag.color, color: tag.color }
-                                        }
+                {/* Inline Popovers */}
+                {activePopover && (
+                    <div className="px-6 py-4 bg-secondary/20 border-y border-border mb-4 animate-in slide-in-from-top-2">
+                        {activePopover === 'priority' && (
+                            <div className="flex gap-2 flex-wrap">
+                                {priorities.map(p => (
+                                    <button
+                                        key={p}
+                                        onClick={() => { setPriority(p); setActivePopover(null); }}
+                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-sm text-xs font-medium border transition-all ${priority === p ? getPriorityBadgeStyle(p) + ' ring-1 ring-inset ring-black/5' : 'bg-background border-border text-muted-foreground hover:bg-notion-hover'}`}
                                     >
-                                        {tag.label}
+                                        {getPriorityIcon(p)} {p}
                                     </button>
-                                );
-                            })}
-                            
-                            {/* Inline New Tag Input */}
-                            <div className="flex items-center gap-1 border border-border rounded-sm px-2 bg-transparent h-[26px]">
-                                <Plus className="w-3 h-3 text-muted-foreground" />
-                                <input 
-                                    type="text" 
-                                    value={newTagInput}
-                                    onChange={e => setNewTagInput(e.target.value)}
-                                    onKeyDown={e => { if (e.key === 'Enter') handleInlineCreateTag(e); }}
-                                    placeholder="New..."
-                                    className="text-xs bg-transparent border-none outline-none w-16 min-w-0"
+                                ))}
+                            </div>
+                        )}
+                        
+                        {activePopover === 'date' && (
+                            <div className="flex flex-col gap-4">
+                                <div className="flex gap-2 overflow-x-auto pb-1">
+                                    <button onClick={() => handleQuickDate(0)} className="px-3 py-1.5 bg-background border border-border rounded-sm text-xs font-medium hover:bg-notion-hover shrink-0">Today</button>
+                                    <button onClick={() => handleQuickDate(1)} className="px-3 py-1.5 bg-background border border-border rounded-sm text-xs font-medium hover:bg-notion-hover shrink-0">Tomorrow</button>
+                                    <button onClick={() => handleQuickDate(7)} className="px-3 py-1.5 bg-background border border-border rounded-sm text-xs font-medium hover:bg-notion-hover shrink-0">Next Week</button>
+                                    <button onClick={() => handleQuickDate(30)} className="px-3 py-1.5 bg-background border border-border rounded-sm text-xs font-medium hover:bg-notion-hover shrink-0">Next Month</button>
+                                </div>
+                                <CalendarContent 
+                                    value={dueDate} 
+                                    onChange={(d: string) => setDueDate(d)} 
+                                    onClose={() => setActivePopover(null)} 
+                                    dayStartHour={dayStartHour} 
+                                    startWeekDay={startWeekDay} 
                                 />
                             </div>
-                        </div>
-                    </div>
+                        )}
 
-                    {/* Recurrence Trigger - Compact */}
-                    <div>
-                         <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 block">Repeat</label>
-                         <button 
-                            onClick={() => openRecurrenceModal(createRecurrence, setCreateRecurrence)}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-sm border text-xs font-medium transition-all w-fit ${
-                                createRecurrence 
-                                ? 'bg-purple-50 border-purple-200 text-purple-700' 
-                                : 'bg-background border-border text-muted-foreground hover:bg-secondary hover:text-foreground'
-                            }`}
-                        >
-                            <Repeat className="w-3.5 h-3.5" />
-                            <span>{createRecurrence ? (createRecurrence.interval > 1 ? `Every ${createRecurrence.interval} ${createRecurrence.type}` : `Daily`) : 'No Repeat'}</span>
-                            {createRecurrence && <X className="w-3 h-3 ml-1 hover:text-red-600" onClick={(e) => { e.stopPropagation(); setCreateRecurrence(null); }} />}
-                        </button>
-                    </div>
+                        {activePopover === 'tags' && (
+                            <div className="space-y-3">
+                                <div className="flex flex-wrap gap-2">
+                                     {tags.map(tag => (
+                                         <button 
+                                            key={tag.id}
+                                            onClick={() => toggleTag(tag.id)}
+                                            className={`px-2 py-1 rounded-sm text-xs border ${selectedTags.includes(tag.id) ? 'border-transparent text-white' : 'border-border text-muted-foreground bg-background'}`}
+                                            style={selectedTags.includes(tag.id) ? { backgroundColor: tag.color } : {}}
+                                         >
+                                             {tag.label}
+                                         </button>
+                                     ))}
+                                </div>
+                                <div className="flex items-center gap-2 bg-background border border-border rounded-sm px-2 py-1 w-full max-w-xs">
+                                    <Plus className="w-3 h-3 text-muted-foreground" />
+                                    <input 
+                                        type="text" 
+                                        value={newTagInput}
+                                        onChange={e => setNewTagInput(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Enter') handleInlineCreateTag(e); }}
+                                        placeholder="Create new label..."
+                                        className="text-xs bg-transparent border-none outline-none flex-1 min-w-0 placeholder:text-muted-foreground/50"
+                                    />
+                                </div>
+                            </div>
+                        )}
 
-                </div>
+                        {activePopover === 'repeat' && (
+                             <div className="space-y-4 max-w-sm">
+                                <div className="space-y-1">
+                                     <div className="flex bg-background border border-border p-1 rounded-sm">
+                                        {(['daily', 'weekly', 'monthly', 'yearly'] as const).map(t => (
+                                            <button 
+                                                key={t}
+                                                onClick={() => setCreateRecurrence(prev => ({ type: t, interval: prev?.interval || 1 }))}
+                                                className={`flex-1 text-xs py-1 rounded-sm capitalize transition-colors ${createRecurrence?.type === t ? 'bg-secondary text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}
+                                            >
+                                                {t}
+                                            </button>
+                                        ))}
+                                     </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                     <span className="text-xs font-medium text-muted-foreground">Every</span>
+                                     <input 
+                                        type="number" 
+                                        min="1" 
+                                        value={createRecurrence?.interval || 1} 
+                                        onChange={e => setCreateRecurrence(prev => ({ type: prev?.type || 'daily', interval: parseInt(e.target.value) || 1 }))}
+                                        className="w-16 h-8 border border-border rounded-sm bg-background px-2 text-xs focus:border-notion-blue outline-none"
+                                     />
+                                     <span className="text-xs text-muted-foreground">{createRecurrence?.type || 'day'}(s)</span>
+                                </div>
+                                {createRecurrence && (
+                                    <button onClick={() => { setCreateRecurrence(null); setActivePopover(null); }} className="text-xs text-notion-red hover:underline flex items-center gap-1">
+                                        <X className="w-3 h-3" /> Clear Repeat
+                                    </button>
+                                )}
+                             </div>
+                        )}
+                    </div>
+                )}
                 
-                {/* Subtasks - Square Design */}
-                <div className="space-y-4 shrink-0">
+                <div className="h-px bg-border w-full my-4 shrink-0" />
+                
+                {/* Subtasks */}
+                <div className="px-6 space-y-3 shrink-0">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                            <ListChecks className="w-4 h-4 text-muted-foreground" /> 
+                        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                            {/* Updated Icon to CheckSquare */}
+                            <CheckSquare className="w-4 h-4" /> 
                             Subtasks
                         </h3>
                         {editSubtasks.length > 0 && (
@@ -1306,10 +966,10 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         )}
                     </div>
                     
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                         {editSubtasks.map(st => (
-                            <div key={st.id} className="flex items-center gap-3 group bg-background p-2 rounded-sm border border-border hover:border-primary/30 transition-all">
-                                 <button onClick={() => toggleEditSubtask(st.id)} className={`w-4 h-4 rounded-sm border flex items-center justify-center transition-all ${st.completed ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/40 bg-background hover:border-primary'}`}>
+                            <div key={st.id} className="flex items-center gap-2 group min-h-[32px]">
+                                 <button onClick={() => toggleEditSubtask(st.id)} className={`w-4 h-4 rounded-sm border flex items-center justify-center transition-all ${st.completed ? 'bg-notion-blue border-notion-blue text-white' : 'border-muted-foreground/40 bg-transparent hover:border-notion-blue'}`}>
                                      {st.completed && <Check className="w-3 h-3" />}
                                  </button>
                                  <input 
@@ -1317,17 +977,17 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                      value={st.title}
                                      onChange={(e) => setEditSubtasks(prev => prev.map(s => s.id === st.id ? { ...s, title: e.target.value } : s))}
                                  />
-                                 <button onClick={() => removeEditSubtask(st.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-opacity">
-                                     <X className="w-4 h-4" />
+                                 <button onClick={() => removeEditSubtask(st.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-opacity p-1">
+                                     <X className="w-3.5 h-3.5" />
                                  </button>
                             </div>
                         ))}
                         
-                        <div className="flex items-center gap-3 p-2 text-muted-foreground hover:text-foreground transition-colors cursor-text border border-transparent hover:border-border/50 rounded-sm" onClick={() => document.getElementById('new-subtask-input')?.focus()}>
-                            <Plus className="w-4 h-4" />
+                        <div className="flex items-center gap-2 min-h-[32px] group cursor-text" onClick={() => document.getElementById('new-subtask-input')?.focus()}>
+                            <Plus className="w-4 h-4 text-muted-foreground" />
                             <input 
                                 id="new-subtask-input"
-                                placeholder="Add a subtask" 
+                                placeholder="Add a subtask..." 
                                 className="flex-1 bg-transparent border-none p-0 text-sm focus:ring-0 placeholder:text-muted-foreground"
                                 onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); addEditSubtask(e.currentTarget.value); e.currentTarget.value = ''; } }}
                             />
@@ -1335,19 +995,19 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                     </div>
                 </div>
 
-                <div className="h-px bg-border w-full shrink-0" />
+                <div className="h-px bg-border w-full my-4 shrink-0" />
 
-                {/* Notes - Expanded Area */}
-                <div className="flex-1 flex flex-col min-h-[200px]">
-                     <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-2">
-                        <FileText className="w-4 h-4 text-muted-foreground" /> 
+                {/* Notes */}
+                <div className="flex-1 flex flex-col px-6 pb-6">
+                     <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2 mb-3">
+                        <FileText className="w-4 h-4" /> 
                         Notes
                     </h3>
                     <textarea 
-                        placeholder="Add details, links, or context..." 
+                        placeholder="Type something..." 
                         value={createNotes} 
                         onChange={e => setCreateNotes(e.target.value)} 
-                        className="flex-1 w-full text-sm text-foreground bg-secondary/30 border border-transparent focus:border-border rounded-sm p-4 resize-none focus:ring-0 placeholder:text-muted-foreground/50 leading-relaxed transition-all" 
+                        className="flex-1 w-full text-sm text-foreground bg-transparent border border-transparent hover:border-border focus:border-border rounded-md p-4 resize-none placeholder:text-muted-foreground/50 leading-relaxed transition-colors outline-none" 
                     />
                 </div>
             </div>
@@ -1435,62 +1095,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
         `}>
             {showDetailPanel ? renderDetailPanel() : renderEmptyState()}
         </div>
-
-        {isRecurrenceModalOpen && recurrenceEditValue && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setIsRecurrenceModalOpen(false)}>
-                <div className="bg-background w-full max-w-sm rounded-lg shadow-xl border border-border flex flex-col animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-                     <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                         <span className="font-semibold text-foreground">Repeat Task</span>
-                         <button onClick={() => setIsRecurrenceModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
-                     </div>
-                     <div className="p-4 space-y-4">
-                         <div className="space-y-1">
-                             <label className="text-xs font-semibold text-muted-foreground uppercase">Frequency</label>
-                             <div className="flex bg-secondary p-1 rounded-sm">
-                                {(['daily', 'weekly', 'monthly', 'yearly'] as const).map(t => (
-                                    <button 
-                                        key={t}
-                                        onClick={() => setRecurrenceEditValue(prev => prev ? { ...prev, type: t } : null)}
-                                        className={`flex-1 text-xs py-1 rounded-sm capitalize transition-colors ${recurrenceEditValue.type === t ? 'bg-white shadow-sm text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}
-                                    >
-                                        {t}
-                                    </button>
-                                ))}
-                             </div>
-                         </div>
-                         <div className="space-y-1">
-                             <label className="text-xs font-semibold text-muted-foreground uppercase">Interval</label>
-                             <div className="flex items-center gap-2">
-                                 <span className="text-sm text-muted-foreground">Every</span>
-                                 <input 
-                                    type="number" 
-                                    min="1" 
-                                    value={recurrenceEditValue.interval} 
-                                    onChange={e => setRecurrenceEditValue(prev => prev ? { ...prev, interval: parseInt(e.target.value) || 1 } : null)}
-                                    className="w-16 h-8 border border-border rounded-sm bg-transparent px-2 text-sm focus:border-notion-blue outline-none"
-                                 />
-                                 <span className="text-sm text-muted-foreground">{recurrenceEditValue.type}(s)</span>
-                             </div>
-                         </div>
-                         <div className="flex justify-end pt-2 gap-2">
-                             <button onClick={() => setIsRecurrenceModalOpen(false)} className="px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
-                             <button onClick={() => { if (recurrenceCallback) recurrenceCallback(recurrenceEditValue); setIsRecurrenceModalOpen(false); }} className="px-3 py-1.5 bg-notion-blue text-white rounded-sm text-xs font-medium hover:bg-blue-600 transition-colors">Save</button>
-                         </div>
-                     </div>
-                </div>
-            </div>
-        )}
-        
-        {isDatePickerOpen && (
-             <TaskDatePicker 
-                value={dueDate} 
-                onChange={(d: string) => setDueDate(d)} 
-                onClose={() => setIsDatePickerOpen(false)} 
-                dayStartHour={dayStartHour} 
-                startWeekDay={startWeekDay}
-                triggerRef={dateButtonRef} 
-             />
-        )}
     </div>
   );
 };
