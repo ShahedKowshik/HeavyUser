@@ -796,7 +796,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
     }
 
     return (
-        <div className="flex flex-col h-full bg-background animate-in fade-in">
+        <div className="flex flex-col h-full bg-background animate-fade-in">
             {/* Header - Fixed in Panel */}
             <div className="shrink-0 h-14 border-b border-border flex items-center justify-between px-4 bg-background z-10 sticky top-0">
                  <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1207,7 +1207,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
         <div className={`
             w-full md:w-[500px] border-l border-border bg-background z-20 
             absolute inset-0 md:static shadow-2xl md:shadow-none 
-            animate-in slide-in-from-right-10 duration-300
+            animate-slide-in-from-right-12
             ${!detailHabitId ? 'hidden md:block' : ''}
         `}>
             {detailHabitId ? renderDetailView() : renderEmptyState()}

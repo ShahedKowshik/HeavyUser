@@ -885,7 +885,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   );
 
   const renderDetailPanel = () => (
-    <div className="flex flex-col h-full bg-background animate-in fade-in">
+    <div className="flex flex-col h-full bg-background animate-fade-in">
         {/* Panel Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0 bg-background/80 backdrop-blur-sm z-10">
             <div className="flex items-center gap-2">
@@ -1136,7 +1136,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
       <div className={`
           w-full md:w-[500px] border-l border-border bg-background z-20
           absolute inset-0 md:static shadow-2xl md:shadow-none
-          animate-in slide-in-from-right-10 duration-300
+          animate-slide-in-from-right-12
           ${!showDetailPanel ? 'hidden md:block' : ''}
       `}>
           {showDetailPanel ? renderDetailPanel() : renderEmptyState()}
