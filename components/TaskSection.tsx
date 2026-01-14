@@ -745,7 +745,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
             <div key={group.title + gIdx} className="space-y-0">
               {/* Group Header */}
               {group.title && (
-                <div className="px-2 py-2 flex items-center justify-between gap-2 border-b border-border mb-2">
+                <div className="pl-0 pr-2 py-2 flex items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2 overflow-hidden">
                       {grouping === 'date' && <GroupHeaderIcon title={group.title} />}
                       <span className={`text-sm font-semibold text-foreground ${group.title === 'Overdue' ? 'text-notion-red' : ''} shrink-0`}>
