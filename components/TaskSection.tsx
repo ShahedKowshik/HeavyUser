@@ -99,8 +99,8 @@ const getPriorityBadgeStyle = (p: Priority) => {
     switch (p) {
         case 'Urgent': return 'bg-notion-bg_red text-notion-red border-notion-red/20';
         case 'High': return 'bg-notion-bg_orange text-notion-orange border-notion-orange/20';
-        case 'Normal': return 'bg-secondary text-muted-foreground border-foreground/10';
-        case 'Low': return 'bg-secondary text-muted-foreground border-foreground/10';
+        case 'Normal': return 'bg-notion-bg_gray text-foreground border-notion-gray/20';
+        case 'Low': return 'bg-secondary text-muted-foreground border-border';
         default: return 'bg-secondary text-muted-foreground border-foreground/10';
     }
 };
@@ -109,8 +109,8 @@ const getPriorityLineColor = (p: Priority) => {
     switch (p) {
         case 'Urgent': return 'bg-notion-red';
         case 'High': return 'bg-notion-orange';
-        case 'Normal': return 'bg-notion-blue';
-        case 'Low': return 'bg-notion-gray';
+        case 'Normal': return 'bg-notion-gray';
+        case 'Low': return 'bg-border';
         default: return 'bg-border';
     }
 };
@@ -548,7 +548,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   const renderCalendarView = () => {
-    // ... (rest of calendar logic kept same as previous) ...
     // Simplified for this view, using same logic as original file
     const dateStr = getLocalDateString(calendarDate);
     const dayTasks = safeTasks.filter(t => t.dueDate === dateStr);
@@ -656,7 +655,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => {
-    // ... Same implementation as original ...
     const safeGroups = Array.isArray(groups) ? groups : [];
     return (
     <div className="space-y-6">
@@ -728,7 +726,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                   const subtasks = task.subtasks || [];
 
                   return (
-                    <div key={task.id} onClick={() => openEditPanel(task)} className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md mb-3 overflow-hidden ${isSelected ? 'border-notion-blue ring-1 ring-notion-blue/20' : 'border-border hover:border-notion-blue/30'}`}>
+                    <div key={task.id} onClick={() => openEditPanel(task)} className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md mb-3 overflow-hidden ${isSelected ? 'border-foreground ring-1 ring-foreground/10' : 'border-border hover:border-notion-blue/30'}`}>
                         <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${priorityColorClass} rounded-l-sm opacity-80`} />
                         <div className="pl-5 pr-3 pt-2 pb-3 flex items-start gap-3">
                             <button onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }} className={`mt-0.5 w-5 h-5 rounded-sm border-[1.5px] flex items-center justify-center transition-all duration-200 shrink-0 ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'bg-transparent border-muted-foreground/40 hover:border-notion-blue'}`}>{task.completed && <Check className="w-3.5 h-3.5 stroke-[3]" />}</button>
@@ -760,7 +758,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   const renderTrackerView = () => {
-    // ... same as original ...
     const totalTrackedSeconds = sessions.reduce((acc, s) => acc + (s.duration || 0), 0);
     return (
         <div className="space-y-8 animate-in fade-in pt-4">
@@ -998,9 +995,9 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         )}
                     </div>
                     
-                    <div className="space-y-1">
+                    <div className="space-y-0.5">
                         {editSubtasks.map(st => (
-                            <div key={st.id} className="flex items-center gap-2 group min-h-[32px]">
+                            <div key={st.id} className="flex items-center gap-2 group min-h-[28px]">
                                  <button onClick={() => toggleEditSubtask(st.id)} className={`w-4 h-4 rounded-sm border flex items-center justify-center transition-all ${st.completed ? 'bg-notion-blue border-notion-blue text-white' : 'border-muted-foreground/40 bg-transparent hover:border-notion-blue'}`}>
                                      {st.completed && <Check className="w-3 h-3" />}
                                  </button>
@@ -1015,7 +1012,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                             </div>
                         ))}
                         
-                        <div className="flex items-center gap-2 min-h-[32px] group cursor-text" onClick={() => document.getElementById('new-subtask-input')?.focus()}>
+                        <div className="flex items-center gap-2 min-h-[28px] group cursor-text" onClick={() => document.getElementById('new-subtask-input')?.focus()}>
                             <Plus className="w-4 h-4 text-muted-foreground" />
                             <input 
                                 id="new-subtask-input"
@@ -1049,81 +1046,79 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
   return (
     <div className="flex h-full bg-background overflow-hidden relative">
+        {/* Main Panel */}
         <div className={`flex-1 flex flex-col min-w-0 border-r border-border ${showDetailPanel ? 'hidden md:flex' : 'flex'}`}>
             {/* Header */}
-            <div className="px-4 md:px-8 pt-4 md:pt-6 mb-4 space-y-4 shrink-0">
-                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-4 border-b border-border pb-4">
-                    <div className="flex items-center gap-4">
-                        {/* Layout Switcher */}
-                        <div className="flex items-center gap-1 bg-secondary/30 p-0.5 rounded-sm">
-                             <button onClick={() => setViewLayout('list')} className={`px-2 py-0.5 text-xs font-medium rounded-sm transition-colors ${viewLayout === 'list' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>List</button>
-                             <button onClick={() => setViewLayout('calendar')} className={`px-2 py-0.5 text-xs font-medium rounded-sm transition-colors ${viewLayout === 'calendar' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Cal</button>
-                             <button onClick={() => setViewLayout('tracker')} className={`px-2 py-0.5 text-xs font-medium rounded-sm transition-colors ${viewLayout === 'tracker' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Track</button>
-                        </div>
-                        
-                        {/* View Mode (Active/Done) - Only for List */}
-                        {viewLayout === 'list' && (
-                             <div className="flex items-center gap-1 border-l border-border pl-4">
-                                 <button onClick={() => setViewMode('active')} className={`text-xs font-medium transition-colors ${viewMode === 'active' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Active</button>
-                                 <span className="text-border">/</span>
-                                 <button onClick={() => setViewMode('completed')} className={`text-xs font-medium transition-colors ${viewMode === 'completed' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Done</button>
-                             </div>
-                        )}
+            <div className="shrink-0 px-4 md:px-8 pt-4 md:pt-6 pb-2 space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-md">
+                        <button onClick={() => setViewLayout('list')} className={`p-1.5 rounded-sm transition-all ${viewLayout === 'list' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`} title="List View"><ListTodo className="w-4 h-4" /></button>
+                        <button onClick={() => setViewLayout('calendar')} className={`p-1.5 rounded-sm transition-all ${viewLayout === 'calendar' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`} title="Calendar View"><Calendar className="w-4 h-4" /></button>
+                        <button onClick={() => setViewLayout('tracker')} className={`p-1.5 rounded-sm transition-all ${viewLayout === 'tracker' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`} title="Time Tracker"><Timer className="w-4 h-4" /></button>
                     </div>
 
                     <div className="flex items-center gap-2">
-                         <div className="relative">
-                            <button 
-                                onClick={() => setIsGroupingMenuOpen(!isGroupingMenuOpen)} 
-                                className={`p-1.5 rounded-sm transition-colors ${isGroupingMenuOpen || grouping !== 'date' ? 'bg-notion-hover text-foreground' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
-                                title="Grouping"
-                            >
-                                <Layers className="w-4 h-4" />
-                            </button>
-                            {isGroupingMenuOpen && (
-                                <>
-                                    <div className="fixed inset-0 z-10" onClick={() => setIsGroupingMenuOpen(false)} />
-                                    <div className="absolute right-0 top-full mt-1 w-32 bg-background border border-border rounded-md shadow-lg z-20 p-1 animate-in zoom-in-95 origin-top-right">
-                                        <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Group By</div>
-                                        <button onClick={() => { setGrouping('date'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'date' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-notion-hover'}`}>Date {grouping === 'date' && <Check className="w-3 h-3" />}</button>
-                                        <button onClick={() => { setGrouping('priority'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'priority' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-notion-hover'}`}>Priority {grouping === 'priority' && <Check className="w-3 h-3" />}</button>
-                                        <button onClick={() => { setGrouping('none'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'none' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-notion-hover'}`}>None {grouping === 'none' && <Check className="w-3 h-3" />}</button>
-                                    </div>
-                                </>
-                            )}
-                         </div>
-
-                         <button 
-                            onClick={() => setSorting(prev => prev === 'date' ? 'priority' : 'date')} 
-                            className="p-1.5 rounded-sm transition-colors text-muted-foreground hover:bg-notion-hover hover:text-foreground"
-                            title={`Sort by ${sorting === 'date' ? 'Priority' : 'Date'}`}
-                         >
-                             <ArrowUpDown className="w-4 h-4" />
-                         </button>
-
-                         <button onClick={openCreatePanel} className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0 ml-2">
-                            <Plus className="w-4 h-4" /> New
-                         </button>
+                        {viewLayout === 'list' && (
+                             <div className="relative">
+                                 <button onClick={() => setIsGroupingMenuOpen(!isGroupingMenuOpen)} className="p-2 hover:bg-notion-hover rounded-sm text-muted-foreground hover:text-foreground transition-colors" title="View Options">
+                                     <ArrowUpDown className="w-4 h-4" />
+                                 </button>
+                                 {isGroupingMenuOpen && (
+                                     <>
+                                         <div className="fixed inset-0 z-10" onClick={() => setIsGroupingMenuOpen(false)} />
+                                         <div className="absolute right-0 top-full mt-1 w-48 bg-background border border-border rounded-md shadow-lg z-20 p-1 animate-in zoom-in-95 origin-top-right">
+                                             <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Grouping</div>
+                                             <button onClick={() => { setGrouping('date'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'date' ? 'bg-notion-hover text-foreground' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}><span>By Date</span>{grouping === 'date' && <Check className="w-3 h-3" />}</button>
+                                             <button onClick={() => { setGrouping('priority'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'priority' ? 'bg-notion-hover text-foreground' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}><span>By Priority</span>{grouping === 'priority' && <Check className="w-3 h-3" />}</button>
+                                             <button onClick={() => { setGrouping('none'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'none' ? 'bg-notion-hover text-foreground' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}><span>No Grouping</span>{grouping === 'none' && <Check className="w-3 h-3" />}</button>
+                                             
+                                             <div className="h-px bg-border my-1" />
+                                             <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Sorting</div>
+                                             <button onClick={() => { setSorting('priority'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${sorting === 'priority' ? 'bg-notion-hover text-foreground' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}><span>Priority</span>{sorting === 'priority' && <Check className="w-3 h-3" />}</button>
+                                             <button onClick={() => { setSorting('date'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${sorting === 'date' ? 'bg-notion-hover text-foreground' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}><span>Date</span>{sorting === 'date' && <Check className="w-3 h-3" />}</button>
+                                         </div>
+                                     </>
+                                 )}
+                             </div>
+                        )}
+                        <button onClick={openCreatePanel} className="flex items-center gap-1.5 px-3 py-1.5 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0">
+                            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New Task</span>
+                        </button>
                     </div>
-                 </div>
-            </div>
+                </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar px-4 md:px-8 pb-20 relative" style={{ scrollbarGutter: 'stable' }}>
-                {viewLayout === 'calendar' ? (
-                    renderCalendarView()
-                ) : viewLayout === 'tracker' ? (
-                    renderTrackerView()
-                ) : (
-                    renderListGroups(viewMode === 'active' ? activeTasksGroups : completedTasksGroups)
+                {viewLayout === 'list' && (
+                    <div className="flex items-center gap-4 text-sm border-b border-border">
+                        <button onClick={() => handleViewModeChange('active')} className={`pb-2 font-medium transition-colors relative ${viewMode === 'active' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                            Active
+                            {viewMode === 'active' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-t-full" />}
+                        </button>
+                        <button onClick={() => handleViewModeChange('completed')} className={`pb-2 font-medium transition-colors relative ${viewMode === 'completed' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                            Completed
+                            {viewMode === 'completed' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-t-full" />}
+                        </button>
+                    </div>
                 )}
+            </div>
+            
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-4 md:px-8 pb-20">
+                {viewLayout === 'list' && (
+                    <div className="py-4 animate-in fade-in">
+                        {renderListGroups(viewMode === 'active' ? activeTasksGroups : completedTasksGroups)}
+                    </div>
+                )}
+                
+                {viewLayout === 'calendar' && renderCalendarView()}
+                
+                {viewLayout === 'tracker' && renderTrackerView()}
             </div>
         </div>
 
+        {/* Detail Panel */}
         <div className={`
             bg-background border-l border-border z-20
-            ${showDetailPanel 
-                ? 'flex flex-col flex-1 w-full md:w-[500px] md:flex-none' 
-                : 'hidden md:flex md:flex-col md:w-[500px]'}
+            ${showDetailPanel ? 'flex flex-col flex-1 w-full md:w-[500px] md:flex-none' : 'hidden md:flex md:flex-col md:w-[500px]'}
         `}>
             {showDetailPanel ? renderDetailPanel() : renderEmptyState()}
         </div>
