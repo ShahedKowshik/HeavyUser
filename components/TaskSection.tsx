@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, BarChart3, Check, AlertCircle, ArrowRight, Settings, FileText } from 'lucide-react';
+import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, BarChart3, Check, AlertCircle, ArrowRight, Settings, FileText, Archive, CalendarClock, Layers } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence, TaskSession } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -123,6 +123,46 @@ const getPriorityIcon = (p: Priority) => {
         case 'Low': return <ArrowDown className="w-3 h-3" />;
         default: return <ArrowRight className="w-3 h-3" />;
     }
+};
+
+const GroupHeaderIcon = ({ title }: { title: string }) => {
+    let icon = <Calendar className="w-3.5 h-3.5" />;
+    let colorClass = "text-muted-foreground bg-secondary";
+
+    switch (title) {
+        case 'Today':
+            icon = <span className="text-[10px] font-bold">{new Date().getDate()}</span>;
+            colorClass = "text-notion-blue bg-notion-bg_blue border-notion-blue/20";
+            break;
+        case 'Tomorrow':
+            const tmrw = new Date();
+            tmrw.setDate(tmrw.getDate() + 1);
+            icon = <span className="text-[10px] font-bold">{tmrw.getDate()}</span>;
+            colorClass = "text-notion-orange bg-notion-bg_orange border-notion-orange/20";
+            break;
+        case 'Backlog':
+            icon = <Layers className="w-3.5 h-3.5" />;
+            colorClass = "text-notion-purple bg-notion-bg_purple border-notion-purple/20";
+            break;
+        case 'Upcoming':
+            icon = <CalendarClock className="w-3.5 h-3.5" />;
+            colorClass = "text-notion-green bg-notion-bg_green border-notion-green/20";
+            break;
+        case 'Overdue':
+             icon = <AlertCircle className="w-3.5 h-3.5" />;
+             colorClass = "text-notion-red bg-notion-bg_red border-notion-red/20";
+             break;
+        case 'Yesterday':
+             icon = <Archive className="w-3.5 h-3.5" />;
+             colorClass = "text-notion-gray bg-notion-bg_gray border-notion-gray/20";
+             break;
+    }
+
+    return (
+        <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 border ${colorClass}`}>
+            {icon}
+        </div>
+    );
 };
 
 // Reusable Calendar Content without shortcuts
@@ -696,6 +736,10 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
               if (t.completed) return acc;
               return acc + Math.max(0, (t.plannedTime || 0) - (t.actualTime || 0));
           }, 0);
+          
+          const totalTasks = group.tasks.length;
+          const completedTasks = group.tasks.filter(t => t.completed).length;
+          const completionPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
           return (
             <div key={group.title + gIdx} className="space-y-0">
@@ -703,34 +747,11 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
               {group.title && (
                 <div className="px-2 py-2 flex items-center justify-between gap-2 border-b border-border mb-2">
                   <div className="flex items-center gap-2 overflow-hidden">
+                      {grouping === 'date' && <GroupHeaderIcon title={group.title} />}
                       <span className={`text-sm font-semibold text-foreground ${group.title === 'Overdue' ? 'text-notion-red' : ''} shrink-0`}>
                         {group.title}
                       </span>
                       <span className="text-xs text-muted-foreground bg-notion-item_hover px-1.5 rounded-sm shrink-0">{group.tasks.length}</span>
-                      
-                      {/* Stats */}
-                      {(totalTracked > 0 || totalRemaining > 0) && (
-                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground ml-2 truncate">
-                              {totalTracked > 0 && (
-                                  <span className="flex items-center gap-1">
-                                      <span className="hidden sm:inline opacity-70">Tracked:</span>
-                                      <span className="font-medium">{formatDuration(totalTracked)}</span>
-                                  </span>
-                              )}
-                              {totalTracked > 0 && totalRemaining > 0 && <span className="opacity-30">•</span>}
-                              {totalRemaining > 0 && (
-                                  <span className="flex items-center gap-1">
-                                      <span className="hidden sm:inline opacity-70">Remaining:</span>
-                                      <span className="font-medium">{formatDuration(totalRemaining)}</span>
-                                  </span>
-                              )}
-                              <span className="sm:hidden">
-                                  {totalTracked > 0 ? formatDuration(totalTracked) : ''}
-                                  {(totalTracked > 0 && totalRemaining > 0) ? ' / ' : ''}
-                                  {totalRemaining > 0 ? `-${formatDuration(totalRemaining)}` : ''}
-                              </span>
-                          </div>
-                      )}
                       
                       {group.title === 'Overdue' && (
                           <div className="relative ml-2">
@@ -757,6 +778,36 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                               )}
                           </div>
                       )}
+                  </div>
+                  
+                  {/* Right Side Stats */}
+                  <div className="flex items-center gap-4 ml-auto">
+                        {/* Stats Text */}
+                        {(totalTracked > 0 || totalRemaining > 0) && (
+                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground truncate">
+                                {totalTracked > 0 && (
+                                    <span className="flex items-center gap-1">
+                                        <span className="hidden sm:inline opacity-70">Tracked:</span>
+                                        <span className="font-medium">{formatDuration(totalTracked)}</span>
+                                    </span>
+                                )}
+                                {totalTracked > 0 && totalRemaining > 0 && <span className="opacity-30">•</span>}
+                                {totalRemaining > 0 && (
+                                    <span className="flex items-center gap-1">
+                                        <span className="hidden sm:inline opacity-70">Remaining:</span>
+                                        <span className="font-medium">{formatDuration(totalRemaining)}</span>
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                        
+                        {/* Progress Bar */}
+                        <div className="flex items-center gap-2 w-20 md:w-32">
+                            <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                                <div className="h-full bg-notion-green transition-all duration-500" style={{ width: `${completionPercentage}%` }} />
+                            </div>
+                            <span className="text-[9px] text-muted-foreground w-6 text-right tabular-nums">{completionPercentage}%</span>
+                        </div>
                   </div>
                 </div>
               )}
@@ -813,7 +864,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                 <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
                                         
                                         {/* Priority Badge (Fixed Width & Colors) - CHANGED width to w-[58px] and reduced padding */}
-                                        <div className={`flex items-center justify-center gap-1 px-1 py-0.5 rounded-sm border shadow-sm w-[58px] ${getPriorityBadgeStyle(task.priority)}`}>
+                                        <div className={`flex items-center justify-center gap-1 px-1 py-0.5 rounded-sm border shadow-sm min-w-[58px] ${getPriorityBadgeStyle(task.priority)}`}>
                                             {getPriorityIcon(task.priority)}
                                             <span className="font-medium truncate">{task.priority}</span>
                                         </div>
