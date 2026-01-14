@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, BarChart3, Check, AlertCircle, ArrowRight, Settings, FileText, Archive, CalendarClock, Layers } from 'lucide-react';
@@ -782,7 +783,15 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                   
                   {/* Right Side Stats */}
                   <div className="flex items-center gap-4 ml-auto">
-                        {/* Stats Text */}
+                        {/* Progress Bar (Swapped) */}
+                        <div className="flex items-center gap-2 w-20 md:w-32">
+                            <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                                <div className="h-full bg-notion-green transition-all duration-500" style={{ width: `${completionPercentage}%` }} />
+                            </div>
+                            <span className="text-[9px] text-muted-foreground w-6 text-right tabular-nums">{completionPercentage}%</span>
+                        </div>
+
+                        {/* Stats Text (Swapped) */}
                         {(totalTracked > 0 || totalRemaining > 0) && (
                             <div className="flex items-center gap-2 text-[10px] text-muted-foreground truncate">
                                 {totalTracked > 0 && (
@@ -800,14 +809,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                 )}
                             </div>
                         )}
-                        
-                        {/* Progress Bar */}
-                        <div className="flex items-center gap-2 w-20 md:w-32">
-                            <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
-                                <div className="h-full bg-notion-green transition-all duration-500" style={{ width: `${completionPercentage}%` }} />
-                            </div>
-                            <span className="text-[9px] text-muted-foreground w-6 text-right tabular-nums">{completionPercentage}%</span>
-                        </div>
                   </div>
                 </div>
               )}
@@ -892,17 +893,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                                 <span className="capitalize font-medium">{task.recurrence.type}</span>
                                             </div>
                                         )}
-
-                                        {/* Time Tracking (New) - CHANGED Fixed Width w-[80px] and justify-center */}
-                                        {(task.plannedTime || (task.actualTime || 0) > 0) && (
-                                            <div className="flex items-center justify-center gap-1 px-1 py-0.5 rounded-sm bg-secondary border border-foreground/10 shadow-sm w-[80px]">
-                                                <Timer className="w-3 h-3 shrink-0" />
-                                                <span className="font-medium font-mono truncate">
-                                                    {task.actualTime ? Math.round(task.actualTime) + 'm' : '0m'}
-                                                    {task.plannedTime ? ` / ${task.plannedTime}m` : ''}
-                                                </span>
-                                            </div>
-                                        )}
                                         
                                         {/* Notes Indicator (New) - Reduced padding */}
                                         {task.notes && task.notes.trim().length > 0 && (
@@ -933,6 +923,20 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                         )}
                                 </div>
                             </div>
+
+                            {/* New Right Side Time Tracking UI */}
+                            {(task.plannedTime || (task.actualTime || 0) > 0) && (
+                                <div className="flex flex-col items-end justify-center shrink-0 pl-2 self-center gap-0.5 min-w-[3.5rem]">
+                                    <span className={`font-mono text-xs font-medium tabular-nums ${task.timerStart ? 'text-notion-blue animate-pulse' : 'text-foreground'}`}>
+                                        {Math.round(task.actualTime || 0)}m
+                                    </span>
+                                    {task.plannedTime && (
+                                        <span className="text-[10px] text-muted-foreground tabular-nums opacity-80">
+                                            / {task.plannedTime}m
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                   );
