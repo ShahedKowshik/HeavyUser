@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Target, Ban, Minus, Settings, Check, Tag as TagIcon, Flame, Smile, Frown, Calendar as CalendarIcon, Trophy, BarChart3, Activity, Info, Save, SkipForward, CircleCheck, ArrowLeft, Clock, MoreHorizontal, Flag, FolderPlus, Folder, ArrowUp, ArrowDown, GripVertical, Pencil, ArrowUpDown } from 'lucide-react';
+import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Minus, Settings, Check, Tag as TagIcon, Flame, BarChart3, Activity, SkipForward, CircleCheck, ArrowLeft, FolderPlus, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { Habit, Tag, HabitFolder } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -850,7 +850,8 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                         <div className="bg-background border border-border rounded-lg p-3 shadow-sm overflow-hidden">
                             <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1 truncate">Total Days</div>
                             <div className="text-xl font-bold flex items-center gap-2 truncate">
-                                <Trophy className="w-5 h-5 shrink-0 text-notion-yellow" />
+                                {/* Corrected icon usage */}
+                                <Activity className="w-5 h-5 shrink-0 text-notion-yellow" />
                                 {stats.totalDays}
                             </div>
                         </div>

@@ -1,10 +1,8 @@
-
-
 import React, { useState } from 'react';
 import { 
-  User, Trash2, TriangleAlert, X, Fingerprint, Copy, Check, Camera, LogOut, Loader2, 
-  Lock, Moon, Tag as TagIcon, Plus, Pencil, Code, LayoutGrid, 
-  ListTodo, Zap, Book, File, Shield, Database, ChevronRight, Info, CheckSquare, StickyNote, Bug, WifiOff, MessageSquare, Map
+  User, Trash2, X, Check, LogOut, Loader2, 
+  Tag as TagIcon, Pencil, LayoutGrid, 
+  Zap, Book, ChevronRight, CheckSquare, StickyNote, WifiOff, MessageSquare, Map
 } from 'lucide-react';
 import { UserSettings, AppTab, Tag } from '../types';
 import { supabase } from '../lib/supabase';

@@ -1,8 +1,5 @@
-
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { LayoutGrid, CircleCheck, Settings, BookOpen, Zap, Flame, X, Calendar, Trophy, Info, Activity, TriangleAlert, ChevronLeft, ChevronRight, Notebook, Clock, Tag as TagIcon, Search, Plus, ListTodo, File, Book, Play, Pause, BarChart3, CheckSquare, StickyNote, MoreHorizontal, ChevronDown, Ban, WifiOff, MessageSquare, Map } from 'lucide-react';
+import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';

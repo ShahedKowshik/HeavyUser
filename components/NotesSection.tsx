@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
-    Search, Plus, Trash2, X, FileText, ChevronLeft, Folder, FolderPlus, 
-    Check, Pencil, Tag as TagIcon, Clock, Type, ChevronRight, MoreVertical, 
-    ChevronDown, File, Bold, Italic, Underline as UnderlineIcon, 
+    Search, Plus, Trash2, X, FileText, ChevronLeft, ChevronRight, Folder, FolderPlus, 
+    Check, Pencil, Tag as TagIcon, MoreVertical, 
+    File, Bold, Italic, Underline as UnderlineIcon, 
     Strikethrough, List, ListOrdered, Quote, Heading1, Heading2, 
-    Undo, Redo, Code, GripVertical, CheckSquare
+    Undo, Redo, Code, CheckSquare
 } from 'lucide-react';
 import { Note, Folder as FolderType, Tag } from '../types';
 import { supabase } from '../lib/supabase';

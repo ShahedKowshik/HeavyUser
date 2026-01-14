@@ -1,8 +1,6 @@
-
-
 import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Square, Repeat, ChevronDown, Moon, Circle, Flame, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, LayoutTemplate, AlignJustify, History, BarChart3, GripVertical, Check, AlertCircle, ArrowRight, Columns, Layout } from 'lucide-react';
+import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, BarChart3, Check, AlertCircle, ArrowRight } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence, TaskSession } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
