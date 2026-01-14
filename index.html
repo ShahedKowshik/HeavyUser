@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -278,6 +277,44 @@
         margin: 0 !important;
     }
 
+    /* TipTap Task List Styles */
+    ul[data-type="taskList"] {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    
+    ul[data-type="taskList"] li {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 0.2em;
+    }
+    
+    ul[data-type="taskList"] li > label {
+      margin-right: 0.5rem;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      height: 1.5em; /* Match line height of text roughly */
+      cursor: pointer;
+    }
+    
+    ul[data-type="taskList"] li > div {
+      flex: 1 1 auto;
+    }
+
+    ul[data-type="taskList"] li > div > p {
+        margin: 0 !important;
+    }
+
+    ul[data-type="taskList"] input[type="checkbox"] {
+      cursor: pointer;
+      width: 1.1em;
+      height: 1.1em;
+      margin: 0;
+      accent-color: #37352F;
+    }
+
     .ProseMirror p.is-editor-empty:first-child::before {
       color: #9B9A97;
       content: attr(data-placeholder);
@@ -315,6 +352,8 @@
     "@tiptap/starter-kit": "https://esm.sh/@tiptap/starter-kit@2.2.4?deps=react@18.3.1,react-dom@18.3.1",
     "@tiptap/extension-underline": "https://esm.sh/@tiptap/extension-underline@2.2.4?deps=react@18.3.1,react-dom@18.3.1",
     "@tiptap/extension-placeholder": "https://esm.sh/@tiptap/extension-placeholder@2.2.4?deps=react@18.3.1,react-dom@18.3.1",
+    "@tiptap/extension-task-list": "https://esm.sh/@tiptap/extension-task-list@2.2.4?deps=react@18.3.1,react-dom@18.3.1",
+    "@tiptap/extension-task-item": "https://esm.sh/@tiptap/extension-task-item@2.2.4?deps=react@18.3.1,react-dom@18.3.1",
     "react/": "https://esm.sh/react@^19.2.3/",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
   }

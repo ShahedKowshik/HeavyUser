@@ -4,7 +4,7 @@ import {
     Check, Pencil, Tag as TagIcon, Clock, Type, ChevronRight, MoreVertical, 
     ChevronDown, File, Bold, Italic, Underline as UnderlineIcon, 
     Strikethrough, List, ListOrdered, Quote, Heading1, Heading2, 
-    Undo, Redo, Code, GripVertical
+    Undo, Redo, Code, GripVertical, CheckSquare
 } from 'lucide-react';
 import { Note, Folder as FolderType, Tag } from '../types';
 import { supabase } from '../lib/supabase';
@@ -14,6 +14,8 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Placeholder from '@tiptap/extension-placeholder';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
 
 interface NotesSectionProps {
   notes: Note[];
@@ -150,6 +152,13 @@ const MenuBar = ({ editor }: { editor: any }) => {
             <div className="w-px h-4 bg-border mx-2" />
 
             <ToolbarButton 
+                onClick={() => editor.chain().focus().toggleTaskList().run()} 
+                isActive={editor.isActive('taskList')}
+                title="Task List"
+            >
+                <CheckSquare className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton 
                 onClick={() => editor.chain().focus().toggleBulletList().run()} 
                 isActive={editor.isActive('bulletList')}
                 title="Bullet List"
@@ -247,6 +256,10 @@ const NotesSection: React.FC<NotesSectionProps> = ({ notes, setNotes, folders, s
           codeBlock: false,
       }),
       Underline,
+      TaskList,
+      TaskItem.configure({
+        nested: true,
+      }),
       Placeholder.configure({
         placeholder: 'Type \'/\' for commands or start writing...',
         emptyEditorClass: 'is-editor-empty',
