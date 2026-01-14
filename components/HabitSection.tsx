@@ -1204,10 +1204,10 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
 
         {/* Detail Panel */}
         <div className={`
-            w-full md:w-[500px] border-l border-border bg-background z-20
-            absolute inset-0 md:static shadow-2xl md:shadow-none
-            animate-slide-in-from-right-12
-            ${!detailHabitId ? 'hidden md:block' : ''}
+            bg-background border-l border-border z-20
+            ${detailHabitId 
+                ? 'flex flex-col flex-1 w-full md:w-[500px] md:flex-none' 
+                : 'hidden md:flex md:flex-col md:w-[500px]'}
         `}>
             {detailHabitId ? renderDetailView() : renderEmptyState()}
         </div>
