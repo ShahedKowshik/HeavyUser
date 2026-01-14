@@ -1,5 +1,3 @@
-
-
 import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, BarChart3, Check, AlertCircle, ArrowRight, Settings, FileText, Archive, CalendarClock, Layers, Moon } from 'lucide-react';
@@ -794,17 +792,10 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                             </button>
                         )}
                      </div>
-                     <button onClick={() => changeDate(1)} className="p-1 hover:bg-notion-hover rounded-sm text-muted-foreground transition-colors"><ChevronRight className="w-5 h-5" /></button>
+                     {/* Hidden Next Day Button for Collector View Focus */}
+                     {/* <button onClick={() => changeDate(1)} className="p-1 hover:bg-notion-hover rounded-sm text-muted-foreground transition-colors"><ChevronRight className="w-5 h-5" /></button> */}
                  </div>
-                 <button 
-                    onClick={() => {
-                        openCreatePanel();
-                        setDueDate(dateStr);
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium"
-                 >
-                    <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Add Task</span>
-                 </button>
+                 {/* Removed Add Task Button */}
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar relative flex flex-col">
@@ -1132,7 +1123,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const renderTrackerView = () => {
       const totalTrackedSeconds = sessions.reduce((acc, s) => acc + (s.duration || 0), 0);
       return (
-          <div className="space-y-8 animate-in fade-in">
+          <div className="space-y-8 animate-in fade-in pt-4">
               <div className="grid grid-cols-3 gap-4">
                   {[{ label: "Total Tracked", value: formatDuration(totalTrackedSeconds / 60), color: "text-foreground" }, { label: "Sessions", value: sessions.length, color: "text-notion-blue" }, { label: "Avg Session", value: sessions.length ? formatDuration((totalTrackedSeconds / sessions.length) / 60) : '0m', color: "text-notion-orange" }].map((stat, i) => (
                       <div key={i} className="bg-background border border-border rounded-md p-4 shadow-sm"><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-1">{stat.label}</div><div className={`text-xl font-medium ${stat.color} tabular-nums`}>{stat.value}</div></div>
@@ -1376,27 +1367,30 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     <div className="flex h-full bg-background overflow-hidden relative">
       {/* Main List Panel */}
       <div className={`flex-1 flex flex-col min-w-0 border-r border-border ${showDetailPanel ? 'hidden md:flex' : 'flex'}`}>
-         <div className="flex-1 overflow-y-auto custom-scrollbar" style={{ scrollbarGutter: 'stable' }}>
+         
+         {/* Fixed Header */}
+         <div className="px-4 md:px-8 pt-4 md:pt-6 pb-4 border-b border-border bg-background z-10 shrink-0 space-y-4">
              {/* Header Controls */}
-             <div className="px-4 md:px-8 pt-4 md:pt-6 mb-4 space-y-4">
-                <div className="flex flex-row items-center justify-between gap-2 sm:gap-4 border-b border-border pb-4">
-                    <div className="flex items-center gap-1">
-                        <button onClick={() => setViewLayout('list')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'list' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>List</button>
-                        <button onClick={() => setViewLayout('calendar')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'calendar' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Calendar</button>
-                        <button onClick={() => setViewLayout('tracker')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'tracker' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Tracker</button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {viewLayout === 'list' && ( <button onClick={() => handleViewModeChange(viewMode === 'active' ? 'completed' : 'active')} className={`flex items-center justify-center p-1.5 rounded-sm transition-colors ${viewMode === 'completed' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`} title={viewMode === 'active' ? "Show Completed" : "Show Active"}><CheckSquare className="w-4 h-4" /></button> )}
-                        <div className="relative">
-                            <button onClick={() => setIsGroupingMenuOpen(!isGroupingMenuOpen)} className="p-1 rounded-sm hover:bg-notion-hover text-muted-foreground hover:text-foreground transition-colors" title="Grouping Options"><MoreHorizontal className="w-4 h-4" /></button>
-                            {isGroupingMenuOpen && ( <> <div className="fixed inset-0 z-10" onClick={() => setIsGroupingMenuOpen(false)} /> <div className="absolute right-0 top-full mt-1 w-32 bg-background border border-border rounded-md shadow-lg z-20 p-1 animate-in zoom-in-95 origin-top-right"> <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Group By</div> <button onClick={() => { setGrouping('date'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'date' ? 'bg-notion-hover text-foreground' : 'text-foreground hover:bg-notion-hover'}`}> Date {grouping === 'date' && <Check className="w-3 h-3" />} </button> <button onClick={() => { setGrouping('priority'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'priority' ? 'bg-notion-hover text-foreground' : 'text-foreground hover:bg-notion-hover'}`}> Priority {grouping === 'priority' && <Check className="w-3 h-3" />} </button> <button onClick={() => { setGrouping('none'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'none' ? 'bg-notion-hover text-foreground' : 'text-foreground hover:bg-notion-hover'}`}> None {grouping === 'none' && <Check className="w-3 h-3" />} </button> </div> </> )}
-                        </div>
-                        <button onClick={openCreatePanel} className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0"><Plus className="w-4 h-4" /> New</button>
-                    </div>
+            <div className="flex flex-row items-center justify-between gap-2 sm:gap-4">
+                <div className="flex items-center gap-1">
+                    <button onClick={() => setViewLayout('list')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'list' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>List</button>
+                    <button onClick={() => setViewLayout('calendar')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'calendar' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Calendar</button>
+                    <button onClick={() => setViewLayout('tracker')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'tracker' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Tracker</button>
                 </div>
-             </div>
+                <div className="flex items-center gap-2">
+                    {viewLayout === 'list' && ( <button onClick={() => handleViewModeChange(viewMode === 'active' ? 'completed' : 'active')} className={`flex items-center justify-center p-1.5 rounded-sm transition-colors ${viewMode === 'completed' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`} title={viewMode === 'active' ? "Show Completed" : "Show Active"}><CheckSquare className="w-4 h-4" /></button> )}
+                    <div className="relative">
+                        <button onClick={() => setIsGroupingMenuOpen(!isGroupingMenuOpen)} className="p-1 rounded-sm hover:bg-notion-hover text-muted-foreground hover:text-foreground transition-colors" title="Grouping Options"><MoreHorizontal className="w-4 h-4" /></button>
+                        {isGroupingMenuOpen && ( <> <div className="fixed inset-0 z-10" onClick={() => setIsGroupingMenuOpen(false)} /> <div className="absolute right-0 top-full mt-1 w-32 bg-background border border-border rounded-md shadow-lg z-20 p-1 animate-in zoom-in-95 origin-top-right"> <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Group By</div> <button onClick={() => { setGrouping('date'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'date' ? 'bg-notion-hover text-foreground' : 'text-foreground hover:bg-notion-hover'}`}> Date {grouping === 'date' && <Check className="w-3 h-3" />} </button> <button onClick={() => { setGrouping('priority'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'priority' ? 'bg-notion-hover text-foreground' : 'text-foreground hover:bg-notion-hover'}`}> Priority {grouping === 'priority' && <Check className="w-3 h-3" />} </button> <button onClick={() => { setGrouping('none'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'none' ? 'bg-notion-hover text-foreground' : 'text-foreground hover:bg-notion-hover'}`}> None {grouping === 'none' && <Check className="w-3 h-3" />} </button> </div> </> )}
+                    </div>
+                    <button onClick={openCreatePanel} className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0"><Plus className="w-4 h-4" /> New</button>
+                </div>
+            </div>
+         </div>
+
+         <div className="flex-1 overflow-y-auto custom-scrollbar">
              {/* Content */}
-             <div key={`${viewLayout}-${viewMode}`} className="px-4 md:px-8 pb-20 h-full">
+             <div key={`${viewLayout}-${viewMode}`} className="px-4 md:px-8 pb-20 h-full pt-4">
                 {viewLayout === 'list' ? ( viewMode === 'active' ? renderListGroups(activeTasksGroups) : renderListGroups(completedTasksGroups) ) : viewLayout === 'calendar' ? renderCalendarView() : renderTrackerView()}
              </div>
          </div>

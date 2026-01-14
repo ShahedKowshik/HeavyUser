@@ -204,10 +204,21 @@
     * {
       -webkit-tap-highlight-color: transparent;
     }
+    
+    /* Custom Scrollbar - Hidden by default, visible on hover */
     .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(55, 53, 47, 0.16); border-radius: 4px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(55, 53, 47, 0.32); }
+    .custom-scrollbar::-webkit-scrollbar-thumb { 
+        background-color: transparent; 
+        border-radius: 4px; 
+        transition: background-color 0.2s;
+    }
+    .custom-scrollbar:hover::-webkit-scrollbar-thumb { 
+        background-color: rgba(55, 53, 47, 0.16); 
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { 
+        background-color: rgba(55, 53, 47, 0.32); 
+    }
     
     /* Notes List & Checkbox Alignment Fixes */
     .note-content ul, .note-content ol { 
