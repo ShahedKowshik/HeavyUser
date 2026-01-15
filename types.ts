@@ -1,6 +1,6 @@
 
 
-export type AppTab = 'tasks' | 'habit' | 'journal' | 'notes' | 'settings';
+export type AppTab = 'today' | 'tasks' | 'habit' | 'journal' | 'notes' | 'settings';
 
 export type Priority = 'Urgent' | 'High' | 'Normal' | 'Low';
 

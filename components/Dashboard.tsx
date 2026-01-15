@@ -1,15 +1,17 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book } from 'lucide-react';
-import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder } from '../types';
+import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus } from 'lucide-react';
+import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
 import JournalSection from './JournalSection';
 import HabitSection from './HabitSection';
 import NotesSection from './NotesSection';
 import { supabase } from '../lib/supabase';
-import { decryptData } from '../lib/crypto';
+import { decryptData, encryptData } from '../lib/crypto';
 import { AppIcon } from './AppIcon';
+import { getContrastColor } from '../lib/utils';
 
 interface NavItemProps {
     id: AppTab;
@@ -133,6 +135,66 @@ const TaskTrackerWidget: React.FC<TaskTrackerWidgetProps> = ({ task, onToggle, o
     );
 };
 
+// Helper Functions copied for Dashboard use
+const getPriorityBadgeStyle = (p: Priority) => {
+    switch (p) {
+        case 'Urgent': return 'bg-notion-bg_red text-notion-red border-notion-red/20';
+        case 'High': return 'bg-notion-bg_orange text-notion-orange border-notion-orange/20';
+        case 'Normal': return 'bg-notion-bg_gray text-foreground border-notion-gray/20';
+        case 'Low': return 'bg-secondary text-muted-foreground border-border';
+        default: return 'bg-secondary text-muted-foreground border-foreground/10';
+    }
+};
+
+const getPriorityLineColor = (p: Priority) => {
+    switch (p) {
+        case 'Urgent': return 'bg-notion-red';
+        case 'High': return 'bg-notion-orange';
+        case 'Normal': return 'bg-notion-gray';
+        case 'Low': return 'bg-border';
+        default: return 'bg-border';
+    }
+};
+
+const getPriorityIcon = (p: Priority) => {
+    switch (p) {
+        case 'Urgent': return <AlertCircle className="w-3 h-3" />;
+        case 'High': return <ArrowUp className="w-3 h-3" />;
+        case 'Normal': return <ArrowRight className="w-3 h-3" />;
+        case 'Low': return <ArrowDown className="w-3 h-3" />;
+        default: return <ArrowRight className="w-3 h-3" />;
+    }
+};
+
+const formatDuration = (minutes: number) => {
+    if (minutes > 0 && minutes < 1) return '< 1m';
+    if (minutes < 60) return `${Math.floor(minutes)}m`;
+    const h = Math.floor(minutes / 60);
+    const m = Math.floor(minutes % 60);
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+};
+
+const getHabitStatusColor = (habit: Habit, count: number, isToday: boolean): string | null => {
+    const isNegative = habit.goalType === 'negative';
+    const SOLID_RED = '#E03E3E';
+    const SOLID_GREEN = '#448361';
+    const SOLID_YELLOW = '#EAB308'; 
+    
+    if (isNegative) {
+        if (count === 0) return SOLID_GREEN; 
+        const limit = habit.useCounter ? habit.target : 0;
+        if (count > limit) return SOLID_RED; 
+        return SOLID_YELLOW;
+    } else {
+        if (count >= habit.target) return SOLID_GREEN;
+        if (count === 0) {
+            if (isToday) return null;
+            return SOLID_RED;
+        }
+        return SOLID_YELLOW;
+    }
+};
+
 interface DashboardProps { user: User; onLogout: () => void; }
 
 const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
@@ -140,9 +202,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     const enabled = user.enabledFeatures || ['tasks', 'habit', 'journal', 'notes'];
     if (typeof window !== 'undefined') {
         const savedTab = localStorage.getItem('heavyuser_active_tab') as AppTab;
-        if (savedTab && (enabled.includes(savedTab) || ['settings'].includes(savedTab))) return savedTab;
+        if (savedTab && (enabled.includes(savedTab) || ['settings', 'today'].includes(savedTab))) return savedTab;
     }
-    return enabled.includes('tasks') ? 'tasks' : (enabled[0] as AppTab) || 'settings';
+    return 'today';
   });
   
   const userId = user.id;
@@ -174,6 +236,52 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [isTagFilterOpen, setIsTagFilterOpen] = useState(false);
   const [trackedTaskId, setTrackedTaskId] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem('heavyuser_sidebar_collapsed') === 'true');
+
+  // Today View Selection State
+  const [selectedTodayTaskId, setSelectedTodayTaskId] = useState<string | null>(null);
+  const [selectedTodayHabitId, setSelectedTodayHabitId] = useState<string | null>(null);
+  
+  // Task Editing State for Today View Sidebar
+  const [editTaskTitle, setEditTaskTitle] = useState('');
+  const [editTaskNotes, setEditTaskNotes] = useState('');
+  const [editTaskSubtasks, setEditTaskSubtasks] = useState<Subtask[]>([]);
+
+  // Task & Habit Interaction Handlers (Duplicated or Referenced from sections logic)
+  const toggleTask = async (id: string) => {
+    const task = tasks.find(t => t.id === id); if (!task) return;
+    const newCompleted = !task.completed; const newCompletedAt = newCompleted ? new Date().toISOString() : null;
+    let timerUpdates = {};
+    if (newCompleted && task.timerStart) {
+        const startTime = new Date(task.timerStart).getTime(); const diffMinutes = (Date.now() - startTime) / 60000;
+        const newActual = (task.actualTime || 0) + diffMinutes; timerUpdates = { timerStart: null, actualTime: newActual };
+    }
+    const updatedTasks = tasks.map(t => t.id === id ? { ...t, completed: newCompleted, completedAt: newCompletedAt, ...timerUpdates } : t);
+    setTasks(updatedTasks);
+    const dbUpdates: any = { completed: newCompleted, completed_at: newCompletedAt };
+    if (newCompleted && task.timerStart) { dbUpdates.timer_start = null; dbUpdates.actual_time = (timerUpdates as any).actualTime; }
+    await supabase.from('tasks').update(dbUpdates).eq('id', id);
+  };
+
+  const updateHabitDayStatus = async (habitId: string, date: string, count: number, skipped: boolean) => {
+    setHabits(prev => prev.map(h => {
+        if (h.id !== habitId) return h;
+        const newProgress = { ...h.progress };
+        if (count > 0) newProgress[date] = count;
+        else delete newProgress[date]; 
+        let newSkipped = h.skippedDates || [];
+        if (skipped && !newSkipped.includes(date)) newSkipped = [...newSkipped, date];
+        if (!skipped && newSkipped.includes(date)) newSkipped = newSkipped.filter(d => d !== date);
+        return { ...h, progress: newProgress, skippedDates: newSkipped };
+    }));
+    const habit = habits.find(h => h.id === habitId);
+    if (!habit) return;
+    const newProgress = { ...habit.progress };
+    if (count > 0) newProgress[date] = count; else delete newProgress[date];
+    let newSkipped = habit.skippedDates || [];
+    if (skipped && !newSkipped.includes(date)) newSkipped = [...newSkipped, date];
+    if (!skipped && newSkipped.includes(date)) newSkipped = newSkipped.filter(d => d !== date);
+    await supabase.from('habits').update({ progress: newProgress, skipped_dates: newSkipped }).eq('id', habitId);
+  };
 
   const enabledModules = userSettings.enabledFeatures || ['tasks', 'habit', 'journal', 'notes'];
 
@@ -317,8 +425,39 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   useEffect(() => { if (sessions.length > 0) saveToLocal('sessions', sessions); }, [sessions]);
 
   useEffect(() => { localStorage.setItem('heavyuser_active_tab', activeTab); }, [activeTab]);
-  useEffect(() => { if (!['settings'].includes(activeTab) && !enabledModules.includes(activeTab)) { setActiveTab(enabledModules.length > 0 ? (enabledModules[0] as AppTab) : 'settings'); } }, [enabledModules, activeTab]);
+  useEffect(() => { if (!['settings', 'today'].includes(activeTab) && !enabledModules.includes(activeTab)) { setActiveTab(enabledModules.length > 0 ? (enabledModules[0] as AppTab) : 'today'); } }, [enabledModules, activeTab]);
   useEffect(() => { const interval = setInterval(() => setStatsTicker(prev => prev + 1), 60000); return () => clearInterval(interval); }, []);
+
+  // Sync Task Editing State when Selection Changes
+  useEffect(() => {
+    if (selectedTodayTaskId) {
+        const t = tasks.find(t => t.id === selectedTodayTaskId);
+        if (t) {
+            setEditTaskTitle(t.title);
+            setEditTaskNotes(t.notes || '');
+            setEditTaskSubtasks(t.subtasks || []);
+        }
+    }
+  }, [selectedTodayTaskId]);
+
+  // Auto-Save Effect for Task Editing
+  useEffect(() => {
+    if (!selectedTodayTaskId) return;
+    const timer = setTimeout(async () => {
+        setTasks(prev => prev.map(t => {
+            if (t.id === selectedTodayTaskId) {
+                return { ...t, title: editTaskTitle, notes: editTaskNotes, subtasks: editTaskSubtasks };
+            }
+            return t;
+        }));
+        await supabase.from('tasks').update({
+            title: encryptData(editTaskTitle),
+            notes: encryptData(editTaskNotes),
+            subtasks: editTaskSubtasks.map(s => ({ ...s, title: encryptData(s.title) }))
+        }).eq('id', selectedTodayTaskId);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [editTaskTitle, editTaskNotes, editTaskSubtasks, selectedTodayTaskId]);
 
   const toggleSidebar = () => { setIsSidebarCollapsed(prev => { const newState = !prev; localStorage.setItem('heavyuser_sidebar_collapsed', String(newState)); return newState; }); };
 
@@ -456,14 +595,460 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
   const activeFilterTag = useMemo(() => tags.find(t => t.id === activeFilterTagId), [tags, activeFilterTagId]);
 
+  const renderTodayView = () => {
+      const today = getLogicalDateOffset(0);
+      const hour = new Date().getHours();
+
+      // 1. Filter Tasks: Due Today or Overdue, Incomplete
+      const todayTasks = tasks.filter(t => 
+        !t.completed && 
+        t.dueDate && 
+        (t.dueDate === today || t.dueDate < today)
+      ).sort((a, b) => {
+          if (a.time && b.time) return a.time.localeCompare(b.time);
+          if (a.time && !b.time) return -1;
+          if (!a.time && b.time) return 1;
+          return 0;
+      });
+
+      // 2. Filter Habits: Positive & Unfinished Only
+      const todayHabits = habits.filter(h => {
+          if (h.startDate > today) return false;
+          if (h.skippedDates.includes(today)) return false;
+          
+          const count = h.progress[today] || 0;
+          if (h.goalType === 'negative') return false; // Hide negative habits per request
+          
+          return count < h.target; // Show only unfinished positive habits
+      });
+
+      // 3. Calendar Data
+      const startHour = userSettings.dayStartHour || 0;
+      const hours = Array.from({ length: 24 }, (_, i) => (startHour + i) % 24);
+      const timedTasks = todayTasks.filter(t => !!t.time);
+
+      const renderTodayTaskDetail = () => {
+          const task = tasks.find(t => t.id === selectedTodayTaskId);
+          if (!task) return null;
+
+          const toggleSubtask = (sid: string) => {
+              setEditTaskSubtasks(prev => prev.map(s => s.id === sid ? { ...s, completed: !s.completed } : s));
+          };
+          const addSubtask = (e: React.KeyboardEvent<HTMLInputElement>) => {
+              if (e.key === 'Enter') {
+                  const val = e.currentTarget.value.trim();
+                  if (val) {
+                      setEditTaskSubtasks(prev => [...prev, { id: crypto.randomUUID(), title: val, completed: false }]);
+                      e.currentTarget.value = '';
+                  }
+              }
+          };
+
+          // Replicated structure from TaskSection's renderDetailPanel
+          return (
+              <div className="flex flex-col h-full bg-background animate-fade-in relative">
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-background/95 backdrop-blur z-10 sticky top-0 shrink-0">
+                       <div className="flex items-center gap-2">
+                          <button onClick={() => setSelectedTodayTaskId(null)} className="md:hidden text-muted-foreground hover:text-foreground">
+                              <ChevronLeft className="w-5 h-5" />
+                          </button>
+                       </div>
+                       <div className="flex items-center gap-1">
+                           <button onClick={() => setSelectedTodayTaskId(null)} className="p-2 rounded-sm transition-colors font-medium text-sm px-4 text-muted-foreground hover:bg-notion-hover hover:text-foreground">
+                               Close
+                           </button>
+                       </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-0 flex flex-col">
+                      <div className="w-full flex flex-col h-full">
+                          {/* Title Section */}
+                          <div className="px-6 pt-6 pb-2">
+                               <textarea
+                                  value={editTaskTitle}
+                                  onChange={(e) => setEditTaskTitle(e.target.value)}
+                                  className="w-full text-xl md:text-2xl font-bold text-foreground placeholder:text-muted-foreground/40 bg-transparent resize-none leading-tight border border-border hover:border-border focus:border-border rounded-md p-3 transition-colors outline-none"
+                                  rows={1}
+                                  style={{ minHeight: '3.5rem', height: 'auto' }}
+                                  onInput={(e) => { e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px'; }}
+                              />
+                          </div>
+
+                          {/* Simplified Properties Bar for Today View (Read-onlyish or simple displays) */}
+                          <div className="px-6 py-2 flex flex-wrap items-center gap-2">
+                              <div className={`flex items-center justify-start gap-2 px-3 h-8 rounded-md text-xs font-medium border transition-all shadow-sm bg-secondary/40 border-border text-muted-foreground`}>
+                                  {getPriorityIcon(task.priority)}
+                                  <span>{task.priority}</span>
+                              </div>
+                              <div className={`flex items-center justify-start gap-2 px-3 h-8 rounded-md text-xs font-medium border transition-all shadow-sm bg-secondary/40 border-border text-muted-foreground`}>
+                                  <Calendar className="w-4 h-4 shrink-0" />
+                                  <span>{task.dueDate ? (task.dueDate === today ? 'Today' : task.dueDate) : 'No Date'}</span>
+                              </div>
+                              {task.tags && task.tags.length > 0 && (
+                                  <div className={`flex items-center justify-start gap-2 px-3 h-8 rounded-md text-xs font-medium border transition-all shadow-sm bg-secondary/40 border-border text-muted-foreground`}>
+                                      <TagIcon className="w-4 h-4 shrink-0" />
+                                      <span>{task.tags.length} Labels</span>
+                                  </div>
+                              )}
+                          </div>
+                          
+                          <div className="h-px bg-border w-full my-4 shrink-0" />
+                          
+                          {/* Subtasks */}
+                          <div className="px-6 space-y-3 shrink-0">
+                              <div className="flex items-center justify-between">
+                                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                                      <CheckSquare className="w-4 h-4" /> 
+                                      Subtasks
+                                  </h3>
+                              </div>
+                              
+                              <div className="space-y-0.5">
+                                  {editTaskSubtasks.map(st => (
+                                      <div key={st.id} className="flex items-center gap-2 group min-h-[28px]">
+                                           <button onClick={() => toggleSubtask(st.id)} className={`w-4 h-4 rounded-sm border flex items-center justify-center transition-all ${st.completed ? 'bg-notion-blue border-notion-blue text-white' : 'border-muted-foreground/40 bg-transparent hover:border-notion-blue'}`}>
+                                               {st.completed && <Check className="w-3 h-3" />}
+                                           </button>
+                                           <input 
+                                               className={`flex-1 bg-transparent border-none p-0 text-sm focus:ring-0 ${st.completed ? 'text-muted-foreground line-through' : 'text-foreground'}`}
+                                               value={st.title}
+                                               onChange={(e) => setEditTaskSubtasks(prev => prev.map(s => s.id === st.id ? { ...s, title: e.target.value } : s))}
+                                           />
+                                           <button onClick={() => setEditTaskSubtasks(prev => prev.filter(s => s.id !== st.id))} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-opacity p-1">
+                                               <X className="w-3.5 h-3.5" />
+                                           </button>
+                                      </div>
+                                  ))}
+                                  
+                                  <div className="flex items-center gap-2 min-h-[28px] group cursor-text">
+                                      <Plus className="w-4 h-4 text-muted-foreground" />
+                                      <input 
+                                          placeholder="Add a subtask..." 
+                                          className="flex-1 bg-transparent border-none p-0 text-sm focus:ring-0 placeholder:text-muted-foreground"
+                                          onKeyDown={addSubtask}
+                                      />
+                                  </div>
+                              </div>
+                          </div>
+
+                          <div className="h-px bg-border w-full my-4 shrink-0" />
+
+                          {/* Notes */}
+                          <div className="flex-1 flex flex-col px-6 pb-6">
+                               <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2 mb-3">
+                                  <FileText className="w-4 h-4" /> 
+                                  Notes
+                              </h3>
+                              <textarea 
+                                  placeholder="Type something..." 
+                                  value={editTaskNotes} 
+                                  onChange={(e) => setEditTaskNotes(e.target.value)} 
+                                  className="flex-1 w-full text-sm text-foreground bg-transparent border border-border hover:border-border focus:border-border rounded-md p-4 resize-none placeholder:text-muted-foreground/50 leading-relaxed transition-colors outline-none" 
+                              />
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          );
+      };
+
+      const renderTodayHabitDetail = () => {
+          const habit = habits.find(h => h.id === selectedTodayHabitId);
+          if (!habit) return null;
+          
+          // Mimic structure of HabitSection renderDetailView
+          const count = habit.progress[today] || 0;
+          const increment = async () => {
+             const newCount = habit.useCounter ? count + 1 : (count >= habit.target ? 0 : habit.target);
+             updateHabitDayStatus(habit.id, today, newCount, false);
+          };
+          const decrement = async () => {
+             if (!habit.useCounter || count <= 0) return;
+             const newCount = count - 1;
+             updateHabitDayStatus(habit.id, today, newCount, false);
+          };
+
+          return (
+              <div className="flex flex-col h-full bg-background animate-in fade-in">
+                  <div className="shrink-0 h-14 border-b border-border flex items-center justify-between px-4 bg-background z-10">
+                       <div className="flex items-center gap-3 min-w-0 flex-1">
+                           <button onClick={() => setSelectedTodayHabitId(null)} className="md:hidden p-1 hover:bg-notion-hover rounded-sm text-muted-foreground hover:text-foreground transition-colors shrink-0">
+                               <ChevronLeft className="w-5 h-5" />
+                           </button>
+                           <span className="w-8 h-8 flex items-center justify-center text-xl shrink-0">{habit.icon}</span>
+                           <div className="min-w-0 flex-1">
+                               <h2 className="text-sm font-bold text-foreground leading-tight truncate">{habit.title}</h2>
+                               <div className="flex items-center gap-2 text-xs text-muted-foreground leading-tight truncate">
+                                  <span className={`uppercase font-bold text-[9px] shrink-0 ${habit.goalType === 'negative' ? 'text-notion-red' : 'text-notion-green'}`}>
+                                      {habit.goalType === 'negative' ? 'Quit' : 'Build'}
+                                  </span>
+                                  <span className="shrink-0">•</span>
+                                  <span className="truncate">{habit.target} {habit.unit}</span>
+                               </div>
+                           </div>
+                       </div>
+                       <div className="flex items-center gap-1 shrink-0">
+                           <button onClick={() => setSelectedTodayHabitId(null)} className="p-2 text-muted-foreground hover:bg-notion-hover hover:text-foreground rounded-sm transition-colors text-sm font-medium">
+                               Close
+                           </button>
+                       </div>
+                  </div>
+
+                  <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-6">
+                        {/* Quick Action Large */}
+                       <div className="bg-background border border-border rounded-lg p-6 flex flex-col items-center justify-center gap-4 shadow-sm">
+                           <div className="text-center">
+                               <div className="text-4xl font-bold">{count}</div>
+                               <div className="text-xs text-muted-foreground uppercase tracking-wide">Today</div>
+                           </div>
+                           <div className="flex items-center gap-4">
+                               {habit.useCounter && <button onClick={decrement} className="w-12 h-12 rounded-full border border-border flex items-center justify-center hover:bg-notion-hover text-2xl"><Minus className="w-6 h-6" /></button>}
+                               <button onClick={increment} className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl transition-colors shadow-sm ${count >= habit.target ? 'bg-notion-green text-white hover:bg-green-600' : 'bg-notion-blue text-white hover:bg-blue-600'}`}>
+                                   {count >= habit.target ? <Check className="w-8 h-8" /> : <Plus className="w-8 h-8" />}
+                               </button>
+                               {habit.useCounter && <div className="w-12" />}
+                           </div>
+                       </div>
+                       
+                       <div className="bg-secondary/30 rounded-lg p-4 border border-border">
+                           <div className="flex items-center gap-2 mb-4">
+                               <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                               <span className="text-sm font-semibold">Recent History</span>
+                           </div>
+                           <div className="flex justify-between">
+                               {Array.from({length: 7}, (_, i) => {
+                                   const d = new Date(); 
+                                   if (d.getHours() < (userSettings.dayStartHour || 0)) d.setDate(d.getDate() - 1);
+                                   d.setDate(d.getDate() - (6 - i));
+                                   const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                   const dayCount = habit.progress[dateStr] || 0;
+                                   const color = getHabitStatusColor(habit, dayCount, dateStr === today);
+                                   const dayLetter = d.toLocaleDateString('en-US', { weekday: 'narrow' });
+                                   
+                                   return (
+                                       <div key={i} className="flex flex-col items-center gap-2">
+                                           <div className="text-[10px] text-muted-foreground font-bold">{dayLetter}</div>
+                                           <div 
+                                              className="w-6 h-6 rounded-sm border border-border"
+                                              style={{ backgroundColor: color || 'transparent' }}
+                                           />
+                                       </div>
+                                   )
+                               })}
+                           </div>
+                       </div>
+                  </div>
+              </div>
+          );
+      };
+
+      return (
+          <div className="flex flex-col md:flex-row h-full bg-background overflow-hidden animate-in fade-in">
+              {/* Left/Main Column */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
+                  
+                  {/* Daily Progress Bar Section */}
+                  <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm font-medium">
+                          <span className="flex items-center gap-2">
+                              <Activity className="w-4 h-4 text-notion-blue" />
+                              Daily Progress
+                          </span>
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                              {sidebarStats.finishTime ? `Estimated finish: ${sidebarStats.finishTime}` : 'All done!'}
+                          </span>
+                      </div>
+                      <div className="h-2 w-full bg-secondary rounded-full overflow-hidden relative">
+                          <div className="h-full bg-notion-blue transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+                      </div>
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>{Math.floor(sidebarStats.totalTrackedSeconds/60)}m worked</span>
+                          <span>{sidebarStats.remainingMinutes}m remaining</span>
+                      </div>
+                  </div>
+
+                  {/* Habits Grid */}
+                  {todayHabits.length > 0 && (
+                      <div className="bg-background border border-border rounded-lg p-4 space-y-3 shadow-sm">
+                          <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                              <Zap className="w-4 h-4" /> Habits
+                          </h2>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+                              {todayHabits.map(habit => {
+                                  const count = habit.progress[today] || 0;
+                                  const isSelected = selectedTodayHabitId === habit.id;
+                                  // Simplified logic for heatmap in preview
+                                  const last7Days = Array.from({length: 7}, (_, i) => {
+                                      const d = new Date(); d.setDate(d.getDate() - (6 - i));
+                                      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                  });
+
+                                  return (
+                                      <div 
+                                          key={habit.id} 
+                                          onClick={(e) => { e.stopPropagation(); setSelectedTodayHabitId(habit.id); setSelectedTodayTaskId(null); }}
+                                          className={`group bg-background rounded-lg border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-center h-14 ${isSelected ? 'border-notion-blue bg-notion-item_hover' : 'border-border hover:bg-notion-item_hover'}`}
+                                      >
+                                          <div className="flex items-center px-3 gap-3 w-full h-full">
+                                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                  <span className={`w-10 text-center shrink-0 text-[9px] px-1.5 py-0.5 rounded-sm font-bold uppercase tracking-wide ${habit.goalType === 'negative' ? 'bg-notion-bg_red text-notion-red' : 'bg-notion-bg_green text-notion-green'}`}>
+                                                      {habit.goalType === 'negative' ? 'Quit' : 'Build'}
+                                                  </span>
+                                                  <div className="w-8 h-8 flex items-center justify-center text-xl shrink-0">{habit.icon}</div>
+                                                  <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                                                      <h4 className="text-sm font-bold truncate text-foreground">{habit.title}</h4>
+                                                  </div>
+                                              </div>
+                                              <div className="flex items-center gap-4 shrink-0">
+                                                  <button
+                                                      onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          if (habit.useCounter) {
+                                                              updateHabitDayStatus(habit.id, today, count + 1, false);
+                                                          } else {
+                                                              updateHabitDayStatus(habit.id, today, count >= habit.target ? 0 : habit.target, false);
+                                                          }
+                                                      }}
+                                                      className={`w-8 h-8 rounded-[4px] flex items-center justify-center transition-all shadow-sm border ${
+                                                          count >= habit.target
+                                                          ? 'bg-notion-green text-white border-notion-green hover:bg-green-600' 
+                                                          : 'bg-background border-border text-muted-foreground hover:border-notion-blue hover:text-notion-blue'
+                                                      }`}
+                                                  >
+                                                       {count >= habit.target ? <Check className="w-4 h-4" /> : (habit.useCounter ? <Plus className="w-4 h-4" /> : <Check className="w-4 h-4" />)}
+                                                  </button>
+                                              </div>
+                                          </div>
+                                      </div>
+                                  );
+                              })}
+                          </div>
+                      </div>
+                  )}
+
+                  {/* Tasks List */}
+                  <div className="bg-background border border-border rounded-lg p-4 space-y-3 shadow-sm">
+                      <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                          <CheckSquare className="w-4 h-4" /> Task to Complete
+                      </h2>
+                      {todayTasks.length > 0 ? (
+                          <div className="space-y-3">
+                              {todayTasks.map(task => {
+                                  const isSelected = selectedTodayTaskId === task.id;
+                                  const isOverdue = task.dueDate < today;
+                                  const priorityColorClass = getPriorityLineColor(task.priority);
+                                  const subtasks = task.subtasks || [];
+
+                                  return (
+                                      <div key={task.id} onClick={() => { setSelectedTodayTaskId(task.id); setSelectedTodayHabitId(null); }} className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md mb-3 overflow-hidden ${isSelected ? 'border-foreground ring-1 ring-foreground/10' : 'border-border hover:border-notion-blue/30'}`}>
+                                          <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${priorityColorClass} rounded-l-sm opacity-80`} />
+                                          <div className="pl-5 pr-3 pt-2 pb-3 flex items-start gap-3">
+                                              <button onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }} className={`mt-0.5 w-5 h-5 rounded-sm border-[1.5px] flex items-center justify-center transition-all duration-200 shrink-0 ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'bg-transparent border-muted-foreground/40 hover:border-notion-blue'}`}>{task.completed && <Check className="w-3.5 h-3.5 stroke-[3]" />}</button>
+                                              <div className="flex-1 min-w-0 space-y-1">
+                                                  <div className="flex items-center gap-2 mb-0.5">
+                                                       <h4 className={`text-sm font-semibold leading-normal transition-colors ${task.completed ? 'text-muted-foreground line-through decoration-border' : (isOverdue ? 'text-notion-red' : 'text-foreground')}`}>{task.title}</h4>
+                                                       {subtasks.length > 0 && <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm h-fit"><ListChecks className="w-3 h-3" /><span>{subtasks.filter(s => s.completed).length}/{subtasks.length}</span></div>}
+                                                  </div>
+                                                  <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                                                          {isOverdue && <span className="text-notion-red font-bold">Overdue</span>}
+                                                          <div className={`flex items-center justify-center gap-1 px-1 py-0.5 rounded-sm border shadow-sm min-w-[58px] ${getPriorityBadgeStyle(task.priority)}`}>{getPriorityIcon(task.priority)}<span className="font-medium truncate">{task.priority}</span></div>
+                                                          {task.time && <div className="flex items-center gap-1 text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-sm border border-foreground/10 shadow-sm"><Clock className="w-3 h-3" /><span>{task.time}</span></div>}
+                                                          {task.tags && task.tags.map(tagId => { const tag = tags.find(t => t.id === tagId); if (!tag) return null; return (<div key={tagId} className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 text-muted-foreground shadow-sm"><div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tag.color }} /><span className="truncate max-w-[80px]">{tag.label}</span></div>); })}
+                                                  </div>
+                                              </div>
+                                              {(task.plannedTime || (task.actualTime || 0) > 0) && <div className="flex flex-col items-end justify-center shrink-0 pl-2 self-center gap-0.5 min-w-[3.5rem]"><span className={`font-mono text-xs font-medium tabular-nums ${task.timerStart ? 'text-notion-blue animate-pulse' : 'text-foreground'}`}>{Math.round(task.actualTime || 0)}m</span>{task.plannedTime && <span className="text-[10px] text-muted-foreground tabular-nums opacity-80">/ {task.plannedTime}m</span>}</div>}
+                                          </div>
+                                      </div>
+                                  );
+                              })}
+                          </div>
+                      ) : (
+                          <div className="text-center py-10 bg-secondary/20 rounded-lg border border-dashed border-border">
+                              <p className="text-sm text-muted-foreground">No tasks left for today!</p>
+                              <button onClick={() => setActiveTab('tasks')} className="mt-2 text-xs text-notion-blue hover:underline">View all tasks</button>
+                          </div>
+                      )}
+                  </div>
+              </div>
+
+              {/* Right Sidebar: Details or Calendar - UPDATED WIDTH */}
+              <div className="w-full md:w-[500px] border-t md:border-t-0 md:border-l border-border bg-secondary/5 flex flex-col h-[400px] md:h-full">
+                   {selectedTodayTaskId ? (
+                       renderTodayTaskDetail()
+                   ) : selectedTodayHabitId ? (
+                       renderTodayHabitDetail()
+                   ) : (
+                       <>
+                           <div className="p-4 border-b border-border bg-background/50 backdrop-blur-sm sticky top-0 z-10 flex items-center justify-between">
+                               <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Schedule</span>
+                               <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                           </div>
+                           <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+                                {hours.map((h, i) => (
+                                    <div key={h} className="flex relative h-[60px] border-b border-border/40 last:border-0 group">
+                                        <div className="w-14 shrink-0 border-r border-border/40 text-[10px] text-muted-foreground p-2 text-right bg-secondary/10 group-hover:bg-secondary/20 transition-colors">
+                                            {h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`}
+                                        </div>
+                                        <div className="flex-1 relative bg-background/30">
+                                             {timedTasks.filter(t => {
+                                                 const [tH] = (t.time || '00:00').split(':').map(Number);
+                                                 return tH === h;
+                                             }).map(task => {
+                                                 const [_, tM] = (task.time || '00:00').split(':').map(Number);
+                                                 const top = (tM / 60) * 100;
+                                                 return (
+                                                     <div 
+                                                        key={task.id}
+                                                        onClick={() => { setSelectedTodayTaskId(task.id); setSelectedTodayHabitId(null); }}
+                                                        className="absolute left-1 right-1 bg-notion-bg_blue border-l-2 border-notion-blue text-notion-blue text-[10px] p-1 rounded-sm shadow-sm cursor-pointer hover:brightness-95 truncate z-10"
+                                                        style={{ top: `${top}%`, height: '28px' }}
+                                                        title={task.title}
+                                                     >
+                                                         <span className="font-bold mr-1">{task.time}</span>
+                                                         {task.title}
+                                                     </div>
+                                                 )
+                                             })}
+                                        </div>
+                                    </div>
+                                ))}
+                                
+                                {(() => {
+                                    const now = new Date();
+                                    const currentH = now.getHours();
+                                    const currentM = now.getMinutes();
+                                    let adjustedH = currentH;
+                                    if (adjustedH < startHour) adjustedH += 24;
+                                    const relativeH = adjustedH - startHour;
+                                    
+                                    if (relativeH >= 0 && relativeH < 24) {
+                                        const top = (relativeH * 60) + currentM;
+                                        return (
+                                            <div className="absolute left-14 right-0 border-t-2 border-notion-red z-20 pointer-events-none flex items-center" style={{ top: `${top}px` }}>
+                                                <div className="w-2 h-2 rounded-full bg-notion-red -ml-1" />
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
+                           </div>
+                       </>
+                   )}
+              </div>
+          </div>
+      );
+  };
+
   const renderContent = () => {
     switch (activeTab) {
+      case 'today': return renderTodayView();
       case 'tasks': return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} taskFolders={taskFolders} setTaskFolders={setTaskFolders} />;
       case 'habit': return <HabitSection habits={habits} setHabits={setHabits} habitFolders={habitFolders} setHabitFolders={setHabitFolders} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'journal': return <JournalSection journals={journals} setJournals={setJournals} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'notes': return <NotesSection notes={notes} setNotes={setNotes} folders={folders} setFolders={setFolders} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'settings': return <SettingsSection settings={userSettings} onUpdate={handleUpdateSettings} onLogout={onLogout} onNavigate={setActiveTab} tags={tags} setTags={setTags} isOnline={isOnline} />;
-      default: return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} taskFolders={taskFolders} setTaskFolders={setTaskFolders} />;
+      default: return renderTodayView();
     }
   };
 
@@ -475,6 +1060,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           </div>
           
           <nav className="flex-1 space-y-0.5 w-full overflow-y-auto custom-scrollbar px-2 py-2">
+            <NavItem id="today" label="Today" icon={LayoutDashboard} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
+            
+            <div className="pt-4 pb-1 px-2">
+                {!isSidebarCollapsed && <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Areas</div>}
+                {isSidebarCollapsed && <div className="h-px bg-border my-1" />}
+            </div>
+
             {enabledModules.includes('tasks') && <NavItem id="tasks" label="Tasks" icon={CheckSquare} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
             {enabledModules.includes('habit') && <NavItem id="habit" label="Habits" icon={Zap} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
             {enabledModules.includes('journal') && <NavItem id="journal" label="Journal" icon={Book} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
@@ -562,11 +1154,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       
       {/* Mobile Nav Bottom Bar */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-border z-30 flex items-center justify-around px-2 pb-safe">
+        <MobileNavItem id="today" label="Today" icon={LayoutDashboard} activeTab={activeTab} setActiveTab={setActiveTab} />
         {enabledModules.includes('tasks') && <MobileNavItem id="tasks" label="Tasks" icon={CheckSquare} activeTab={activeTab} setActiveTab={setActiveTab} />}
         {enabledModules.includes('habit') && <MobileNavItem id="habit" label="Habits" icon={Zap} activeTab={activeTab} setActiveTab={setActiveTab} />}
         {enabledModules.includes('journal') && <MobileNavItem id="journal" label="Journal" icon={Book} activeTab={activeTab} setActiveTab={setActiveTab} />}
         {enabledModules.includes('notes') && <MobileNavItem id="notes" label="Notes" icon={StickyNote} activeTab={activeTab} setActiveTab={setActiveTab} />}
-        <MobileNavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} />
       </div>
 
       {/* Main Content Area */}
