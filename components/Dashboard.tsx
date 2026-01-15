@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder } from '../types';
@@ -10,8 +11,6 @@ import { supabase } from '../lib/supabase';
 import { decryptData } from '../lib/crypto';
 import { AppIcon } from './AppIcon';
 
-// Define missing helper components for Nav and Widgets
-
 interface NavItemProps {
     id: AppTab;
     label: string;
@@ -21,7 +20,6 @@ interface NavItemProps {
     isSidebarCollapsed: boolean;
 }
 
-/** NavItem helper for the desktop sidebar */
 const NavItem: React.FC<NavItemProps> = ({ id, label, icon: Icon, activeTab, setActiveTab, isSidebarCollapsed }) => {
   const isActive = activeTab === id;
   return (
@@ -47,7 +45,6 @@ interface ExternalNavLinkProps {
     isSidebarCollapsed: boolean;
 }
 
-/** Helper for external sidebar links */
 const ExternalNavLink: React.FC<ExternalNavLinkProps> = ({ href, label, icon: Icon, isSidebarCollapsed }) => {
   return (
     <a
@@ -71,7 +68,6 @@ interface MobileNavItemProps {
     setActiveTab: (tab: AppTab) => void;
 }
 
-/** MobileNavItem helper for the bottom navigation bar */
 const MobileNavItem: React.FC<MobileNavItemProps> = ({ id, label, icon: Icon, activeTab, setActiveTab }) => {
   const isActive = activeTab === id;
   return (
@@ -93,7 +89,6 @@ interface TaskTrackerWidgetProps {
     onClose: () => void;
 }
 
-/** TaskTrackerWidget helper for floating active timer */
 const TaskTrackerWidget: React.FC<TaskTrackerWidgetProps> = ({ task, onToggle, onClose }) => {
     const [now, setNow] = useState(Date.now());
     useEffect(() => {
@@ -561,7 +556,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   );
 
   return (
-    <div className="flex h-full flex-col md:flex-row overflow-hidden bg-background font-sans text-foreground">
+    <div className="flex h-screen flex-col md:flex-row overflow-hidden bg-background font-sans text-foreground">
       {/* Desktop Sidebar */}
       {renderSidebar()}
       
