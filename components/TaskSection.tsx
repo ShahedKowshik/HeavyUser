@@ -1134,7 +1134,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                          {/* Grouping Menu (Visible in List View) */}
                          {viewLayout === 'list' && (
                              <div className="relative">
-                                 <button onClick={() => setIsGroupingMenuOpen(!isGroupingMenuOpen)} className="p-2 hover:bg-notion-hover rounded-sm text-muted-foreground hover:text-foreground transition-colors" title="View Options">
+                                 <button onClick={() => setIsGroupingMenuOpen(!isGroupingMenuOpen)} className="p-1.5 hover:bg-notion-hover rounded-sm text-muted-foreground hover:text-foreground transition-colors" title="View Options">
                                      <ArrowUpDown className="w-4 h-4" />
                                  </button>
                                  {isGroupingMenuOpen && (
@@ -1163,7 +1163,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         </div>
                         
                         {/* New Task Button */}
-                        <button onClick={openCreatePanel} className="flex items-center gap-1.5 px-3 py-1.5 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0 ml-1">
+                        <button onClick={openCreatePanel} className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0 ml-1">
                             <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New</span>
                         </button>
                     </div>
