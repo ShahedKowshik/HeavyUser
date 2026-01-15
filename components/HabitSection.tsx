@@ -1122,12 +1122,12 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                 style={{ scrollbarGutter: 'stable' }}
                 onClick={() => setDetailHabitId(null)}
             >
-                 {/* Header Controls */}
+                 {/* Header Controls - FIXED ALIGNMENT */}
                  <div 
-                    className="px-4 md:px-8 pt-4 md:pt-6 mb-4 space-y-4"
+                    className="px-4 md:px-8 pt-4 md:pt-6 pb-4"
                     onClick={(e) => e.stopPropagation()}
                  >
-                     <div className="flex flex-row items-center justify-between gap-2 sm:gap-4 border-b border-border pb-4">
+                     <div className="flex flex-row items-center justify-between gap-4 border-b border-border pb-4">
                         <div className="flex items-center gap-1">
                              <button onClick={() => setFilter('all')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === 'all' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>All</button>
                              <button onClick={() => setFilter('positive')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === 'positive' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Build</button>
@@ -1148,7 +1148,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                              </button>
 
                              <button onClick={openCreateModal} className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0">
-                                <Plus className="w-4 h-4" /> New
+                                <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New</span>
                              </button>
                         </div>
                      </div>

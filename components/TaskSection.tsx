@@ -798,12 +798,33 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   const renderTrackerView = () => {
-    const totalTrackedSeconds = sessions.reduce((acc, s) => acc + (s.duration || 0), 0);
+    // Calculate logic today based on dayStartHour
+    const d = new Date();
+    if (d.getHours() < (dayStartHour || 0)) d.setDate(d.getDate() - 1);
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    const todaySessions = sessions.filter(s => {
+        const sDate = new Date(s.startTime);
+        // Adjust session time for day start hour logic
+        if (sDate.getHours() < (dayStartHour || 0)) sDate.setDate(sDate.getDate() - 1);
+        const sDateStr = `${sDate.getFullYear()}-${String(sDate.getMonth() + 1).padStart(2, '0')}-${String(sDate.getDate()).padStart(2, '0')}`;
+        return sDateStr === todayStr;
+    });
+
+    const totalTrackedSeconds = todaySessions.reduce((acc, s) => acc + (s.duration || 0), 0);
+
     return (
         <div className="space-y-8 animate-in fade-in pt-4">
             <div className="grid grid-cols-3 gap-4">
-                {[{ label: "Total Tracked", value: formatDuration(totalTrackedSeconds / 60), color: "text-foreground" }, { label: "Sessions", value: sessions.length, color: "text-notion-blue" }, { label: "Avg Session", value: sessions.length ? formatDuration((totalTrackedSeconds / sessions.length) / 60) : '0m', color: "text-notion-orange" }].map((stat, i) => (
-                    <div key={i} className="bg-background border border-border rounded-md p-4 shadow-sm"><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-1">{stat.label}</div><div className={`text-xl font-medium ${stat.color} tabular-nums`}>{stat.value}</div></div>
+                {[
+                    { label: "Today's Focus", value: formatDuration(totalTrackedSeconds / 60), color: "text-foreground" },
+                    { label: "Sessions Today", value: todaySessions.length, color: "text-notion-blue" },
+                    { label: "Avg Session", value: todaySessions.length ? formatDuration((totalTrackedSeconds / todaySessions.length) / 60) : '0m', color: "text-notion-orange" }
+                ].map((stat, i) => (
+                    <div key={i} className="bg-background border border-border rounded-md p-4 shadow-sm">
+                        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-1">{stat.label}</div>
+                        <div className={`text-xl font-medium ${stat.color} tabular-nums`}>{stat.value}</div>
+                    </div>
                 ))}
             </div>
         </div>
@@ -1163,7 +1184,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         </div>
                         
                         {/* New Task Button */}
-                        <button onClick={openCreatePanel} className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0 ml-1">
+                        <button onClick={openCreatePanel} className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0">
                             <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New</span>
                         </button>
                     </div>
