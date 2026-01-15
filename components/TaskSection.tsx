@@ -293,7 +293,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const [isRescheduleMenuOpen, setIsRescheduleMenuOpen] = useState(false);
   
   // UI State for Detail Panel
-  const [activePopover, setActivePopover] = useState<'priority' | 'date' | 'tags' | 'repeat' | null>(null);
+  const [activePopover, setActivePopover] = useState<'priority' | 'date' | 'tags' | 'repeat' | 'duration' | null>(null);
 
   // Calendar State
   const [calendarDate, setCalendarDate] = useState(() => {
@@ -854,6 +854,15 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         <Repeat className="w-4 h-4 shrink-0" />
                         <span className="truncate">{createRecurrence ? (createRecurrence.interval > 1 ? `Every ${createRecurrence.interval} ${createRecurrence.type}` : `Daily`) : 'Repeat'}</span>
                     </button>
+
+                    {/* Duration Button - RESTORED */}
+                    <button 
+                        onClick={() => setActivePopover(activePopover === 'duration' ? null : 'duration')}
+                        className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'duration' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
+                    >
+                        <Clock className="w-4 h-4 shrink-0" />
+                        <span className="truncate">{plannedTime ? formatDuration(plannedTime) : 'Duration'}</span>
+                    </button>
                 </div>
 
                 {/* Inline Popovers */}
@@ -977,6 +986,28 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                 )}
                              </div>
                         )}
+
+                        {activePopover === 'duration' && (
+                            <div className="flex flex-wrap gap-2 max-w-xs">
+                                {PLANNED_TIME_OPTIONS.map(opt => (
+                                    <button
+                                        key={opt.value}
+                                        onClick={() => { setPlannedTime(opt.value); setActivePopover(null); }}
+                                        className={`px-3 py-1.5 rounded-sm text-xs font-medium border transition-all ${plannedTime === opt.value ? 'bg-notion-blue text-white border-notion-blue shadow-sm' : 'bg-background border-border text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                                {plannedTime !== undefined && (
+                                    <button 
+                                        onClick={() => { setPlannedTime(undefined); setActivePopover(null); }}
+                                        className="px-3 py-1.5 rounded-sm text-xs font-medium text-destructive hover:bg-notion-bg_red transition-all ml-auto"
+                                    >
+                                        Clear
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
                 
@@ -1048,17 +1079,33 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     <div className="flex h-full bg-background overflow-hidden relative">
         {/* Main Panel */}
         <div className={`flex-1 flex flex-col min-w-0 border-r border-border ${showDetailPanel ? 'hidden md:flex' : 'flex'}`}>
-            {/* Header */}
-            <div className="shrink-0 px-4 md:px-8 pt-4 md:pt-6 pb-2 space-y-4">
-                <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-md">
-                        <button onClick={() => setViewLayout('list')} className={`p-1.5 rounded-sm transition-all ${viewLayout === 'list' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`} title="List View"><ListTodo className="w-4 h-4" /></button>
-                        <button onClick={() => setViewLayout('calendar')} className={`p-1.5 rounded-sm transition-all ${viewLayout === 'calendar' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`} title="Calendar View"><Calendar className="w-4 h-4" /></button>
-                        <button onClick={() => setViewLayout('tracker')} className={`p-1.5 rounded-sm transition-all ${viewLayout === 'tracker' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`} title="Time Tracker"><Timer className="w-4 h-4" /></button>
+            {/* Header - UPDATED FOR CONSISTENCY */}
+            <div className="px-4 md:px-8 pt-4 md:pt-6 pb-4">
+                <div className="flex flex-row items-center justify-between gap-4 border-b border-border pb-4">
+                    {/* Left Side: Filter Tabs (Active/Completed) */}
+                    <div className="flex items-center gap-1">
+                        <button onClick={() => handleViewModeChange('active')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewMode === 'active' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Active</button>
+                        <button onClick={() => handleViewModeChange('completed')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewMode === 'completed' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Completed</button>
                     </div>
 
+                    {/* Right Side: View Layouts + Actions */}
                     <div className="flex items-center gap-2">
-                        {viewLayout === 'list' && (
+                         {/* View Layout Icons */}
+                         <div className="flex items-center gap-0.5 bg-secondary/50 p-0.5 rounded-md mr-1 hidden sm:flex">
+                            <button onClick={() => setViewLayout('list')} className={`p-1.5 rounded-sm transition-all ${viewLayout === 'list' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`} title="List View"><ListTodo className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => setViewLayout('calendar')} className={`p-1.5 rounded-sm transition-all ${viewLayout === 'calendar' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`} title="Calendar View"><Calendar className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => setViewLayout('tracker')} className={`p-1.5 rounded-sm transition-all ${viewLayout === 'tracker' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`} title="Time Tracker"><Timer className="w-3.5 h-3.5" /></button>
+                         </div>
+                         
+                         {/* Mobile View Layout Icons */}
+                         <div className="flex items-center gap-0.5 bg-secondary/50 p-0.5 rounded-md mr-1 sm:hidden">
+                            <button onClick={() => setViewLayout('list')} className={`p-1.5 rounded-sm ${viewLayout === 'list' ? 'bg-background text-foreground' : 'text-muted-foreground'}`}><ListTodo className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => setViewLayout('calendar')} className={`p-1.5 rounded-sm ${viewLayout === 'calendar' ? 'bg-background text-foreground' : 'text-muted-foreground'}`}><Calendar className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => setViewLayout('tracker')} className={`p-1.5 rounded-sm ${viewLayout === 'tracker' ? 'bg-background text-foreground' : 'text-muted-foreground'}`}><Timer className="w-3.5 h-3.5" /></button>
+                         </div>
+
+                         {/* Grouping Menu */}
+                         {viewLayout === 'list' && (
                              <div className="relative">
                                  <button onClick={() => setIsGroupingMenuOpen(!isGroupingMenuOpen)} className="p-2 hover:bg-notion-hover rounded-sm text-muted-foreground hover:text-foreground transition-colors" title="View Options">
                                      <ArrowUpDown className="w-4 h-4" />
@@ -1086,19 +1133,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         </button>
                     </div>
                 </div>
-
-                {viewLayout === 'list' && (
-                    <div className="flex items-center gap-4 text-sm border-b border-border">
-                        <button onClick={() => handleViewModeChange('active')} className={`pb-2 font-medium transition-colors relative ${viewMode === 'active' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
-                            Active
-                            {viewMode === 'active' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-t-full" />}
-                        </button>
-                        <button onClick={() => handleViewModeChange('completed')} className={`pb-2 font-medium transition-colors relative ${viewMode === 'completed' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
-                            Completed
-                            {viewMode === 'completed' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-t-full" />}
-                        </button>
-                    </div>
-                )}
             </div>
             
             {/* Scrollable Content */}
