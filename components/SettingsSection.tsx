@@ -1,9 +1,10 @@
+
 import React, { useState } from 'react';
 import { 
   User, Trash2, X, Check, LogOut, Loader2, 
   Tag as TagIcon, Pencil, LayoutGrid, 
   Zap, Book, ChevronRight, CheckSquare, StickyNote, WifiOff, MessageSquare, Map,
-  ArrowLeft
+  ArrowLeft, Calendar
 } from 'lucide-react';
 import { UserSettings, AppTab, Tag } from '../types';
 import { supabase } from '../lib/supabase';
@@ -68,6 +69,9 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [editTagLabel, setEditTagLabel] = useState('');
   const [editTagColor, setEditTagColor] = useState('');
+  
+  // Google Calendar Connection State
+  const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
 
   const handleCategoryClick = (cat: Category) => {
       setActiveCategory(cat);
@@ -168,6 +172,29 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
         setIsDeleting(false);
       }
     }
+  };
+  
+  const handleConnectGoogle = async () => {
+      setIsConnectingGoogle(true);
+      try {
+          const { error } = await supabase.auth.signInWithOAuth({
+              provider: 'google',
+              options: {
+                  redirectTo: window.location.origin,
+                  scopes: 'https://www.googleapis.com/auth/calendar',
+                  queryParams: {
+                      access_type: 'offline',
+                      prompt: 'consent',
+                  },
+              },
+          });
+          if (error) throw error;
+      } catch (err: any) {
+          console.error("Error connecting Google:", err);
+          setToast("Failed to connect Google");
+          setTimeout(() => setToast(null), 3000);
+          setIsConnectingGoogle(false);
+      }
   };
 
   return (
@@ -271,6 +298,31 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                         </div>
                                         <button onClick={() => handleSaveProfile()} className="w-full sm:w-auto px-4 py-2 bg-notion-blue text-white rounded-sm text-sm font-medium hover:bg-blue-600 transition-colors">Update Profile</button>
                                     </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h2 className="text-lg font-medium text-foreground border-b border-border pb-2 mb-4">Integrations</h2>
+                                <div className="space-y-4">
+                                     <div className="flex items-center justify-between p-4 border border-border rounded-md bg-secondary/20">
+                                         <div className="flex items-center gap-3">
+                                             <div className="p-2 bg-white rounded-sm border border-border">
+                                                 <Calendar className="w-5 h-5 text-red-500" />
+                                             </div>
+                                             <div>
+                                                 <div className="font-medium text-sm">Google Calendar</div>
+                                                 <div className="text-xs text-muted-foreground">Import events to tasks & schedule</div>
+                                             </div>
+                                         </div>
+                                         <button 
+                                            onClick={handleConnectGoogle} 
+                                            disabled={isConnectingGoogle}
+                                            className="px-3 py-1.5 text-xs font-medium bg-white border border-border rounded-sm hover:bg-gray-50 transition-colors flex items-center gap-2"
+                                         >
+                                             {isConnectingGoogle && <Loader2 className="w-3 h-3 animate-spin" />}
+                                             Connect
+                                         </button>
+                                     </div>
                                 </div>
                             </div>
 

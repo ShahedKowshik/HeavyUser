@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2 } from 'lucide-react';
-import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence } from '../types';
+import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence, CalendarEvent } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
 import JournalSection from './JournalSection';
@@ -12,6 +12,7 @@ import { supabase } from '../lib/supabase';
 import { decryptData, encryptData } from '../lib/crypto';
 import { AppIcon } from './AppIcon';
 import { getContrastColor } from '../lib/utils';
+import { getGoogleCalendarEvents } from '../services/googleCalendar';
 
 interface NavItemProps {
     id: AppTab;
@@ -294,6 +295,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [sessions, setSessions] = useState<TaskSession[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  
   const [userSettings, setUserSettings] = useState<UserSettings>({
     userName: user.name, 
     userId: user.id, 
@@ -482,6 +485,33 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     };
     fetchData();
   }, [userId, isOnline]);
+  
+  // 2.5 Fetch Google Calendar Events
+  useEffect(() => {
+    const fetchCalendar = async () => {
+        if (!user.googleToken || !isOnline) return;
+        
+        // Fetch surrounding month of events
+        const now = new Date();
+        const start = new Date(now);
+        start.setDate(1); // 1st of month
+        start.setMonth(start.getMonth() - 1); // Go back 1 month
+        const end = new Date(now);
+        end.setMonth(end.getMonth() + 2); // Go forward 2 months
+        end.setDate(0);
+        
+        const events = await getGoogleCalendarEvents(
+            user.googleToken, 
+            start.toISOString(), 
+            end.toISOString()
+        );
+        setCalendarEvents(events);
+    };
+    
+    fetchCalendar();
+    const interval = setInterval(fetchCalendar, 300000); // refresh every 5 mins
+    return () => clearInterval(interval);
+  }, [user.googleToken, isOnline]);
 
   // Handle Online/Offline Status
   useEffect(() => {
@@ -725,8 +755,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           if (!a.time && b.time) return 1;
           return 0;
       });
+      
+      // 2. Filter Calendar Events for Today Schedule
+      const todayEvents = calendarEvents.filter(e => {
+          const eDate = new Date(e.start);
+          const eDateStr = `${eDate.getFullYear()}-${String(eDate.getMonth() + 1).padStart(2, '0')}-${String(eDate.getDate()).padStart(2, '0')}`;
+          return eDateStr === today;
+      });
+      const timedEvents = todayEvents.filter(e => !e.allDay);
 
-      // 2. Filter Habits: Positive & Unfinished Only
+      // 3. Filter Habits: Positive & Unfinished Only
       const todayHabits = habits.filter(h => {
           if (h.startDate > today) return false;
           if (h.skippedDates.includes(today)) return false;
@@ -737,7 +775,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           return count < h.target; // Show only unfinished positive habits
       });
 
-      // 3. Calendar Data
+      // 4. Calendar Data
       const startHour = userSettings.dayStartHour || 0;
       const hours = Array.from({ length: 24 }, (_, i) => (startHour + i) % 24);
       const timedTasks = todayTasks.filter(t => !!t.time);
@@ -1223,6 +1261,29 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                             {h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`}
                                         </div>
                                         <div className="flex-1 relative bg-background/30">
+                                             {timedEvents.filter(e => {
+                                                 const start = new Date(e.start);
+                                                 const eH = start.getHours();
+                                                 return eH === h;
+                                             }).map(event => {
+                                                 const start = new Date(event.start);
+                                                 const eM = start.getMinutes();
+                                                 const top = (eM / 60) * 100;
+                                                 return (
+                                                     <a 
+                                                        key={event.id}
+                                                        href={event.htmlLink}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="absolute left-1 right-1 bg-green-50 border-l-2 border-green-500 text-green-900 text-[10px] p-1 rounded-sm shadow-sm cursor-pointer hover:brightness-95 truncate z-10"
+                                                        style={{ top: `${top}%`, height: '28px' }}
+                                                        title={event.title}
+                                                     >
+                                                         <span className="font-bold mr-1">{start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                                         {event.title}
+                                                     </a>
+                                                 )
+                                             })}
                                              {timedTasks.filter(t => {
                                                  const [tH] = (t.time || '00:00').split(':').map(Number);
                                                  return tH === h;
@@ -1275,7 +1336,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const renderContent = () => {
     switch (activeTab) {
       case 'today': return renderTodayView();
-      case 'tasks': return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} taskFolders={taskFolders} setTaskFolders={setTaskFolders} />;
+      case 'tasks': return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} taskFolders={taskFolders} setTaskFolders={setTaskFolders} calendarEvents={calendarEvents} />;
       case 'habit': return <HabitSection habits={habits} setHabits={setHabits} habitFolders={habitFolders} setHabitFolders={setHabitFolders} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'journal': return <JournalSection journals={journals} setJournals={setJournals} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'notes': return <NotesSection notes={notes} setNotes={setNotes} folders={folders} setFolders={setFolders} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
@@ -1356,7 +1417,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                         <div className="min-w-0">
                             <div className="text-xs font-bold text-foreground truncate">Daily Focus</div>
                             <div className="text-[10px] text-muted-foreground truncate">
-                                {sidebarStats.finishTime ? `Ends at ${sidebarStats.finishTime}` : 'All caught up!'}
+                                {sidebarStats.finishTime ? `Estimated finish: ${sidebarStats.finishTime}` : 'All caught up!'}
                             </div>
                         </div>
                     </div>

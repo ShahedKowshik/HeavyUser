@@ -12,6 +12,7 @@ export interface User {
   dayStartHour?: number; // 0-23
   startWeekDay?: number; // 0-6 (0 = Sunday, 1 = Monday, etc.)
   enabledFeatures?: string[];
+  googleToken?: string | null;
 }
 
 export interface Tag {
@@ -131,4 +132,13 @@ export interface UserSettings {
   dayStartHour?: number;
   startWeekDay?: number;
   enabledFeatures?: string[];
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  start: string; // ISO string
+  end: string; // ISO string
+  allDay: boolean;
+  htmlLink?: string;
 }

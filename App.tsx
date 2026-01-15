@@ -24,6 +24,7 @@ const App: React.FC = () => {
           dayStartHour: session.user.user_metadata.day_start_hour || 0,
           startWeekDay: session.user.user_metadata.start_week_day || 0,
           enabledFeatures: session.user.user_metadata.enabled_features || ['tasks', 'habit', 'journal', 'notes'],
+          googleToken: session.provider_token, // Capture Google Token if available
         });
       }
       setLoading(false);
@@ -42,6 +43,7 @@ const App: React.FC = () => {
           dayStartHour: session.user.user_metadata.day_start_hour || 0,
           startWeekDay: session.user.user_metadata.start_week_day || 0,
           enabledFeatures: session.user.user_metadata.enabled_features || ['tasks', 'habit', 'journal', 'notes'],
+          googleToken: session.provider_token, // Capture Google Token on auth change
         });
       } else {
         setCurrentUser(null);

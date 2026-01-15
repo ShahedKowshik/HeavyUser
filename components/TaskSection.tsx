@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, BarChart3, Check, AlertCircle, ArrowRight, Settings, FileText, Archive, CalendarClock, Layers, Moon, Flag, ArrowUpDown, ListTodo } from 'lucide-react';
-import { Task, Priority, Subtask, Tag, Recurrence, TaskSession } from '../types';
+import { Task, Priority, Subtask, Tag, Recurrence, TaskSession, CalendarEvent } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
 import { cn, getContrastColor } from '../lib/utils';
@@ -23,6 +23,7 @@ interface TaskSectionProps {
   onDeleteSession: (sessionId: string) => void;
   taskFolders?: any[];
   setTaskFolders?: any;
+  calendarEvents?: CalendarEvent[];
 }
 
 type Grouping = 'none' | 'date' | 'priority';
@@ -274,7 +275,7 @@ const mapTaskToDb = (task: Task, userId: string) => ({
     timer_start: task.timerStart
 });
 
-export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, startWeekDay = 0, onTaskComplete, activeFilterTagId, onToggleTimer, sessions, onDeleteSession }) => {
+export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, startWeekDay = 0, onTaskComplete, activeFilterTagId, onToggleTimer, sessions, onDeleteSession, calendarEvents = [] }) => {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const showDetailPanel = selectedTaskId !== null || isCreating;
@@ -594,6 +595,13 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     const dayTasks = safeTasks.filter(t => t.dueDate === dateStr);
     const untimedTasks = dayTasks.filter(t => !t.time);
     const timedTasks = dayTasks.filter(t => !!t.time).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    
+    // Calendar Events
+    const dayEvents = calendarEvents.filter(e => {
+        return e.start.startsWith(dateStr);
+    });
+    const allDayEvents = dayEvents.filter(e => e.allDay);
+    const timedEvents = dayEvents.filter(e => !e.allDay);
 
     const changeDate = (days: number) => {
         const d = new Date(calendarDate);
@@ -640,7 +648,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                  </div>
             </div>
             <div className="flex-1 overflow-y-auto custom-scrollbar relative flex flex-col">
-                {untimedTasks.length > 0 && (
+                {(untimedTasks.length > 0 || allDayEvents.length > 0) && (
                     <div className="shrink-0 border-b border-border p-2 bg-secondary/20">
                         <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">All Day</h3>
                         <div className="space-y-1">
@@ -650,6 +658,12 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                         {task.completed && <Check className="w-2 h-2" />}
                                     </div>
                                     <span className={`text-xs truncate ${task.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{task.title}</span>
+                                </div>
+                            ))}
+                            {allDayEvents.map(event => (
+                                <div key={event.id} className="bg-green-50 rounded-sm border border-green-200 p-2 flex items-center gap-2">
+                                     <div className="w-3 h-3 bg-green-500 rounded-sm"></div>
+                                     <span className="text-xs truncate text-green-900 font-medium">{event.title}</span>
                                 </div>
                             ))}
                         </div>
@@ -669,6 +683,31 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                             <div className="w-2 h-2 rounded-full bg-notion-red -ml-1" />
                         </div>
                     )}
+                    
+                    {/* Calendar Events (Timed) */}
+                    {timedEvents.map(event => {
+                         const start = new Date(event.start);
+                         const h = start.getHours();
+                         const m = start.getMinutes();
+                         let adjustedH = h;
+                         if (adjustedH < startHour) adjustedH += 24;
+                         const relativeH = adjustedH - startHour;
+                         const top = (relativeH * hourHeight) + ((m / 60) * hourHeight);
+                         
+                         const end = new Date(event.end);
+                         const durationMins = (end.getTime() - start.getTime()) / 60000;
+                         const height = (durationMins / 60) * hourHeight;
+                         
+                         const style = { top: `${top}px`, height: `${Math.max(height, 28)}px`, left: '60px', right: '10px' };
+
+                         return (
+                            <a key={event.id} href={event.htmlLink} target="_blank" rel="noopener noreferrer" style={{ ...style, position: 'absolute' }} className="rounded-md border-l-4 border-green-500 bg-green-50 border-y border-r border-green-200 p-1.5 cursor-pointer hover:shadow-md transition-all z-10 flex flex-col overflow-hidden text-green-900">
+                                <div className="text-xs font-semibold truncate">{event.title}</div>
+                                <div className="text-[10px] opacity-80 truncate">{start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                            </a>
+                         );
+                    })}
+
                     {timedTasks.map(task => {
                         const [h, m] = (task.time || '00:00').split(':').map(Number);
                         const duration = task.plannedTime || 30;
