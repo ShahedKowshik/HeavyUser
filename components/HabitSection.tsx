@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Minus, Settings, Check, Tag as TagIcon, Flame, BarChart3, Activity, SkipForward, CircleCheck, ArrowLeft, FolderPlus, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { Habit, Tag, HabitFolder } from '../types';
@@ -1006,7 +1007,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
         <div 
             key={habit.id} 
             onClick={(e) => { e.stopPropagation(); setDetailHabitId(habit.id); }}
-            className={`group bg-background rounded-lg border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-center h-14 ${detailHabitId === habit.id ? 'border-notion-blue bg-notion-item_hover' : 'border-border hover:bg-notion-item_hover'}`}
+            className={`group bg-background rounded-lg border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-center h-14 ${detailHabitId === habit.id ? 'border-notion-blue ring-1 ring-notion-blue' : 'border-border hover:bg-notion-item_hover'}`}
         >
             {/* Organize Mode Buttons */}
             {organizeMode && (

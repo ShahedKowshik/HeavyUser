@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, BarChart3, Check, AlertCircle, ArrowRight, Settings, FileText, Archive, CalendarClock, Layers, Moon, Flag, ArrowUpDown, ListTodo } from 'lucide-react';
@@ -766,7 +767,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                   const subtasks = task.subtasks || [];
 
                   return (
-                    <div key={task.id} onClick={() => openEditPanel(task)} className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md mb-3 overflow-hidden ${isSelected ? 'border-foreground ring-1 ring-foreground/10' : 'border-border hover:border-notion-blue/30'}`}>
+                    <div key={task.id} onClick={() => openEditPanel(task)} className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md mb-3 overflow-hidden ${isSelected ? 'border-notion-blue ring-1 ring-notion-blue' : 'border-border hover:border-notion-blue/30'}`}>
                         <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${priorityColorClass} rounded-l-sm opacity-80`} />
                         <div className="pl-5 pr-3 pt-2 pb-3 flex items-start gap-3">
                             <button onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }} className={`mt-0.5 w-5 h-5 rounded-sm border-[1.5px] flex items-center justify-center transition-all duration-200 shrink-0 ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'bg-transparent border-muted-foreground/40 hover:border-notion-blue'}`}>{task.completed && <Check className="w-3.5 h-3.5 stroke-[3]" />}</button>

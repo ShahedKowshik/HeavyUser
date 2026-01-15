@@ -1,8 +1,8 @@
 
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus } from 'lucide-react';
-import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask } from '../types';
+import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2 } from 'lucide-react';
+import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
 import JournalSection from './JournalSection';
@@ -135,7 +135,10 @@ const TaskTrackerWidget: React.FC<TaskTrackerWidgetProps> = ({ task, onToggle, o
     );
 };
 
-// Helper Functions copied for Dashboard use
+// --- Helper Functions ---
+const priorities: Priority[] = ['Urgent', 'High', 'Normal', 'Low'];
+const priorityOrder: Record<Priority, number> = { 'Urgent': 0, 'High': 1, 'Normal': 2, 'Low': 3 };
+
 const getPriorityBadgeStyle = (p: Priority) => {
     switch (p) {
         case 'Urgent': return 'bg-notion-bg_red text-notion-red border-notion-red/20';
@@ -172,6 +175,77 @@ const formatDuration = (minutes: number) => {
     const h = Math.floor(minutes / 60);
     const m = Math.floor(minutes % 60);
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
+};
+
+const formatRelativeDate = (dateStr: string) => {
+    if (!dateStr) return 'No Date';
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    
+    // Quick calc
+    if (dateStr === todayStr) return 'Today';
+    
+    const parts = dateStr.split('-').map(Number);
+    const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+// Copied from HabitSection for consistency
+const getHabitStats = (habit: Habit, today: string) => {
+    const isSuccess = (count: number, goalType: string, target: number) => {
+        if (goalType === 'negative') {
+             const limit = !habit.useCounter ? 0 : target;
+             return count <= limit;
+        }
+        return count >= target;
+    };
+
+    const d = new Date(today);
+    d.setDate(d.getDate() - 1);
+    const yesterday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    
+    // Streak
+    let streak = 0;
+    const todayCount = habit.progress[today] || 0;
+    const todaySkipped = habit.skippedDates.includes(today);
+    let isStreakBrokenToday = false;
+    if (habit.goalType === 'negative') {
+        const limit = !habit.useCounter ? 0 : habit.target;
+        if (todayCount > limit && !todaySkipped) isStreakBrokenToday = true;
+    }
+
+    if (!isStreakBrokenToday) {
+        let currentCheckDate = new Date(yesterday);
+        const startDate = new Date(habit.startDate);
+        startDate.setHours(0,0,0,0);
+        if (startDate <= new Date(today)) { 
+             while (true) {
+                const dateStr = `${currentCheckDate.getFullYear()}-${String(currentCheckDate.getMonth() + 1).padStart(2, '0')}-${String(currentCheckDate.getDate()).padStart(2, '0')}`;
+                const checkTime = new Date(dateStr); checkTime.setHours(0,0,0,0);
+                if (checkTime < startDate) break;
+                const count = habit.progress[dateStr] || 0;
+                const skipped = habit.skippedDates.includes(dateStr);
+                if (isSuccess(count, habit.goalType || 'positive', habit.target) || skipped) { streak++; currentCheckDate.setDate(currentCheckDate.getDate() - 1); } else break;
+            }
+        }
+    }
+    
+    // Totals
+    let totalDays = 0; let successfulDays = 0;
+    const start = new Date(habit.startDate); start.setHours(0,0,0,0);
+    const end = new Date(today); end.setHours(0,0,0,0);
+    const cur = new Date(start);
+    while (cur <= end) {
+        const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+        const count = habit.progress[dateStr] || 0;
+        const skipped = habit.skippedDates.includes(dateStr);
+        const success = isSuccess(count, habit.goalType || 'positive', habit.target);
+        totalDays++;
+        if (skipped) successfulDays++; else if (success) successfulDays++;
+        cur.setDate(cur.getDate() + 1);
+    }
+    const rate = totalDays > 0 ? Math.round((successfulDays / totalDays) * 100) : 0;
+    return { streak, totalDays, successfulDays, rate };
 };
 
 const getHabitStatusColor = (habit: Habit, count: number, isToday: boolean): string | null => {
@@ -241,12 +315,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [selectedTodayTaskId, setSelectedTodayTaskId] = useState<string | null>(null);
   const [selectedTodayHabitId, setSelectedTodayHabitId] = useState<string | null>(null);
   
+  // Dashboard Popover State (for Task Details)
+  const [activePopover, setActivePopover] = useState<'priority' | 'date' | 'tags' | 'repeat' | 'duration' | null>(null);
+  
   // Task Editing State for Today View Sidebar
   const [editTaskTitle, setEditTaskTitle] = useState('');
   const [editTaskNotes, setEditTaskNotes] = useState('');
   const [editTaskSubtasks, setEditTaskSubtasks] = useState<Subtask[]>([]);
+  const [editTaskPriority, setEditTaskPriority] = useState<Priority>('Normal');
+  const [editTaskDueDate, setEditTaskDueDate] = useState('');
+  const [editTaskTags, setEditTaskTags] = useState<string[]>([]);
+  const [editTaskRecurrence, setEditTaskRecurrence] = useState<Recurrence | null>(null);
+  const [editTaskPlannedTime, setEditTaskPlannedTime] = useState<number | undefined>(undefined);
 
-  // Task & Habit Interaction Handlers (Duplicated or Referenced from sections logic)
+  // Task & Habit Interaction Handlers
   const toggleTask = async (id: string) => {
     const task = tasks.find(t => t.id === id); if (!task) return;
     const newCompleted = !task.completed; const newCompletedAt = newCompleted ? new Date().toISOString() : null;
@@ -295,7 +377,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     return saved ? JSON.parse(saved) : null;
   };
 
-  // 1. Initial Load: Try Local first for "Everything" offline priority
+  // 1. Initial Load
   useEffect(() => {
     const cachedTasks = loadFromLocal('tasks');
     const cachedTags = loadFromLocal('tags');
@@ -318,7 +400,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     if (cachedSessions) setSessions(cachedSessions);
   }, [userId]);
 
-  // 2. Network Sync: Fetch from Supabase and overwrite Local (or merge if sophisticated)
+  // 2. Network Sync
   useEffect(() => {
     const fetchData = async () => {
       if (!isOnline) return;
@@ -413,7 +495,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     };
   }, []);
 
-  // Update localStorage when state changes (Phone Wins strategy: local is primary)
+  // Update localStorage when state changes
   useEffect(() => { if (tasks.length > 0) saveToLocal('tasks', tasks); }, [tasks]);
   useEffect(() => { if (tags.length > 0) saveToLocal('tags', tags); }, [tags]);
   useEffect(() => { if (habits.length > 0) saveToLocal('habits', habits); }, [habits]);
@@ -436,6 +518,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             setEditTaskTitle(t.title);
             setEditTaskNotes(t.notes || '');
             setEditTaskSubtasks(t.subtasks || []);
+            setEditTaskPriority(t.priority);
+            setEditTaskDueDate(t.dueDate);
+            setEditTaskTags(t.tags || []);
+            setEditTaskRecurrence(t.recurrence || null);
+            setEditTaskPlannedTime(t.plannedTime);
         }
     }
   }, [selectedTodayTaskId]);
@@ -446,18 +533,33 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     const timer = setTimeout(async () => {
         setTasks(prev => prev.map(t => {
             if (t.id === selectedTodayTaskId) {
-                return { ...t, title: editTaskTitle, notes: editTaskNotes, subtasks: editTaskSubtasks };
+                return { 
+                    ...t, 
+                    title: editTaskTitle, 
+                    notes: editTaskNotes, 
+                    subtasks: editTaskSubtasks,
+                    priority: editTaskPriority,
+                    dueDate: editTaskDueDate,
+                    tags: editTaskTags,
+                    recurrence: editTaskRecurrence,
+                    plannedTime: editTaskPlannedTime
+                };
             }
             return t;
         }));
         await supabase.from('tasks').update({
             title: encryptData(editTaskTitle),
             notes: encryptData(editTaskNotes),
-            subtasks: editTaskSubtasks.map(s => ({ ...s, title: encryptData(s.title) }))
+            subtasks: editTaskSubtasks.map(s => ({ ...s, title: encryptData(s.title) })),
+            priority: editTaskPriority,
+            due_date: editTaskDueDate || null,
+            tags: editTaskTags,
+            recurrence: editTaskRecurrence,
+            planned_time: editTaskPlannedTime
         }).eq('id', selectedTodayTaskId);
     }, 1000);
     return () => clearTimeout(timer);
-  }, [editTaskTitle, editTaskNotes, editTaskSubtasks, selectedTodayTaskId]);
+  }, [editTaskTitle, editTaskNotes, editTaskSubtasks, editTaskPriority, editTaskDueDate, editTaskTags, editTaskRecurrence, editTaskPlannedTime, selectedTodayTaskId]);
 
   const toggleSidebar = () => { setIsSidebarCollapsed(prev => { const newState = !prev; localStorage.setItem('heavyuser_sidebar_collapsed', String(newState)); return newState; }); };
 
@@ -535,6 +637,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       if (isOnline) await supabase.from('task_sessions').delete().eq('id', sessionId);
   };
 
+  const handleDeleteTask = async () => {
+      if (selectedTodayTaskId && confirm("Delete this task?")) {
+          setTasks(prev => prev.filter(t => t.id !== selectedTodayTaskId));
+          await supabase.from('tasks').delete().eq('id', selectedTodayTaskId);
+          setSelectedTodayTaskId(null);
+      }
+  };
+
   const handleUpdateSettings = async (newSettings: UserSettings) => { 
       setUserSettings(newSettings); 
       if (isOnline) await supabase.auth.updateUser({ 
@@ -605,6 +715,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         t.dueDate && 
         (t.dueDate === today || t.dueDate < today)
       ).sort((a, b) => {
+          // Sort by Priority first (Ascending order of index in priorityOrder)
+          const pA = priorityOrder[a.priority] ?? 99;
+          const pB = priorityOrder[b.priority] ?? 99;
+          if (pA !== pB) return pA - pB;
+          
           if (a.time && b.time) return a.time.localeCompare(b.time);
           if (a.time && !b.time) return -1;
           if (!a.time && b.time) return 1;
@@ -644,7 +759,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               }
           };
 
-          // Replicated structure from TaskSection's renderDetailPanel
           return (
               <div className="flex flex-col h-full bg-background animate-fade-in relative">
                   {/* Header */}
@@ -655,6 +769,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                           </button>
                        </div>
                        <div className="flex items-center gap-1">
+                           <button onClick={handleDeleteTask} className="p-2 text-muted-foreground hover:bg-red-50 hover:text-red-600 rounded-sm transition-colors" title="Delete Task">
+                               <Trash2 className="w-4 h-4" />
+                           </button>
                            <button onClick={() => setSelectedTodayTaskId(null)} className="p-2 rounded-sm transition-colors font-medium text-sm px-4 text-muted-foreground hover:bg-notion-hover hover:text-foreground">
                                Close
                            </button>
@@ -675,24 +792,101 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                               />
                           </div>
 
-                          {/* Simplified Properties Bar for Today View (Read-onlyish or simple displays) */}
+                          {/* Horizontal Properties Bar (Exact Same as TaskSection) */}
                           <div className="px-6 py-2 flex flex-wrap items-center gap-2">
-                              <div className={`flex items-center justify-start gap-2 px-3 h-8 rounded-md text-xs font-medium border transition-all shadow-sm bg-secondary/40 border-border text-muted-foreground`}>
-                                  {getPriorityIcon(task.priority)}
-                                  <span>{task.priority}</span>
-                              </div>
-                              <div className={`flex items-center justify-start gap-2 px-3 h-8 rounded-md text-xs font-medium border transition-all shadow-sm bg-secondary/40 border-border text-muted-foreground`}>
+                              {/* Priority */}
+                              <button 
+                                  onClick={() => setActivePopover(activePopover === 'priority' ? null : 'priority')}
+                                  className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'priority' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
+                              >
+                                  <Flag className="w-4 h-4 shrink-0" />
+                                  <span className="truncate">{editTaskPriority}</span>
+                              </button>
+                              
+                              {/* Date */}
+                              <button 
+                                  onClick={() => setActivePopover(activePopover === 'date' ? null : 'date')}
+                                  className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'date' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
+                              >
                                   <Calendar className="w-4 h-4 shrink-0" />
-                                  <span>{task.dueDate ? (task.dueDate === today ? 'Today' : task.dueDate) : 'No Date'}</span>
-                              </div>
-                              {task.tags && task.tags.length > 0 && (
-                                  <div className={`flex items-center justify-start gap-2 px-3 h-8 rounded-md text-xs font-medium border transition-all shadow-sm bg-secondary/40 border-border text-muted-foreground`}>
-                                      <TagIcon className="w-4 h-4 shrink-0" />
-                                      <span>{task.tags.length} Labels</span>
-                                  </div>
-                              )}
+                                  <span className="truncate">{editTaskDueDate ? formatRelativeDate(editTaskDueDate) : 'Date'}</span>
+                              </button>
+
+                              {/* Labels */}
+                              <button 
+                                  onClick={() => setActivePopover(activePopover === 'tags' ? null : 'tags')}
+                                  className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'tags' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
+                              >
+                                  <TagIcon className="w-4 h-4 shrink-0" />
+                                  <span className="truncate">{editTaskTags.length > 0 ? `${editTaskTags.length} Labels` : 'Labels'}</span>
+                              </button>
+
+                              {/* Repeat */}
+                              <button 
+                                  onClick={() => setActivePopover(activePopover === 'repeat' ? null : 'repeat')}
+                                  className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'repeat' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
+                              >
+                                  <Repeat className="w-4 h-4 shrink-0" />
+                                  <span className="truncate">{editTaskRecurrence ? (editTaskRecurrence.interval > 1 ? `Every ${editTaskRecurrence.interval} ${editTaskRecurrence.type}` : `Daily`) : 'Repeat'}</span>
+                              </button>
+
+                              {/* Duration */}
+                              <button 
+                                  onClick={() => setActivePopover(activePopover === 'duration' ? null : 'duration')}
+                                  className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'duration' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
+                              >
+                                  <Clock className="w-4 h-4 shrink-0" />
+                                  <span className="truncate">{editTaskPlannedTime ? formatDuration(editTaskPlannedTime) : 'Duration'}</span>
+                              </button>
                           </div>
                           
+                          {/* Inline Popovers (Simplified for Dashboard: Just lists for now, to keep file size reasonable) */}
+                          {activePopover && (
+                             <div className="px-6 py-4 bg-secondary/20 border-y border-border mb-4 animate-in slide-in-from-top-2">
+                                 {activePopover === 'priority' && (
+                                     <div className="flex gap-2 flex-wrap">
+                                         {priorities.map(p => (
+                                             <button
+                                                 key={p}
+                                                 onClick={() => { setEditTaskPriority(p); setActivePopover(null); }}
+                                                 className={`flex items-center gap-2 px-3 py-1.5 rounded-sm text-xs font-medium border transition-all ${editTaskPriority === p ? getPriorityBadgeStyle(p) + ' ring-1 ring-inset ring-black/5' : 'bg-background border-border text-muted-foreground hover:bg-notion-hover'}`}
+                                             >
+                                                 {getPriorityIcon(p)} {p}
+                                             </button>
+                                         ))}
+                                     </div>
+                                 )}
+                                 {/* Simple date picker fallback since full component is in TaskSection */}
+                                 {activePopover === 'date' && (
+                                     <div className="space-y-2">
+                                         <input type="date" value={editTaskDueDate} onChange={(e) => setEditTaskDueDate(e.target.value)} className="w-full bg-background border border-border p-2 rounded-sm text-sm" />
+                                         <div className="flex gap-2">
+                                            <button onClick={() => { setEditTaskDueDate(today); setActivePopover(null); }} className="text-xs bg-notion-hover px-2 py-1 rounded-sm">Today</button>
+                                            <button onClick={() => { setEditTaskDueDate(''); setActivePopover(null); }} className="text-xs text-red-500 hover:bg-red-50 px-2 py-1 rounded-sm">Clear</button>
+                                         </div>
+                                     </div>
+                                 )}
+                                 {activePopover === 'tags' && (
+                                     <div className="flex flex-wrap gap-2">
+                                         {tags.map(tag => (
+                                             <button 
+                                                key={tag.id}
+                                                onClick={() => setEditTaskTags(prev => prev.includes(tag.id) ? prev.filter(t => t !== tag.id) : [...prev, tag.id])}
+                                                className={`px-2 py-1 rounded-sm text-xs border ${editTaskTags.includes(tag.id) ? 'border-transparent text-white' : 'border-border text-muted-foreground bg-background'}`}
+                                                style={editTaskTags.includes(tag.id) ? { backgroundColor: tag.color } : {}}
+                                             >
+                                                 {tag.label}
+                                             </button>
+                                         ))}
+                                     </div>
+                                 )}
+                                 {/* Other popovers simplified for brevity */}
+                                 {(activePopover === 'repeat' || activePopover === 'duration') && (
+                                     <div className="text-xs text-muted-foreground italic">Use the Tasks tab for advanced settings.</div>
+                                 )}
+                             </div>
+                          )}
+
                           <div className="h-px bg-border w-full my-4 shrink-0" />
                           
                           {/* Subtasks */}
@@ -757,7 +951,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           const habit = habits.find(h => h.id === selectedTodayHabitId);
           if (!habit) return null;
           
-          // Mimic structure of HabitSection renderDetailView
+          const stats = getHabitStats(habit, today);
+          const isNegative = habit.goalType === 'negative';
+          
           const count = habit.progress[today] || 0;
           const increment = async () => {
              const newCount = habit.useCounter ? count + 1 : (count >= habit.target ? 0 : habit.target);
@@ -810,6 +1006,42 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                {habit.useCounter && <div className="w-12" />}
                            </div>
                        </div>
+
+                       {/* Stats Grid (Matches HabitSection) */}
+                        <div className="grid grid-cols-2 gap-3 shrink-0">
+                            <div className="bg-background border border-border rounded-lg p-3 shadow-sm overflow-hidden">
+                                <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1 truncate">Streak</div>
+                                <div className="text-xl font-bold flex items-center gap-2 truncate">
+                                    <Flame className={`w-5 h-5 shrink-0 ${stats.streak > 0 ? 'text-notion-orange fill-notion-orange' : 'text-muted-foreground'}`} />
+                                    {stats.streak} <span className="text-xs font-normal text-muted-foreground">days</span>
+                                </div>
+                            </div>
+                            <div className="bg-background border border-border rounded-lg p-3 shadow-sm overflow-hidden">
+                                <div className={`text-[10px] uppercase font-bold text-muted-foreground mb-1 truncate ${isNegative ? 'text-notion-red' : ''}`}>
+                                    {isNegative ? 'Failure Rate' : 'Success Rate'}
+                                </div>
+                                <div className="text-xl font-bold flex items-center gap-2 truncate">
+                                    <Activity className={`w-5 h-5 shrink-0 ${isNegative ? 'text-notion-red' : 'text-notion-blue'}`} />
+                                    {isNegative ? 100 - stats.rate : stats.rate}%
+                                </div>
+                            </div>
+                            <div className="bg-background border border-border rounded-lg p-3 shadow-sm overflow-hidden">
+                                <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1 truncate">Total Days</div>
+                                <div className="text-xl font-bold flex items-center gap-2 truncate">
+                                    <Activity className="w-5 h-5 shrink-0 text-notion-yellow" />
+                                    {stats.totalDays}
+                                </div>
+                            </div>
+                            <div className="bg-background border border-border rounded-lg p-3 shadow-sm overflow-hidden">
+                                <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1 truncate">Today</div>
+                                <div className="text-xl font-bold flex flex-wrap items-baseline gap-x-2 gap-y-0">
+                                    <span className={habit.progress[today] >= habit.target ? 'text-notion-green' : 'text-foreground'}>
+                                        {habit.progress[today] || 0}
+                                    </span>
+                                    <span className="text-xs font-normal text-muted-foreground whitespace-nowrap">/ {habit.target} {habit.unit}</span>
+                                </div>
+                            </div>
+                        </div>
                        
                        <div className="bg-secondary/30 rounded-lg p-4 border border-border">
                            <div className="flex items-center gap-2 mb-4">
@@ -852,7 +1084,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                   <div className="space-y-2">
                       <div className="flex items-center justify-between text-sm font-medium">
                           <span className="flex items-center gap-2">
-                              <Activity className="w-4 h-4 text-notion-blue" />
+                              <Target className="w-4 h-4 text-notion-blue" />
                               Daily Progress
                           </span>
                           <span className="text-xs text-muted-foreground tabular-nums">
@@ -870,8 +1102,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
                   {/* Habits Grid */}
                   {todayHabits.length > 0 && (
-                      <div className="bg-background border border-border rounded-lg p-4 space-y-3 shadow-sm">
-                          <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                      <div className="space-y-3">
+                          <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2 px-1">
                               <Zap className="w-4 h-4" /> Habits
                           </h2>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
@@ -888,7 +1120,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                       <div 
                                           key={habit.id} 
                                           onClick={(e) => { e.stopPropagation(); setSelectedTodayHabitId(habit.id); setSelectedTodayTaskId(null); }}
-                                          className={`group bg-background rounded-lg border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-center h-14 ${isSelected ? 'border-notion-blue bg-notion-item_hover' : 'border-border hover:bg-notion-item_hover'}`}
+                                          className={`group bg-background rounded-lg border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-center h-14 ${isSelected ? 'border-notion-blue ring-1 ring-notion-blue' : 'border-border hover:bg-notion-item_hover'}`}
                                       >
                                           <div className="flex items-center px-3 gap-3 w-full h-full">
                                               <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -928,8 +1160,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                   )}
 
                   {/* Tasks List */}
-                  <div className="bg-background border border-border rounded-lg p-4 space-y-3 shadow-sm">
-                      <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                  <div className="space-y-3">
+                      <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2 px-1">
                           <CheckSquare className="w-4 h-4" /> Task to Complete
                       </h2>
                       {todayTasks.length > 0 ? (
@@ -941,7 +1173,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                   const subtasks = task.subtasks || [];
 
                                   return (
-                                      <div key={task.id} onClick={() => { setSelectedTodayTaskId(task.id); setSelectedTodayHabitId(null); }} className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md mb-3 overflow-hidden ${isSelected ? 'border-foreground ring-1 ring-foreground/10' : 'border-border hover:border-notion-blue/30'}`}>
+                                      <div key={task.id} onClick={() => { setSelectedTodayTaskId(task.id); setSelectedTodayHabitId(null); }} className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md mb-3 overflow-hidden ${isSelected ? 'border-notion-blue ring-1 ring-notion-blue' : 'border-border hover:border-notion-blue/30'}`}>
                                           <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${priorityColorClass} rounded-l-sm opacity-80`} />
                                           <div className="pl-5 pr-3 pt-2 pb-3 flex items-start gap-3">
                                               <button onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }} className={`mt-0.5 w-5 h-5 rounded-sm border-[1.5px] flex items-center justify-center transition-all duration-200 shrink-0 ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'bg-transparent border-muted-foreground/40 hover:border-notion-blue'}`}>{task.completed && <Check className="w-3.5 h-3.5 stroke-[3]" />}</button>
@@ -972,7 +1204,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                   </div>
               </div>
 
-              {/* Right Sidebar: Details or Calendar - UPDATED WIDTH */}
+              {/* Right Sidebar: Details or Calendar */}
               <div className="w-full md:w-[500px] border-t md:border-t-0 md:border-l border-border bg-secondary/5 flex flex-col h-[400px] md:h-full">
                    {selectedTodayTaskId ? (
                        renderTodayTaskDetail()
@@ -1119,7 +1351,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                 <div className="bg-background border border-border rounded-lg p-3 shadow-sm">
                     <div className="flex items-start gap-3 mb-3">
                         <div className="p-2 bg-blue-50 text-notion-blue rounded-full shrink-0">
-                            <Activity className="w-4 h-4" />
+                            <Target className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
                             <div className="text-xs font-bold text-foreground truncate">Daily Focus</div>
