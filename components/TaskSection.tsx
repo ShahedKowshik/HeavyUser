@@ -324,6 +324,47 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const safeTasks = useMemo(() => Array.isArray(tasks) ? tasks : [], [tasks]);
   const selectedTask = useMemo(() => safeTasks.find(t => t.id === selectedTaskId), [safeTasks, selectedTaskId]);
 
+  // Auto-save Effect for Editing
+  useEffect(() => {
+    if (!selectedTaskId || isCreating) return;
+
+    const timer = setTimeout(async () => {
+        // Optimistic Update
+        setTasks(prev => prev.map(t => {
+            if (t.id === selectedTaskId) {
+                 return { 
+                     ...t, 
+                     title, 
+                     dueDate, 
+                     priority, 
+                     tags: selectedTags, 
+                     notes: createNotes, 
+                     recurrence: createRecurrence, 
+                     plannedTime, 
+                     subtasks: editSubtasks 
+                 };
+            }
+            return t;
+        }));
+
+        const updates = {
+            title: encryptData(title),
+            due_date: dueDate || null,
+            priority: priority,
+            subtasks: editSubtasks.map(s => ({ ...s, title: encryptData(s.title) })),
+            tags: selectedTags,
+            notes: encryptData(createNotes || ''),
+            recurrence: createRecurrence,
+            planned_time: plannedTime
+        };
+        
+        await supabase.from('tasks').update(updates).eq('id', selectedTaskId);
+
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [title, dueDate, priority, selectedTags, createRecurrence, createNotes, plannedTime, editSubtasks, selectedTaskId, isCreating]);
+
   const handleViewModeChange = (mode: 'active' | 'completed') => {
       if (mode === viewMode) return;
       setViewMode(mode);
@@ -397,21 +438,20 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   const handleSaveTask = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!title.trim()) return;
+    e.preventDefault(); 
     
-    if (selectedTaskId) {
-        setTasks(prev => prev.map(t => t.id === selectedTaskId ? { ...t, title, dueDate, priority, tags: selectedTags, notes: createNotes, recurrence: createRecurrence, plannedTime, subtasks: editSubtasks } : t));
-        const updatedTask = safeTasks.find(t => t.id === selectedTaskId);
-        if (updatedTask) {
-            await supabase.from('tasks').update(mapTaskToDb({ ...updatedTask, title, dueDate, priority, tags: selectedTags, notes: createNotes, recurrence: createRecurrence, plannedTime, subtasks: editSubtasks }, userId)).eq('id', selectedTaskId);
-        }
-    } else {
+    // For Creating New Task
+    if (isCreating) {
+        if (!title.trim()) return;
         const newTask: Task = { id: crypto.randomUUID(), title, dueDate, completed: false, priority, subtasks: editSubtasks, tags: selectedTags, notes: createNotes, recurrence: createRecurrence, plannedTime, actualTime: 0 };
         setTasks(prev => [newTask, ...prev]); 
         await supabase.from('tasks').insert(mapTaskToDb(newTask, userId));
+        setIsCreating(false);
+        setSelectedTaskId(null);
+    } else {
+        // For Edit mode, just close panel, auto-save handles db
+        setSelectedTaskId(null);
     }
-    setIsCreating(false);
-    setSelectedTaskId(null);
   };
 
   const handleDeleteTask = async () => {
@@ -793,8 +833,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                          <Trash2 className="w-4 h-4" />
                      </button>
                  )}
-                 <button onClick={handleSaveTask} className="p-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-sm transition-colors font-medium text-sm px-4">
-                     Done
+                 <button onClick={handleSaveTask} className={`p-2 rounded-sm transition-colors font-medium text-sm px-4 ${isCreating ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>
+                     {isCreating ? 'Create' : 'Close'}
                  </button>
              </div>
         </div>
@@ -808,7 +848,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         placeholder="Task Name"
                         value={title}
                         onChange={e => setTitle(e.target.value)}
-                        onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleSaveTask(e); } }}
+                        onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); if (isCreating) handleSaveTask(e); } }}
                         className="w-full text-xl md:text-2xl font-bold text-foreground placeholder:text-muted-foreground/40 bg-transparent resize-none leading-tight border border-border hover:border-border focus:border-border rounded-md p-3 transition-colors outline-none"
                         rows={1}
                         style={{ minHeight: '3.5rem', height: 'auto' }}
@@ -1082,29 +1122,16 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
             {/* Header - UPDATED FOR CONSISTENCY */}
             <div className="px-4 md:px-8 pt-4 md:pt-6 pb-4">
                 <div className="flex flex-row items-center justify-between gap-4 border-b border-border pb-4">
-                    {/* Left Side: Filter Tabs (Active/Completed) */}
+                    {/* Left Side: View Layouts Tabs */}
                     <div className="flex items-center gap-1">
-                        <button onClick={() => handleViewModeChange('active')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewMode === 'active' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Active</button>
-                        <button onClick={() => handleViewModeChange('completed')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewMode === 'completed' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Completed</button>
+                        <button onClick={() => setViewLayout('list')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'list' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Tasks</button>
+                        <button onClick={() => setViewLayout('calendar')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'calendar' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Calendar</button>
+                        <button onClick={() => setViewLayout('tracker')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'tracker' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Tracker</button>
                     </div>
 
-                    {/* Right Side: View Layouts + Actions */}
+                    {/* Right Side: Actions & Filters */}
                     <div className="flex items-center gap-2">
-                         {/* View Layout Icons */}
-                         <div className="flex items-center gap-0.5 bg-secondary/50 p-0.5 rounded-md mr-1 hidden sm:flex">
-                            <button onClick={() => setViewLayout('list')} className={`p-1.5 rounded-sm transition-all ${viewLayout === 'list' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`} title="List View"><ListTodo className="w-3.5 h-3.5" /></button>
-                            <button onClick={() => setViewLayout('calendar')} className={`p-1.5 rounded-sm transition-all ${viewLayout === 'calendar' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`} title="Calendar View"><Calendar className="w-3.5 h-3.5" /></button>
-                            <button onClick={() => setViewLayout('tracker')} className={`p-1.5 rounded-sm transition-all ${viewLayout === 'tracker' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`} title="Time Tracker"><Timer className="w-3.5 h-3.5" /></button>
-                         </div>
-                         
-                         {/* Mobile View Layout Icons */}
-                         <div className="flex items-center gap-0.5 bg-secondary/50 p-0.5 rounded-md mr-1 sm:hidden">
-                            <button onClick={() => setViewLayout('list')} className={`p-1.5 rounded-sm ${viewLayout === 'list' ? 'bg-background text-foreground' : 'text-muted-foreground'}`}><ListTodo className="w-3.5 h-3.5" /></button>
-                            <button onClick={() => setViewLayout('calendar')} className={`p-1.5 rounded-sm ${viewLayout === 'calendar' ? 'bg-background text-foreground' : 'text-muted-foreground'}`}><Calendar className="w-3.5 h-3.5" /></button>
-                            <button onClick={() => setViewLayout('tracker')} className={`p-1.5 rounded-sm ${viewLayout === 'tracker' ? 'bg-background text-foreground' : 'text-muted-foreground'}`}><Timer className="w-3.5 h-3.5" /></button>
-                         </div>
-
-                         {/* Grouping Menu */}
+                         {/* Grouping Menu (Visible in List View) */}
                          {viewLayout === 'list' && (
                              <div className="relative">
                                  <button onClick={() => setIsGroupingMenuOpen(!isGroupingMenuOpen)} className="p-2 hover:bg-notion-hover rounded-sm text-muted-foreground hover:text-foreground transition-colors" title="View Options">
@@ -1128,8 +1155,16 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                  )}
                              </div>
                         )}
-                        <button onClick={openCreatePanel} className="flex items-center gap-1.5 px-3 py-1.5 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0">
-                            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New Task</span>
+                        
+                        {/* Active/Completed Toggle */}
+                        <div className="flex items-center bg-secondary p-1 rounded-sm">
+                            <button onClick={() => handleViewModeChange('active')} className={`px-2 py-0.5 text-xs font-medium rounded-sm transition-colors ${viewMode === 'active' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Active</button>
+                            <button onClick={() => handleViewModeChange('completed')} className={`px-2 py-0.5 text-xs font-medium rounded-sm transition-colors ${viewMode === 'completed' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Done</button>
+                        </div>
+                        
+                        {/* New Task Button */}
+                        <button onClick={openCreatePanel} className="flex items-center gap-1.5 px-3 py-1.5 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0 ml-1">
+                            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New</span>
                         </button>
                     </div>
                 </div>

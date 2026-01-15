@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+
+import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Minus, Settings, Check, Tag as TagIcon, Flame, BarChart3, Activity, SkipForward, CircleCheck, ArrowLeft, FolderPlus, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { Habit, Tag, HabitFolder } from '../types';
 import { supabase } from '../lib/supabase';
@@ -236,6 +237,32 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
   const detailHabit = useMemo(() => habits.find(h => h.id === detailHabitId), [habits, detailHabitId]);
   const weekdays = getRotatedWeekdays(startWeekDay);
 
+  // Auto-save Effect for Editing Habit
+  useEffect(() => {
+    if (!editingHabitId || !isModalOpen) return;
+
+    const timer = setTimeout(async () => {
+         // Optimistic Update
+         setHabits(prev => prev.map(h => h.id === editingHabitId ? { 
+            ...h, title, target, unit, icon, useCounter, goalType, tags: selectedTags, startDate: formStartDate, folderId: selectedFolderId
+         } : h));
+         
+         await supabase.from('habits').update({
+            title: encryptData(title),
+            target,
+            unit,
+            icon,
+            use_counter: useCounter,
+            goal_type: goalType,
+            tags: selectedTags,
+            start_date: formStartDate,
+            folder_id: selectedFolderId
+         }).eq('id', editingHabitId);
+         
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [title, target, unit, icon, useCounter, goalType, selectedTags, formStartDate, selectedFolderId, editingHabitId, isModalOpen]);
+
   const resetForm = () => {
     setTitle('');
     setTarget(1);
@@ -285,71 +312,54 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    
+    // Create Mode
+    if (!editingHabitId) {
+        if (!title.trim()) return;
+        const habitsInFolder = habits.filter(h => h.folderId === (selectedFolderId || null));
+        const sortOrder = habitsInFolder.length;
 
-    const previousHabits = [...habits];
-
-    try {
-        if (editingHabitId) {
-            setHabits(prev => prev.map(h => h.id === editingHabitId ? { 
-                ...h, title, target, unit, icon, useCounter, goalType, tags: selectedTags, startDate: formStartDate, folderId: selectedFolderId
-            } : h));
-            
-            await supabase.from('habits').update({
-                title: encryptData(title),
-                target,
-                unit,
-                icon,
-                use_counter: useCounter,
-                goal_type: goalType,
-                tags: selectedTags,
-                start_date: formStartDate,
-                folder_id: selectedFolderId
-            }).eq('id', editingHabitId);
-        } else {
-            const habitsInFolder = habits.filter(h => h.folderId === (selectedFolderId || null));
-            const sortOrder = habitsInFolder.length;
-
-            const newHabit: Habit = {
-                id: crypto.randomUUID(),
-                title,
-                icon,
-                target,
-                unit,
-                startDate: formStartDate || today,
-                useCounter,
-                progress: {},
-                skippedDates: [],
-                tags: selectedTags,
-                goalType,
-                folderId: selectedFolderId || null,
-                sortOrder
-            };
-            
-            setHabits(prev => [...prev, newHabit]);
-            
-            await supabase.from('habits').insert({
-                id: newHabit.id,
-                user_id: userId,
-                title: encryptData(title),
-                target,
-                unit,
-                icon,
-                start_date: formStartDate || today,
-                use_counter: useCounter,
-                progress: {},
-                skipped_dates: [],
-                tags: selectedTags,
-                goal_type: goalType,
-                folder_id: selectedFolderId || null,
-                sort_order: sortOrder
-            });
-        }
+        const newHabit: Habit = {
+            id: crypto.randomUUID(),
+            title,
+            icon,
+            target,
+            unit,
+            startDate: formStartDate || today,
+            useCounter,
+            progress: {},
+            skippedDates: [],
+            tags: selectedTags,
+            goalType,
+            folderId: selectedFolderId || null,
+            sortOrder
+        };
+        
+        setHabits(prev => [...prev, newHabit]);
+        
+        await supabase.from('habits').insert({
+            id: newHabit.id,
+            user_id: userId,
+            title: encryptData(title),
+            target,
+            unit,
+            icon,
+            start_date: formStartDate || today,
+            use_counter: useCounter,
+            progress: {},
+            skipped_dates: [],
+            tags: selectedTags,
+            goal_type: goalType,
+            folder_id: selectedFolderId || null,
+            sort_order: sortOrder
+        });
+        
         setIsModalOpen(false);
         resetForm();
-    } catch (err: any) {
-        console.error("Error saving habit:", err);
-        setHabits(previousHabits);
+    } else {
+        // Edit Mode: Just Close, Auto-save handled it
+        setIsModalOpen(false);
+        resetForm();
     }
   };
 
@@ -1318,7 +1328,9 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                     </form>
                     
                     <div className="px-6 py-4 border-t border-border flex justify-end">
-                        <button onClick={handleSave} className="px-4 py-1.5 bg-notion-blue text-white rounded-sm text-sm font-medium hover:bg-blue-600 transition-colors">Save Habit</button>
+                        <button onClick={handleSave} className={`px-4 py-1.5 rounded-sm text-sm font-medium transition-colors ${editingHabitId ? 'bg-secondary text-foreground hover:bg-notion-hover' : 'bg-notion-blue text-white hover:bg-blue-600'}`}>
+                            {editingHabitId ? 'Close' : 'Create Habit'}
+                        </button>
                     </div>
                 </div>
             </div>
