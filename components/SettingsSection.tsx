@@ -180,6 +180,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
           const { error } = await supabase.auth.signInWithOAuth({
               provider: 'google',
               options: {
+                  // Using origin ensures no path issues, but locally this must match the Supabase allowed URL
                   redirectTo: window.location.origin,
                   scopes: 'https://www.googleapis.com/auth/calendar',
                   queryParams: {
