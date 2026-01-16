@@ -1,12 +1,11 @@
 
-
 import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Play, Pause, Timer, MoreHorizontal, BarChart3, Check, AlertCircle, ArrowRight, Settings, FileText, Archive, CalendarClock, Layers, Moon, Flag, ArrowUpDown, ListTodo } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence, TaskSession, CalendarEvent } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
-import { cn, getContrastColor } from '../lib/utils';
+import { cn, getContrastColor, toLocalDateString, parseLocalDate } from '../lib/utils';
 
 interface TaskSectionProps {
   tasks: Task[];
@@ -89,12 +88,8 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     return newTag;
 };
 
-const getLocalDateString = (date: Date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-};
+// Use shared helper
+const getLocalDateString = toLocalDateString;
 
 // Updated Badge Styles for Specific Priorities
 const getPriorityBadgeStyle = (p: Priority) => {
@@ -192,7 +187,7 @@ const CalendarContent = ({ value, onChange, onClose, dayStartHour, startWeekDay 
         if (d.getHours() < dayStartHour) d.setDate(d.getDate() - 1);
         return d;
     };
-    const [viewDate, setViewDate] = useState(() => value ? new Date(value) : getLogicalDate());
+    const [viewDate, setViewDate] = useState(() => value ? parseLocalDate(value) : getLogicalDate());
     const weekdays = getRotatedWeekdays(startWeekDay);
 
     const handleDayClick = (day: number) => {
@@ -209,7 +204,11 @@ const CalendarContent = ({ value, onChange, onClose, dayStartHour, startWeekDay 
     // Adjust first day of week based on startWeekDay
     const firstDayOfWeek = (new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay() - startWeekDay + 7) % 7;
     const monthName = viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const isSelected = (day: number) => value && new Date(value).getDate() === day && new Date(value).getMonth() === viewDate.getMonth() && new Date(value).getFullYear() === viewDate.getFullYear();
+    const isSelected = (day: number) => {
+        if (!value) return false;
+        const d = parseLocalDate(value);
+        return d.getDate() === day && d.getMonth() === viewDate.getMonth() && d.getFullYear() === viewDate.getFullYear();
+    };
     const isToday = (day: number) => { const t = getLogicalDate(); return t.getDate() === day && t.getMonth() === viewDate.getMonth() && t.getFullYear() === viewDate.getFullYear(); };
 
     return (
@@ -245,16 +244,14 @@ const CalendarContent = ({ value, onChange, onClose, dayStartHour, startWeekDay 
 };
 
 const getNextDate = (currentDateStr: string, r: Recurrence): string => {
-  const parts = currentDateStr.split('-').map(Number);
-  const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-  const y = date.getUTCFullYear();
-  const m = date.getUTCMonth();
-  const d = date.getUTCDate();
+  const date = parseLocalDate(currentDateStr);
 
   if (r.type === 'daily') {
-    date.setUTCDate(date.getUTCDate() + r.interval);
-    return date.toISOString().split('T')[0];
+    date.setDate(date.getDate() + r.interval);
+    return getLocalDateString(date);
   }
+  // Simplified logic for other types can be expanded, 
+  // currently defaults to returning same date if logic missing (to prevent infinite loops or errors)
   return currentDateStr;
 };
 
@@ -376,10 +373,12 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     if (!dateStr) return 9999;
     const now = new Date();
     if (now.getHours() < (dayStartHour || 0)) now.setDate(now.getDate() - 1);
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    if (dateStr === todayStr) return 0;
-    const target = new Date(dateStr); 
-    const today = new Date(todayStr); 
+    
+    // Normalize to Midnight Local Time using helper
+    const todayStr = getLocalDateString(now);
+    const today = parseLocalDate(todayStr);
+    const target = parseLocalDate(dateStr);
+
     return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   };
 
@@ -389,8 +388,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     if (diff === 0) return 'Today';
     if (diff === 1) return 'Tomorrow';
     if (diff === -1) return 'Yesterday';
-    const parts = dateStr.split('-').map(Number);
-    const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    
+    const date = parseLocalDate(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
@@ -841,13 +840,13 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     // Calculate logic today based on dayStartHour
     const d = new Date();
     if (d.getHours() < (dayStartHour || 0)) d.setDate(d.getDate() - 1);
-    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const todayStr = getLocalDateString(d);
 
     const todaySessions = sessions.filter(s => {
         const sDate = new Date(s.startTime);
         // Adjust session time for day start hour logic
         if (sDate.getHours() < (dayStartHour || 0)) sDate.setDate(sDate.getDate() - 1);
-        const sDateStr = `${sDate.getFullYear()}-${String(sDate.getMonth() + 1).padStart(2, '0')}-${String(sDate.getDate()).padStart(2, '0')}`;
+        const sDateStr = getLocalDateString(sDate);
         return sDateStr === todayStr;
     });
 
