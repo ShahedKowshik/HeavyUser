@@ -1,5 +1,4 @@
 
-
 import { CalendarEvent, CalendarAccount } from "../types";
 
 /**
@@ -56,6 +55,7 @@ export const updateGoogleCalendarEvent = async (
  */
 const fetchEventsForAccount = async (account: CalendarAccount, timeMin: string, timeMax: string): Promise<CalendarEvent[]> => {
   if (!account.token || !account.email) return [];
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return [];
 
   try {
     // Construct the API URL with query parameters
@@ -67,11 +67,12 @@ const fetchEventsForAccount = async (account: CalendarAccount, timeMin: string, 
       maxResults: '1000', // Fetch a good number of events
     });
 
+    // Note: Do NOT send Content-Type: application/json for GET requests. 
+    // It triggers unnecessary CORS preflight checks which can fail if tokens are stale.
     const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${account.token}`,
-        'Content-Type': 'application/json'
+        'Authorization': `Bearer ${account.token}`
       },
     });
 
@@ -108,7 +109,8 @@ const fetchEventsForAccount = async (account: CalendarAccount, timeMin: string, 
     });
 
   } catch (error) {
-    console.error(`Failed to fetch calendar events for ${account.email}:`, error);
+    // Suppress console spam for common network interruptions or ad-blocker issues
+    console.warn(`Could not fetch calendar for ${account.email}. Connection might be blocked or token expired.`);
     return [];
   }
 };

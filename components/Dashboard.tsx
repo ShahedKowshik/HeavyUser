@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2 } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence, CalendarEvent } from '../types';
@@ -933,7 +932,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       const timedTasks = todayTasks.filter(t => !!t.time);
 
       const renderTodayTaskDetail = () => {
-          // ... (existing task detail implementation)
           const task = tasks.find(t => t.id === selectedTodayTaskId);
           if (!task) return null;
 
@@ -968,7 +966,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                            </button>
                        </div>
                   </div>
-                  {/* ... Rest of existing Task Detail JSX ... */}
+                  
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-0 flex flex-col">
                       <div className="w-full flex flex-col h-full">
                           <div className="px-6 pt-6 pb-2">
@@ -1120,7 +1118,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       };
 
       const renderTodayHabitDetail = () => {
-          // ... (existing habit detail code)
           const habit = habits.find(h => h.id === selectedTodayHabitId);
           if (!habit) return null;
           
@@ -1163,7 +1160,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                            </button>
                        </div>
                   </div>
-                  {/* ... Rest of existing Habit Detail JSX ... */}
+                  
                   <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-6">
                        <div className="bg-background border border-border rounded-lg p-6 flex flex-col items-center justify-center gap-4 shadow-sm">
                            <div className="text-center">
