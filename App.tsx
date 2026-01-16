@@ -14,7 +14,7 @@ const App: React.FC = () => {
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check for errors in the URL (e.g. from Google Auth redirect failure)
+    // 1. Check for errors in the URL (e.g. from Google Auth redirect failure)
     const checkForUrlErrors = () => {
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const queryParams = new URLSearchParams(window.location.search);
@@ -35,28 +35,7 @@ const App: React.FC = () => {
       return;
     }
 
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        console.error("Auth session check failed:", error);
-      }
-      
-      if (session?.user) {
-        setCurrentUser({
-          id: session.user.id,
-          email: session.user.email || '',
-          name: session.user.user_metadata.full_name || 'User',
-          profilePicture: session.user.user_metadata.avatar_url,
-          dayStartHour: session.user.user_metadata.day_start_hour || 0,
-          startWeekDay: session.user.user_metadata.start_week_day || 0,
-          enabledFeatures: session.user.user_metadata.enabled_features || ['tasks', 'habit', 'journal', 'notes'],
-          googleToken: session.provider_token,
-        });
-      }
-      setLoading(false);
-    });
-
-    // Listen for changes (login/logout)
+    // 2. Setup Auth State Listener
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -71,10 +50,35 @@ const App: React.FC = () => {
           enabledFeatures: session.user.user_metadata.enabled_features || ['tasks', 'habit', 'journal', 'notes'],
           googleToken: session.provider_token,
         });
+
+        // Clear hash if it exists (cleanup access_token from URL)
+        if (window.location.hash && window.location.hash.includes('access_token')) {
+            window.history.replaceState(null, '', window.location.pathname);
+        }
       } else {
         setCurrentUser(null);
       }
       setLoading(false);
+    });
+
+    // 3. Initial Session Check
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error("Auth session check failed:", error);
+      }
+      
+      // If we don't have a session immediately, check if we are in a redirect flow.
+      // If we are (URL has access_token), DO NOT stop loading yet. Wait for onAuthStateChange.
+      if (!session) {
+         const isRedirect = window.location.hash && (
+             window.location.hash.includes('access_token') || 
+             window.location.hash.includes('type=recovery')
+         );
+
+         if (!isRedirect) {
+             setLoading(false);
+         }
+      }
     });
 
     return () => subscription.unsubscribe();
