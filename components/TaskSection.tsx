@@ -24,6 +24,7 @@ interface TaskSectionProps {
   taskFolders?: any[];
   setTaskFolders?: any;
   calendarEvents?: CalendarEvent[];
+  onEditCalendarEvent?: (event: CalendarEvent) => void;
 }
 
 type Grouping = 'none' | 'date' | 'priority';
@@ -275,7 +276,7 @@ const mapTaskToDb = (task: Task, userId: string) => ({
     timer_start: task.timerStart
 });
 
-export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, startWeekDay = 0, onTaskComplete, activeFilterTagId, onToggleTimer, sessions, onDeleteSession, calendarEvents = [] }) => {
+export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, startWeekDay = 0, onTaskComplete, activeFilterTagId, onToggleTimer, sessions, onDeleteSession, calendarEvents = [], onEditCalendarEvent }) => {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const showDetailPanel = selectedTaskId !== null || isCreating;
@@ -664,7 +665,11 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                 </div>
                             ))}
                             {allDayEvents.map(event => (
-                                <div key={event.id} className="bg-green-50 rounded-sm border border-green-200 p-2 flex items-center gap-2">
+                                <div 
+                                    key={event.id} 
+                                    onClick={() => onEditCalendarEvent?.(event)}
+                                    className="bg-green-50 rounded-sm border border-green-200 p-2 flex items-center gap-2 cursor-pointer hover:shadow-sm hover:brightness-95 transition-all"
+                                >
                                      <div className="w-3 h-3 bg-green-500 rounded-sm"></div>
                                      <span className="text-xs truncate text-green-900 font-medium">{event.title}</span>
                                 </div>
@@ -704,10 +709,15 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                          const style = { top: `${top}px`, height: `${Math.max(height, 28)}px`, left: '60px', right: '10px' };
 
                          return (
-                            <a key={event.id} href={event.htmlLink} target="_blank" rel="noopener noreferrer" style={{ ...style, position: 'absolute' }} className="rounded-md border-l-4 border-green-500 bg-green-50 border-y border-r border-green-200 p-1.5 cursor-pointer hover:shadow-md transition-all z-10 flex flex-col overflow-hidden text-green-900">
+                            <div 
+                                key={event.id} 
+                                onClick={() => onEditCalendarEvent?.(event)}
+                                style={{ ...style, position: 'absolute' }} 
+                                className="rounded-md border-l-4 border-green-500 bg-green-50 border-y border-r border-green-200 p-1.5 cursor-pointer hover:shadow-md transition-all z-10 flex flex-col overflow-hidden text-green-900"
+                            >
                                 <div className="text-xs font-semibold truncate">{event.title}</div>
                                 <div className="text-[10px] opacity-80 truncate">{start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                            </a>
+                            </div>
                          );
                     })}
 
@@ -738,6 +748,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => {
+    // ... existing code ...
     const safeGroups = Array.isArray(groups) ? groups : [];
     return (
     <div className="space-y-6">
@@ -841,6 +852,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   const renderTrackerView = () => {
+    // ... existing code ...
     // Calculate logic today based on dayStartHour
     const d = new Date();
     if (d.getHours() < (dayStartHour || 0)) d.setDate(d.getDate() - 1);
@@ -882,6 +894,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
       </div>
   );
 
+  // ... renderDetailPanel ...
   const renderDetailPanel = () => (
     <div className="flex flex-col h-full bg-background animate-fade-in relative">
         {/* Header - Fixed */}

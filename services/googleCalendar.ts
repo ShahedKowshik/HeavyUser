@@ -1,5 +1,54 @@
 
+
 import { CalendarEvent, CalendarAccount } from "../types";
+
+/**
+ * Updates an event in a specific Google Calendar account.
+ */
+export const updateGoogleCalendarEvent = async (
+    account: CalendarAccount,
+    eventId: string,
+    event: { title: string; start: string; end: string; allDay: boolean }
+): Promise<boolean> => {
+    if (!account.token) return false;
+
+    try {
+        const body: any = {
+            summary: event.title,
+        };
+
+        if (event.allDay) {
+            // Google Calendar requires 'date' (YYYY-MM-DD) for all-day events
+            // Ensure we extract just the date part if an ISO string was passed
+            const startDate = event.start.includes('T') ? event.start.split('T')[0] : event.start;
+            const endDate = event.end.includes('T') ? event.end.split('T')[0] : event.end;
+            body.start = { date: startDate };
+            body.end = { date: endDate };
+        } else {
+             body.start = { dateTime: event.start };
+             body.end = { dateTime: event.end };
+        }
+
+        const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${account.token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+            console.error(`Google API Error: ${response.status} ${response.statusText}`);
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        console.error("Failed to update event:", error);
+        return false;
+    }
+};
 
 /**
  * Fetches events from a specific Google Calendar account.
