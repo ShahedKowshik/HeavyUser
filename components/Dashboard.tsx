@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2 } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence, CalendarEvent } from '../types';
@@ -305,7 +304,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     dayStartHour: user.dayStartHour, 
     startWeekDay: user.startWeekDay,
     enabledFeatures: user.enabledFeatures || ['tasks', 'habit', 'journal', 'notes'],
-    calendars: user.calendars || (user.googleToken ? [{ email: user.email, token: user.googleToken }] : [])
+    // Ensure we use the latest calendars list from the user object passed down from App.tsx
+    calendars: user.calendars || []
   });
 
   const [statsTicker, setStatsTicker] = useState(0);
@@ -498,14 +498,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               icon: f.icon,
               sortOrder: f.sort_order || 0
           })), 'habitFolders', { column: 'sort_order', ascending: true }),
-          /* 
-          // Removed task_folders fetch to prevent errors as table does not exist
-          fetchTable('task_folders', setTaskFolders, (data) => data.map((f: any) => ({
-              id: f.id,
-              name: decryptData(f.name),
-              sortOrder: f.sort_order || 0
-          })), 'taskFolders', { column: 'sort_order', ascending: true }),
-          */
           fetchTable('journals', setJournals, (data) => data.map((j: any) => ({ 
               id: j.id, 
               title: decryptData(j.title), 
@@ -537,20 +529,25 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     fetchData();
   }, [userId, isOnline]);
   
-  // 2.5 Fetch Google Calendar Events
+  // 3. Rebuilt Calendar Event Fetching
   useEffect(() => {
     const fetchCalendar = async () => {
-        if (!userSettings.calendars || userSettings.calendars.length === 0 || !isOnline) return;
+        // Only attempt to fetch if we have connected calendars and are online
+        if (!userSettings.calendars || userSettings.calendars.length === 0 || !isOnline) {
+            setCalendarEvents([]);
+            return;
+        }
         
         // Fetch surrounding months of events (expanded range for better calendar nav)
         const now = new Date();
         const start = new Date(now);
         start.setDate(1); // 1st of month
-        start.setMonth(start.getMonth() - 3); // Go back 3 months
+        start.setMonth(start.getMonth() - 2); // Go back 2 months
         const end = new Date(now);
-        end.setMonth(end.getMonth() + 6); // Go forward 6 months
+        end.setMonth(end.getMonth() + 4); // Go forward 4 months
         end.setDate(0);
         
+        // Use the new service that correctly uses the access tokens
         const events = await getGoogleCalendarEvents(
             userSettings.calendars, 
             start.toISOString(), 
@@ -560,7 +557,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     };
     
     fetchCalendar();
-    const interval = setInterval(fetchCalendar, 300000); // refresh every 5 mins
+    // Refresh every 5 mins to keep events up to date
+    const interval = setInterval(fetchCalendar, 300000); 
     return () => clearInterval(interval);
   }, [userSettings.calendars, isOnline]);
 

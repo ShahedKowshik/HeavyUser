@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import { 
   User, Trash2, X, Check, LogOut, Loader2, 
@@ -175,25 +174,28 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
     }
   };
   
+  // Rebuilt Calendar Connection Logic
   const handleConnectGoogle = async () => {
       setIsConnectingGoogle(true);
       try {
-          // Use linkIdentity to add another account to the current user
+          // Use linkIdentity to authorize the calendar scope for the logged-in user
+          // This ensures we get a fresh token with the right permissions
           const { error } = await supabase.auth.linkIdentity({
               provider: 'google',
               options: {
                   redirectTo: window.location.origin,
+                  // Request necessary scopes: Calendar Readonly + UserInfo (to identify the account)
                   scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/userinfo.email',
                   queryParams: {
-                      access_type: 'offline',
-                      prompt: 'consent',
+                      access_type: 'offline', // Ask for refresh token (though browser flow mostly uses access token)
+                      prompt: 'consent', // Force consent screen to ensure permissions are granted
                   },
               },
           });
           if (error) throw error;
       } catch (err: any) {
-          console.error("Error connecting Google:", err);
-          setToast("Failed to connect Google");
+          console.error("Error connecting Google Calendar:", err);
+          setToast("Failed to initiate connection");
           setTimeout(() => setToast(null), 3000);
           setIsConnectingGoogle(false);
       }
@@ -322,20 +324,23 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                             <div>
                                 <h2 className="text-lg font-medium text-foreground border-b border-border pb-2 mb-4">Connected Calendars</h2>
                                 <p className="text-sm text-muted-foreground mb-4">
-                                    Connect multiple Google Calendars to view all your events in one place.
+                                    Connect your Google Calendar to view all your events in one place.
                                 </p>
-                                <div className="space-y-2">
+                                <div className="space-y-3">
                                      {settings.calendars && settings.calendars.map((cal) => (
-                                         <div key={cal.email} className="flex items-center justify-between p-3 border border-border rounded-md bg-white">
+                                         <div key={cal.email} className="flex items-center justify-between p-3 border border-border rounded-md bg-white shadow-sm">
                                              <div className="flex items-center gap-3">
-                                                 <div className="p-1.5 bg-red-50 text-red-600 rounded-sm border border-red-100">
+                                                 <div className="p-2 bg-blue-50 text-blue-600 rounded-sm border border-blue-100">
                                                      <Calendar className="w-4 h-4" />
                                                  </div>
-                                                 <span className="text-sm font-medium truncate">{cal.email}</span>
+                                                 <div>
+                                                     <div className="text-sm font-medium">{cal.email}</div>
+                                                     <div className="text-xs text-green-600 flex items-center gap-1"><Check className="w-3 h-3"/> Connected</div>
+                                                 </div>
                                              </div>
                                              <button 
                                                 onClick={() => handleRemoveCalendar(cal.email)}
-                                                className="p-1.5 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-sm transition-colors"
+                                                className="p-2 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-sm transition-colors"
                                                 title="Disconnect"
                                              >
                                                  <Trash2 className="w-4 h-4" />
@@ -346,10 +351,10 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                      <button 
                                         onClick={handleConnectGoogle} 
                                         disabled={isConnectingGoogle}
-                                        className="w-full py-2 text-xs font-medium border border-dashed border-border rounded-md text-muted-foreground hover:text-foreground hover:bg-notion-hover transition-colors flex items-center justify-center gap-2"
+                                        className="w-full py-3 text-sm font-medium border border-dashed border-border rounded-md text-muted-foreground hover:text-foreground hover:bg-notion-hover hover:border-foreground/20 transition-all flex items-center justify-center gap-2"
                                      >
-                                         {isConnectingGoogle ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                                         Connect Another Calendar
+                                         {isConnectingGoogle ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                         Connect Google Calendar
                                      </button>
                                 </div>
                             </div>

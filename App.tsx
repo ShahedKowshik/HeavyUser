@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import AuthPage from './components/AuthPage';
 import Dashboard from './components/Dashboard';
@@ -16,76 +15,71 @@ const App: React.FC = () => {
   useEffect(() => {
     let mounted = true;
 
-    // Helper to safely set user state from a session
-    const handleUserSession = async (session: any) => {
+    const processSession = async (session: any) => {
       if (!mounted) return;
-      
+
       if (session?.user) {
-        let googleToken = session.provider_token;
         const metadata = session.user.user_metadata || {};
         let currentCalendars: CalendarAccount[] = metadata.calendars || [];
+        
+        // Token Management Logic:
+        // If the session has a provider_token (fresh from OAuth), verify it and store it.
+        // This is crucial for Google Calendar access.
+        if (session.provider_token) {
+           try {
+               // Fetch email associated with this token to match/update the correct calendar entry
+               const res = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+                   headers: { Authorization: `Bearer ${session.provider_token}` }
+               });
+               
+               if (res.ok) {
+                   const userInfo = await res.json();
+                   const email = userInfo.email;
 
-        // Token Persistence & Multi-Calendar Logic
-        // If we have a fresh token from OAuth (provider_token), we need to identify who it belongs to
-        // and add/update it in the calendars list.
-        if (googleToken) {
-            try {
-                // Check if we already have this token associated with an email to avoid re-fetching if possible,
-                // BUT provider_token changes on every login/refresh, so we likely need to verify the email.
-                // Fetch Google User Info to get the email associated with this token
-                const res = await fetch('https://www.googleapis.com/oauth2/v1/userinfo?alt=json', {
-                    headers: { Authorization: `Bearer ${googleToken}` }
-                });
-                
-                if (res.ok) {
-                    const data = await res.json();
-                    const email = data.email;
-                    
-                    if (email) {
-                        // Update or Add to calendars list
-                        const existingIndex = currentCalendars.findIndex(c => c.email === email);
-                        if (existingIndex >= 0) {
-                            // Update token for existing email
-                            currentCalendars[existingIndex].token = googleToken;
-                        } else {
-                            // Add new calendar account
-                            currentCalendars.push({ email, token: googleToken });
-                        }
+                   if (email) {
+                       // Check if we already track this email
+                       const existingIndex = currentCalendars.findIndex(c => c.email === email);
+                       let updated = false;
 
-                        // Save updated list to metadata if it changed
-                        // We do a simple JSON stringify comparison to avoid infinite loops if it hasn't effectively changed
-                        // (though token usually changes, so we accept the update)
-                        await supabase.auth.updateUser({ 
-                            data: { calendars: currentCalendars } 
-                        });
-                    }
-                }
-            } catch (err) {
-                console.error("Failed to verify Google token details:", err);
-            }
-        }
+                       if (existingIndex >= 0) {
+                           // Only update if token is different
+                           if (currentCalendars[existingIndex].token !== session.provider_token) {
+                               currentCalendars[existingIndex].token = session.provider_token;
+                               updated = true;
+                           }
+                       } else {
+                           // Add new calendar
+                           currentCalendars.push({ email, token: session.provider_token });
+                           updated = true;
+                       }
 
-        // Fallback: If no provider_token in this session (e.g. refresh), use what's in metadata
-        if (!googleToken && currentCalendars.length > 0) {
-            // We use the first one as the "primary" legacy token if needed, 
-            // but the app should prefer using the 'calendars' array.
-            googleToken = currentCalendars[0].token;
+                       // Persist to Supabase if changed
+                       if (updated) {
+                           await supabase.auth.updateUser({
+                               data: { calendars: currentCalendars }
+                           });
+                       }
+                   }
+               }
+           } catch (err) {
+               console.error("Failed to validate Google token:", err);
+           }
         }
 
         setCurrentUser({
           id: session.user.id,
           email: session.user.email || '',
-          name: session.user.user_metadata.full_name || 'User',
-          profilePicture: session.user.user_metadata.avatar_url,
-          dayStartHour: session.user.user_metadata.day_start_hour || 0,
-          startWeekDay: session.user.user_metadata.start_week_day || 0,
-          enabledFeatures: session.user.user_metadata.enabled_features || ['tasks', 'habit', 'journal', 'notes'],
-          googleToken: googleToken,
+          name: metadata.full_name || 'User',
+          profilePicture: metadata.avatar_url,
+          dayStartHour: metadata.day_start_hour || 0,
+          startWeekDay: metadata.start_week_day || 0,
+          enabledFeatures: metadata.enabled_features || ['tasks', 'habit', 'journal', 'notes'],
+          googleToken: session.provider_token, // Fallback, but prefer calendars array
           calendars: currentCalendars
         });
 
-        // Clean URL hash if it contains auth tokens to keep the URL clean and prevent loops
-        if (window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('refresh_token'))) {
+        // Clear hash to prevent loops/re-processing
+        if (window.location.hash && window.location.hash.includes('access_token')) {
             window.history.replaceState(null, '', window.location.pathname);
         }
       } else {
@@ -94,7 +88,7 @@ const App: React.FC = () => {
       setLoading(false);
     };
 
-    // 1. Check for errors in the URL hash immediately (e.g. Google Auth denied)
+    // Check URL errors
     const hashParams = new URLSearchParams(window.location.hash.substring(1));
     const error = hashParams.get('error');
     const errorDesc = hashParams.get('error_description');
@@ -106,33 +100,24 @@ const App: React.FC = () => {
       return;
     }
 
-    // 2. Setup Auth State Listener
-    // This listener fires when Supabase detects a session change (including processing the #access_token)
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      handleUserSession(session);
+    // Auth Listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      processSession(session);
     });
 
-    // 3. Initial Session Check
+    // Initial Check
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (!mounted) return;
-      
       if (error) {
-        console.error("Auth session check failed:", error);
-        setLoading(false); // Stop loading on error
-        return;
-      }
-      
-      if (session) {
-        handleUserSession(session);
+          console.error("Session check error:", error);
+          setLoading(false);
+      } else if (session) {
+          processSession(session);
       } else {
-        // If no session found, check if we are in a redirect flow (have access_token)
-        // If we are, we keep loading = true and let onAuthStateChange handle it.
-        const isRedirect = window.location.hash && window.location.hash.includes('access_token');
-        if (!isRedirect) {
-           setLoading(false);
-        }
+          // If no session and no hash redirect, stop loading
+          if (!window.location.hash.includes('access_token')) {
+              setLoading(false);
+          }
       }
     });
 
@@ -142,34 +127,23 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // 4. Failsafe Timeout
-  // Prevents the app from getting stuck on the loading spinner forever if something goes wrong
+  // Safety Timeout
   useEffect(() => {
     if (loading) {
-        const timer = setTimeout(() => {
-            console.warn("Authentication loading timed out. Forcing app load.");
-            setLoading(false);
-        }, 5000); // 5 seconds max wait time
+        const timer = setTimeout(() => setLoading(false), 5000);
         return () => clearTimeout(timer);
     }
   }, [loading]);
 
-  // Identify User for UserJot (Analytics)
+  // Analytics
   useEffect(() => {
-    if (window.innerWidth < 768) return;
-
-    if (currentUser) {
+    if (window.innerWidth >= 768 && currentUser) {
       const win = window as any;
       if (win.uj) {
-        const nameParts = currentUser.name.split(' ');
-        const firstName = nameParts[0] || '';
-        const lastName = nameParts.slice(1).join(' ') || '';
-
         win.uj.identify({
           id: currentUser.id,
           email: currentUser.email,
-          firstName: firstName,
-          lastName: lastName,
+          firstName: currentUser.name.split(' ')[0],
           avatar: currentUser.profilePicture
         });
       }
