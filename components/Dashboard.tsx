@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2 } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence, CalendarEvent } from '../types';
@@ -372,40 +370,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
   const enabledModules = userSettings.enabledFeatures || ['tasks', 'habit', 'journal', 'notes'];
 
-  // Persistence Helpers
-  const saveToLocal = (key: string, data: any) => {
-    localStorage.setItem(`heavyuser_cache_${userId}_${key}`, JSON.stringify(data));
-  };
-
-  const loadFromLocal = (key: string) => {
-    const saved = localStorage.getItem(`heavyuser_cache_${userId}_${key}`);
-    return saved ? JSON.parse(saved) : null;
-  };
-
-  // 1. Initial Load from LocalStorage
-  useEffect(() => {
-    const cachedTasks = loadFromLocal('tasks');
-    const cachedTags = loadFromLocal('tags');
-    const cachedHabits = loadFromLocal('habits');
-    const cachedHabitFolders = loadFromLocal('habitFolders');
-    const cachedTaskFolders = loadFromLocal('taskFolders');
-    const cachedJournals = loadFromLocal('journals');
-    const cachedNotes = loadFromLocal('notes');
-    const cachedFolders = loadFromLocal('folders');
-    const cachedSessions = loadFromLocal('sessions');
-
-    if (cachedTasks) setTasks(cachedTasks);
-    if (cachedTags) setTags(cachedTags);
-    if (cachedHabits) setHabits(cachedHabits);
-    if (cachedHabitFolders) setHabitFolders(cachedHabitFolders);
-    if (cachedTaskFolders) setTaskFolders(cachedTaskFolders);
-    if (cachedJournals) setJournals(cachedJournals);
-    if (cachedNotes) setNotes(cachedNotes);
-    if (cachedFolders) setFolders(cachedFolders);
-    if (cachedSessions) setSessions(cachedSessions);
-  }, [userId]);
-
-  // 2. Network Sync - Refactored for Robustness
+  // Network Sync - Refactored to remove localStorage caching for sensitive data
   useEffect(() => {
     const fetchData = async () => {
       if (!isOnline) return;
@@ -415,7 +380,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           tableName: string, 
           setter: React.Dispatch<React.SetStateAction<T[]>>, 
           parser: (data: any[]) => T[],
-          storageKey: string,
           orderBy?: { column: string, ascending: boolean },
           limit?: number
       ) => {
@@ -432,8 +396,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               const { data, error } = await query;
               
               if (error) {
-                  // Suppress "relation does not exist" error (42P01) if table is missing/optional
-                  // Also suppress schema cache errors which happen if table is completely missing from PostgREST cache
                   if (error.code === '42P01' || (typeof error.message === 'string' && error.message.includes('Could not find the table'))) {
                       console.warn(`Table ${tableName} does not exist or is inaccessible (42P01). Skipping.`);
                   } else {
@@ -442,7 +404,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               } else if (data) {
                   const parsedData = parser(data);
                   setter(parsedData);
-                  saveToLocal(storageKey, parsedData);
+                  // Security Audit Fix: Removed saveToLocal to prevent caching sensitive data in browser
               }
           } catch (err) {
               console.error(`Exception fetching ${tableName}:`, err);
@@ -490,15 +452,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
       // Execute all fetches independently
       await Promise.allSettled([
-          fetchTable('tasks', setTasks, parseTasks, 'tasks'),
-          fetchTable('tags', setTags, parseTags, 'tags'),
-          fetchTable('habits', setHabits, parseHabits, 'habits', { column: 'sort_order', ascending: true }),
+          fetchTable('tasks', setTasks, parseTasks),
+          fetchTable('tags', setTags, parseTags),
+          fetchTable('habits', setHabits, parseHabits, { column: 'sort_order', ascending: true }),
           fetchTable('habit_folders', setHabitFolders, (data) => data.map((f: any) => ({
               id: f.id,
               name: decryptData(f.name),
               icon: f.icon,
               sortOrder: f.sort_order || 0
-          })), 'habitFolders', { column: 'sort_order', ascending: true }),
+          })), { column: 'sort_order', ascending: true }),
           fetchTable('journals', setJournals, (data) => data.map((j: any) => ({ 
               id: j.id, 
               title: decryptData(j.title), 
@@ -507,8 +469,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               rating: j.rating, 
               entryType: j.entry_type as EntryType, 
               tags: j.tags || [] 
-          })), 'journals', { column: 'timestamp', ascending: false }),
-          fetchTable('folders', setFolders, (data) => data.map((f: any) => ({ id: f.id, name: decryptData(f.name) })), 'folders', { column: 'created_at', ascending: true }),
+          })), { column: 'timestamp', ascending: false }),
+          fetchTable('folders', setFolders, (data) => data.map((f: any) => ({ id: f.id, name: decryptData(f.name) })), { column: 'created_at', ascending: true }),
           fetchTable('notes', setNotes, (data) => data.map((n: any) => ({ 
               id: n.id, 
               title: decryptData(n.title), 
@@ -517,20 +479,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               createdAt: n.created_at, 
               updatedAt: n.updated_at, 
               tags: n.tags || [] 
-          })), 'notes', { column: 'updated_at', ascending: false }),
+          })), { column: 'updated_at', ascending: false }),
           fetchTable('task_sessions', setSessions, (data) => data.map((s: any) => ({ 
               id: s.id, 
               taskId: s.task_id, 
               startTime: s.start_time, 
               endTime: s.end_time, 
               duration: s.duration 
-          })), 'sessions', { column: 'start_time', ascending: false }, 500),
+          })), { column: 'start_time', ascending: false }, 500),
       ]);
     };
     fetchData();
   }, [userId, isOnline]);
   
-  // 3. Rebuilt Calendar Event Fetching
+  // Rebuilt Calendar Event Fetching
   useEffect(() => {
     let mounted = true;
     const fetchCalendar = async () => {
@@ -596,17 +558,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     };
   }, []);
 
-  // Update localStorage when state changes
-  useEffect(() => { if (tasks.length > 0) saveToLocal('tasks', tasks); }, [tasks]);
-  useEffect(() => { if (tags.length > 0) saveToLocal('tags', tags); }, [tags]);
-  useEffect(() => { if (habits.length > 0) saveToLocal('habits', habits); }, [habits]);
-  useEffect(() => { if (habitFolders.length > 0) saveToLocal('habitFolders', habitFolders); }, [habitFolders]);
-  useEffect(() => { if (taskFolders.length > 0) saveToLocal('taskFolders', taskFolders); }, [taskFolders]);
-  useEffect(() => { if (journals.length > 0) saveToLocal('journals', journals); }, [journals]);
-  useEffect(() => { if (notes.length > 0) saveToLocal('notes', notes); }, [notes]);
-  useEffect(() => { if (folders.length > 0) saveToLocal('folders', folders); }, [folders]);
-  useEffect(() => { if (sessions.length > 0) saveToLocal('sessions', sessions); }, [sessions]);
-
+  // UI State Persistence (Non-sensitive)
   useEffect(() => { localStorage.setItem('heavyuser_active_tab', activeTab); }, [activeTab]);
   useEffect(() => { if (!['settings', 'today'].includes(activeTab) && !enabledModules.includes(activeTab)) { setActiveTab(enabledModules.length > 0 ? (enabledModules[0] as AppTab) : 'today'); } }, [enabledModules, activeTab]);
   useEffect(() => { const interval = setInterval(() => setStatsTicker(prev => prev + 1), 60000); return () => clearInterval(interval); }, []);
