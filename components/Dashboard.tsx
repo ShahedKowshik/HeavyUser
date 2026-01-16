@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2 } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence, CalendarEvent } from '../types';
@@ -540,13 +542,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     const fetchCalendar = async () => {
         if (!userSettings.calendars || userSettings.calendars.length === 0 || !isOnline) return;
         
-        // Fetch surrounding month of events
+        // Fetch surrounding months of events (expanded range for better calendar nav)
         const now = new Date();
         const start = new Date(now);
         start.setDate(1); // 1st of month
-        start.setMonth(start.getMonth() - 1); // Go back 1 month
+        start.setMonth(start.getMonth() - 3); // Go back 3 months
         const end = new Date(now);
-        end.setMonth(end.getMonth() + 2); // Go forward 2 months
+        end.setMonth(end.getMonth() + 6); // Go forward 6 months
         end.setDate(0);
         
         const events = await getGoogleCalendarEvents(
@@ -807,7 +809,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       });
       
       // 2. Filter Calendar Events for Today Schedule
+      // UPDATED: Handle both all-day (YYYY-MM-DD) and timed (ISO) events against local 'today' string
       const todayEvents = calendarEvents.filter(e => {
+          if (e.allDay) return e.start === today;
           const eDate = new Date(e.start);
           const eDateStr = `${eDate.getFullYear()}-${String(eDate.getMonth() + 1).padStart(2, '0')}-${String(eDate.getDate()).padStart(2, '0')}`;
           return eDateStr === today;

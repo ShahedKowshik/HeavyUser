@@ -596,9 +596,12 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     const untimedTasks = dayTasks.filter(t => !t.time);
     const timedTasks = dayTasks.filter(t => !!t.time).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
     
-    // Calendar Events
+    // Calendar Events - Filter by date correctly
     const dayEvents = calendarEvents.filter(e => {
-        return e.start.startsWith(dateStr);
+        if (e.allDay) return e.start === dateStr;
+        const eventDate = new Date(e.start);
+        const eventDateStr = getLocalDateString(eventDate);
+        return eventDateStr === dateStr;
     });
     const allDayEvents = dayEvents.filter(e => e.allDay);
     const timedEvents = dayEvents.filter(e => !e.allDay);
