@@ -32,8 +32,8 @@ const App: React.FC = () => {
           googleToken: session.provider_token,
         });
 
-        // Clean URL hash if it contains auth tokens to keep the URL clean
-        if (window.location.hash && window.location.hash.includes('access_token')) {
+        // Clean URL hash if it contains auth tokens to keep the URL clean and prevent loops
+        if (window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('refresh_token'))) {
             window.history.replaceState(null, '', window.location.pathname);
         }
       } else {
