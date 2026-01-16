@@ -18,46 +18,121 @@ const App: React.FC = () => {
     const processSession = async (session: any) => {
       if (!mounted) return;
 
+      // Handle Calendar Connection Logic (detect account switch)
+      const pendingLinkJson = localStorage.getItem('heavyuser_pending_calendar_link');
+      if (pendingLinkJson && session) {
+          try {
+              const pendingSession = JSON.parse(pendingLinkJson);
+              
+              // If the logged in user (session.user.id) is DIFFERENT from the one who initiated the link (pendingSession.user.id)
+              // This happens if the user selected a different Google account in the OAuth screen
+              if (session.user.id !== pendingSession.user.id) {
+                  console.log("Account switch detected during calendar connect. Restoring original user...");
+                  
+                  const calendarToken = session.provider_token;
+                  let calendarEmail = session.user.email;
+                  
+                  // Fallback: If email missing from session user object (rare but possible), fetch it
+                  if (!calendarEmail && session.provider_token) {
+                      try {
+                        const res = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+                            headers: { Authorization: `Bearer ${session.provider_token}` }
+                        });
+                        if (res.ok) {
+                            const info = await res.json();
+                            calendarEmail = info.email;
+                        }
+                      } catch (e) { console.error("Failed to fetch calendar email", e); }
+                  }
+
+                  if (calendarToken && calendarEmail) {
+                      // 1. Clear the flag immediately
+                      localStorage.removeItem('heavyuser_pending_calendar_link');
+
+                      // 2. Sign out the "wrong" account (User B)
+                      await supabase.auth.signOut();
+                      
+                      // 3. Restore the original account (User A)
+                      const { data: { session: restoredSession }, error: restoreError } = await supabase.auth.setSession({
+                          access_token: pendingSession.access_token,
+                          refresh_token: pendingSession.refresh_token
+                      });
+                      
+                      if (restoredSession) {
+                          // 4. Update the Original User's metadata with the new calendar token
+                          const metadata = restoredSession.user.user_metadata || {};
+                          let currentCalendars: CalendarAccount[] = metadata.calendars || [];
+                          
+                          const existingIndex = currentCalendars.findIndex(c => c.email === calendarEmail);
+                          if (existingIndex >= 0) {
+                              currentCalendars[existingIndex].token = calendarToken;
+                          } else {
+                              currentCalendars.push({ email: calendarEmail, token: calendarToken });
+                          }
+                          
+                          // Persist changes to Supabase
+                          await supabase.auth.updateUser({
+                              data: { calendars: currentCalendars }
+                          });
+                          
+                          // Recursion: Process this restored session to load the dashboard correctly
+                          return processSession(restoredSession);
+                      } else {
+                          console.error("Failed to restore original user session:", restoreError);
+                      }
+                  }
+              } else {
+                  // User matched (same account selected), just clear the flag
+                  localStorage.removeItem('heavyuser_pending_calendar_link');
+              }
+          } catch (e) {
+              console.error("Error processing pending calendar link:", e);
+              localStorage.removeItem('heavyuser_pending_calendar_link');
+          }
+      }
+
       if (session?.user) {
         const metadata = session.user.user_metadata || {};
         let currentCalendars: CalendarAccount[] = metadata.calendars || [];
         
-        // Token Management Logic:
-        // If the session has a provider_token (fresh from OAuth), verify it and store it.
-        // This is crucial for Google Calendar access.
+        // Token Management Logic for Normal OAuth Login (or matching account link)
         if (session.provider_token) {
            try {
-               // Fetch email associated with this token to match/update the correct calendar entry
-               const res = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
-                   headers: { Authorization: `Bearer ${session.provider_token}` }
-               });
+               // Verify token and email if needed
+               // Note: If we just did the restore logic above, this part might run again 
+               // but that's fine as it verifies the state.
                
-               if (res.ok) {
-                   const userInfo = await res.json();
-                   const email = userInfo.email;
+               // Only fetch if we don't have this token recorded yet to save bandwidth
+               const knownToken = currentCalendars.some(c => c.token === session.provider_token);
+               
+               if (!knownToken) {
+                   const res = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+                       headers: { Authorization: `Bearer ${session.provider_token}` }
+                   });
+                   
+                   if (res.ok) {
+                       const userInfo = await res.json();
+                       const email = userInfo.email;
 
-                   if (email) {
-                       // Check if we already track this email
-                       const existingIndex = currentCalendars.findIndex(c => c.email === email);
-                       let updated = false;
+                       if (email) {
+                           const existingIndex = currentCalendars.findIndex(c => c.email === email);
+                           let updated = false;
 
-                       if (existingIndex >= 0) {
-                           // Only update if token is different
-                           if (currentCalendars[existingIndex].token !== session.provider_token) {
-                               currentCalendars[existingIndex].token = session.provider_token;
+                           if (existingIndex >= 0) {
+                               if (currentCalendars[existingIndex].token !== session.provider_token) {
+                                   currentCalendars[existingIndex].token = session.provider_token;
+                                   updated = true;
+                               }
+                           } else {
+                               currentCalendars.push({ email, token: session.provider_token });
                                updated = true;
                            }
-                       } else {
-                           // Add new calendar
-                           currentCalendars.push({ email, token: session.provider_token });
-                           updated = true;
-                       }
 
-                       // Persist to Supabase if changed
-                       if (updated) {
-                           await supabase.auth.updateUser({
-                               data: { calendars: currentCalendars }
-                           });
+                           if (updated) {
+                               await supabase.auth.updateUser({
+                                   data: { calendars: currentCalendars }
+                               });
+                           }
                        }
                    }
                }
@@ -74,7 +149,7 @@ const App: React.FC = () => {
           dayStartHour: metadata.day_start_hour || 0,
           startWeekDay: metadata.start_week_day || 0,
           enabledFeatures: metadata.enabled_features || ['tasks', 'habit', 'journal', 'notes'],
-          googleToken: session.provider_token, // Fallback, but prefer calendars array
+          googleToken: session.provider_token, // Fallback
           calendars: currentCalendars
         });
 

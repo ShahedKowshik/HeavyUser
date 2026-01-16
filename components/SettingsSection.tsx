@@ -178,6 +178,12 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
   const handleConnectGoogle = async () => {
       setIsConnectingGoogle(true);
       try {
+          // Store current session before OAuth dance to restore it later if needed
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (currentSession) {
+              localStorage.setItem('heavyuser_pending_calendar_link', JSON.stringify(currentSession));
+          }
+
           // Changed to signInWithOAuth to bypass "Manual linking is disabled" project error.
           // This will re-authenticate the user, effectively refreshing tokens or switching accounts if needed.
           const { error } = await supabase.auth.signInWithOAuth({
@@ -197,6 +203,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
           console.error("Error connecting Google Calendar:", err);
           setToast("Failed to initiate connection");
           setTimeout(() => setToast(null), 3000);
+          localStorage.removeItem('heavyuser_pending_calendar_link');
           setIsConnectingGoogle(false);
       }
   };
