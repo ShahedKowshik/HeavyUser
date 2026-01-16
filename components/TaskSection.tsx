@@ -809,25 +809,80 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                   const subtasks = task.subtasks || [];
 
                   return (
-                    <div key={task.id} onClick={() => openEditPanel(task)} className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md mb-3 overflow-hidden ${isSelected ? 'border-notion-blue ring-1 ring-notion-blue' : 'border-border hover:border-notion-blue/30'}`}>
+                    <div key={task.id} onClick={() => openEditPanel(task)} className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md mb-2 overflow-hidden ${isSelected ? 'border-notion-blue ring-1 ring-notion-blue' : 'border-border hover:border-notion-blue/30'}`}>
                         <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${priorityColorClass} rounded-l-sm opacity-80`} />
-                        <div className="pl-5 pr-3 pt-2 pb-3 flex items-start gap-3">
-                            <button onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }} className={`mt-0.5 w-5 h-5 rounded-sm border-[1.5px] flex items-center justify-center transition-all duration-200 shrink-0 ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'bg-transparent border-muted-foreground/40 hover:border-notion-blue'}`}>{task.completed && <Check className="w-3.5 h-3.5 stroke-[3]" />}</button>
-                            <div className="flex-1 min-w-0 space-y-1">
-                                <div className="flex items-center gap-2 mb-0.5">
-                                     <h4 className={`text-sm font-semibold leading-normal transition-colors ${task.completed ? 'text-muted-foreground line-through decoration-border' : 'text-foreground'}`}>{task.title}</h4>
-                                     {subtasks.length > 0 && <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm h-fit"><ListChecks className="w-3 h-3" /><span>{subtasks.filter(s => s.completed).length}/{subtasks.length}</span></div>}
+                        
+                        <div className="pl-4 pr-3 py-2 flex items-center gap-3">
+                            {/* Checkbox */}
+                            <button onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }} className={`w-5 h-5 rounded-sm border-[1.5px] flex items-center justify-center transition-all duration-200 shrink-0 ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'bg-transparent border-muted-foreground/40 hover:border-notion-blue'}`}>
+                                {task.completed && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                            </button>
+                            
+                            {/* Content */}
+                            <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden">
+                                {/* Priority Icon Only */}
+                                <div className={`flex items-center justify-center w-5 h-5 rounded-sm shrink-0 border shadow-sm ${getPriorityBadgeStyle(task.priority)}`} title={task.priority}>
+                                    {getPriorityIcon(task.priority)}
                                 </div>
-                                <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-                                        <div className={`flex items-center justify-center gap-1 px-1 py-0.5 rounded-sm border shadow-sm min-w-[58px] ${getPriorityBadgeStyle(task.priority)}`}>{getPriorityIcon(task.priority)}<span className="font-medium truncate">{task.priority}</span></div>
-                                        {task.dueDate && showDateBadge && <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 shadow-sm ${getRelativeTimeColor(task.dueDate)}`}><Calendar className="w-3 h-3" /><span className="font-medium">{formatRelativeDate(task.dueDate)}</span></div>}
-                                        {task.time && <div className="flex items-center gap-1 text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-sm border border-foreground/10 shadow-sm"><Clock className="w-3 h-3" /><span>{task.time}</span></div>}
-                                        {task.recurrence && <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 shadow-sm text-notion-purple"><Repeat className="w-3 h-3" /><span className="capitalize font-medium">{task.recurrence.type}</span></div>}
-                                        {task.notes && task.notes.trim().length > 0 && <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 shadow-sm" title="Has notes"><FileText className="w-3 h-3" /><span className="hidden sm:inline">Notes</span></div>}
-                                        {task.tags && task.tags.map(tagId => { const tag = tags.find(t => t.id === tagId); if (!tag) return null; return (<div key={tagId} className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 text-muted-foreground shadow-sm"><div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tag.color }} /><span className="truncate max-w-[80px]">{tag.label}</span></div>); })}
-                                </div>
+
+                                {/* Title */}
+                                <h4 className={`text-sm font-semibold truncate ${task.completed ? 'text-muted-foreground line-through decoration-border' : 'text-foreground'}`}>
+                                    {task.title}
+                                </h4>
+                                
+                                {/* Labels */}
+                                {task.tags && task.tags.length > 0 && (
+                                     <div className="flex items-center gap-1 shrink-0">
+                                         {task.tags.map(tagId => { 
+                                             const tag = tags.find(t => t.id === tagId); 
+                                             if (!tag) return null; 
+                                             return (
+                                                 <div key={tagId} className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 text-muted-foreground shadow-sm">
+                                                     <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                                                     <span className="truncate max-w-[80px] text-[10px]">{tag.label}</span>
+                                                 </div>
+                                             ); 
+                                         })}
+                                     </div>
+                                )}
+                                
+                                {/* Subtasks Icon (if space) */}
+                                {subtasks.length > 0 && (
+                                    <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm shrink-0">
+                                        <ListChecks className="w-3 h-3" />
+                                        <span className="hidden sm:inline">{subtasks.filter(s => s.completed).length}/{subtasks.length}</span>
+                                    </div>
+                                )}
+
+                                {/* Notes Icon */}
+                                {task.notes && task.notes.trim().length > 0 && (
+                                    <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
+                                )}
                             </div>
-                            {(task.plannedTime || (task.actualTime || 0) > 0) && <div className="flex flex-col items-end justify-center shrink-0 pl-2 self-center gap-0.5 min-w-[3.5rem]"><span className={`font-mono text-xs font-medium tabular-nums ${task.timerStart ? 'text-notion-blue animate-pulse' : 'text-foreground'}`}>{Math.round(task.actualTime || 0)}m</span>{task.plannedTime && <span className="text-[10px] text-muted-foreground tabular-nums opacity-80">/ {task.plannedTime}m</span>}</div>}
+
+                            {/* Right Side Info */}
+                            <div className="flex items-center gap-3 shrink-0">
+                                {/* Date / Recurrence (Moved to right to fit single line clean look) */}
+                                {(task.dueDate || task.recurrence || task.time) && (
+                                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground hidden sm:flex">
+                                          {task.recurrence && <Repeat className="w-3 h-3 text-notion-purple" />}
+                                          {task.dueDate && showDateBadge && (
+                                              <span className={`${getRelativeTimeColor(task.dueDate)} font-medium`}>{formatRelativeDate(task.dueDate)}</span>
+                                          )}
+                                          {task.time && <span>{task.time}</span>}
+                                     </div>
+                                )}
+
+                                {/* Timer */}
+                                {(task.plannedTime || (task.actualTime || 0) > 0) && (
+                                    <div className="flex flex-col items-end justify-center pl-2 self-center gap-0.5 min-w-[3.5rem] border-l border-border/50 ml-1">
+                                        <span className={`font-mono text-xs font-medium tabular-nums ${task.timerStart ? 'text-notion-blue animate-pulse' : 'text-foreground'}`}>
+                                            {Math.round(task.actualTime || 0)}m
+                                        </span>
+                                        {task.plannedTime && <span className="text-[10px] text-muted-foreground tabular-nums opacity-80">/ {task.plannedTime}m</span>}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                   );
