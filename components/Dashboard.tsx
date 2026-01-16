@@ -430,8 +430,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               
               if (error) {
                   // Suppress "relation does not exist" error (42P01) if table is missing/optional
-                  if (error.code === '42P01') {
-                      console.warn(`Table ${tableName} does not exist (42P01). Skipping.`);
+                  // Also suppress schema cache errors which happen if table is completely missing from PostgREST cache
+                  if (error.code === '42P01' || (typeof error.message === 'string' && error.message.includes('Could not find the table'))) {
+                      console.warn(`Table ${tableName} does not exist or is inaccessible (42P01). Skipping.`);
                   } else {
                       console.error(`Error fetching ${tableName}:`, error.message || error);
                   }
@@ -495,11 +496,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               icon: f.icon,
               sortOrder: f.sort_order || 0
           })), 'habitFolders', { column: 'sort_order', ascending: true }),
+          /* 
+          // Removed task_folders fetch to prevent errors as table does not exist
           fetchTable('task_folders', setTaskFolders, (data) => data.map((f: any) => ({
               id: f.id,
               name: decryptData(f.name),
               sortOrder: f.sort_order || 0
           })), 'taskFolders', { column: 'sort_order', ascending: true }),
+          */
           fetchTable('journals', setJournals, (data) => data.map((j: any) => ({ 
               id: j.id, 
               title: decryptData(j.title), 
