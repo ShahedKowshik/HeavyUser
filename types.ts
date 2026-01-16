@@ -4,6 +4,11 @@ export type AppTab = 'today' | 'tasks' | 'habit' | 'journal' | 'notes' | 'settin
 
 export type Priority = 'Urgent' | 'High' | 'Normal' | 'Low';
 
+export interface CalendarAccount {
+  email: string;
+  token: string;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -13,6 +18,7 @@ export interface User {
   startWeekDay?: number; // 0-6 (0 = Sunday, 1 = Monday, etc.)
   enabledFeatures?: string[];
   googleToken?: string | null;
+  calendars?: CalendarAccount[];
 }
 
 export interface Tag {
@@ -132,6 +138,7 @@ export interface UserSettings {
   dayStartHour?: number;
   startWeekDay?: number;
   enabledFeatures?: string[];
+  calendars?: CalendarAccount[];
 }
 
 export interface CalendarEvent {
@@ -141,4 +148,6 @@ export interface CalendarEvent {
   end: string; // ISO string
   allDay: boolean;
   htmlLink?: string;
+  calendarEmail?: string;
+  color?: string;
 }

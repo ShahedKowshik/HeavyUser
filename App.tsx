@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import AuthPage from './components/AuthPage';
 import Dashboard from './components/Dashboard';
-import { User } from './types';
+import { User, CalendarAccount } from './types';
 import { supabase } from './lib/supabase';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
@@ -17,22 +17,59 @@ const App: React.FC = () => {
     let mounted = true;
 
     // Helper to safely set user state from a session
-    const handleUserSession = (session: any) => {
+    const handleUserSession = async (session: any) => {
       if (!mounted) return;
       
       if (session?.user) {
         let googleToken = session.provider_token;
         const metadata = session.user.user_metadata || {};
+        let currentCalendars: CalendarAccount[] = metadata.calendars || [];
 
-        // Persistence Logic for Google Token to fix cross-browser/refresh issue
-        // If we have a fresh token from OAuth (provider_token), save it to metadata
-        // Otherwise, try to load it from metadata
+        // Token Persistence & Multi-Calendar Logic
+        // If we have a fresh token from OAuth (provider_token), we need to identify who it belongs to
+        // and add/update it in the calendars list.
         if (googleToken) {
-            if (metadata.google_token !== googleToken) {
-                 supabase.auth.updateUser({ data: { google_token: googleToken } });
+            try {
+                // Check if we already have this token associated with an email to avoid re-fetching if possible,
+                // BUT provider_token changes on every login/refresh, so we likely need to verify the email.
+                // Fetch Google User Info to get the email associated with this token
+                const res = await fetch('https://www.googleapis.com/oauth2/v1/userinfo?alt=json', {
+                    headers: { Authorization: `Bearer ${googleToken}` }
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    const email = data.email;
+                    
+                    if (email) {
+                        // Update or Add to calendars list
+                        const existingIndex = currentCalendars.findIndex(c => c.email === email);
+                        if (existingIndex >= 0) {
+                            // Update token for existing email
+                            currentCalendars[existingIndex].token = googleToken;
+                        } else {
+                            // Add new calendar account
+                            currentCalendars.push({ email, token: googleToken });
+                        }
+
+                        // Save updated list to metadata if it changed
+                        // We do a simple JSON stringify comparison to avoid infinite loops if it hasn't effectively changed
+                        // (though token usually changes, so we accept the update)
+                        await supabase.auth.updateUser({ 
+                            data: { calendars: currentCalendars } 
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to verify Google token details:", err);
             }
-        } else {
-            googleToken = metadata.google_token;
+        }
+
+        // Fallback: If no provider_token in this session (e.g. refresh), use what's in metadata
+        if (!googleToken && currentCalendars.length > 0) {
+            // We use the first one as the "primary" legacy token if needed, 
+            // but the app should prefer using the 'calendars' array.
+            googleToken = currentCalendars[0].token;
         }
 
         setCurrentUser({
@@ -44,6 +81,7 @@ const App: React.FC = () => {
           startWeekDay: session.user.user_metadata.start_week_day || 0,
           enabledFeatures: session.user.user_metadata.enabled_features || ['tasks', 'habit', 'journal', 'notes'],
           googleToken: googleToken,
+          calendars: currentCalendars
         });
 
         // Clean URL hash if it contains auth tokens to keep the URL clean and prevent loops

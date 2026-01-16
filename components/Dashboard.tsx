@@ -304,7 +304,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     profilePicture: user.profilePicture, 
     dayStartHour: user.dayStartHour, 
     startWeekDay: user.startWeekDay,
-    enabledFeatures: user.enabledFeatures || ['tasks', 'habit', 'journal', 'notes']
+    enabledFeatures: user.enabledFeatures || ['tasks', 'habit', 'journal', 'notes'],
+    calendars: user.calendars || (user.googleToken ? [{ email: user.email, token: user.googleToken }] : [])
   });
 
   const [statsTicker, setStatsTicker] = useState(0);
@@ -489,7 +490,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   // 2.5 Fetch Google Calendar Events
   useEffect(() => {
     const fetchCalendar = async () => {
-        if (!user.googleToken || !isOnline) return;
+        if (!userSettings.calendars || userSettings.calendars.length === 0 || !isOnline) return;
         
         // Fetch surrounding month of events
         const now = new Date();
@@ -501,7 +502,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         end.setDate(0);
         
         const events = await getGoogleCalendarEvents(
-            user.googleToken, 
+            userSettings.calendars, 
             start.toISOString(), 
             end.toISOString()
         );
@@ -511,7 +512,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     fetchCalendar();
     const interval = setInterval(fetchCalendar, 300000); // refresh every 5 mins
     return () => clearInterval(interval);
-  }, [user.googleToken, isOnline]);
+  }, [userSettings.calendars, isOnline]);
 
   // Handle Online/Offline Status
   useEffect(() => {
@@ -683,7 +684,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               avatar_url: newSettings.profilePicture, 
               day_start_hour: newSettings.dayStartHour, 
               enabled_features: newSettings.enabledFeatures,
-              start_week_day: newSettings.startWeekDay
+              start_week_day: newSettings.startWeekDay,
+              calendars: newSettings.calendars
           } 
       }); 
   };
@@ -1283,7 +1285,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                                         rel="noopener noreferrer"
                                                         className="absolute left-1 right-1 bg-green-50 border-l-2 border-green-500 text-green-900 text-[10px] p-1 rounded-sm shadow-sm cursor-pointer hover:brightness-95 truncate z-10"
                                                         style={{ top: `${top}%`, height: `${heightPx}px` }}
-                                                        title={event.title}
+                                                        title={`${event.title} (${event.calendarEmail || ''})`}
                                                      >
                                                          <span className="font-bold mr-1">{start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                                                          {event.title}
