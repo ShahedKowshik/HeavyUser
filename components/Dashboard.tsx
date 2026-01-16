@@ -1133,8 +1133,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                           <div className="h-full bg-notion-blue transition-all duration-500" style={{ width: `${progressPercent}%` }} />
                       </div>
                       <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>{Math.floor(sidebarStats.totalTrackedSeconds/60)}m worked</span>
-                          <span>{sidebarStats.remainingMinutes}m remaining</span>
+                          <span>{Math.floor(sidebarStats.totalTrackedSeconds/60)}m done</span>
+                          <span>{sidebarStats.remainingMinutes}m left</span>
                       </div>
                   </div>
 
@@ -1267,8 +1267,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                                  return eH === h;
                                              }).map(event => {
                                                  const start = new Date(event.start);
+                                                 const end = new Date(event.end);
                                                  const eM = start.getMinutes();
                                                  const top = (eM / 60) * 100;
+                                                 
+                                                 // Duration calculation for dynamic height
+                                                 const durationMins = (end.getTime() - start.getTime()) / 60000;
+                                                 const heightPx = Math.max((durationMins / 60) * 60, 28);
+
                                                  return (
                                                      <a 
                                                         key={event.id}
@@ -1276,7 +1282,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="absolute left-1 right-1 bg-green-50 border-l-2 border-green-500 text-green-900 text-[10px] p-1 rounded-sm shadow-sm cursor-pointer hover:brightness-95 truncate z-10"
-                                                        style={{ top: `${top}%`, height: '28px' }}
+                                                        style={{ top: `${top}%`, height: `${heightPx}px` }}
                                                         title={event.title}
                                                      >
                                                          <span className="font-bold mr-1">{start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>

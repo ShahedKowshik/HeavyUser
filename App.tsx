@@ -21,6 +21,20 @@ const App: React.FC = () => {
       if (!mounted) return;
       
       if (session?.user) {
+        let googleToken = session.provider_token;
+        const metadata = session.user.user_metadata || {};
+
+        // Persistence Logic for Google Token to fix cross-browser/refresh issue
+        // If we have a fresh token from OAuth (provider_token), save it to metadata
+        // Otherwise, try to load it from metadata
+        if (googleToken) {
+            if (metadata.google_token !== googleToken) {
+                 supabase.auth.updateUser({ data: { google_token: googleToken } });
+            }
+        } else {
+            googleToken = metadata.google_token;
+        }
+
         setCurrentUser({
           id: session.user.id,
           email: session.user.email || '',
@@ -29,7 +43,7 @@ const App: React.FC = () => {
           dayStartHour: session.user.user_metadata.day_start_hour || 0,
           startWeekDay: session.user.user_metadata.start_week_day || 0,
           enabledFeatures: session.user.user_metadata.enabled_features || ['tasks', 'habit', 'journal', 'notes'],
-          googleToken: session.provider_token,
+          googleToken: googleToken,
         });
 
         // Clean URL hash if it contains auth tokens to keep the URL clean and prevent loops
