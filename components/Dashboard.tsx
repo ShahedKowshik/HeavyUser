@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2 } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence, CalendarEvent } from '../types';
@@ -531,10 +532,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   
   // 3. Rebuilt Calendar Event Fetching
   useEffect(() => {
+    let mounted = true;
     const fetchCalendar = async () => {
         // Only attempt to fetch if we have connected calendars and are online
         if (!userSettings.calendars || userSettings.calendars.length === 0 || !isOnline) {
-            setCalendarEvents([]);
+            if (mounted) setCalendarEvents([]);
             return;
         }
         
@@ -548,18 +550,38 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         end.setDate(0);
         
         // Use the new service that correctly uses the access tokens
-        const events = await getGoogleCalendarEvents(
-            userSettings.calendars, 
-            start.toISOString(), 
-            end.toISOString()
-        );
-        setCalendarEvents(events);
+        try {
+            const events = await getGoogleCalendarEvents(
+                userSettings.calendars, 
+                start.toISOString(), 
+                end.toISOString()
+            );
+            if (mounted) setCalendarEvents(events);
+        } catch (error) {
+            console.error("Failed to auto-fetch calendar:", error);
+        }
     };
     
     fetchCalendar();
-    // Refresh every 5 mins to keep events up to date
-    const interval = setInterval(fetchCalendar, 300000); 
-    return () => clearInterval(interval);
+    
+    // Refresh more frequently (every 30 seconds) to catch background updates
+    const interval = setInterval(fetchCalendar, 30000); 
+
+    // Auto-refresh when window regains focus or visibility (user returns to app)
+    const onFocus = () => fetchCalendar();
+    const onVisibilityChange = () => {
+        if (document.visibilityState === 'visible') fetchCalendar();
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+        mounted = false;
+        clearInterval(interval);
+        window.removeEventListener('focus', onFocus);
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [userSettings.calendars, isOnline]);
 
   // Handle Online/Offline Status
