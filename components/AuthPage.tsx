@@ -76,8 +76,9 @@ const AuthPage: React.FC<AuthPageProps> = ({ error: externalError }) => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          // Simplified login: No scopes or offline access requested here.
-          // This avoids the "policy mismatch" error for unverified apps.
+          // Explicitly request calendar scope so we can list events
+          // and userinfo.email so we can identify the calendar account
+          scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/userinfo.email',
           redirectTo: window.location.origin,
         },
       });

@@ -30,8 +30,6 @@ const App: React.FC = () => {
         // and add/update it in the calendars list.
         if (googleToken) {
             try {
-                // Check if we already have this token associated with an email to avoid re-fetching if possible,
-                // BUT provider_token changes on every login/refresh, so we likely need to verify the email.
                 // Fetch Google User Info to get the email associated with this token
                 const res = await fetch('https://www.googleapis.com/oauth2/v1/userinfo?alt=json', {
                     headers: { Authorization: `Bearer ${googleToken}` }
@@ -53,8 +51,6 @@ const App: React.FC = () => {
                         }
 
                         // Save updated list to metadata if it changed
-                        // We do a simple JSON stringify comparison to avoid infinite loops if it hasn't effectively changed
-                        // (though token usually changes, so we accept the update)
                         await supabase.auth.updateUser({ 
                             data: { calendars: currentCalendars } 
                         });
@@ -65,11 +61,9 @@ const App: React.FC = () => {
             }
         }
 
-        // Fallback: If no provider_token in this session (e.g. refresh), use what's in metadata
-        if (!googleToken && currentCalendars.length > 0) {
-            // We use the first one as the "primary" legacy token if needed, 
-            // but the app should prefer using the 'calendars' array.
-            googleToken = currentCalendars[0].token;
+        // Fallback: If no calendars in list but we have a token (legacy migration)
+        if (currentCalendars.length === 0 && googleToken && session.user.email) {
+           currentCalendars = [{ email: session.user.email, token: googleToken }];
         }
 
         setCurrentUser({
