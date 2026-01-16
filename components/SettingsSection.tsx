@@ -174,6 +174,52 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
     }
   };
   
+  // Security Handlers
+  const handleUpdateEmail = async () => {
+    if (!newEmail || newEmail === settings.email) {
+        setToast("Please enter a new email address");
+        setTimeout(() => setToast(null), 3000);
+        return;
+    }
+    if (!isOnline) {
+      setToast('Cannot update email offline');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    
+    try {
+      const { error } = await supabase.auth.updateUser({ email: newEmail });
+      if (error) throw error;
+      setToast('Confirmation links sent to both emails');
+    } catch (err: any) {
+      setToast(err.message || 'Failed to update email');
+    }
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+        setToast("Password must be at least 6 chars");
+        setTimeout(() => setToast(null), 3000);
+        return;
+    }
+    if (!isOnline) {
+      setToast('Cannot update password offline');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setToast('Password updated');
+      setNewPassword('');
+    } catch (err: any) {
+      setToast(err.message || 'Failed to update password');
+    }
+    setTimeout(() => setToast(null), 3000);
+  };
+  
   // Rebuilt Calendar Connection Logic
   const handleConnectGoogle = async () => {
       setIsConnectingGoogle(true);
@@ -378,8 +424,8 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                         <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full text-sm border border-border rounded-sm px-3 py-2 bg-transparent" />
                                     </div>
                                     <div className="flex gap-2 pt-2">
-                                        <button className="flex-1 px-3 py-2 border border-border rounded-sm text-sm hover:bg-notion-hover transition-colors">Change Email</button>
-                                        <button className="flex-1 px-3 py-2 border border-border rounded-sm text-sm hover:bg-notion-hover transition-colors">Change Password</button>
+                                        <button onClick={handleUpdateEmail} className="flex-1 px-3 py-2 border border-border rounded-sm text-sm hover:bg-notion-hover transition-colors">Change Email</button>
+                                        <button onClick={handleUpdatePassword} className="flex-1 px-3 py-2 border border-border rounded-sm text-sm hover:bg-notion-hover transition-colors">Change Password</button>
                                     </div>
                                 </div>
                             </div>
