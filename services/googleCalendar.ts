@@ -2,60 +2,11 @@
 import { CalendarEvent, CalendarAccount } from "../types";
 
 /**
- * Updates an event in a specific Google Calendar account.
- */
-export const updateGoogleCalendarEvent = async (
-    account: CalendarAccount,
-    eventId: string,
-    event: { title: string; start: string; end: string; allDay: boolean }
-): Promise<boolean> => {
-    if (!account.token) return false;
-
-    try {
-        const body: any = {
-            summary: event.title,
-        };
-
-        if (event.allDay) {
-            // Google Calendar requires 'date' (YYYY-MM-DD) for all-day events
-            // Ensure we extract just the date part if an ISO string was passed
-            const startDate = event.start.includes('T') ? event.start.split('T')[0] : event.start;
-            const endDate = event.end.includes('T') ? event.end.split('T')[0] : event.end;
-            body.start = { date: startDate };
-            body.end = { date: endDate };
-        } else {
-             body.start = { dateTime: event.start };
-             body.end = { dateTime: event.end };
-        }
-
-        const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
-            method: 'PATCH',
-            headers: {
-                'Authorization': `Bearer ${account.token}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(body)
-        });
-
-        if (!response.ok) {
-            console.error(`Google API Error: ${response.status} ${response.statusText}`);
-            return false;
-        }
-
-        return true;
-    } catch (error) {
-        console.error("Failed to update event:", error);
-        return false;
-    }
-};
-
-/**
  * Fetches events from a specific Google Calendar account.
  * Uses the provided OAuth token to access the Google Calendar API.
  */
 const fetchEventsForAccount = async (account: CalendarAccount, timeMin: string, timeMax: string): Promise<CalendarEvent[]> => {
   if (!account.token || !account.email) return [];
-  if (typeof navigator !== 'undefined' && !navigator.onLine) return [];
 
   try {
     // Construct the API URL with query parameters
@@ -67,12 +18,11 @@ const fetchEventsForAccount = async (account: CalendarAccount, timeMin: string, 
       maxResults: '1000', // Fetch a good number of events
     });
 
-    // Note: Do NOT send Content-Type: application/json for GET requests. 
-    // It triggers unnecessary CORS preflight checks which can fail if tokens are stale.
     const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${account.token}`
+        'Authorization': `Bearer ${account.token}`,
+        'Content-Type': 'application/json'
       },
     });
 
@@ -109,8 +59,7 @@ const fetchEventsForAccount = async (account: CalendarAccount, timeMin: string, 
     });
 
   } catch (error) {
-    // Suppress console spam for common network interruptions or ad-blocker issues
-    console.warn(`Could not fetch calendar for ${account.email}. Connection might be blocked or token expired.`);
+    console.error(`Failed to fetch calendar events for ${account.email}:`, error);
     return [];
   }
 };

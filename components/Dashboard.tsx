@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2 } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence, CalendarEvent } from '../types';
@@ -11,7 +12,7 @@ import { supabase } from '../lib/supabase';
 import { decryptData, encryptData } from '../lib/crypto';
 import { AppIcon } from './AppIcon';
 import { getContrastColor } from '../lib/utils';
-import { getGoogleCalendarEvents, updateGoogleCalendarEvent } from '../services/googleCalendar';
+import { getGoogleCalendarEvents } from '../services/googleCalendar';
 
 interface NavItemProps {
     id: AppTab;
@@ -332,14 +333,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [editTaskRecurrence, setEditTaskRecurrence] = useState<Recurrence | null>(null);
   const [editTaskPlannedTime, setEditTaskPlannedTime] = useState<number | undefined>(undefined);
 
-  // Calendar Event Editing State
-  const [editingCalendarEvent, setEditingCalendarEvent] = useState<CalendarEvent | null>(null);
-  const [editEventTitle, setEditEventTitle] = useState('');
-  const [editEventStart, setEditEventStart] = useState('');
-  const [editEventEnd, setEditEventEnd] = useState('');
-  const [editEventAllDay, setEditEventAllDay] = useState(false);
-  const [isSavingEvent, setIsSavingEvent] = useState(false);
-
   // Task & Habit Interaction Handlers
   const toggleTask = async (id: string) => {
     const task = tasks.find(t => t.id === id); if (!task) return;
@@ -538,46 +531,46 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   }, [userId, isOnline]);
   
   // 3. Rebuilt Calendar Event Fetching
-  const refreshCalendarEvents = async () => {
-    // Only attempt to fetch if we have connected calendars and are online
-    if (!userSettings.calendars || userSettings.calendars.length === 0 || !isOnline) {
-        setCalendarEvents([]);
-        return;
-    }
-    
-    // Fetch surrounding months of events (expanded range for better calendar nav)
-    const now = new Date();
-    const start = new Date(now);
-    start.setDate(1); // 1st of month
-    start.setMonth(start.getMonth() - 2); // Go back 2 months
-    const end = new Date(now);
-    end.setMonth(end.getMonth() + 4); // Go forward 4 months
-    end.setDate(0);
-    
-    // Use the new service that correctly uses the access tokens
-    try {
-        const events = await getGoogleCalendarEvents(
-            userSettings.calendars, 
-            start.toISOString(), 
-            end.toISOString()
-        );
-        setCalendarEvents(events);
-    } catch (error) {
-        console.error("Failed to auto-fetch calendar:", error);
-    }
-  };
-
   useEffect(() => {
     let mounted = true;
-    if (mounted) refreshCalendarEvents();
+    const fetchCalendar = async () => {
+        // Only attempt to fetch if we have connected calendars and are online
+        if (!userSettings.calendars || userSettings.calendars.length === 0 || !isOnline) {
+            if (mounted) setCalendarEvents([]);
+            return;
+        }
+        
+        // Fetch surrounding months of events (expanded range for better calendar nav)
+        const now = new Date();
+        const start = new Date(now);
+        start.setDate(1); // 1st of month
+        start.setMonth(start.getMonth() - 2); // Go back 2 months
+        const end = new Date(now);
+        end.setMonth(end.getMonth() + 4); // Go forward 4 months
+        end.setDate(0);
+        
+        // Use the new service that correctly uses the access tokens
+        try {
+            const events = await getGoogleCalendarEvents(
+                userSettings.calendars, 
+                start.toISOString(), 
+                end.toISOString()
+            );
+            if (mounted) setCalendarEvents(events);
+        } catch (error) {
+            console.error("Failed to auto-fetch calendar:", error);
+        }
+    };
+    
+    fetchCalendar();
     
     // Refresh more frequently (every 30 seconds) to catch background updates
-    const interval = setInterval(() => { if (mounted) refreshCalendarEvents(); }, 30000); 
+    const interval = setInterval(fetchCalendar, 30000); 
 
     // Auto-refresh when window regains focus or visibility (user returns to app)
-    const onFocus = () => { if(mounted) refreshCalendarEvents(); };
+    const onFocus = () => fetchCalendar();
     const onVisibilityChange = () => {
-        if (document.visibilityState === 'visible' && mounted) refreshCalendarEvents();
+        if (document.visibilityState === 'visible') fetchCalendar();
     };
 
     window.addEventListener('focus', onFocus);
@@ -777,61 +770,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           } 
       }); 
   };
-  
-  // -- Calendar Event Editing --
-  const openCalendarEventModal = (event: CalendarEvent) => {
-      setEditingCalendarEvent(event);
-      setEditEventTitle(event.title);
-      setEditEventAllDay(event.allDay);
-      
-      const toLocalInputValue = (iso: string) => {
-          if (!iso) return '';
-          // If already YYYY-MM-DD (allDay), return it
-          if (!iso.includes('T')) return iso;
-          const d = new Date(iso);
-          const pad = (n: number) => n < 10 ? '0' + n : n;
-          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      };
-
-      setEditEventStart(toLocalInputValue(event.start));
-      setEditEventEnd(toLocalInputValue(event.end));
-  };
-
-  const saveCalendarEvent = async () => {
-      if (!editingCalendarEvent) return;
-      setIsSavingEvent(true);
-      
-      const account = userSettings.calendars?.find(c => c.email === editingCalendarEvent.calendarEmail);
-      if (!account) {
-          setIsSavingEvent(false);
-          alert("Calendar account not found.");
-          return;
-      }
-
-      let finalStart = editEventStart;
-      let finalEnd = editEventEnd;
-
-      if (!editEventAllDay) {
-          // Convert input local time to ISO string
-          finalStart = new Date(editEventStart).toISOString();
-          finalEnd = new Date(editEventEnd).toISOString();
-      }
-
-      const success = await updateGoogleCalendarEvent(account, editingCalendarEvent.id, {
-          title: editEventTitle,
-          start: finalStart,
-          end: finalEnd,
-          allDay: editEventAllDay
-      });
-
-      if (success) {
-          setEditingCalendarEvent(null);
-          refreshCalendarEvents(); // Trigger refresh
-      } else {
-          alert("Failed to update event. Please check your connection.");
-      }
-      setIsSavingEvent(false);
-  };
 
   const sidebarStats = useMemo(() => {
       const today = getLogicalDateOffset(0); const nowTs = Date.now();
@@ -966,9 +904,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                            </button>
                        </div>
                   </div>
-                  
+
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-0 flex flex-col">
                       <div className="w-full flex flex-col h-full">
+                          {/* Title Section */}
                           <div className="px-6 pt-6 pb-2">
                                <textarea
                                   value={editTaskTitle}
@@ -979,7 +918,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                   onInput={(e) => { e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px'; }}
                               />
                           </div>
+
+                          {/* Horizontal Properties Bar (Exact Same as TaskSection) */}
                           <div className="px-6 py-2 flex flex-wrap items-center gap-2">
+                              {/* Priority */}
                               <button 
                                   onClick={() => setActivePopover(activePopover === 'priority' ? null : 'priority')}
                                   className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'priority' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
@@ -987,6 +929,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                   <Flag className="w-4 h-4 shrink-0" />
                                   <span className="truncate">{editTaskPriority}</span>
                               </button>
+                              
+                              {/* Date */}
                               <button 
                                   onClick={() => setActivePopover(activePopover === 'date' ? null : 'date')}
                                   className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'date' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
@@ -994,6 +938,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                   <Calendar className="w-4 h-4 shrink-0" />
                                   <span className="truncate">{editTaskDueDate ? formatRelativeDate(editTaskDueDate) : 'Date'}</span>
                               </button>
+
+                              {/* Labels */}
                               <button 
                                   onClick={() => setActivePopover(activePopover === 'tags' ? null : 'tags')}
                                   className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'tags' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
@@ -1001,6 +947,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                   <TagIcon className="w-4 h-4 shrink-0" />
                                   <span className="truncate">{editTaskTags.length > 0 ? `${editTaskTags.length} Labels` : 'Labels'}</span>
                               </button>
+
+                              {/* Repeat */}
                               <button 
                                   onClick={() => setActivePopover(activePopover === 'repeat' ? null : 'repeat')}
                                   className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'repeat' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
@@ -1008,6 +956,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                   <Repeat className="w-4 h-4 shrink-0" />
                                   <span className="truncate">{editTaskRecurrence ? (editTaskRecurrence.interval > 1 ? `Every ${editTaskRecurrence.interval} ${editTaskRecurrence.type}` : `Daily`) : 'Repeat'}</span>
                               </button>
+
+                              {/* Duration */}
                               <button 
                                   onClick={() => setActivePopover(activePopover === 'duration' ? null : 'duration')}
                                   className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'duration' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
@@ -1017,6 +967,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                               </button>
                           </div>
                           
+                          {/* Inline Popovers (Simplified for Dashboard: Just lists for now, to keep file size reasonable) */}
                           {activePopover && (
                              <div className="px-6 py-4 bg-secondary/20 border-y border-border mb-4 animate-in slide-in-from-top-2">
                                  {activePopover === 'priority' && (
@@ -1032,6 +983,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                          ))}
                                      </div>
                                  )}
+                                 {/* Simple date picker fallback since full component is in TaskSection */}
                                  {activePopover === 'date' && (
                                      <div className="space-y-2">
                                          <input type="date" value={editTaskDueDate} onChange={(e) => setEditTaskDueDate(e.target.value)} className="w-full bg-background border border-border p-2 rounded-sm text-sm" />
@@ -1055,6 +1007,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                          ))}
                                      </div>
                                  )}
+                                 {/* Other popovers simplified for brevity */}
                                  {(activePopover === 'repeat' || activePopover === 'duration') && (
                                      <div className="text-xs text-muted-foreground italic">Use the Tasks tab for advanced settings.</div>
                                  )}
@@ -1063,6 +1016,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
                           <div className="h-px bg-border w-full my-4 shrink-0" />
                           
+                          {/* Subtasks */}
                           <div className="px-6 space-y-3 shrink-0">
                               <div className="flex items-center justify-between">
                                   <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
@@ -1070,6 +1024,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                       Subtasks
                                   </h3>
                               </div>
+                              
                               <div className="space-y-0.5">
                                   {editTaskSubtasks.map(st => (
                                       <div key={st.id} className="flex items-center gap-2 group min-h-[28px]">
@@ -1086,6 +1041,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                            </button>
                                       </div>
                                   ))}
+                                  
                                   <div className="flex items-center gap-2 min-h-[28px] group cursor-text">
                                       <Plus className="w-4 h-4 text-muted-foreground" />
                                       <input 
@@ -1099,6 +1055,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
                           <div className="h-px bg-border w-full my-4 shrink-0" />
 
+                          {/* Notes */}
                           <div className="flex-1 flex flex-col px-6 pb-6">
                                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2 mb-3">
                                   <FileText className="w-4 h-4" /> 
@@ -1160,8 +1117,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                            </button>
                        </div>
                   </div>
-                  
+
                   <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-6">
+                        {/* Quick Action Large */}
                        <div className="bg-background border border-border rounded-lg p-6 flex flex-col items-center justify-center gap-4 shadow-sm">
                            <div className="text-center">
                                <div className="text-4xl font-bold">{count}</div>
@@ -1175,6 +1133,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                {habit.useCounter && <div className="w-12" />}
                            </div>
                        </div>
+
+                       {/* Stats Grid (Matches HabitSection) */}
                         <div className="grid grid-cols-2 gap-3 shrink-0">
                             <div className="bg-background border border-border rounded-lg p-3 shadow-sm overflow-hidden">
                                 <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1 truncate">Streak</div>
@@ -1277,6 +1237,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                               {todayHabits.map(habit => {
                                   const count = habit.progress[today] || 0;
                                   const isSelected = selectedTodayHabitId === habit.id;
+                                  // Simplified logic for heatmap in preview
+                                  const last7Days = Array.from({length: 7}, (_, i) => {
+                                      const d = new Date(); d.setDate(d.getDate() - (6 - i));
+                                      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                  });
 
                                   return (
                                       <div 
@@ -1394,20 +1359,24 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                                  const end = new Date(event.end);
                                                  const eM = start.getMinutes();
                                                  const top = (eM / 60) * 100;
+                                                 
+                                                 // Duration calculation for dynamic height
                                                  const durationMins = (end.getTime() - start.getTime()) / 60000;
                                                  const heightPx = Math.max((durationMins / 60) * 60, 28);
 
                                                  return (
-                                                     <div 
+                                                     <a 
                                                         key={event.id}
-                                                        onClick={() => openCalendarEventModal(event)}
+                                                        href={event.htmlLink}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
                                                         className="absolute left-1 right-1 bg-green-50 border-l-2 border-green-500 text-green-900 text-[10px] p-1 rounded-sm shadow-sm cursor-pointer hover:brightness-95 truncate z-10"
                                                         style={{ top: `${top}%`, height: `${heightPx}px` }}
                                                         title={`${event.title} (${event.calendarEmail || ''})`}
                                                      >
                                                          <span className="font-bold mr-1">{start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                                                          {event.title}
-                                                     </div>
+                                                     </a>
                                                  )
                                              })}
                                              {timedTasks.filter(t => {
@@ -1432,7 +1401,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                         </div>
                                     </div>
                                 ))}
-                                {/* Current time marker logic... */}
+                                
                                 {(() => {
                                     const now = new Date();
                                     const currentH = now.getHours();
@@ -1462,7 +1431,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const renderContent = () => {
     switch (activeTab) {
       case 'today': return renderTodayView();
-      case 'tasks': return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} taskFolders={taskFolders} setTaskFolders={setTaskFolders} calendarEvents={calendarEvents} onEditCalendarEvent={openCalendarEventModal} />;
+      case 'tasks': return <TaskSection tasks={tasks} setTasks={setTasks} tags={tags} setTags={setTags} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} activeFilterTagId={activeFilterTagId} onToggleTimer={handleToggleTimer} sessions={sessions} onDeleteSession={handleDeleteSession} taskFolders={taskFolders} setTaskFolders={setTaskFolders} calendarEvents={calendarEvents} />;
       case 'habit': return <HabitSection habits={habits} setHabits={setHabits} habitFolders={habitFolders} setHabitFolders={setHabitFolders} userId={userId} dayStartHour={userSettings.dayStartHour} startWeekDay={userSettings.startWeekDay} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'journal': return <JournalSection journals={journals} setJournals={setJournals} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
       case 'notes': return <NotesSection notes={notes} setNotes={setNotes} folders={folders} setFolders={setFolders} userId={userId} tags={tags} setTags={setTags} activeFilterTagId={activeFilterTagId} />;
@@ -1534,8 +1503,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                         )}
                     </div>
                 </div>
-                {/* Daily Focus Widget ... */}
-                 <div className="bg-background border border-border rounded-lg p-3 shadow-sm">
+
+                <div className="bg-background border border-border rounded-lg p-3 shadow-sm">
                     <div className="flex items-start gap-3 mb-3">
                         <div className="p-2 bg-blue-50 text-notion-blue rounded-full shrink-0">
                             <Target className="w-4 h-4" />
@@ -1547,14 +1516,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                             </div>
                         </div>
                     </div>
+                    
                     <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden mb-2">
                         <div className="h-full bg-notion-blue transition-all duration-500" style={{ width: `${progressPercent}%` }} />
                     </div>
+
                     <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
                         <span>{Math.floor(sidebarStats.totalTrackedSeconds/60)}m done</span>
                         <span>{sidebarStats.remainingMinutes}m left</span>
                     </div>
                 </div>
+                
                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground justify-center opacity-60">
                     <Clock className="w-3 h-3" /> <span>Reset in {timeLeft}</span>
                 </div>
@@ -1591,6 +1563,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                     <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'text-notion-orange fill-notion-orange' : 'text-muted-foreground'}`} />
                     <span className="text-xs font-bold">{streakData.count}</span>
                  </div>
+                 {/* Only show tracking widget on mobile if tracking */}
                  {trackedTaskId && (
                      <div className="w-2 h-2 rounded-full bg-notion-blue animate-pulse" />
                  )}
@@ -1610,67 +1583,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                     return <TaskTrackerWidget task={t} onToggle={handleToggleTimer} onClose={() => handleToggleTimer(t.id)} />;
                 })()}
              </div>
-          )}
-
-          {/* Calendar Edit Modal */}
-          {editingCalendarEvent && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setEditingCalendarEvent(null)}>
-                  <div className="bg-background w-full max-w-sm rounded-lg shadow-2xl border border-border flex flex-col animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                          <span className="font-semibold text-foreground">Edit Event</span>
-                          <button onClick={() => setEditingCalendarEvent(null)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
-                      </div>
-                      <div className="p-4 space-y-4">
-                          <div className="space-y-1">
-                              <label className="text-xs font-semibold text-muted-foreground uppercase">Title</label>
-                              <input 
-                                  autoFocus 
-                                  value={editEventTitle} 
-                                  onChange={e => setEditEventTitle(e.target.value)} 
-                                  className="w-full text-sm px-3 py-2 border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none" 
-                              />
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                              <input 
-                                  type="checkbox" 
-                                  id="allDay" 
-                                  checked={editEventAllDay} 
-                                  onChange={e => setEditEventAllDay(e.target.checked)} 
-                                  className="w-3.5 h-3.5 accent-notion-blue"
-                              />
-                              <label htmlFor="allDay" className="text-sm cursor-pointer select-none">All day</label>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-1">
-                                  <label className="text-xs font-semibold text-muted-foreground uppercase">Start</label>
-                                  <input 
-                                      type={editEventAllDay ? "date" : "datetime-local"} 
-                                      value={editEventStart} 
-                                      onChange={e => setEditEventStart(e.target.value)} 
-                                      className="w-full text-xs px-2 py-2 border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none" 
-                                  />
-                              </div>
-                              <div className="space-y-1">
-                                  <label className="text-xs font-semibold text-muted-foreground uppercase">End</label>
-                                  <input 
-                                      type={editEventAllDay ? "date" : "datetime-local"} 
-                                      value={editEventEnd} 
-                                      onChange={e => setEditEventEnd(e.target.value)} 
-                                      className="w-full text-xs px-2 py-2 border border-border rounded-sm bg-transparent focus:border-notion-blue outline-none" 
-                                  />
-                              </div>
-                          </div>
-                      </div>
-                      <div className="px-4 py-3 border-t border-border flex justify-end gap-2">
-                          <button onClick={() => setEditingCalendarEvent(null)} className="px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground">Cancel</button>
-                          <button onClick={saveCalendarEvent} disabled={isSavingEvent} className="px-3 py-1.5 bg-notion-blue text-white rounded-sm text-xs font-medium hover:bg-blue-600 disabled:opacity-50">
-                              {isSavingEvent ? 'Saving...' : 'Save Changes'}
-                          </button>
-                      </div>
-                  </div>
-              </div>
           )}
       </main>
     </div>
