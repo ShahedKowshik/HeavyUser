@@ -14,31 +14,12 @@ const App: React.FC = () => {
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    // 1. Check for errors in the URL (e.g. from Google Auth redirect failure)
-    const checkForUrlErrors = () => {
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      const queryParams = new URLSearchParams(window.location.search);
-      const errorDesc = hashParams.get('error_description') || queryParams.get('error_description');
-      const error = hashParams.get('error') || queryParams.get('error');
+    let mounted = true;
 
-      if (error || errorDesc) {
-        setAuthError(decodeURIComponent(errorDesc || error || 'Authentication failed'));
-        // Clean URL
-        window.history.replaceState(null, '', window.location.pathname);
-        return true;
-      }
-      return false;
-    };
-
-    if (checkForUrlErrors()) {
-      setLoading(false);
-      return;
-    }
-
-    // 2. Setup Auth State Listener
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Helper to safely set user state from a session
+    const handleUserSession = (session: any) => {
+      if (!mounted) return;
+      
       if (session?.user) {
         setCurrentUser({
           id: session.user.id,
@@ -51,7 +32,7 @@ const App: React.FC = () => {
           googleToken: session.provider_token,
         });
 
-        // Clear hash if it exists (cleanup access_token from URL)
+        // Clean URL hash if it contains auth tokens to keep the URL clean
         if (window.location.hash && window.location.hash.includes('access_token')) {
             window.history.replaceState(null, '', window.location.pathname);
         }
@@ -59,37 +40,71 @@ const App: React.FC = () => {
         setCurrentUser(null);
       }
       setLoading(false);
+    };
+
+    // 1. Check for errors in the URL hash immediately (e.g. Google Auth denied)
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const error = hashParams.get('error');
+    const errorDesc = hashParams.get('error_description');
+
+    if (error || errorDesc) {
+      setAuthError(decodeURIComponent(errorDesc || error || 'Authentication failed'));
+      window.history.replaceState(null, '', window.location.pathname);
+      setLoading(false);
+      return;
+    }
+
+    // 2. Setup Auth State Listener
+    // This listener fires when Supabase detects a session change (including processing the #access_token)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      handleUserSession(session);
     });
 
     // 3. Initial Session Check
     supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (!mounted) return;
+      
       if (error) {
         console.error("Auth session check failed:", error);
+        setLoading(false); // Stop loading on error
+        return;
       }
       
-      // If we don't have a session immediately, check if we are in a redirect flow.
-      // If we are (URL has access_token), DO NOT stop loading yet. Wait for onAuthStateChange.
-      if (!session) {
-         const isRedirect = window.location.hash && (
-             window.location.hash.includes('access_token') || 
-             window.location.hash.includes('type=recovery')
-         );
-
-         if (!isRedirect) {
-             setLoading(false);
-         }
+      if (session) {
+        handleUserSession(session);
+      } else {
+        // If no session found, check if we are in a redirect flow (have access_token)
+        // If we are, we keep loading = true and let onAuthStateChange handle it.
+        const isRedirect = window.location.hash && window.location.hash.includes('access_token');
+        if (!isRedirect) {
+           setLoading(false);
+        }
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  // Identify User for UserJot
+  // 4. Failsafe Timeout
+  // Prevents the app from getting stuck on the loading spinner forever if something goes wrong
   useEffect(() => {
-    // Also skip identification if on mobile
-    if (window.innerWidth < 768) {
-      return;
+    if (loading) {
+        const timer = setTimeout(() => {
+            console.warn("Authentication loading timed out. Forcing app load.");
+            setLoading(false);
+        }, 5000); // 5 seconds max wait time
+        return () => clearTimeout(timer);
     }
+  }, [loading]);
+
+  // Identify User for UserJot (Analytics)
+  useEffect(() => {
+    if (window.innerWidth < 768) return;
 
     if (currentUser) {
       const win = window as any;
