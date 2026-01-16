@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2 } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence, CalendarEvent } from '../types';
@@ -381,7 +379,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     return saved ? JSON.parse(saved) : null;
   };
 
-  // 1. Initial Load
+  // 1. Initial Load from LocalStorage
   useEffect(() => {
     const cachedTasks = loadFromLocal('tasks');
     const cachedTags = loadFromLocal('tags');
@@ -404,85 +402,127 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     if (cachedSessions) setSessions(cachedSessions);
   }, [userId]);
 
-  // 2. Network Sync
+  // 2. Network Sync - Refactored for Robustness
   useEffect(() => {
     const fetchData = async () => {
       if (!isOnline) return;
-      try {
-        const [{ data: tasksData }, { data: tagsData }, { data: habitsData }, { data: habitFoldersData }, { data: taskFoldersData }, { data: journalsData }, { data: foldersData }, { data: notesData }, { data: sessionsData }] = await Promise.all([
-          supabase.from('tasks').select('*').eq('user_id', userId), 
-          supabase.from('tags').select('*').eq('user_id', userId), 
-          supabase.from('habits').select('*').eq('user_id', userId).order('sort_order', { ascending: true }), 
-          supabase.from('habit_folders').select('*').eq('user_id', userId).order('sort_order', { ascending: true }), 
-          supabase.from('task_folders').select('*').eq('user_id', userId).order('sort_order', { ascending: true }),
-          supabase.from('journals').select('*').eq('user_id', userId).order('timestamp', { ascending: false }), 
-          supabase.from('folders').select('*').eq('user_id', userId).order('created_at', { ascending: true }), 
-          supabase.from('notes').select('*').eq('user_id', userId).order('updated_at', { ascending: false }), 
-          supabase.from('task_sessions').select('*').eq('user_id', userId).order('start_time', { ascending: false }).limit(500)
-        ]);
 
-        if (tasksData) {
-            const parsed = tasksData.map((t: any) => ({ id: t.id, title: decryptData(t.title), dueDate: t.due_date || '', time: t.time, completed: t.completed, completedAt: t.completed_at, priority: t.priority as Priority, subtasks: (t.subtasks || []).map((s: any) => ({ ...s, title: decryptData(s.title) })), tags: t.tags || [], folderId: t.folder_id, recurrence: t.recurrence, notes: decryptData(t.notes), createdAt: t.created_at, updatedAt: t.updated_at, plannedTime: t.planned_time, actualTime: t.actual_time, timerStart: t.timer_start }));
-            setTasks(parsed); saveToLocal('tasks', parsed);
-        }
-        if (tagsData) {
-            const parsed = tagsData.map((t: any) => ({ id: t.id, label: decryptData(t.label), color: t.color }));
-            setTags(parsed); saveToLocal('tags', parsed);
-        }
-        if (habitsData) {
-            const parsed = habitsData.map((h: any) => ({ 
-              id: h.id, 
-              title: decryptData(h.title), 
-              icon: h.icon, 
-              target: h.target || 1, 
-              unit: h.unit || '', 
-              progress: h.progress || {}, 
-              skippedDates: h.skipped_dates || [], 
-              startDate: h.start_date || new Date().toISOString().split('T')[0], 
-              useCounter: h.use_counter !== false, 
-              tags: h.tags || [], 
-              goalType: h.goal_type || 'positive',
-              folderId: h.folder_id,
-              sortOrder: h.sort_order || 0
-            }));
-            setHabits(parsed); saveToLocal('habits', parsed);
-        }
-        if (habitFoldersData) {
-            const parsed = habitFoldersData.map((f: any) => ({
+      // Helper to fetch and update state independently
+      const fetchTable = async <T,>(
+          tableName: string, 
+          setter: React.Dispatch<React.SetStateAction<T[]>>, 
+          parser: (data: any[]) => T[],
+          storageKey: string,
+          orderBy?: { column: string, ascending: boolean },
+          limit?: number
+      ) => {
+          try {
+              let query = supabase.from(tableName).select('*').eq('user_id', userId);
+              
+              if (orderBy) {
+                  query = query.order(orderBy.column, { ascending: orderBy.ascending });
+              }
+              if (limit) {
+                  query = query.limit(limit);
+              }
+
+              const { data, error } = await query;
+              
+              if (error) {
+                  console.error(`Error fetching ${tableName}:`, error);
+                  // Do not throw, allows other tables to load
+              } else if (data) {
+                  const parsedData = parser(data);
+                  setter(parsedData);
+                  saveToLocal(storageKey, parsedData);
+              }
+          } catch (err) {
+              console.error(`Exception fetching ${tableName}:`, err);
+          }
+      };
+
+      // Define Parsers
+      const parseTasks = (data: any[]): Task[] => data.map((t: any) => ({
+          id: t.id, 
+          title: decryptData(t.title), 
+          dueDate: t.due_date || '', 
+          time: t.time, 
+          completed: t.completed, 
+          completedAt: t.completed_at, 
+          priority: t.priority as Priority, 
+          subtasks: (t.subtasks || []).map((s: any) => ({ ...s, title: decryptData(s.title) })), 
+          tags: t.tags || [], 
+          folderId: t.folder_id, 
+          recurrence: t.recurrence, 
+          notes: decryptData(t.notes), 
+          createdAt: t.created_at, 
+          updatedAt: t.updated_at, 
+          plannedTime: t.planned_time, 
+          actualTime: t.actual_time, 
+          timerStart: t.timer_start 
+      }));
+
+      const parseTags = (data: any[]): Tag[] => data.map((t: any) => ({ id: t.id, label: decryptData(t.label), color: t.color }));
+      
+      const parseHabits = (data: any[]): Habit[] => data.map((h: any) => ({ 
+          id: h.id, 
+          title: decryptData(h.title), 
+          icon: h.icon, 
+          target: h.target || 1, 
+          unit: h.unit || '', 
+          progress: h.progress || {}, 
+          skippedDates: h.skipped_dates || [], 
+          startDate: h.start_date || new Date().toISOString().split('T')[0], 
+          useCounter: h.use_counter !== false, 
+          tags: h.tags || [], 
+          goalType: h.goal_type || 'positive',
+          folderId: h.folder_id,
+          sortOrder: h.sort_order || 0
+      }));
+
+      // Execute all fetches independently
+      await Promise.allSettled([
+          fetchTable('tasks', setTasks, parseTasks, 'tasks'),
+          fetchTable('tags', setTags, parseTags, 'tags'),
+          fetchTable('habits', setHabits, parseHabits, 'habits', { column: 'sort_order', ascending: true }),
+          fetchTable('habit_folders', setHabitFolders, (data) => data.map((f: any) => ({
               id: f.id,
               name: decryptData(f.name),
               icon: f.icon,
               sortOrder: f.sort_order || 0
-            }));
-            setHabitFolders(parsed); saveToLocal('habitFolders', parsed);
-        }
-        if (taskFoldersData) {
-            const parsed = taskFoldersData.map((f: any) => ({
+          })), 'habitFolders', { column: 'sort_order', ascending: true }),
+          fetchTable('task_folders', setTaskFolders, (data) => data.map((f: any) => ({
               id: f.id,
               name: decryptData(f.name),
               sortOrder: f.sort_order || 0
-            }));
-            setTaskFolders(parsed); saveToLocal('taskFolders', parsed);
-        }
-        if (journalsData) {
-            const parsed = journalsData.map((j: any) => ({ id: j.id, title: decryptData(j.title), content: decryptData(j.content), timestamp: j.timestamp, rating: j.rating, entryType: j.entry_type as EntryType, tags: j.tags || [] }));
-            setJournals(parsed); saveToLocal('journals', parsed);
-        }
-        if (foldersData) {
-            const parsed = foldersData.map((f: any) => ({ id: f.id, name: decryptData(f.name) }));
-            setFolders(parsed); saveToLocal('folders', parsed);
-        }
-        if (notesData) {
-            const parsed = notesData.map((n: any) => ({ id: n.id, title: decryptData(n.title), content: decryptData(n.content), folderId: n.folder_id, createdAt: n.created_at, updatedAt: n.updated_at, tags: n.tags || [] }));
-            setNotes(parsed); saveToLocal('notes', parsed);
-        }
-        if (sessionsData) {
-            const parsed = sessionsData.map((s: any) => ({ id: s.id, taskId: s.task_id, startTime: s.start_time, endTime: s.end_time, duration: s.duration }));
-            setSessions(parsed); saveToLocal('sessions', parsed);
-        }
-      } catch (err) {
-        console.error("Sync fetch failed:", err);
-      }
+          })), 'taskFolders', { column: 'sort_order', ascending: true }),
+          fetchTable('journals', setJournals, (data) => data.map((j: any) => ({ 
+              id: j.id, 
+              title: decryptData(j.title), 
+              content: decryptData(j.content), 
+              timestamp: j.timestamp, 
+              rating: j.rating, 
+              entryType: j.entry_type as EntryType, 
+              tags: j.tags || [] 
+          })), 'journals', { column: 'timestamp', ascending: false }),
+          fetchTable('folders', setFolders, (data) => data.map((f: any) => ({ id: f.id, name: decryptData(f.name) })), 'folders', { column: 'created_at', ascending: true }),
+          fetchTable('notes', setNotes, (data) => data.map((n: any) => ({ 
+              id: n.id, 
+              title: decryptData(n.title), 
+              content: decryptData(n.content), 
+              folderId: n.folder_id, 
+              createdAt: n.created_at, 
+              updatedAt: n.updated_at, 
+              tags: n.tags || [] 
+          })), 'notes', { column: 'updated_at', ascending: false }),
+          fetchTable('task_sessions', setSessions, (data) => data.map((s: any) => ({ 
+              id: s.id, 
+              taskId: s.task_id, 
+              startTime: s.start_time, 
+              endTime: s.end_time, 
+              duration: s.duration 
+          })), 'sessions', { column: 'start_time', ascending: false }, 500),
+      ]);
     };
     fetchData();
   }, [userId, isOnline]);
