@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2 } from 'lucide-react';
+import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2, ShieldAlert } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence, CalendarEvent } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
@@ -270,9 +270,13 @@ const getHabitStatusColor = (habit: Habit, count: number, isToday: boolean): str
     }
 };
 
-interface DashboardProps { user: User; onLogout: () => void; }
+interface DashboardProps { 
+    user: User; 
+    onLogout: () => void; 
+    initialError?: string | null;
+}
 
-const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, initialError }) => {
   const [activeTab, setActiveTab] = useState<AppTab>(() => {
     const enabled = user.enabledFeatures || ['tasks', 'habit', 'journal', 'notes'];
     if (typeof window !== 'undefined') {
@@ -284,6 +288,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   
   const userId = user.id;
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [globalError, setGlobalError] = useState<string | null>(initialError || null);
+
+  useEffect(() => {
+      if (initialError) setGlobalError(initialError);
+  }, [initialError]);
 
   // Data State
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -1116,7 +1125,19 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       };
 
       return (
-          <div className="flex flex-col md:flex-row h-full bg-background overflow-hidden animate-in fade-in">
+          <div className="flex flex-col md:flex-row h-full bg-background overflow-hidden animate-in fade-in relative">
+              
+              {/* Global Error Banner */}
+              {globalError && (
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white px-4 py-3 rounded shadow-lg flex items-center gap-3 text-sm animate-in slide-in-from-top-4 max-w-sm">
+                      <ShieldAlert className="w-5 h-5 shrink-0" />
+                      <p>{globalError}</p>
+                      <button onClick={() => setGlobalError(null)} className="p-1 hover:bg-white/20 rounded ml-2">
+                          <X className="w-4 h-4" />
+                      </button>
+                  </div>
+              )}
+
               {/* Left/Main Column */}
               <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
                   
