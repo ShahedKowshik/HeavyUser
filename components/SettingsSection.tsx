@@ -5,7 +5,7 @@ import {
   User, Trash2, X, Check, LogOut, Loader2, 
   Tag as TagIcon, Pencil, LayoutGrid, 
   Zap, Book, ChevronRight, CheckSquare, StickyNote, WifiOff, MessageSquare, Map,
-  ArrowLeft, Calendar, Plus, AlertCircle
+  ArrowLeft, Calendar, Plus
 } from 'lucide-react';
 import { UserSettings, AppTab, Tag, CalendarAccount } from '../types';
 import { supabase } from '../lib/supabase';
@@ -193,14 +193,8 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
           if (error) throw error;
       } catch (err: any) {
           console.error("Error connecting Google:", err);
-          
-          let message = "Failed to connect Google";
-          if (err.message && (err.message.includes("already linked") || err.message.includes("Identity is already linked"))) {
-              message = "Account already linked. To add other calendars, please share them with your main Google account.";
-          }
-          
-          setToast(message);
-          setTimeout(() => setToast(null), 5000);
+          setToast("Failed to connect Google");
+          setTimeout(() => setToast(null), 3000);
           setIsConnectingGoogle(false);
       }
   };
@@ -277,9 +271,8 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
              </div>
 
             {toast && (
-                <div className="fixed bottom-20 md:bottom-4 right-4 bg-foreground text-background px-4 py-3 rounded shadow-lg text-sm flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 z-50 max-w-sm">
-                   {toast.includes("Failed") || toast.includes("already connected") ? <AlertCircle className="w-4 h-4 text-red-400" /> : <Check className="w-4 h-4 text-green-400" />}
-                   <span>{toast}</span>
+                <div className="fixed bottom-20 md:bottom-4 right-4 bg-foreground text-background px-3 py-2 rounded shadow-lg text-sm flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 z-50">
+                    <Check className="w-3 h-3" /> {toast}
                 </div>
             )}
 
@@ -329,42 +322,35 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                             <div>
                                 <h2 className="text-lg font-medium text-foreground border-b border-border pb-2 mb-4">Connected Calendars</h2>
                                 <p className="text-sm text-muted-foreground mb-4">
-                                    Connect Google Calendars to view your events in the dashboard.
+                                    Connect multiple Google Calendars to view all your events in one place.
                                 </p>
-                                <div className="space-y-3">
-                                     {settings.calendars && settings.calendars.length > 0 ? (
-                                         settings.calendars.map((cal) => (
-                                             <div key={cal.email} className="flex items-center justify-between p-3 border border-border rounded-md bg-white">
-                                                 <div className="flex items-center gap-3">
-                                                     <div className="p-1.5 bg-red-50 text-red-600 rounded-sm border border-red-100">
-                                                         <Calendar className="w-4 h-4" />
-                                                     </div>
-                                                     <span className="text-sm font-medium truncate">{cal.email}</span>
+                                <div className="space-y-2">
+                                     {settings.calendars && settings.calendars.map((cal) => (
+                                         <div key={cal.email} className="flex items-center justify-between p-3 border border-border rounded-md bg-white">
+                                             <div className="flex items-center gap-3">
+                                                 <div className="p-1.5 bg-red-50 text-red-600 rounded-sm border border-red-100">
+                                                     <Calendar className="w-4 h-4" />
                                                  </div>
-                                                 <button 
-                                                    onClick={() => handleRemoveCalendar(cal.email)}
-                                                    className="p-1.5 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-sm transition-colors"
-                                                    title="Disconnect"
-                                                 >
-                                                     <Trash2 className="w-4 h-4" />
-                                                 </button>
+                                                 <span className="text-sm font-medium truncate">{cal.email}</span>
                                              </div>
-                                         ))
-                                     ) : (
-                                        <div className="p-4 text-center border border-dashed border-border rounded-md text-sm text-muted-foreground bg-secondary/20">
-                                            No calendars connected yet.
-                                        </div>
-                                     )}
+                                             <button 
+                                                onClick={() => handleRemoveCalendar(cal.email)}
+                                                className="p-1.5 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-sm transition-colors"
+                                                title="Disconnect"
+                                             >
+                                                 <Trash2 className="w-4 h-4" />
+                                             </button>
+                                         </div>
+                                     ))}
                                      
                                      <button 
                                         onClick={handleConnectGoogle} 
                                         disabled={isConnectingGoogle}
-                                        className="w-full py-2.5 text-sm font-medium border border-dashed border-border rounded-md text-muted-foreground hover:text-foreground hover:bg-notion-hover transition-colors flex items-center justify-center gap-2"
+                                        className="w-full py-2 text-xs font-medium border border-dashed border-border rounded-md text-muted-foreground hover:text-foreground hover:bg-notion-hover transition-colors flex items-center justify-center gap-2"
                                      >
-                                         {isConnectingGoogle ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                         {isConnectingGoogle ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
                                          Connect Another Calendar
                                      </button>
-                                     <p className="text-[10px] text-muted-foreground">Note: If you are already connected to Google, you may need to share your other calendars with your main account instead of connecting them separately.</p>
                                 </div>
                             </div>
 

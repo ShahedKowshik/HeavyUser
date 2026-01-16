@@ -17,17 +17,3 @@ export function getContrastColor(hexColor: string) {
   // Adjusted threshold to 150 to prefer black text on mid-tone backgrounds for better readability
   return yiq >= 150 ? '#000000' : '#FFFFFF';
 }
-
-export function toLocalDateString(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-export function parseLocalDate(dateStr: string): Date {
-  if (!dateStr) return new Date();
-  const parts = dateStr.split('-').map(Number);
-  // Month is 0-indexed in Date constructor
-  return new Date(parts[0], parts[1] - 1, parts[2]);
-}

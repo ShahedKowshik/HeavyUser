@@ -12,41 +12,15 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [dashboardError, setDashboardError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
-
-    // 1. Check for errors in the URL hash immediately (e.g. Google Auth denied, Identity already linked)
-    // We capture this BEFORE checking the session so we don't lose the context, 
-    // but we do NOT stop execution. We want to see if the user is still logged in.
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const errorParam = hashParams.get('error');
-    const errorDescParam = hashParams.get('error_description');
-    let capturedError: string | null = null;
-
-    if (errorParam || errorDescParam) {
-      capturedError = decodeURIComponent(errorDescParam || errorParam || 'Authentication failed');
-      // Clean URL hash to prevent loop or persistence
-      window.history.replaceState(null, '', window.location.pathname);
-    }
 
     // Helper to safely set user state from a session
     const handleUserSession = async (session: any) => {
       if (!mounted) return;
       
       if (session?.user) {
-        // User is logged in!
-        // If we captured an error during the redirect (e.g. linking failed), 
-        // we set it as a dashboard error, not an auth error (which would show the login screen).
-        if (capturedError) {
-            let userFriendlyError = capturedError;
-            if (capturedError.includes("already linked") || capturedError.includes("Identity is already linked")) {
-                userFriendlyError = "This Google account is already linked to another user. Please remove it from the other account first.";
-            }
-            setDashboardError(userFriendlyError);
-        }
-
         let googleToken = session.provider_token;
         const metadata = session.user.user_metadata || {};
         let currentCalendars: CalendarAccount[] = metadata.calendars || [];
@@ -56,6 +30,8 @@ const App: React.FC = () => {
         // and add/update it in the calendars list.
         if (googleToken) {
             try {
+                // Check if we already have this token associated with an email to avoid re-fetching if possible,
+                // BUT provider_token changes on every login/refresh, so we likely need to verify the email.
                 // Fetch Google User Info to get the email associated with this token
                 const res = await fetch('https://www.googleapis.com/oauth2/v1/userinfo?alt=json', {
                     headers: { Authorization: `Bearer ${googleToken}` }
@@ -77,6 +53,8 @@ const App: React.FC = () => {
                         }
 
                         // Save updated list to metadata if it changed
+                        // We do a simple JSON stringify comparison to avoid infinite loops if it hasn't effectively changed
+                        // (though token usually changes, so we accept the update)
                         await supabase.auth.updateUser({ 
                             data: { calendars: currentCalendars } 
                         });
@@ -87,9 +65,11 @@ const App: React.FC = () => {
             }
         }
 
-        // Fallback: If no calendars in list but we have a token (legacy migration)
-        if (currentCalendars.length === 0 && googleToken && session.user.email) {
-           currentCalendars = [{ email: session.user.email, token: googleToken }];
+        // Fallback: If no provider_token in this session (e.g. refresh), use what's in metadata
+        if (!googleToken && currentCalendars.length > 0) {
+            // We use the first one as the "primary" legacy token if needed, 
+            // but the app should prefer using the 'calendars' array.
+            googleToken = currentCalendars[0].token;
         }
 
         setCurrentUser({
@@ -104,20 +84,27 @@ const App: React.FC = () => {
           calendars: currentCalendars
         });
 
-        // Clean URL hash if it contains auth tokens (success case)
+        // Clean URL hash if it contains auth tokens to keep the URL clean and prevent loops
         if (window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('refresh_token'))) {
             window.history.replaceState(null, '', window.location.pathname);
         }
       } else {
-        // No session found
         setCurrentUser(null);
-        // If we had an error and no session, it's a genuine Auth Error (e.g. login failed)
-        if (capturedError) {
-            setAuthError(capturedError);
-        }
       }
       setLoading(false);
     };
+
+    // 1. Check for errors in the URL hash immediately (e.g. Google Auth denied)
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const error = hashParams.get('error');
+    const errorDesc = hashParams.get('error_description');
+
+    if (error || errorDesc) {
+      setAuthError(decodeURIComponent(errorDesc || error || 'Authentication failed'));
+      window.history.replaceState(null, '', window.location.pathname);
+      setLoading(false);
+      return;
+    }
 
     // 2. Setup Auth State Listener
     // This listener fires when Supabase detects a session change (including processing the #access_token)
@@ -133,8 +120,6 @@ const App: React.FC = () => {
       
       if (error) {
         console.error("Auth session check failed:", error);
-        // If session check fails completely, allows displaying the captured error if any
-        if (capturedError) setAuthError(capturedError);
         setLoading(false); // Stop loading on error
         return;
       }
@@ -145,10 +130,7 @@ const App: React.FC = () => {
         // If no session found, check if we are in a redirect flow (have access_token)
         // If we are, we keep loading = true and let onAuthStateChange handle it.
         const isRedirect = window.location.hash && window.location.hash.includes('access_token');
-        
-        // If NOT a success redirect, and we have no session, stop loading.
         if (!isRedirect) {
-           if (capturedError) setAuthError(capturedError);
            setLoading(false);
         }
       }
@@ -205,12 +187,7 @@ const App: React.FC = () => {
   return (
     <>
       {currentUser ? (
-        <Dashboard 
-            key={currentUser.id} 
-            user={currentUser} 
-            onLogout={() => supabase.auth.signOut()} 
-            initialError={dashboardError}
-        />
+        <Dashboard key={currentUser.id} user={currentUser} onLogout={() => supabase.auth.signOut()} />
       ) : (
         <AuthPage error={authError} />
       )}

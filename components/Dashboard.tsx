@@ -1,6 +1,7 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2, ShieldAlert } from 'lucide-react';
+import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2 } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence, CalendarEvent } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
@@ -10,7 +11,7 @@ import NotesSection from './NotesSection';
 import { supabase } from '../lib/supabase';
 import { decryptData, encryptData } from '../lib/crypto';
 import { AppIcon } from './AppIcon';
-import { getContrastColor, toLocalDateString, parseLocalDate } from '../lib/utils';
+import { getContrastColor } from '../lib/utils';
 import { getGoogleCalendarEvents } from '../services/googleCalendar';
 
 interface NavItemProps {
@@ -180,7 +181,7 @@ const formatDuration = (minutes: number) => {
 const formatRelativeDate = (dateStr: string) => {
     if (!dateStr) return 'No Date';
     const now = new Date();
-    const todayStr = toLocalDateString(now);
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     
     // Quick calc
     if (dateStr === todayStr) return 'Today';
@@ -202,7 +203,7 @@ const getHabitStats = (habit: Habit, today: string) => {
 
     const d = new Date(today);
     d.setDate(d.getDate() - 1);
-    const yesterday = toLocalDateString(d);
+    const yesterday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     
     // Streak
     let streak = 0;
@@ -220,7 +221,7 @@ const getHabitStats = (habit: Habit, today: string) => {
         startDate.setHours(0,0,0,0);
         if (startDate <= new Date(today)) { 
              while (true) {
-                const dateStr = toLocalDateString(currentCheckDate);
+                const dateStr = `${currentCheckDate.getFullYear()}-${String(currentCheckDate.getMonth() + 1).padStart(2, '0')}-${String(currentCheckDate.getDate()).padStart(2, '0')}`;
                 const checkTime = new Date(dateStr); checkTime.setHours(0,0,0,0);
                 if (checkTime < startDate) break;
                 const count = habit.progress[dateStr] || 0;
@@ -236,7 +237,7 @@ const getHabitStats = (habit: Habit, today: string) => {
     const end = new Date(today); end.setHours(0,0,0,0);
     const cur = new Date(start);
     while (cur <= end) {
-        const dateStr = toLocalDateString(cur);
+        const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
         const count = habit.progress[dateStr] || 0;
         const skipped = habit.skippedDates.includes(dateStr);
         const success = isSuccess(count, habit.goalType || 'positive', habit.target);
@@ -269,13 +270,9 @@ const getHabitStatusColor = (habit: Habit, count: number, isToday: boolean): str
     }
 };
 
-interface DashboardProps { 
-    user: User; 
-    onLogout: () => void; 
-    initialError?: string | null;
-}
+interface DashboardProps { user: User; onLogout: () => void; }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, initialError }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState<AppTab>(() => {
     const enabled = user.enabledFeatures || ['tasks', 'habit', 'journal', 'notes'];
     if (typeof window !== 'undefined') {
@@ -287,11 +284,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, initialError }) =
   
   const userId = user.id;
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
-  const [globalError, setGlobalError] = useState<string | null>(initialError || null);
-
-  useEffect(() => {
-      if (initialError) setGlobalError(initialError);
-  }, [initialError]);
 
   // Data State
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -415,8 +407,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, initialError }) =
   // 2. Network Sync
   useEffect(() => {
     const fetchData = async () => {
-      // We removed the strict !isOnline check to ensure data fetch is attempted 
-      // even if the browser incorrectly reports offline status.
+      if (!isOnline) return;
       try {
         const [{ data: tasksData }, { data: tagsData }, { data: habitsData }, { data: habitFoldersData }, { data: taskFoldersData }, { data: journalsData }, { data: foldersData }, { data: notesData }, { data: sessionsData }] = await Promise.all([
           supabase.from('tasks').select('*').eq('user_id', userId), 
@@ -431,25 +422,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, initialError }) =
         ]);
 
         if (tasksData) {
-            const parsed = tasksData.map((t: any) => ({ 
-                id: t.id, 
-                title: decryptData(t.title), 
-                dueDate: t.due_date || '', 
-                time: t.time, 
-                completed: t.completed, 
-                completedAt: t.completed_at, 
-                priority: t.priority as Priority, 
-                subtasks: Array.isArray(t.subtasks) ? t.subtasks.map((s: any) => ({ ...s, title: decryptData(s.title) })) : [], 
-                tags: t.tags || [], 
-                folderId: t.folder_id, 
-                recurrence: t.recurrence, 
-                notes: decryptData(t.notes), 
-                createdAt: t.created_at, 
-                updatedAt: t.updated_at, 
-                plannedTime: t.planned_time, 
-                actualTime: t.actual_time, 
-                timerStart: t.timer_start 
-            }));
+            const parsed = tasksData.map((t: any) => ({ id: t.id, title: decryptData(t.title), dueDate: t.due_date || '', time: t.time, completed: t.completed, completedAt: t.completed_at, priority: t.priority as Priority, subtasks: (t.subtasks || []).map((s: any) => ({ ...s, title: decryptData(s.title) })), tags: t.tags || [], folderId: t.folder_id, recurrence: t.recurrence, notes: decryptData(t.notes), createdAt: t.created_at, updatedAt: t.updated_at, plannedTime: t.planned_time, actualTime: t.actual_time, timerStart: t.timer_start }));
             setTasks(parsed); saveToLocal('tasks', parsed);
         }
         if (tagsData) {
@@ -512,7 +485,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, initialError }) =
       }
     };
     fetchData();
-  }, [userId]); // Removed isOnline dependency so it runs on mount regardless, but will retry if userId changes
+  }, [userId, isOnline]);
   
   // 2.5 Fetch Google Calendar Events
   useEffect(() => {
@@ -622,10 +595,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, initialError }) =
   const toggleSidebar = () => { setIsSidebarCollapsed(prev => { const newState = !prev; localStorage.setItem('heavyuser_sidebar_collapsed', String(newState)); return newState; }); };
 
   const getLogicalDateOffset = (days: number) => {
-    const d = new Date(); 
-    if (d.getHours() < (userSettings.dayStartHour || 0)) d.setDate(d.getDate() - 1);
-    d.setDate(d.getDate() + days); 
-    return toLocalDateString(d);
+    const d = new Date(); if (d.getHours() < (userSettings.dayStartHour || 0)) d.setDate(d.getDate() - 1);
+    d.setDate(d.getDate() + days); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
   useEffect(() => {
@@ -721,7 +692,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, initialError }) =
 
   const sidebarStats = useMemo(() => {
       const today = getLogicalDateOffset(0); const nowTs = Date.now();
-      const todaySessions = sessions.filter(s => { const sDate = new Date(s.startTime); if (sDate.getHours() < (userSettings.dayStartHour || 0)) sDate.setDate(sDate.getDate() - 1); return toLocalDateString(sDate) === today; });
+      const todaySessions = sessions.filter(s => { const sDate = new Date(s.startTime); if (sDate.getHours() < (userSettings.dayStartHour || 0)) sDate.setDate(sDate.getDate() - 1); return `${sDate.getFullYear()}-${String(sDate.getMonth() + 1).padStart(2, '0')}-${String(sDate.getDate()).padStart(2, '0')}` === today; });
       const totalTrackedSeconds = todaySessions.reduce((acc, s) => s.endTime ? acc + (s.duration || 0) : acc + Math.floor((nowTs - new Date(s.startTime).getTime()) / 1000), 0);
       const activeTasks = tasks.filter(t => !t.completed && t.dueDate && (t.dueDate === today || t.dueDate < today));
       const remainingMinutes = activeTasks.reduce((acc, t) => { let cur = t.timerStart ? (nowTs - new Date(t.timerStart).getTime()) / 1000 / 60 : 0; return acc + Math.max(0, (t.plannedTime || 0) - (t.actualTime || 0) - cur); }, 0);
@@ -740,7 +711,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, initialError }) =
     const getLogicalDateFromISO = (isoString: string) => {
         const d = new Date(isoString);
         if (d.getHours() < (userSettings.dayStartHour || 0)) d.setDate(d.getDate() - 1);
-        return toLocalDateString(d);
+        return d.toISOString().split('T')[0];
     };
     tasks.forEach(t => { if (t.createdAt) activeDates.add(getLogicalDateFromISO(t.createdAt)); if (t.completed) { if (t.completedAt) activeDates.add(getLogicalDateFromISO(t.completedAt)); else if (t.updatedAt) activeDates.add(getLogicalDateFromISO(t.updatedAt)); } });
     habits.forEach(h => { Object.keys(h.progress).forEach(date => { const count = h.progress[date]; if (h.goalType === 'negative' ? count < h.target : count >= h.target) activeDates.add(date); }); h.skippedDates.forEach(date => activeDates.add(date)); });
@@ -754,10 +725,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, initialError }) =
     const hasActivityYesterday = sortedDates.includes(yesterday);
     if (!hasActivityToday && !hasActivityYesterday) currentStreak = 0;
     else {
-      let checkDateStr = hasActivityToday ? today : yesterday;
-      let checkDate = parseLocalDate(checkDateStr);
+      const [y, m, d] = (hasActivityToday ? today : yesterday).split('-').map(Number);
+      let checkDate = new Date(y, m - 1, d); 
       while (true) {
-        const dateStr = toLocalDateString(checkDate);
+        const dateStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
         if (activeDates.has(dateStr)) { currentStreak++; checkDate.setDate(checkDate.getDate() - 1); } else break;
       }
     }
@@ -790,7 +761,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, initialError }) =
       // 2. Filter Calendar Events for Today Schedule
       const todayEvents = calendarEvents.filter(e => {
           const eDate = new Date(e.start);
-          const eDateStr = toLocalDateString(eDate);
+          const eDateStr = `${eDate.getFullYear()}-${String(eDate.getMonth() + 1).padStart(2, '0')}-${String(eDate.getDate()).padStart(2, '0')}`;
           return eDateStr === today;
       });
       const timedEvents = todayEvents.filter(e => !e.allDay);
@@ -1122,7 +1093,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, initialError }) =
                                    const d = new Date(); 
                                    if (d.getHours() < (userSettings.dayStartHour || 0)) d.setDate(d.getDate() - 1);
                                    d.setDate(d.getDate() - (6 - i));
-                                   const dateStr = toLocalDateString(d);
+                                   const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
                                    const dayCount = habit.progress[dateStr] || 0;
                                    const color = getHabitStatusColor(habit, dayCount, dateStr === today);
                                    const dayLetter = d.toLocaleDateString('en-US', { weekday: 'narrow' });
@@ -1145,19 +1116,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, initialError }) =
       };
 
       return (
-          <div className="flex flex-col md:flex-row h-full bg-background overflow-hidden animate-in fade-in relative">
-              
-              {/* Global Error Banner */}
-              {globalError && (
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white px-4 py-3 rounded shadow-lg flex items-center gap-3 text-sm animate-in slide-in-from-top-4 max-w-sm">
-                      <ShieldAlert className="w-5 h-5 shrink-0" />
-                      <p>{globalError}</p>
-                      <button onClick={() => setGlobalError(null)} className="p-1 hover:bg-white/20 rounded ml-2">
-                          <X className="w-4 h-4" />
-                      </button>
-                  </div>
-              )}
-
+          <div className="flex flex-col md:flex-row h-full bg-background overflow-hidden animate-in fade-in">
               {/* Left/Main Column */}
               <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
                   
@@ -1191,6 +1150,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, initialError }) =
                               {todayHabits.map(habit => {
                                   const count = habit.progress[today] || 0;
                                   const isSelected = selectedTodayHabitId === habit.id;
+                                  // Simplified logic for heatmap in preview
+                                  const last7Days = Array.from({length: 7}, (_, i) => {
+                                      const d = new Date(); d.setDate(d.getDate() - (6 - i));
+                                      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                  });
+
                                   return (
                                       <div 
                                           key={habit.id} 
