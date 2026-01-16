@@ -210,21 +210,6 @@ const App: React.FC = () => {
     }
   }, [loading]);
 
-  // Analytics
-  useEffect(() => {
-    if (window.innerWidth >= 768 && currentUser) {
-      const win = window as any;
-      if (win.uj) {
-        win.uj.identify({
-          id: currentUser.id,
-          email: currentUser.email,
-          firstName: currentUser.name.split(' ')[0],
-          avatar: currentUser.profilePicture
-        });
-      }
-    }
-  }, [currentUser]);
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[#faf9f8] flex items-center justify-center">
