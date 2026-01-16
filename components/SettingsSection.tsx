@@ -178,16 +178,16 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
   const handleConnectGoogle = async () => {
       setIsConnectingGoogle(true);
       try {
-          // Use linkIdentity to authorize the calendar scope for the logged-in user
-          // This ensures we get a fresh token with the right permissions
-          const { error } = await supabase.auth.linkIdentity({
+          // Changed to signInWithOAuth to bypass "Manual linking is disabled" project error.
+          // This will re-authenticate the user, effectively refreshing tokens or switching accounts if needed.
+          const { error } = await supabase.auth.signInWithOAuth({
               provider: 'google',
               options: {
                   redirectTo: window.location.origin,
                   // Request necessary scopes: Calendar Readonly + UserInfo (to identify the account)
                   scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/userinfo.email',
                   queryParams: {
-                      access_type: 'offline', // Ask for refresh token (though browser flow mostly uses access token)
+                      access_type: 'offline', // Ask for refresh token
                       prompt: 'consent', // Force consent screen to ensure permissions are granted
                   },
               },
