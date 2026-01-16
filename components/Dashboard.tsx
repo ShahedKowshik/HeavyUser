@@ -429,8 +429,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               const { data, error } = await query;
               
               if (error) {
-                  console.error(`Error fetching ${tableName}:`, error);
-                  // Do not throw, allows other tables to load
+                  // Suppress "relation does not exist" error (42P01) if table is missing/optional
+                  if (error.code === '42P01') {
+                      console.warn(`Table ${tableName} does not exist (42P01). Skipping.`);
+                  } else {
+                      console.error(`Error fetching ${tableName}:`, error.message || error);
+                  }
               } else if (data) {
                   const parsedData = parser(data);
                   setter(parsedData);
