@@ -11,10 +11,36 @@ import { SpeedInsights } from '@vercel/speed-insights/react';
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Check for errors in the URL (e.g. from Google Auth redirect failure)
+    const checkForUrlErrors = () => {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const queryParams = new URLSearchParams(window.location.search);
+      const errorDesc = hashParams.get('error_description') || queryParams.get('error_description');
+      const error = hashParams.get('error') || queryParams.get('error');
+
+      if (error || errorDesc) {
+        setAuthError(decodeURIComponent(errorDesc || error || 'Authentication failed'));
+        // Clean URL
+        window.history.replaceState(null, '', window.location.pathname);
+        return true;
+      }
+      return false;
+    };
+
+    if (checkForUrlErrors()) {
+      setLoading(false);
+      return;
+    }
+
     // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error("Auth session check failed:", error);
+      }
+      
       if (session?.user) {
         setCurrentUser({
           id: session.user.id,
@@ -24,7 +50,7 @@ const App: React.FC = () => {
           dayStartHour: session.user.user_metadata.day_start_hour || 0,
           startWeekDay: session.user.user_metadata.start_week_day || 0,
           enabledFeatures: session.user.user_metadata.enabled_features || ['tasks', 'habit', 'journal', 'notes'],
-          googleToken: session.provider_token, // Capture Google Token if available
+          googleToken: session.provider_token,
         });
       }
       setLoading(false);
@@ -43,7 +69,7 @@ const App: React.FC = () => {
           dayStartHour: session.user.user_metadata.day_start_hour || 0,
           startWeekDay: session.user.user_metadata.start_week_day || 0,
           enabledFeatures: session.user.user_metadata.enabled_features || ['tasks', 'habit', 'journal', 'notes'],
-          googleToken: session.provider_token, // Capture Google Token on auth change
+          googleToken: session.provider_token,
         });
       } else {
         setCurrentUser(null);
@@ -92,7 +118,7 @@ const App: React.FC = () => {
       {currentUser ? (
         <Dashboard key={currentUser.id} user={currentUser} onLogout={() => supabase.auth.signOut()} />
       ) : (
-        <AuthPage />
+        <AuthPage error={authError} />
       )}
       <Analytics />
       <SpeedInsights />
