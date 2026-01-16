@@ -642,9 +642,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
   const toggleSidebar = () => { setIsSidebarCollapsed(prev => { const newState = !prev; localStorage.setItem('heavyuser_sidebar_collapsed', String(newState)); return newState; }); };
 
+  // Calculate Logical Date (for Productivity: Tasks/Habits) based on Day Start Hour
   const getLogicalDateOffset = (days: number) => {
-    const d = new Date(); if (d.getHours() < (userSettings.dayStartHour || 0)) d.setDate(d.getDate() - 1);
-    d.setDate(d.getDate() + days); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const d = new Date();
+    // Only shift for productivity day if current hour is before start hour
+    if (d.getHours() < (userSettings.dayStartHour || 0)) d.setDate(d.getDate() - 1);
+    d.setDate(d.getDate() + days); 
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  // Calculate Real Date (for Calendar Events) ignoring Day Start Hour
+  const getRealDateOffset = (days: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
   useEffect(() => {
@@ -786,7 +797,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const activeFilterTag = useMemo(() => tags.find(t => t.id === activeFilterTagId), [tags, activeFilterTagId]);
 
   const renderTodayView = () => {
+      // Use Logical Day for Productivity Items
       const today = getLogicalDateOffset(0);
+      
+      // Use Real Day for Calendar Events (Events should ignore productivity shift)
+      const realToday = getRealDateOffset(0);
+      
       const hour = new Date().getHours();
 
       // 1. Filter Tasks: Due Today or Overdue, Incomplete
@@ -806,13 +822,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           return 0;
       });
       
-      // 2. Filter Calendar Events for Today Schedule
-      // UPDATED: Handle both all-day (YYYY-MM-DD) and timed (ISO) events against local 'today' string
+      // 2. Filter Calendar Events for Today Schedule using REAL DATE
       const todayEvents = calendarEvents.filter(e => {
-          if (e.allDay) return e.start === today;
+          if (e.allDay) return e.start === realToday;
           const eDate = new Date(e.start);
           const eDateStr = `${eDate.getFullYear()}-${String(eDate.getMonth() + 1).padStart(2, '0')}-${String(eDate.getDate()).padStart(2, '0')}`;
-          return eDateStr === today;
+          return eDateStr === realToday;
       });
       const timedEvents = todayEvents.filter(e => !e.allDay);
 
@@ -1474,7 +1489,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                         </div>
                         <div className="min-w-0">
                             <div className="text-xs font-bold text-foreground truncate">Daily Focus</div>
-                            <div className="text-[10px] text-muted-foreground truncate">
+                            <div className="text-xs text-muted-foreground truncate">
                                 {sidebarStats.finishTime ? `Estimated finish: ${sidebarStats.finishTime}` : 'All caught up!'}
                             </div>
                         </div>
