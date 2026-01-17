@@ -67,6 +67,9 @@ export interface Task {
   plannedTime?: number; // In minutes
   actualTime?: number; // In minutes
   timerStart?: string | null; // ISO string if currently running
+  
+  // Type: Task or Reminder
+  type?: 'task' | 'reminder';
 }
 
 export interface TaskSession {

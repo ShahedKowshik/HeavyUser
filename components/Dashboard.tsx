@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2 } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence, CalendarEvent } from '../types';
@@ -450,7 +451,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           updatedAt: t.updated_at, 
           plannedTime: t.planned_time, 
           actualTime: t.actual_time, 
-          timerStart: t.timer_start 
+          timerStart: t.timer_start,
+          type: t.type || 'task' // Default to task if not present
       }));
 
       const parseTags = (data: any[]): Tag[] => data.map((t: any) => ({ id: t.id, label: decryptData(t.label), color: t.color }));
