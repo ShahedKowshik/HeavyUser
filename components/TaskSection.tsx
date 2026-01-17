@@ -592,6 +592,10 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
       const isOverdue = task.dueDate && getDayDiff(task.dueDate) < 0 && !task.completed;
       const priorityColorClass = getPriorityLineColor(task.priority);
       
+      const diff = getDayDiff(task.dueDate);
+      const isToday = diff === 0;
+      const isTomorrow = diff === 1;
+
       return (
           <div 
             key={task.id} 
@@ -621,14 +625,17 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                           {task.title}
                       </h4>
                       
-                      {/* Tags */}
+                      {/* Tags - UPDATED TO SHOW FULL LABEL */}
                       {task.tags && task.tags.length > 0 && (
                           <div className="flex items-center gap-1 shrink-0 hidden sm:flex">
                               {task.tags.map(tagId => { 
                                   const tag = tags.find(t => t.id === tagId); 
                                   if (!tag) return null; 
                                   return (
-                                      <div key={tagId} className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} title={tag.label} />
+                                      <div key={tagId} className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 text-muted-foreground shadow-sm text-[10px]">
+                                          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                                          <span className="truncate max-w-[80px]">{tag.label}</span>
+                                      </div>
                                   ); 
                               })}
                           </div>
@@ -652,19 +659,23 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                       {(task.dueDate || task.time) && (
                           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                               {isOverdue && <span className="text-notion-red font-bold hidden sm:inline">Overdue</span>}
-                              {task.dueDate && <span className={isOverdue ? 'text-notion-red' : ''}>{formatRelativeDate(task.dueDate)}</span>}
+                              
+                              {/* Date Display Logic - Hide Today/Tomorrow if grouped by date */}
+                              {task.dueDate && (grouping !== 'date' || (!isToday && !isTomorrow)) && (
+                                  <span className={isOverdue ? 'text-notion-red' : ''}>{formatRelativeDate(task.dueDate)}</span>
+                              )}
+
                               {task.time && <div className="flex items-center gap-1 text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-sm border border-foreground/10 shadow-sm hidden sm:flex"><Clock className="w-3 h-3" /><span>{task.time}</span></div>}
                           </div>
                       )}
                       
-                      {/* Timer Button */}
-                       <button 
-                          onClick={(e) => onToggleTimer(task.id, e)}
-                          className={`p-1.5 rounded-full transition-colors ${task.timerStart ? 'text-notion-blue bg-blue-100 hover:bg-blue-200' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
-                          title={task.timerStart ? "Stop Timer" : "Start Timer"}
-                       >
-                           {task.timerStart ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Clock className="w-3.5 h-3.5" />}
-                       </button>
+                      {/* UPDATED: Duration instead of Timer Button */}
+                       {task.plannedTime && (
+                           <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm border border-black/5 tabular-nums min-w-[4rem]">
+                               <Clock className="w-3 h-3" />
+                               <span>{formatDuration(task.plannedTime)}</span>
+                           </div>
+                       )}
                   </div>
               </div>
           </div>
