@@ -1,5 +1,6 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Pause, Bell, AlertCircle, ArrowRight, Layers, Moon, Archive, CalendarClock, BarChart3, Check, FileText } from 'lucide-react';
+import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Pause, Bell, AlertCircle, ArrowRight, Layers, Moon, Archive, CalendarClock, BarChart3, Check, FileText, Timer, Target } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence, TaskSession, CalendarEvent } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
@@ -29,17 +30,16 @@ type Sorting = 'date' | 'priority' | 'title';
 const priorities: Priority[] = ['Urgent', 'High', 'Normal', 'Low'];
 const priorityOrder: Record<Priority, number> = { 'Urgent': 0, 'High': 1, 'Normal': 2, 'Low': 3 };
 
-const getRotatedWeekdays = (startDay: number) => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    return [...days.slice(startDay), ...days.slice(0, startDay)];
-};
-
 const formatDuration = (minutes: number) => {
     if (minutes > 0 && minutes < 1) return '< 1m';
     if (minutes < 60) return `${Math.floor(minutes)}m`;
     const h = Math.floor(minutes / 60);
     const m = Math.floor(minutes % 60);
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
+};
+
+const formatSessionTime = (isoString: string) => {
+    return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
 const createNewTag = async (label: string, userId: string): Promise<Tag> => {
@@ -188,18 +188,11 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
-  const [viewLayout, setViewLayout] = useState<'list' | 'reminder' | 'calendar' | 'tracker'>('list');
+  const [viewLayout, setViewLayout] = useState<'list' | 'reminder' | 'tracker'>('list');
   const [grouping, setGrouping] = useState<Grouping>('date');
   const [sorting, setSorting] = useState<Sorting>('priority');
-  const [isRescheduleMenuOpen, setIsRescheduleMenuOpen] = useState(false);
   
   const [activePopover, setActivePopover] = useState<'priority' | 'date' | 'tags' | 'repeat' | 'duration' | null>(null);
-
-  const [calendarDate, setCalendarDate] = useState(() => {
-      const d = new Date();
-      if (d.getHours() < (dayStartHour || 0)) d.setDate(d.getDate() - 1);
-      return d;
-  });
 
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -280,17 +273,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const rescheduleOverdue = async (tasksToReschedule: Task[], daysOffset: number) => {
-    const d = new Date();
-    if (d.getHours() < (dayStartHour || 0)) d.setDate(d.getDate() - 1);
-    d.setDate(d.getDate() + daysOffset);
-    const newDateStr = getLocalDateString(d);
-    const taskIds = tasksToReschedule.map(t => t.id);
-    setTasks(prev => prev.map(t => taskIds.includes(t.id) ? { ...t, dueDate: newDateStr } : t));
-    setIsRescheduleMenuOpen(false);
-    await supabase.from('tasks').update({ due_date: newDateStr }).in('id', taskIds);
-  };
-
   const openCreatePanel = () => {
     setTitle(''); setDueDate(''); setPriority('Normal'); 
     setSelectedTags((activeFilterTagId && activeFilterTagId !== 'no_tag') ? [activeFilterTagId] : []); 
@@ -344,7 +326,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
         setTasks(prev => [newTask, ...prev]); 
         await supabase.from('tasks').insert(mapTaskToDb(newTask, userId));
         setIsCreating(false);
-        setSelectedTaskId(null); // Or set to newTask.id if we want to keep it open
+        setSelectedTaskId(null);
     } else {
         setSelectedTaskId(null);
     }
@@ -408,8 +390,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     } else if (viewLayout === 'reminder') {
         filtered = filtered.filter(t => t.type === 'reminder');
     } else if (viewLayout === 'tracker') {
-        // For tracker view, we usually want to see active tasks or tasks with time set
-        filtered = filtered.filter(t => t.type !== 'reminder');
+        // Tracker filters handled in renderTrackerView
     }
 
     if (activeFilterTagId === 'no_tag') {
@@ -464,104 +445,46 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
       try { return processList(safeTasks.filter(t => !t.completed)); } catch (e) { return []; }
   }, [safeTasks, grouping, sorting, activeFilterTagId, dayStartHour, viewLayout]);
 
-  const renderCalendarView = () => {
-      const year = calendarDate.getFullYear();
-      const month = calendarDate.getMonth();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const firstDay = new Date(year, month, 1).getDay(); // 0 Sun
-      const startOffset = (firstDay - startWeekDay + 7) % 7;
-      
-      const days = [];
-      for (let i = 0; i < startOffset; i++) days.push(null);
-      for (let i = 1; i <= daysInMonth; i++) days.push(i);
-
-      const changeMonth = (delta: number) => {
-          const d = new Date(calendarDate);
-          d.setMonth(d.getMonth() + delta);
-          setCalendarDate(d);
-      };
-
-      const monthName = calendarDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-      const weekDays = getRotatedWeekdays(startWeekDay);
-
-      return (
-          <div className="flex flex-col h-full bg-background">
-              <div className="flex items-center justify-between mb-4 pt-2">
-                  <span className="font-bold text-lg">{monthName}</span>
-                  <div className="flex gap-1 bg-secondary rounded-sm p-0.5">
-                      <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-notion-hover rounded-sm transition-colors text-muted-foreground hover:text-foreground"><ChevronLeft className="w-4 h-4" /></button>
-                      <button onClick={() => setCalendarDate(new Date())} className="px-2 text-xs font-medium hover:bg-notion-hover rounded-sm transition-colors text-muted-foreground hover:text-foreground">Today</button>
-                      <button onClick={() => changeMonth(1)} className="p-1 hover:bg-notion-hover rounded-sm transition-colors text-muted-foreground hover:text-foreground"><ChevronRight className="w-4 h-4" /></button>
-                  </div>
-              </div>
-              
-              <div className="grid grid-cols-7 border-b border-border">
-                  {weekDays.map(d => (
-                      <div key={d} className="p-2 text-center text-[10px] font-bold text-muted-foreground uppercase">{d}</div>
-                  ))}
-              </div>
-              
-              <div className="grid grid-cols-7 auto-rows-fr flex-1 border-l border-border">
-                  {days.map((day, i) => {
-                      if (!day) return <div key={i} className="border-b border-r border-border min-h-[80px] bg-secondary/10" />;
-                      
-                      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                      const dayTasks = tasks.filter(t => t.dueDate === dateStr);
-                      const isToday = dateStr === getLocalDateString(new Date());
-
-                      return (
-                          <div key={i} className={`border-b border-r border-border p-1 min-h-[80px] flex flex-col gap-1 transition-colors ${isToday ? 'bg-notion-bg_blue/30' : 'hover:bg-secondary/20'}`}>
-                              <div className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full mb-1 ${isToday ? 'bg-notion-blue text-white' : 'text-muted-foreground'}`}>
-                                  {day}
-                              </div>
-                              <div className="flex-1 flex flex-col gap-1 overflow-y-auto custom-scrollbar max-h-[100px]">
-                                  {dayTasks.map(t => (
-                                      <button 
-                                        key={t.id} 
-                                        onClick={() => openEditPanel(t)}
-                                        className={`text-[10px] text-left px-1.5 py-0.5 rounded-sm truncate border transition-all ${t.completed ? 'bg-secondary text-muted-foreground line-through border-transparent opacity-60' : 'bg-background border-border shadow-sm hover:border-notion-blue'}`}
-                                      >
-                                          {t.title}
-                                      </button>
-                                  ))}
-                              </div>
-                          </div>
-                      );
-                  })}
-              </div>
-          </div>
-      );
-  };
-
   const renderTrackerView = () => {
-      // Filter tasks that have time activity or planning or are actively running
-      const trackedTasks = tasks.filter(t => t.plannedTime || t.actualTime || t.timerStart);
-      
-      const totalActual = trackedTasks.reduce((acc, t) => acc + (t.actualTime || 0), 0);
-      const totalPlanned = trackedTasks.reduce((acc, t) => acc + (t.plannedTime || 0), 0);
+      const now = new Date();
+      if (now.getHours() < (dayStartHour || 0)) now.setDate(now.getDate() - 1);
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+      // 1. Calculate Today's Analytics (Total Time from Sessions)
+      const todaySessions = sessions.filter(s => {
+          const sDate = new Date(s.startTime);
+          if (sDate.getHours() < (dayStartHour || 0)) sDate.setDate(sDate.getDate() - 1);
+          const sDateStr = `${sDate.getFullYear()}-${String(sDate.getMonth() + 1).padStart(2, '0')}-${String(sDate.getDate()).padStart(2, '0')}`;
+          return sDateStr === todayStr;
+      });
+
+      const totalTodaySeconds = todaySessions.reduce((acc, s) => {
+          if (s.endTime) return acc + (s.duration || 0);
+          // If running, calculate duration so far
+          const runningDur = Math.floor((Date.now() - new Date(s.startTime).getTime()) / 1000);
+          return acc + runningDur;
+      }, 0);
+
+      // 2. Active Tasks (Tasks that have been tracked)
+      const trackedTasks = tasks.filter(t => t.actualTime || t.timerStart);
 
       return (
           <div className="space-y-6 pt-2">
-              {/* Summary Card */}
-              <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-secondary/30 rounded-lg border border-border">
-                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-1">Time Spent</div>
-                      <div className="text-2xl font-bold flex items-center gap-2">
-                          <Clock className="w-5 h-5 text-notion-blue" />
-                          {formatDuration(totalActual)}
-                      </div>
+              {/* Today's Focus Analytics */}
+              <div className="p-4 bg-secondary/30 rounded-lg border border-border">
+                  <div className="flex items-center gap-2 mb-2">
+                      <Target className="w-4 h-4 text-notion-blue" />
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Today's Focus</div>
                   </div>
-                  <div className="p-4 bg-secondary/30 rounded-lg border border-border">
-                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-1">Total Planned</div>
-                      <div className="text-2xl font-bold flex items-center gap-2">
-                          <CalendarClock className="w-5 h-5 text-notion-orange" />
-                          {formatDuration(totalPlanned)}
-                      </div>
+                  <div className="text-3xl font-bold flex items-center gap-2">
+                      {formatDuration(totalTodaySeconds / 60)}
+                      <span className="text-sm font-normal text-muted-foreground">tracked</span>
                   </div>
               </div>
 
+              {/* Active Tasks List */}
               <div className="space-y-3">
-                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">Active Tasks & Logs</h3>
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">Active Tasks</h3>
                   {trackedTasks.length > 0 ? (
                       <div className="space-y-2">
                           {trackedTasks.map(task => {
@@ -580,8 +503,12 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                                                    <div className="font-medium text-sm truncate cursor-pointer hover:underline" onClick={() => openEditPanel(task)}>{task.title}</div>
                                                    <div className="text-xs text-muted-foreground flex items-center gap-2">
                                                        <span className="font-medium text-foreground">{task.actualTime ? formatDuration(task.actualTime) : '0m'}</span>
-                                                       <span>/</span>
-                                                       <span>{task.plannedTime ? formatDuration(task.plannedTime) : '-'}</span>
+                                                       {task.plannedTime && (
+                                                           <>
+                                                            <span>/</span>
+                                                            <span>{formatDuration(task.plannedTime)}</span>
+                                                           </>
+                                                       )}
                                                    </div>
                                                </div>
                                           </div>
@@ -604,11 +531,56 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                           })}
                       </div>
                   ) : (
-                      <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-lg bg-secondary/10">
-                          <BarChart3 className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">No time tracked yet.</p>
-                          <p className="text-xs mt-1">Start a timer or set a duration on a task to see it here.</p>
+                      <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-lg bg-secondary/10">
+                          <p className="text-xs">Start a timer on any task to track it here.</p>
                       </div>
+                  )}
+              </div>
+
+              {/* Session History List */}
+              <div className="space-y-3">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">Session History</h3>
+                  {sessions.length > 0 ? (
+                      <div className="space-y-1">
+                          {sessions.map(session => {
+                              const task = tasks.find(t => t.id === session.taskId);
+                              const startDate = new Date(session.startTime);
+                              const isToday = getLocalDateString(startDate) === todayStr;
+                              const dateDisplay = isToday ? 'Today' : startDate.toLocaleDateString();
+
+                              return (
+                                  <div key={session.id} className="group flex items-center justify-between p-2 rounded-sm hover:bg-notion-hover border border-transparent hover:border-border transition-all">
+                                      <div className="flex items-center gap-3 min-w-0">
+                                          <div className="p-1.5 bg-secondary rounded-sm text-muted-foreground">
+                                              <Timer className="w-3.5 h-3.5" />
+                                          </div>
+                                          <div className="min-w-0">
+                                              <div className="text-sm font-medium truncate">{task?.title || 'Unknown Task'}</div>
+                                              <div className="text-[10px] text-muted-foreground flex gap-2">
+                                                  <span>{dateDisplay}</span>
+                                                  <span>•</span>
+                                                  <span>{formatSessionTime(session.startTime)}</span>
+                                              </div>
+                                          </div>
+                                      </div>
+                                      <div className="flex items-center gap-3">
+                                          <div className="text-xs font-mono font-medium text-foreground">
+                                              {session.duration ? formatDuration(session.duration / 60) : (session.endTime ? '< 1m' : 'Running...')}
+                                          </div>
+                                          <button 
+                                              onClick={() => onDeleteSession(session.id)}
+                                              className="p-1.5 text-muted-foreground hover:text-notion-red hover:bg-notion-bg_red rounded-sm opacity-0 group-hover:opacity-100 transition-all"
+                                              title="Delete Session"
+                                          >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                      </div>
+                                  </div>
+                              );
+                          })}
+                      </div>
+                  ) : (
+                      <div className="text-center py-4 text-xs text-muted-foreground">No history yet.</div>
                   )}
               </div>
           </div>
@@ -750,7 +722,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   };
 
   const renderContent = () => {
-      if (viewLayout === 'calendar') return renderCalendarView();
       if (viewLayout === 'tracker') return renderTrackerView();
       return renderListGroups(activeTasksGroups);
   };
@@ -986,7 +957,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                          <div className="flex bg-secondary p-0.5 rounded-sm">
                              <button onClick={() => setViewLayout('list')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'list' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Tasks</button>
                              <button onClick={() => setViewLayout('reminder')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'reminder' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Reminders</button>
-                             <button onClick={() => setViewLayout('calendar')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'calendar' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Calendar</button>
                              <button onClick={() => setViewLayout('tracker')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'tracker' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Tracker</button>
                          </div>
                          <div className="w-px h-4 bg-border mx-2" />
