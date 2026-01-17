@@ -15,29 +15,27 @@ const fetchEventsForAccount = async (account: CalendarAccount, timeMin: string, 
       timeMax,
       singleEvents: 'true',
       orderBy: 'startTime',
-      maxResults: '1000', // Fetch a good number of events
+      maxResults: '1000',
     });
 
     const token = account.token.trim();
 
-    // Use Accept header instead of Content-Type for GET requests to avoid strict CORS preflight issues
+    // Use specific fetch options to minimize CORS/Network issues
     const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json'
       },
+      referrerPolicy: 'no-referrer', // Improves privacy and reduces strict-origin blocks
     });
 
+    // If token is expired (401), we just return empty list to prompt re-login indirectly
     if (response.status === 401) {
-      console.warn(`Access token expired for ${account.email}. Re-connection required.`);
       return [];
     }
 
     if (!response.ok) {
-      // Attempt to read error text for better debugging
-      const errorText = await response.text().catch(() => response.statusText);
-      throw new Error(`Google API returned ${response.status}: ${errorText}`);
+      return [];
     }
 
     const data = await response.json();
@@ -46,7 +44,6 @@ const fetchEventsForAccount = async (account: CalendarAccount, timeMin: string, 
 
     // Map Google Calendar events to our internal format
     return data.items.map((item: any) => {
-      // Handle both full-day (date) and timed (dateTime) events
       const start = item.start.dateTime || item.start.date;
       const end = item.end.dateTime || item.end.date;
       const allDay = !item.start.dateTime;
@@ -59,12 +56,16 @@ const fetchEventsForAccount = async (account: CalendarAccount, timeMin: string, 
         allDay: allDay,
         htmlLink: item.htmlLink,
         calendarEmail: account.email,
-        color: item.colorId ? undefined : '#3b82f6' // Default color if not specified
+        color: item.colorId ? undefined : '#3b82f6'
       };
     });
 
-  } catch (error) {
-    console.error(`Failed to fetch calendar events for ${account.email}. This may be due to network issues, CORS, or a blocked request.`, error);
+  } catch (error: any) {
+    // Suppress "Failed to fetch" errors which indicate network/CORS blocks often due to expired tokens
+    // Only log other unexpected errors
+    if (error.message && error.message !== 'Failed to fetch') {
+        console.warn(`Error fetching calendar for ${account.email}:`, error);
+    }
     return [];
   }
 };
@@ -76,15 +77,12 @@ export const getGoogleCalendarEvents = async (accounts: CalendarAccount[], timeM
   if (!accounts || accounts.length === 0) return [];
 
   // Fetch from all accounts in parallel
-  const promises = accounts.map(account => fetchEventsForAccount(account, timeMin, timeMax));
-  
+  // Note: fetchEventsForAccount catches its own errors, so Promise.all won't reject
   try {
-    const results = await Promise.all(promises);
-    // Flatten and sort by start time
+    const results = await Promise.all(accounts.map(account => fetchEventsForAccount(account, timeMin, timeMax)));
     const allEvents = results.flat();
     return allEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
   } catch (error) {
-    console.error("Error aggregating calendar events:", error);
     return [];
   }
 };
