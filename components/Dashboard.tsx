@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2 } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence, CalendarEvent } from '../types';
@@ -266,6 +267,26 @@ const getHabitStatusColor = (habit: Habit, count: number, isToday: boolean): str
         }
         return SOLID_YELLOW;
     }
+};
+
+const getDayDiff = (dateStr: string) => {
+    if (!dateStr) return 9999;
+    const now = new Date();
+    // Use the same logic as TaskSection - this was missing in helper functions but used in getRelativeTimeColor
+    // We'll reimplement inline or fix if needed, but for simplicity we rely on local date compare
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (dateStr === todayStr) return 0;
+    const target = new Date(dateStr); 
+    const today = new Date(todayStr); 
+    return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+const getRelativeTimeColor = (dateStr: string) => {
+    const diff = getDayDiff(dateStr);
+    if (diff < 0) return 'text-notion-red';
+    if (diff === 0) return 'text-notion-green';
+    if (diff === 1) return 'text-notion-orange';
+    return 'text-muted-foreground';
 };
 
 interface DashboardProps { user: User; onLogout: () => void; }
@@ -1252,25 +1273,75 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                   const subtasks = task.subtasks || [];
 
                                   return (
-                                      <div key={task.id} onClick={() => { setSelectedTodayTaskId(task.id); setSelectedTodayHabitId(null); }} className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md mb-3 overflow-hidden ${isSelected ? 'border-notion-blue ring-1 ring-notion-blue' : 'border-border hover:border-notion-blue/30'}`}>
-                                          <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${priorityColorClass} rounded-l-sm opacity-80`} />
-                                          <div className="pl-5 pr-3 pt-2 pb-3 flex items-start gap-3">
-                                              <button onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }} className={`mt-0.5 w-5 h-5 rounded-sm border-[1.5px] flex items-center justify-center transition-all duration-200 shrink-0 ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'bg-transparent border-muted-foreground/40 hover:border-notion-blue'}`}>{task.completed && <Check className="w-3.5 h-3.5 stroke-[3]" />}</button>
-                                              <div className="flex-1 min-w-0 space-y-1">
-                                                  <div className="flex items-center gap-2 mb-0.5">
-                                                       <h4 className={`text-sm font-semibold leading-normal transition-colors ${task.completed ? 'text-muted-foreground line-through decoration-border' : (isOverdue ? 'text-notion-red' : 'text-foreground')}`}>{task.title}</h4>
-                                                       {subtasks.length > 0 && <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm h-fit"><ListChecks className="w-3 h-3" /><span>{subtasks.filter(s => s.completed).length}/{subtasks.length}</span></div>}
-                                                  </div>
-                                                  <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-                                                          {isOverdue && <span className="text-notion-red font-bold">Overdue</span>}
-                                                          <div className={`flex items-center justify-center gap-1 px-1 py-0.5 rounded-sm border shadow-sm min-w-[58px] ${getPriorityBadgeStyle(task.priority)}`}>{getPriorityIcon(task.priority)}<span className="font-medium truncate">{task.priority}</span></div>
-                                                          {task.time && <div className="flex items-center gap-1 text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-sm border border-foreground/10 shadow-sm"><Clock className="w-3 h-3" /><span>{task.time}</span></div>}
-                                                          {task.tags && task.tags.map(tagId => { const tag = tags.find(t => t.id === tagId); if (!tag) return null; return (<div key={tagId} className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 text-muted-foreground shadow-sm"><div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tag.color }} /><span className="truncate max-w-[80px]">{tag.label}</span></div>); })}
-                                                  </div>
-                                              </div>
-                                              {(task.plannedTime || (task.actualTime || 0) > 0) && <div className="flex flex-col items-end justify-center shrink-0 pl-2 self-center gap-0.5 min-w-[3.5rem]"><span className={`font-mono text-xs font-medium tabular-nums ${task.timerStart ? 'text-notion-blue animate-pulse' : 'text-foreground'}`}>{Math.round(task.actualTime || 0)}m</span>{task.plannedTime && <span className="text-[10px] text-muted-foreground tabular-nums opacity-80">/ {task.plannedTime}m</span>}</div>}
-                                          </div>
-                                      </div>
+                                    <div key={task.id} onClick={() => { setSelectedTodayTaskId(task.id); setSelectedTodayHabitId(null); }} className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md mb-1 h-10 overflow-hidden flex items-center ${isSelected ? 'border-notion-blue ring-1 ring-notion-blue' : 'border-border hover:border-notion-blue/30'}`}>
+                                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${priorityColorClass} rounded-l-sm opacity-80`} />
+                                        
+                                        <div className="pl-3 pr-2 flex items-center gap-3 w-full">
+                                            {/* Checkbox - Smaller w-4 h-4 */}
+                                            <button onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }} className={`w-4 h-4 rounded-sm border-[1.5px] flex items-center justify-center transition-all duration-200 shrink-0 ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'bg-transparent border-muted-foreground/40 hover:border-notion-blue'}`}>
+                                                {task.completed && <Check className="w-3 h-3 stroke-[3]" />}
+                                            </button>
+                                            
+                                            {/* Content */}
+                                            <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden">
+                                                {/* Priority Icon Only - Smaller container w-4 h-4 */}
+                                                <div className={`flex items-center justify-center w-4 h-4 rounded-sm shrink-0 border shadow-sm ${getPriorityBadgeStyle(task.priority)}`} title={task.priority}>
+                                                    {getPriorityIcon(task.priority)}
+                                                </div>
+
+                                                {/* Title - Text SM restored */}
+                                                <h4 className={`text-sm font-medium truncate ${task.completed ? 'text-muted-foreground line-through decoration-border' : (isOverdue ? 'text-notion-red' : 'text-foreground')}`}>
+                                                    {task.title}
+                                                </h4>
+                                                
+                                                {/* Labels - With Text */}
+                                                {task.tags && task.tags.length > 0 && (
+                                                        <div className="flex items-center gap-1 shrink-0">
+                                                            {task.tags.map(tagId => { 
+                                                                const tag = tags.find(t => t.id === tagId); 
+                                                                if (!tag) return null; 
+                                                                return (
+                                                                    <div key={tagId} className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 text-muted-foreground shadow-sm text-[10px]">
+                                                                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                                                                        <span className="truncate max-w-[80px]">{tag.label}</span>
+                                                                    </div>
+                                                                ); 
+                                                            })}
+                                                        </div>
+                                                )}
+                                                
+                                                {/* Icons - Smaller */}
+                                                {subtasks.length > 0 && (
+                                                    <div className="flex items-center gap-0.5 text-[9px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm shrink-0">
+                                                        <ListChecks className="w-3 h-3" />
+                                                        <span className="hidden sm:inline">{subtasks.filter(s => s.completed).length}/{subtasks.length}</span>
+                                                    </div>
+                                                )}
+
+                                                {task.notes && task.notes.trim().length > 0 && (
+                                                    <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
+                                                )}
+                                            </div>
+
+                                            {/* Right Side Info */}
+                                            <div className="flex items-center gap-3 shrink-0">
+                                                {(task.dueDate || task.recurrence || task.time) && (
+                                                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground hidden sm:flex">
+                                                            {isOverdue && <span className="text-notion-red font-bold">Overdue</span>}
+                                                            {task.time && <div className="flex items-center gap-1 text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-sm border border-foreground/10 shadow-sm"><Clock className="w-3 h-3" /><span>{task.time}</span></div>}
+                                                        </div>
+                                                )}
+
+                                                {/* Duration Only - No actualTime, Standard Width */}
+                                                {task.plannedTime && (
+                                                    <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm border border-black/5 tabular-nums min-w-[4rem]">
+                                                        <Clock className="w-3 h-3" />
+                                                        <span>{formatDuration(task.plannedTime)}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
                                   );
                               })}
                           </div>
@@ -1426,7 +1497,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             <div className="p-4 border-t border-border bg-secondary/10 space-y-4">
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex-1 bg-background border border-border rounded-md px-2 py-1.5 flex items-center justify-center gap-1.5 shadow-sm" title="Current Streak">
-                        <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'text-notion-orange fill-notion-orange' : 'text-notion-orange'}`} />
+                        <Flame className={`w-3.5 h-3.5 ${streakData.activeToday ? 'text-notion-orange fill-notion-orange' : 'text-muted-foreground'}`} />
                         <span className="text-xs font-bold tabular-nums">{streakData.count}</span>
                     </div>
                     

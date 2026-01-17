@@ -656,7 +656,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">All Day</h3>
                         <div className="space-y-1">
                             {untimedTasks.map(task => (
-                                <div key={task.id} onClick={() => openEditPanel(task)} className={`bg-background rounded-sm border border-border p-2 hover:shadow-sm cursor-pointer transition-all flex items-center gap-2 ${task.completed ? 'opacity-60' : ''}`}>
+                                <div key={task.id} onClick={(e) => { e.stopPropagation(); openEditPanel(task); }} className={`bg-background rounded-sm border border-border p-2 hover:shadow-sm cursor-pointer transition-all flex items-center gap-2 ${task.completed ? 'opacity-60' : ''}`}>
                                     <div className={`w-3 h-3 border rounded-sm flex items-center justify-center ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'border-muted-foreground/40'}`}>
                                         {task.completed && <Check className="w-2 h-2" />}
                                     </div>
@@ -725,7 +725,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                         const bgColor = task.completed ? 'bg-secondary' : 'bg-notion-bg_blue';
                         const textColor = task.completed ? 'text-muted-foreground' : 'text-notion-blue';
                         return (
-                            <div key={task.id} style={{ ...style, position: 'absolute' }} onClick={() => openEditPanel(task)} className={`rounded-md border-l-4 ${borderColor} ${bgColor} border-y border-r border-gray-200/50 p-1.5 cursor-pointer hover:shadow-md transition-all z-10 flex flex-col overflow-hidden ${task.completed ? 'opacity-60' : ''}`}>
+                            <div key={task.id} style={{ ...style, position: 'absolute' }} onClick={(e) => { e.stopPropagation(); openEditPanel(task); }} className={`rounded-md border-l-4 ${borderColor} ${bgColor} border-y border-r border-gray-200/50 p-1.5 cursor-pointer hover:shadow-md transition-all z-10 flex flex-col overflow-hidden ${task.completed ? 'opacity-60' : ''}`}>
                                 <div className={`text-xs font-semibold truncate ${textColor} ${task.completed ? 'line-through' : ''}`}>{task.title}</div>
                                 {!isShort && <div className="text-[10px] opacity-80 truncate flex items-center gap-1">{task.time} {task.plannedTime ? ` (${formatDuration(task.plannedTime)})` : ''}</div>}
                             </div>
@@ -809,52 +809,51 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                   const subtasks = task.subtasks || [];
 
                   return (
-                    <div key={task.id} onClick={() => openEditPanel(task)} className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md mb-2 overflow-hidden ${isSelected ? 'border-notion-blue ring-1 ring-notion-blue' : 'border-border hover:border-notion-blue/30'}`}>
-                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${priorityColorClass} rounded-l-sm opacity-80`} />
+                    <div key={task.id} onClick={(e) => { e.stopPropagation(); openEditPanel(task); }} className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md mb-1 h-10 overflow-hidden flex items-center ${isSelected ? 'border-notion-blue ring-1 ring-notion-blue' : 'border-border hover:border-notion-blue/30'}`}>
+                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${priorityColorClass} rounded-l-sm opacity-80`} />
                         
-                        <div className="pl-4 pr-3 py-2 flex items-center gap-3">
-                            {/* Checkbox */}
-                            <button onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }} className={`w-5 h-5 rounded-sm border-[1.5px] flex items-center justify-center transition-all duration-200 shrink-0 ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'bg-transparent border-muted-foreground/40 hover:border-notion-blue'}`}>
-                                {task.completed && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        <div className="pl-3 pr-2 flex items-center gap-3 w-full">
+                            {/* Checkbox - Smaller w-4 h-4 */}
+                            <button onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }} className={`w-4 h-4 rounded-sm border-[1.5px] flex items-center justify-center transition-all duration-200 shrink-0 ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'bg-transparent border-muted-foreground/40 hover:border-notion-blue'}`}>
+                                {task.completed && <Check className="w-3 h-3 stroke-[3]" />}
                             </button>
                             
                             {/* Content */}
                             <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden">
-                                {/* Priority Icon Only */}
-                                <div className={`flex items-center justify-center w-5 h-5 rounded-sm shrink-0 border shadow-sm ${getPriorityBadgeStyle(task.priority)}`} title={task.priority}>
+                                {/* Priority Icon Only - Smaller container w-4 h-4 */}
+                                <div className={`flex items-center justify-center w-4 h-4 rounded-sm shrink-0 border shadow-sm ${getPriorityBadgeStyle(task.priority)}`} title={task.priority}>
                                     {getPriorityIcon(task.priority)}
                                 </div>
 
-                                {/* Title */}
-                                <h4 className={`text-sm font-semibold truncate ${task.completed ? 'text-muted-foreground line-through decoration-border' : 'text-foreground'}`}>
+                                {/* Title - Text SM restored */}
+                                <h4 className={`text-sm font-medium truncate ${task.completed ? 'text-muted-foreground line-through decoration-border' : 'text-foreground'}`}>
                                     {task.title}
                                 </h4>
                                 
-                                {/* Labels */}
+                                {/* Labels - With text */}
                                 {task.tags && task.tags.length > 0 && (
-                                     <div className="flex items-center gap-1 shrink-0">
-                                         {task.tags.map(tagId => { 
-                                             const tag = tags.find(t => t.id === tagId); 
-                                             if (!tag) return null; 
-                                             return (
-                                                 <div key={tagId} className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 text-muted-foreground shadow-sm">
-                                                     <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tag.color }} />
-                                                     <span className="truncate max-w-[80px] text-[10px]">{tag.label}</span>
-                                                 </div>
-                                             ); 
-                                         })}
-                                     </div>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                            {task.tags.map(tagId => { 
+                                                const tag = tags.find(t => t.id === tagId); 
+                                                if (!tag) return null; 
+                                                return (
+                                                    <div key={tagId} className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 text-muted-foreground shadow-sm text-[10px]">
+                                                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                                                        <span className="truncate max-w-[80px]">{tag.label}</span>
+                                                    </div>
+                                                ); 
+                                            })}
+                                        </div>
                                 )}
                                 
-                                {/* Subtasks Icon (if space) */}
+                                {/* Icons - Smaller */}
                                 {subtasks.length > 0 && (
-                                    <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm shrink-0">
+                                    <div className="flex items-center gap-0.5 text-[9px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm shrink-0">
                                         <ListChecks className="w-3 h-3" />
                                         <span className="hidden sm:inline">{subtasks.filter(s => s.completed).length}/{subtasks.length}</span>
                                     </div>
                                 )}
 
-                                {/* Notes Icon */}
                                 {task.notes && task.notes.trim().length > 0 && (
                                     <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
                                 )}
@@ -862,24 +861,21 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
                             {/* Right Side Info */}
                             <div className="flex items-center gap-3 shrink-0">
-                                {/* Date / Recurrence (Moved to right to fit single line clean look) */}
                                 {(task.dueDate || task.recurrence || task.time) && (
-                                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground hidden sm:flex">
-                                          {task.recurrence && <Repeat className="w-3 h-3 text-notion-purple" />}
-                                          {task.dueDate && showDateBadge && (
-                                              <span className={`${getRelativeTimeColor(task.dueDate)} font-medium`}>{formatRelativeDate(task.dueDate)}</span>
-                                          )}
-                                          {task.time && <span>{task.time}</span>}
-                                     </div>
+                                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground hidden sm:flex">
+                                            {task.recurrence && <Repeat className="w-3 h-3 text-notion-purple" />}
+                                            {task.dueDate && showDateBadge && (
+                                                <span className={`${getRelativeTimeColor(task.dueDate)} font-medium`}>{formatRelativeDate(task.dueDate)}</span>
+                                            )}
+                                            {task.time && <span>{task.time}</span>}
+                                        </div>
                                 )}
 
-                                {/* Timer */}
-                                {(task.plannedTime || (task.actualTime || 0) > 0) && (
-                                    <div className="flex flex-col items-end justify-center pl-2 self-center gap-0.5 min-w-[3.5rem] border-l border-border/50 ml-1">
-                                        <span className={`font-mono text-xs font-medium tabular-nums ${task.timerStart ? 'text-notion-blue animate-pulse' : 'text-foreground'}`}>
-                                            {Math.round(task.actualTime || 0)}m
-                                        </span>
-                                        {task.plannedTime && <span className="text-[10px] text-muted-foreground tabular-nums opacity-80">/ {task.plannedTime}m</span>}
+                                {/* Duration Only - Standardized Width */}
+                                {task.plannedTime && (
+                                    <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm border border-black/5 tabular-nums min-w-[4rem]">
+                                        <Clock className="w-3 h-3" />
+                                        <span>{formatDuration(task.plannedTime)}</span>
                                     </div>
                                 )}
                             </div>
@@ -1236,80 +1232,85 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
 
   return (
     <div className="flex h-full bg-background overflow-hidden relative">
-        {/* Main Panel */}
-        <div className={`flex-1 flex flex-col min-w-0 border-r border-border ${showDetailPanel ? 'hidden md:flex' : 'flex'}`}>
-            {/* Header - UPDATED FOR CONSISTENCY */}
-            <div className="px-4 md:px-8 pt-4 md:pt-6 pb-4">
-                <div className="flex flex-row items-center justify-between gap-4 border-b border-border pb-4">
-                    {/* Left Side: View Layouts Tabs */}
-                    <div className="flex items-center gap-1">
-                        <button onClick={() => setViewLayout('list')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'list' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Tasks</button>
-                        <button onClick={() => setViewLayout('calendar')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'calendar' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Calendar</button>
-                        <button onClick={() => setViewLayout('tracker')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'tracker' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Tracker</button>
-                    </div>
-
-                    {/* Right Side: Actions & Filters */}
-                    <div className="flex items-center gap-2">
-                         {/* Grouping Menu (Visible in List View) */}
-                         {viewLayout === 'list' && (
-                             <div className="relative">
-                                 <button onClick={() => setIsGroupingMenuOpen(!isGroupingMenuOpen)} className="p-1.5 hover:bg-notion-hover rounded-sm text-muted-foreground hover:text-foreground transition-colors" title="View Options">
-                                     <ArrowUpDown className="w-4 h-4" />
-                                 </button>
-                                 {isGroupingMenuOpen && (
-                                     <>
-                                         <div className="fixed inset-0 z-10" onClick={() => setIsGroupingMenuOpen(false)} />
-                                         <div className="absolute right-0 top-full mt-1 w-48 bg-background border border-border rounded-md shadow-lg z-20 p-1 animate-in zoom-in-95 origin-top-right">
-                                             <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Grouping</div>
-                                             <button onClick={() => { setGrouping('date'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'date' ? 'bg-notion-hover text-foreground' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}><span>By Date</span>{grouping === 'date' && <Check className="w-3 h-3" />}</button>
-                                             <button onClick={() => { setGrouping('priority'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'priority' ? 'bg-notion-hover text-foreground' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}><span>By Priority</span>{grouping === 'priority' && <Check className="w-3 h-3" />}</button>
-                                             <button onClick={() => { setGrouping('none'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${grouping === 'none' ? 'bg-notion-hover text-foreground' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}><span>No Grouping</span>{grouping === 'none' && <Check className="w-3 h-3" />}</button>
-                                             
-                                             <div className="h-px bg-border my-1" />
-                                             <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Sorting</div>
-                                             <button onClick={() => { setSorting('priority'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${sorting === 'priority' ? 'bg-notion-hover text-foreground' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}><span>Priority</span>{sorting === 'priority' && <Check className="w-3 h-3" />}</button>
-                                             <button onClick={() => { setSorting('date'); setIsGroupingMenuOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded-sm flex items-center justify-between ${sorting === 'date' ? 'bg-notion-hover text-foreground' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}><span>Date</span>{sorting === 'date' && <Check className="w-3 h-3" />}</button>
-                                         </div>
-                                     </>
-                                 )}
+      {/* Main List Panel */}
+      <div className={`flex-1 flex flex-col min-w-0 border-r border-border ${showDetailPanel ? 'hidden md:flex' : 'flex'}`}>
+         {/* Header Controls */}
+         <div className="px-4 md:px-8 pt-4 md:pt-6 pb-4">
+            {/* Top Bar: View Switcher & Filters */}
+            <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                     <div className="flex bg-secondary p-1 rounded-sm">
+                        <button onClick={() => setViewLayout('list')} className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${viewLayout === 'list' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>List</button>
+                        <button onClick={() => setViewLayout('calendar')} className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${viewLayout === 'calendar' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Calendar</button>
+                        <button onClick={() => setViewLayout('tracker')} className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${viewLayout === 'tracker' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Tracker</button>
+                     </div>
+                     
+                     <div className="flex items-center gap-2">
+                        {viewLayout === 'list' && (
+                             <div className="flex bg-secondary p-1 rounded-sm">
+                                <button onClick={() => handleViewModeChange('active')} className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${viewMode === 'active' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Active</button>
+                                <button onClick={() => handleViewModeChange('completed')} className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${viewMode === 'completed' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Done</button>
                              </div>
                         )}
-                        
-                        {/* Active/Completed Toggle */}
-                        <div className="flex items-center bg-secondary p-1 rounded-sm">
-                            <button onClick={() => handleViewModeChange('active')} className={`px-2 py-0.5 text-xs font-medium rounded-sm transition-colors ${viewMode === 'active' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Active</button>
-                            <button onClick={() => handleViewModeChange('completed')} className={`px-2 py-0.5 text-xs font-medium rounded-sm transition-colors ${viewMode === 'completed' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>Done</button>
-                        </div>
-                        
-                        {/* New Task Button */}
-                        <button onClick={openCreatePanel} className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0">
-                            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New</span>
+                        <button onClick={openCreatePanel} className="flex items-center gap-1.5 px-2 py-1.5 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0">
+                           <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New</span>
                         </button>
-                    </div>
+                     </div>
                 </div>
-            </div>
-            
-            {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar px-4 md:px-8 pb-20">
+                
+                {/* Secondary Bar for List View: Grouping/Sorting */}
                 {viewLayout === 'list' && (
-                    <div className="py-4 animate-in fade-in">
-                        {renderListGroups(viewMode === 'active' ? activeTasksGroups : completedTasksGroups)}
+                    <div className="flex items-center gap-2">
+                         <div className="relative">
+                              <button onClick={() => setIsGroupingMenuOpen(!isGroupingMenuOpen)} className="flex items-center gap-1.5 px-2 py-1 bg-background border border-border rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-notion-hover">
+                                  {grouping === 'date' ? <Calendar className="w-3.5 h-3.5" /> : grouping === 'priority' ? <Flag className="w-3.5 h-3.5" /> : <ListTodo className="w-3.5 h-3.5" />}
+                                  <span>Group: {grouping === 'date' ? 'Date' : grouping === 'priority' ? 'Priority' : 'None'}</span>
+                              </button>
+                              {isGroupingMenuOpen && (
+                                  <>
+                                      <div className="fixed inset-0 z-10" onClick={() => setIsGroupingMenuOpen(false)} />
+                                      <div className="absolute left-0 top-full mt-1 w-40 bg-background border border-border rounded-md shadow-lg z-20 p-1 animate-in zoom-in-95">
+                                          <button onClick={() => { setGrouping('date'); setIsGroupingMenuOpen(false); }} className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm flex items-center gap-2">
+                                              <Calendar className="w-3.5 h-3.5" /> Date
+                                          </button>
+                                          <button onClick={() => { setGrouping('priority'); setIsGroupingMenuOpen(false); }} className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm flex items-center gap-2">
+                                              <Flag className="w-3.5 h-3.5" /> Priority
+                                          </button>
+                                          <button onClick={() => { setGrouping('none'); setIsGroupingMenuOpen(false); }} className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm flex items-center gap-2">
+                                              <ListTodo className="w-3.5 h-3.5" /> None
+                                          </button>
+                                      </div>
+                                  </>
+                              )}
+                         </div>
+                         
+                         <button onClick={() => setSorting(sorting === 'date' ? 'priority' : 'date')} className="flex items-center gap-1.5 px-2 py-1 bg-background border border-border rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-notion-hover" title="Toggle Sort">
+                             <ArrowUpDown className="w-3.5 h-3.5" />
+                             <span>Sort: {sorting === 'date' ? 'Date' : 'Priority'}</span>
+                         </button>
                     </div>
+                )}
+            </div>
+         </div>
+
+         {/* Content Area */}
+         <div className="flex-1 overflow-y-auto custom-scrollbar px-4 md:px-8 pb-20" onClick={() => { setSelectedTaskId(null); setIsCreating(false); }}>
+             <div className="animate-in fade-in max-w-4xl mx-auto w-full">
+                {viewLayout === 'list' && (
+                     renderListGroups(viewMode === 'active' ? activeTasksGroups : completedTasksGroups)
                 )}
                 
                 {viewLayout === 'calendar' && renderCalendarView()}
                 
                 {viewLayout === 'tracker' && renderTrackerView()}
-            </div>
-        </div>
+             </div>
+         </div>
+      </div>
 
-        {/* Detail Panel */}
-        <div className={`
-            bg-background border-l border-border z-20
-            ${showDetailPanel ? 'flex flex-col flex-1 w-full md:w-[500px] md:flex-none' : 'hidden md:flex md:flex-col md:w-[500px]'}
-        `}>
-            {showDetailPanel ? renderDetailPanel() : renderEmptyState()}
-        </div>
+      {/* Detail Panel (Right Sidebar) */}
+      <div className={`bg-background border-l border-border z-20 ${showDetailPanel ? 'flex flex-col flex-1 w-full md:w-[500px] md:flex-none' : 'hidden md:flex md:flex-col md:w-[500px]'}`}>
+           {showDetailPanel ? renderDetailPanel() : renderEmptyState()}
+      </div>
     </div>
   );
 };
