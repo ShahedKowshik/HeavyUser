@@ -1207,7 +1207,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                   {/* Tasks List */}
                   <div className="space-y-3">
                       <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2 px-1">
-                          <CheckSquare className="w-4 h-4" /> Task to Complete
+                          <CheckSquare className="w-4 h-4" /> Tasks
                       </h2>
                       {todayTasks.length > 0 ? (
                           <div className="space-y-3">
@@ -1321,9 +1321,31 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                         
                                         {/* Content */}
                                         <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden">
+                                            {/* Priority Icon Added for Reminder */}
+                                            <div className={`flex items-center justify-center w-4 h-4 rounded-sm shrink-0 border shadow-sm ${getPriorityBadgeStyle(task.priority)}`} title={task.priority}>
+                                                {getPriorityIcon(task.priority)}
+                                            </div>
+
                                             <h4 className={`text-sm font-medium truncate ${task.completed ? 'text-muted-foreground line-through decoration-border' : (isOverdue ? 'text-notion-red' : 'text-foreground')}`}>
                                                 {task.title}
                                             </h4>
+
+                                            {/* Labels Added for Reminder */}
+                                            {task.tags && task.tags.length > 0 && (
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    {task.tags.map(tagId => { 
+                                                        const tag = tags.find(t => t.id === tagId); 
+                                                        if (!tag) return null; 
+                                                        return (
+                                                            <div key={tagId} className="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-secondary border border-foreground/10 text-muted-foreground shadow-sm text-[10px]">
+                                                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                                                                <span className="truncate max-w-[80px]">{tag.label}</span>
+                                                            </div>
+                                                        ); 
+                                                    })}
+                                                </div>
+                                            )}
+
                                             {task.notes && task.notes.trim().length > 0 && (
                                                 <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
                                             )}
@@ -1531,15 +1553,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             {enabledModules.includes('notes') && <NavItem id="notes" label="Notes" icon={StickyNote} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />}
           </nav>
           
-          <div className="shrink-0 mb-2 px-2 space-y-0.5 border-t border-border/40 pt-2">
-                <NavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
-                <div className="py-1">
-                    <div className="border-t border-border" />
-                </div>
-                <ExternalNavLink href="https://heavyuser.userjot.com/" label="Share Feedback" icon={MessageSquare} isSidebarCollapsed={isSidebarCollapsed} />
-                <ExternalNavLink href="https://heavyuser.userjot.com/roadmap" label="View Roadmap" icon={Map} isSidebarCollapsed={isSidebarCollapsed} />
-          </div>
-
           {!isSidebarCollapsed && (
             <div className="p-4 border-t border-border bg-secondary/10 space-y-4">
                 <div className="flex items-center justify-between gap-2">
@@ -1602,6 +1615,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                 </div>
             </div>
           )}
+
+          <div className="shrink-0 mb-2 px-2 space-y-0.5 border-t border-border/40 pt-2">
+                <ExternalNavLink href="https://heavyuser.userjot.com/" label="Share Feedback" icon={MessageSquare} isSidebarCollapsed={isSidebarCollapsed} />
+                <ExternalNavLink href="https://heavyuser.userjot.com/roadmap" label="View Roadmap" icon={Map} isSidebarCollapsed={isSidebarCollapsed} />
+                <div className="py-1">
+                    <div className="border-t border-border" />
+                </div>
+                <NavItem id="settings" label="Settings" icon={Settings} activeTab={activeTab} setActiveTab={setActiveTab} isSidebarCollapsed={isSidebarCollapsed} />
+          </div>
       </aside>
   );
 

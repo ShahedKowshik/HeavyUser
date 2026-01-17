@@ -18,11 +18,14 @@ const fetchEventsForAccount = async (account: CalendarAccount, timeMin: string, 
       maxResults: '1000', // Fetch a good number of events
     });
 
+    const token = account.token.trim();
+
+    // Use Accept header instead of Content-Type for GET requests to avoid strict CORS preflight issues
     const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${account.token}`,
-        'Content-Type': 'application/json'
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
       },
     });
 
@@ -32,7 +35,9 @@ const fetchEventsForAccount = async (account: CalendarAccount, timeMin: string, 
     }
 
     if (!response.ok) {
-      throw new Error(`Google API returned ${response.status}: ${response.statusText}`);
+      // Attempt to read error text for better debugging
+      const errorText = await response.text().catch(() => response.statusText);
+      throw new Error(`Google API returned ${response.status}: ${errorText}`);
     }
 
     const data = await response.json();
@@ -59,7 +64,7 @@ const fetchEventsForAccount = async (account: CalendarAccount, timeMin: string, 
     });
 
   } catch (error) {
-    console.error(`Failed to fetch calendar events for ${account.email}:`, error);
+    console.error(`Failed to fetch calendar events for ${account.email}. This may be due to network issues, CORS, or a blocked request.`, error);
     return [];
   }
 };
