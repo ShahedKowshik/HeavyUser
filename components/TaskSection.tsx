@@ -1,10 +1,9 @@
-
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Pause, Bell, AlertCircle, ArrowRight, Layers, Moon, Archive, CalendarClock, BarChart3, Check, FileText } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence, TaskSession, CalendarEvent } from '../types';
 import { supabase } from '../lib/supabase';
 import { encryptData } from '../lib/crypto';
+import { getContrastColor } from '../lib/utils';
 
 interface TaskSectionProps {
   tasks: Task[];
@@ -409,6 +408,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
     } else if (viewLayout === 'reminder') {
         filtered = filtered.filter(t => t.type === 'reminder');
     } else if (viewLayout === 'tracker') {
+        // For tracker view, we usually want to see active tasks or tasks with time set
         filtered = filtered.filter(t => t.type !== 'reminder');
     }
 
@@ -465,8 +465,294 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   }, [safeTasks, grouping, sorting, activeFilterTagId, dayStartHour, viewLayout]);
 
   const renderCalendarView = () => {
-    // Placeholder for simplicity in this update
-    return <div className="p-10 text-center text-muted-foreground">Calendar View</div>;
+      const year = calendarDate.getFullYear();
+      const month = calendarDate.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const firstDay = new Date(year, month, 1).getDay(); // 0 Sun
+      const startOffset = (firstDay - startWeekDay + 7) % 7;
+      
+      const days = [];
+      for (let i = 0; i < startOffset; i++) days.push(null);
+      for (let i = 1; i <= daysInMonth; i++) days.push(i);
+
+      const changeMonth = (delta: number) => {
+          const d = new Date(calendarDate);
+          d.setMonth(d.getMonth() + delta);
+          setCalendarDate(d);
+      };
+
+      const monthName = calendarDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+      const weekDays = getRotatedWeekdays(startWeekDay);
+
+      return (
+          <div className="flex flex-col h-full bg-background">
+              <div className="flex items-center justify-between mb-4 pt-2">
+                  <span className="font-bold text-lg">{monthName}</span>
+                  <div className="flex gap-1 bg-secondary rounded-sm p-0.5">
+                      <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-notion-hover rounded-sm transition-colors text-muted-foreground hover:text-foreground"><ChevronLeft className="w-4 h-4" /></button>
+                      <button onClick={() => setCalendarDate(new Date())} className="px-2 text-xs font-medium hover:bg-notion-hover rounded-sm transition-colors text-muted-foreground hover:text-foreground">Today</button>
+                      <button onClick={() => changeMonth(1)} className="p-1 hover:bg-notion-hover rounded-sm transition-colors text-muted-foreground hover:text-foreground"><ChevronRight className="w-4 h-4" /></button>
+                  </div>
+              </div>
+              
+              <div className="grid grid-cols-7 border-b border-border">
+                  {weekDays.map(d => (
+                      <div key={d} className="p-2 text-center text-[10px] font-bold text-muted-foreground uppercase">{d}</div>
+                  ))}
+              </div>
+              
+              <div className="grid grid-cols-7 auto-rows-fr flex-1 border-l border-border">
+                  {days.map((day, i) => {
+                      if (!day) return <div key={i} className="border-b border-r border-border min-h-[80px] bg-secondary/10" />;
+                      
+                      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      const dayTasks = tasks.filter(t => t.dueDate === dateStr);
+                      const isToday = dateStr === getLocalDateString(new Date());
+
+                      return (
+                          <div key={i} className={`border-b border-r border-border p-1 min-h-[80px] flex flex-col gap-1 transition-colors ${isToday ? 'bg-notion-bg_blue/30' : 'hover:bg-secondary/20'}`}>
+                              <div className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full mb-1 ${isToday ? 'bg-notion-blue text-white' : 'text-muted-foreground'}`}>
+                                  {day}
+                              </div>
+                              <div className="flex-1 flex flex-col gap-1 overflow-y-auto custom-scrollbar max-h-[100px]">
+                                  {dayTasks.map(t => (
+                                      <button 
+                                        key={t.id} 
+                                        onClick={() => openEditPanel(t)}
+                                        className={`text-[10px] text-left px-1.5 py-0.5 rounded-sm truncate border transition-all ${t.completed ? 'bg-secondary text-muted-foreground line-through border-transparent opacity-60' : 'bg-background border-border shadow-sm hover:border-notion-blue'}`}
+                                      >
+                                          {t.title}
+                                      </button>
+                                  ))}
+                              </div>
+                          </div>
+                      );
+                  })}
+              </div>
+          </div>
+      );
+  };
+
+  const renderTrackerView = () => {
+      // Filter tasks that have time activity or planning or are actively running
+      const trackedTasks = tasks.filter(t => t.plannedTime || t.actualTime || t.timerStart);
+      
+      const totalActual = trackedTasks.reduce((acc, t) => acc + (t.actualTime || 0), 0);
+      const totalPlanned = trackedTasks.reduce((acc, t) => acc + (t.plannedTime || 0), 0);
+
+      return (
+          <div className="space-y-6 pt-2">
+              {/* Summary Card */}
+              <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-secondary/30 rounded-lg border border-border">
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-1">Time Spent</div>
+                      <div className="text-2xl font-bold flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-notion-blue" />
+                          {formatDuration(totalActual)}
+                      </div>
+                  </div>
+                  <div className="p-4 bg-secondary/30 rounded-lg border border-border">
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-1">Total Planned</div>
+                      <div className="text-2xl font-bold flex items-center gap-2">
+                          <CalendarClock className="w-5 h-5 text-notion-orange" />
+                          {formatDuration(totalPlanned)}
+                      </div>
+                  </div>
+              </div>
+
+              <div className="space-y-3">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">Active Tasks & Logs</h3>
+                  {trackedTasks.length > 0 ? (
+                      <div className="space-y-2">
+                          {trackedTasks.map(task => {
+                              const percent = task.plannedTime ? Math.min(100, ((task.actualTime || 0) / task.plannedTime) * 100) : 0;
+                              return (
+                                  <div key={task.id} className="p-3 border border-border rounded-lg bg-background hover:shadow-sm transition-shadow">
+                                      <div className="flex items-center justify-between gap-4 mb-2">
+                                          <div className="flex items-center gap-3 overflow-hidden">
+                                               <button 
+                                                  onClick={(e) => onToggleTimer(task.id, e)} 
+                                                  className={`p-2 rounded-full transition-all shadow-sm ${task.timerStart ? 'bg-notion-blue text-white animate-pulse hover:bg-blue-600' : 'bg-secondary text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
+                                               >
+                                                  {task.timerStart ? <Pause className="w-4 h-4 fill-current" /> : <Clock className="w-4 h-4" />}
+                                               </button>
+                                               <div className="min-w-0">
+                                                   <div className="font-medium text-sm truncate cursor-pointer hover:underline" onClick={() => openEditPanel(task)}>{task.title}</div>
+                                                   <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                                       <span className="font-medium text-foreground">{task.actualTime ? formatDuration(task.actualTime) : '0m'}</span>
+                                                       <span>/</span>
+                                                       <span>{task.plannedTime ? formatDuration(task.plannedTime) : '-'}</span>
+                                                   </div>
+                                               </div>
+                                          </div>
+                                          {task.plannedTime && (
+                                              <div className="text-xs font-bold text-muted-foreground tabular-nums">{Math.round(percent)}%</div>
+                                          )}
+                                      </div>
+                                      
+                                      {/* Progress Bar */}
+                                      {task.plannedTime && (
+                                          <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+                                              <div 
+                                                className={`h-full transition-all duration-500 ${percent >= 100 ? 'bg-notion-green' : 'bg-notion-blue'}`} 
+                                                style={{ width: `${percent}%` }} 
+                                              />
+                                          </div>
+                                      )}
+                                  </div>
+                              );
+                          })}
+                      </div>
+                  ) : (
+                      <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-lg bg-secondary/10">
+                          <BarChart3 className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No time tracked yet.</p>
+                          <p className="text-xs mt-1">Start a timer or set a duration on a task to see it here.</p>
+                      </div>
+                  )}
+              </div>
+          </div>
+      );
+  };
+
+  const renderTaskItem = (task: Task) => {
+      const isSelected = selectedTaskId === task.id;
+      const isOverdue = task.dueDate && getDayDiff(task.dueDate) < 0 && !task.completed;
+      const priorityColorClass = getPriorityLineColor(task.priority);
+      
+      return (
+          <div 
+            key={task.id} 
+            onClick={() => openEditPanel(task)}
+            className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md h-10 overflow-hidden flex items-center ${isSelected ? 'border-notion-blue ring-1 ring-notion-blue' : 'border-border hover:border-notion-blue/30'}`}
+          >
+              <div className={`absolute left-0 top-0 bottom-0 w-1 ${priorityColorClass} rounded-l-sm opacity-80`} />
+              
+              <div className="pl-3 pr-2 flex items-center gap-3 w-full">
+                  {/* Checkbox */}
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }} 
+                    className={`w-4 h-4 rounded-sm border-[1.5px] flex items-center justify-center transition-all duration-200 shrink-0 ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'bg-transparent border-muted-foreground/40 hover:border-notion-blue'}`}
+                  >
+                      {task.completed && <Check className="w-3 h-3 stroke-[3]" />}
+                  </button>
+                  
+                  {/* Content */}
+                  <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden">
+                      {/* Priority Icon */}
+                      <div className={`flex items-center justify-center w-4 h-4 rounded-sm shrink-0 border shadow-sm ${getPriorityBadgeStyle(task.priority)}`} title={task.priority}>
+                          {getPriorityIcon(task.priority)}
+                      </div>
+
+                      {/* Title */}
+                      <h4 className={`text-sm font-medium truncate ${task.completed ? 'text-muted-foreground line-through decoration-border' : (isOverdue ? 'text-notion-red' : 'text-foreground')}`}>
+                          {task.title}
+                      </h4>
+                      
+                      {/* Tags */}
+                      {task.tags && task.tags.length > 0 && (
+                          <div className="flex items-center gap-1 shrink-0 hidden sm:flex">
+                              {task.tags.map(tagId => { 
+                                  const tag = tags.find(t => t.id === tagId); 
+                                  if (!tag) return null; 
+                                  return (
+                                      <div key={tagId} className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} title={tag.label} />
+                                  ); 
+                              })}
+                          </div>
+                      )}
+                      
+                      {/* Subtasks Indicator */}
+                      {task.subtasks && task.subtasks.length > 0 && (
+                          <div className="flex items-center gap-0.5 text-[9px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm shrink-0">
+                              <ListChecks className="w-3 h-3" />
+                              <span className="hidden sm:inline">{task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}</span>
+                          </div>
+                      )}
+
+                      {task.notes && task.notes.trim().length > 0 && (
+                          <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
+                      )}
+                  </div>
+
+                  {/* Right Side Info */}
+                  <div className="flex items-center gap-3 shrink-0">
+                      {(task.dueDate || task.time) && (
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                              {isOverdue && <span className="text-notion-red font-bold hidden sm:inline">Overdue</span>}
+                              {task.dueDate && <span className={isOverdue ? 'text-notion-red' : ''}>{formatRelativeDate(task.dueDate)}</span>}
+                              {task.time && <div className="flex items-center gap-1 text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-sm border border-foreground/10 shadow-sm hidden sm:flex"><Clock className="w-3 h-3" /><span>{task.time}</span></div>}
+                          </div>
+                      )}
+                      
+                      {/* Timer Button */}
+                       <button 
+                          onClick={(e) => onToggleTimer(task.id, e)}
+                          className={`p-1.5 rounded-full transition-colors ${task.timerStart ? 'text-notion-blue bg-blue-100 hover:bg-blue-200' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
+                          title={task.timerStart ? "Stop Timer" : "Start Timer"}
+                       >
+                           {task.timerStart ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Clock className="w-3.5 h-3.5" />}
+                       </button>
+                  </div>
+              </div>
+          </div>
+      );
+  };
+
+  const renderListGroups = (groups: { title: string, tasks: Task[] }[]) => {
+      if (groups.length === 0) {
+          if (activeFilterTagId || viewLayout !== 'list') {
+               return (
+                  <div className="flex flex-col items-center justify-center h-64 text-center opacity-50">
+                      <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center mb-3">
+                          <ListChecks className="w-6 h-6 text-muted-foreground" />
+                      </div>
+                      <p className="text-sm font-medium">No tasks found</p>
+                  </div>
+               );
+          }
+          return (
+              <div className="flex flex-col items-center justify-center h-64 text-center opacity-50">
+                  <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center mb-3">
+                      <CheckSquare className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm font-medium">No tasks yet</p>
+                  <button onClick={openCreatePanel} className="mt-2 text-xs text-notion-blue hover:underline">Create a task</button>
+              </div>
+          );
+      }
+
+      return (
+          <div className="space-y-6 pb-20">
+              {groups.map((group) => (
+                  <div key={group.title || 'untitled'} className="space-y-1">
+                      {grouping !== 'none' && (
+                          <div className="flex items-center gap-2 mb-2 px-1 sticky top-0 bg-background/95 backdrop-blur-sm z-10 py-2">
+                               {grouping === 'date' ? (
+                                   <GroupHeaderIcon title={group.title} dayStartHour={dayStartHour} />
+                               ) : (
+                                   <div className={`w-6 h-6 rounded-md flex items-center justify-center border ${getPriorityBadgeStyle(group.title as Priority)}`}>
+                                       {getPriorityIcon(group.title as Priority)}
+                                   </div>
+                               )}
+                               <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{group.title}</h3>
+                               <span className="text-[10px] bg-secondary px-1.5 rounded-full text-muted-foreground font-mono">{group.tasks.length}</span>
+                          </div>
+                      )}
+                      
+                      <div className="space-y-1">
+                          {group.tasks.map(task => renderTaskItem(task))}
+                      </div>
+                  </div>
+              ))}
+          </div>
+      );
+  };
+
+  const renderContent = () => {
+      if (viewLayout === 'calendar') return renderCalendarView();
+      if (viewLayout === 'tracker') return renderTrackerView();
+      return renderListGroups(activeTasksGroups);
   };
 
   const renderEmptyState = () => (
@@ -477,7 +763,11 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
       </div>
   );
 
-  const renderDetailPanel = () => (
+  const renderDetailPanel = () => {
+    const task = tasks.find(t => t.id === selectedTaskId);
+    const isTimerRunning = task?.timerStart;
+
+    return (
     <div className="flex flex-col h-full bg-background animate-fade-in relative">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-background/95 backdrop-blur z-10 sticky top-0 shrink-0">
              <div className="flex items-center gap-2">
@@ -487,10 +777,19 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                 <span className="text-sm font-semibold">{isCreating ? (createType === 'reminder' ? 'New Reminder' : 'New Task') : 'Edit'}</span>
              </div>
              <div className="flex items-center gap-1">
-                 {selectedTaskId && (
-                    <button onClick={handleDeleteTask} className="p-2 text-muted-foreground hover:bg-red-50 hover:text-red-600 rounded-sm transition-colors" title="Delete">
-                        <Trash2 className="w-4 h-4" />
-                    </button>
+                 {selectedTaskId && !isCreating && (
+                    <>
+                        <button 
+                            onClick={(e) => onToggleTimer(selectedTaskId, e)}
+                            className={`p-2 rounded-sm transition-colors ${isTimerRunning ? 'text-notion-blue bg-notion-bg_blue hover:bg-blue-100' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
+                            title={isTimerRunning ? "Stop Timer" : "Start Timer"}
+                        >
+                            {isTimerRunning ? <Pause className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                        </button>
+                        <button onClick={handleDeleteTask} className="p-2 text-muted-foreground hover:bg-red-50 hover:text-red-600 rounded-sm transition-colors" title="Delete">
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    </>
                  )}
                  <button onClick={(e) => { handleSaveTask(e); setSelectedTaskId(null); setIsCreating(false); }} className="p-2 rounded-sm transition-colors font-medium text-sm px-4 bg-primary text-primary-foreground hover:bg-primary/90">
                      {isCreating ? 'Create' : 'Done'}
@@ -514,6 +813,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                 </div>
 
                 <div className="px-6 py-2 flex flex-wrap items-center gap-2">
+                    <button
+                        onClick={() => setCreateType(prev => prev === 'task' ? 'reminder' : 'task')}
+                        className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20`}
+                    >
+                        {createType === 'task' ? <CheckSquare className="w-4 h-4 shrink-0" /> : <Bell className="w-4 h-4 shrink-0" />}
+                        <span className="truncate">{createType === 'task' ? 'Type: Task' : 'Type: Reminder'}</span>
+                    </button>
+
                     <button 
                         onClick={() => setActivePopover(activePopover === 'priority' ? null : 'priority')}
                         className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'priority' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
@@ -667,190 +974,43 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
             </div>
         </div>
     </div>
-  );
-
-  const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => {
-    const safeGroups = Array.isArray(groups) ? groups : [];
-    return (
-    <div className="space-y-6">
-      {safeGroups.length === 0 && (
-         <div className="text-center py-20 opacity-50">
-             <div className="w-16 h-16 bg-notion-bg_gray rounded-full flex items-center justify-center mx-auto mb-4">
-                 {viewLayout === 'reminder' ? <Bell className="w-8 h-8 text-muted-foreground" /> : <CircleCheck className="w-8 h-8 text-muted-foreground" />}
-             </div>
-             <p className="font-medium text-muted-foreground">{viewLayout === 'reminder' ? 'No reminders' : 'No tasks found'}</p>
-         </div>
-      )}
-      {safeGroups.map((group, gIdx) => {
-          if (!group || !group.tasks) return null;
-          const isNightOwl = new Date().getHours() < (dayStartHour || 0);
-          const showMoon = grouping === 'date' && (group.title === 'Today' || group.title === 'Tomorrow') && isNightOwl;
-          
-          // Determine if we should hide date based on group title context
-          const shouldHideDate = grouping === 'date' && (group.title === 'Overdue' || group.title === 'Today' || group.title === 'Tomorrow');
-
-          return (
-            <div key={group.title + gIdx} className="space-y-0">
-              {group.title && (
-                <div className="pl-0 pr-2 py-2 flex items-center justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2 overflow-hidden">
-                      {grouping === 'date' && <GroupHeaderIcon title={group.title} dayStartHour={dayStartHour} />}
-                      <span className={`text-sm font-semibold text-foreground ${group.title === 'Overdue' ? 'text-notion-red' : ''} shrink-0`}>{group.title}</span>
-                      <span className="text-xs text-muted-foreground bg-notion-item_hover px-1.5 rounded-sm shrink-0">{group.tasks.length}</span>
-                      {showMoon && <Moon className="w-3.5 h-3.5 text-notion-blue fill-current ml-1 animate-pulse" />}
-                      {group.title === 'Overdue' && (
-                          <div className="relative ml-2">
-                              <button onClick={(e) => { e.stopPropagation(); setIsRescheduleMenuOpen(!isRescheduleMenuOpen); }} className="p-1 hover:bg-notion-hover rounded-sm text-notion-red transition-colors flex items-center justify-center" title="Reschedule overdue tasks"><Calendar className="w-3.5 h-3.5" /></button>
-                              {isRescheduleMenuOpen && (
-                                  <>
-                                      <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setIsRescheduleMenuOpen(false); }} />
-                                      <div className="absolute left-0 top-full mt-1 z-20 w-40 bg-background border border-border rounded-md shadow-lg p-1 animate-in zoom-in-95 origin-top-left" onClick={(e) => e.stopPropagation()}>
-                                          <button onClick={() => rescheduleOverdue(group.tasks, 0)} className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm flex items-center gap-2"><span>Today</span></button>
-                                          <button onClick={() => rescheduleOverdue(group.tasks, 1)} className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-notion-hover rounded-sm flex items-center gap-2"><span>Tomorrow</span></button>
-                                      </div>
-                                  </>
-                              )}
-                          </div>
-                      )}
-                  </div>
-                </div>
-              )}
-              <div className="flex flex-col">
-                {group.tasks.map((task) => {
-                  const isSelected = task.id === selectedTaskId;
-                  const priorityColorClass = getPriorityLineColor(task.priority);
-                  const subtasks = task.subtasks || [];
-                  const isReminder = task.type === 'reminder';
-
-                  return (
-                    <div key={task.id} onClick={() => openEditPanel(task)} className={`group relative bg-background rounded-sm border transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md mb-1 h-10 overflow-hidden flex items-center ${isSelected ? 'border-notion-blue ring-1 ring-notion-blue' : 'border-border hover:border-notion-blue/30'}`}>
-                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${priorityColorClass} rounded-l-sm opacity-80`} />
-                        
-                        <div className="pl-3 pr-2 flex items-center gap-3 w-full">
-                            <button onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }} className={`w-4 h-4 rounded-sm border-[1.5px] flex items-center justify-center transition-all duration-200 shrink-0 ${task.completed ? 'bg-notion-blue border-notion-blue text-white' : 'bg-transparent border-muted-foreground/40 hover:border-notion-blue'}`}>
-                                {task.completed && <Check className="w-3 h-3 stroke-[3]" />}
-                            </button>
-                            
-                            <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden">
-                                {isReminder ? (
-                                    <Bell className="w-3.5 h-3.5 text-notion-orange shrink-0 fill-current" />
-                                ) : (
-                                    <div className={`flex items-center justify-center w-4 h-4 rounded-sm shrink-0 border shadow-sm ${getPriorityBadgeStyle(task.priority)}`} title={task.priority}>
-                                        {getPriorityIcon(task.priority)}
-                                    </div>
-                                )}
-
-                                <h4 className={`text-sm font-medium truncate ${task.completed ? 'text-muted-foreground line-through decoration-border' : 'text-foreground'}`}>
-                                    {task.title}
-                                </h4>
-                                
-                                {task.tags && task.tags.length > 0 && (
-                                        <div className="flex items-center gap-1 shrink-0">
-                                            {task.tags.map(tagId => { 
-                                                const tag = tags.find(t => t.id === tagId); 
-                                                if (!tag) return null; 
-                                                return (
-                                                    <div key={tagId} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tag.color }} title={tag.label} />
-                                                ); 
-                                            })}
-                                        </div>
-                                )}
-                                
-                                {!isReminder && subtasks.length > 0 && (
-                                    <div className="flex items-center gap-0.5 text-[9px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm shrink-0">
-                                        <ListChecks className="w-3 h-3" />
-                                        <span className="hidden sm:inline">{subtasks.filter(s => s.completed).length}/{subtasks.length}</span>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex items-center gap-3 shrink-0">
-                                {(task.dueDate || task.recurrence || task.time) && (
-                                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground hidden sm:flex">
-                                            {/* Hide date if group implies it */}
-                                            {!shouldHideDate && task.dueDate && <span className={getDayDiff(task.dueDate) < 0 ? 'text-notion-red font-bold' : ''}>{formatRelativeDate(task.dueDate)}</span>}
-                                            {task.time && <div className="flex items-center gap-1 text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-sm border border-foreground/10 shadow-sm"><Clock className="w-3 h-3" /><span>{task.time}</span></div>}
-                                        </div>
-                                )}
-                                {!isReminder && task.plannedTime && (
-                                    <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm border border-black/5 tabular-nums min-w-[4rem]">
-                                        <Clock className="w-3 h-3" />
-                                        <span>{formatDuration(task.plannedTime)}</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-      })}
-    </div>
-    );
-  };
+  )};
 
   return (
-    <div className="flex h-full bg-background relative overflow-hidden">
-        {/* Main List Panel */}
+    <div className="flex h-full bg-background overflow-hidden relative">
+        {/* Sidebar / List */}
         <div className={`flex-1 flex flex-col min-w-0 border-r border-border ${selectedTaskId || isCreating ? 'hidden md:flex' : 'flex'}`}>
             <div className="px-4 md:px-8 pt-4 md:pt-6 pb-4">
-                <div className="flex flex-row items-center justify-between gap-4 border-b border-border pb-4">
+                 <div className="flex flex-row items-center justify-between gap-4 border-b border-border pb-4">
                     <div className="flex items-center gap-1">
-                        <button 
-                            onClick={() => { setViewLayout('list'); setCreateType('task'); }} 
-                            className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'list' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
-                        >
-                            To-Do
-                        </button>
-                        <button 
-                            onClick={() => { setViewLayout('reminder'); setCreateType('reminder'); }} 
-                            className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'reminder' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
-                        >
-                            Reminder
-                        </button>
-                         <button 
-                            onClick={() => { setViewLayout('calendar'); }} 
-                            className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'calendar' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
-                        >
-                            Calendar
-                        </button>
-                        <button 
-                            onClick={() => { setViewLayout('tracker'); setCreateType('task'); }} 
-                            className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'tracker' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
-                        >
-                            Tracker
-                        </button>
+                         <div className="flex bg-secondary p-0.5 rounded-sm">
+                             <button onClick={() => setViewLayout('list')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'list' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Tasks</button>
+                             <button onClick={() => setViewLayout('reminder')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'reminder' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Reminders</button>
+                             <button onClick={() => setViewLayout('calendar')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'calendar' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Calendar</button>
+                             <button onClick={() => setViewLayout('tracker')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'tracker' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Tracker</button>
+                         </div>
+                         <div className="w-px h-4 bg-border mx-2" />
+                         <div className="flex bg-secondary p-0.5 rounded-sm">
+                             <button onClick={() => { setGrouping('date'); setSorting('priority'); }} className={`px-2 py-1 text-xs font-medium rounded-sm transition-colors ${grouping === 'date' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Date</button>
+                             <button onClick={() => { setGrouping('priority'); setSorting('date'); }} className={`px-2 py-1 text-xs font-medium rounded-sm transition-colors ${grouping === 'priority' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Priority</button>
+                         </div>
                     </div>
-
-                    <div className="flex items-center gap-2">
-                        <button onClick={openCreatePanel} className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium">
-                            <Plus className="w-4 h-4" /> 
-                            <span className="hidden sm:inline">New</span>
-                        </button>
-                    </div>
-                </div>
+                    
+                    <button onClick={openCreatePanel} className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0">
+                        <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New</span>
+                    </button>
+                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar px-4 md:px-8 pb-20">
-                {viewLayout === 'calendar' ? renderCalendarView() : (
-                    <div className="space-y-8 animate-in fade-in">
-                        {renderListGroups(activeTasksGroups)}
-                    </div>
-                )}
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-4 md:px-8 pb-20 animate-in fade-in">
+                 {renderContent()}
             </div>
         </div>
 
         {/* Detail Panel */}
-        <div className={`
-            bg-background border-l border-border z-20
-            ${(selectedTaskId || isCreating) 
-                ? 'flex flex-col flex-1 w-full md:w-[500px] md:flex-none' 
-                : 'hidden md:flex md:flex-col md:w-[500px]'}
-        `}>
-            {(selectedTaskId || isCreating) ? renderDetailPanel() : renderEmptyState()}
+        <div className={`bg-background border-l border-border z-20 ${selectedTaskId || isCreating ? 'flex flex-col flex-1 w-full md:w-[500px] md:flex-none' : 'hidden md:flex md:flex-col md:w-[500px]'}`}>
+             {(selectedTaskId || isCreating) ? renderDetailPanel() : renderEmptyState()}
         </div>
     </div>
-  )
-}
+  );
+};

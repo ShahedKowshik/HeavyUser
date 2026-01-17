@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2 } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence, CalendarEvent } from '../types';
@@ -751,7 +749,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       const todaySessions = sessions.filter(s => { const sDate = new Date(s.startTime); if (sDate.getHours() < (userSettings.dayStartHour || 0)) sDate.setDate(sDate.getDate() - 1); return `${sDate.getFullYear()}-${String(sDate.getMonth() + 1).padStart(2, '0')}-${String(sDate.getDate()).padStart(2, '0')}` === today; });
       const totalTrackedSeconds = todaySessions.reduce((acc, s) => s.endTime ? acc + (s.duration || 0) : acc + Math.floor((nowTs - new Date(s.startTime).getTime()) / 1000), 0);
       const activeTasks = tasks.filter(t => !t.completed && t.dueDate && (t.dueDate === today || t.dueDate < today));
-      const remainingMinutes = activeTasks.reduce((acc, t) => { let cur = t.timerStart ? (nowTs - new Date(t.timerStart).getTime()) / 1000 / 60 : 0; return acc + Math.max(0, (t.plannedTime || 0) - (t.actualTime || 0) - cur); }, 0);
+      const remainingMinutes = Math.round(activeTasks.reduce((acc, t) => { let cur = t.timerStart ? (nowTs - new Date(t.timerStart).getTime()) / 1000 / 60 : 0; return acc + Math.max(0, (t.plannedTime || 0) - (t.actualTime || 0) - cur); }, 0));
       return { totalTrackedSeconds, remainingMinutes, finishTime: remainingMinutes > 0 ? new Date(nowTs + remainingMinutes * 60000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }) : null };
   }, [sessions, tasks, userSettings.dayStartHour, statsTicker]);
   
@@ -1197,8 +1195,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                           <div className="h-full bg-notion-blue transition-all duration-500" style={{ width: `${progressPercent}%` }} />
                       </div>
                       <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>{Math.floor(sidebarStats.totalTrackedSeconds/60)}m done</span>
-                          <span>{sidebarStats.remainingMinutes}m left</span>
+                          <span>{formatDuration(Math.floor(sidebarStats.totalTrackedSeconds/60))} done</span>
+                          <span>{formatDuration(sidebarStats.remainingMinutes)} left</span>
                       </div>
                   </div>
 
@@ -1547,8 +1545,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                     </div>
 
                     <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
-                        <span>{Math.floor(sidebarStats.totalTrackedSeconds/60)}m done</span>
-                        <span>{sidebarStats.remainingMinutes}m left</span>
+                        <span>{formatDuration(Math.floor(sidebarStats.totalTrackedSeconds/60))} done</span>
+                        <span>{formatDuration(sidebarStats.remainingMinutes)} left</span>
                     </div>
                 </div>
                 

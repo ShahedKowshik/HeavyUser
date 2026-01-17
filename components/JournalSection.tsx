@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2, Search, Pencil, X, BookOpen, Image as ImageIcon, Sparkles, Tag as TagIcon, ChevronLeft, Check, Calendar } from 'lucide-react';
 import { JournalEntry, EntryType, Tag } from '../types';
@@ -317,15 +316,17 @@ const JournalSection: React.FC<JournalSectionProps> = ({ journals, setJournals, 
             <div className="px-4 md:px-8 pt-4 md:pt-6 pb-4">
               <div className="flex flex-row items-center justify-between gap-4 border-b border-border pb-4">
                   <div className="flex items-center gap-1">
-                    {(['All', 'Log', 'Gratitude'] as JournalFilter[]).map((f) => (
-                      <button 
-                        key={f} 
-                        onClick={() => setFilter(f)} 
-                        className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === f ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
-                      >
-                        {f}
-                      </button>
-                    ))}
+                    <div className="flex bg-secondary p-0.5 rounded-sm">
+                      {(['All', 'Log', 'Gratitude'] as JournalFilter[]).map((f) => (
+                        <button 
+                          key={f} 
+                          onClick={() => setFilter(f)} 
+                          className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === f ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                 <div className="flex items-center gap-2">

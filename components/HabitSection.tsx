@@ -1,5 +1,3 @@
-
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2, X, ChevronRight, ChevronLeft, Zap, Minus, Settings, Check, Tag as TagIcon, Flame, BarChart3, Activity, SkipForward, CircleCheck, ArrowLeft, FolderPlus, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { Habit, Tag, HabitFolder } from '../types';
@@ -1123,16 +1121,18 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                 style={{ scrollbarGutter: 'stable' }}
                 onClick={() => setDetailHabitId(null)}
             >
-                 {/* Header Controls - FIXED ALIGNMENT */}
+                 {/* Header Controls - FIXED ALIGNMENT & STYLE */}
                  <div 
                     className="px-4 md:px-8 pt-4 md:pt-6 pb-4"
                     onClick={(e) => e.stopPropagation()}
                  >
                      <div className="flex flex-row items-center justify-between gap-4 border-b border-border pb-4">
                         <div className="flex items-center gap-1">
-                             <button onClick={() => setFilter('all')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === 'all' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>All</button>
-                             <button onClick={() => setFilter('positive')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === 'positive' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Build</button>
-                             <button onClick={() => setFilter('negative')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === 'negative' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Quit</button>
+                             <div className="flex bg-secondary p-0.5 rounded-sm">
+                                 <button onClick={() => setFilter('all')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === 'all' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>All</button>
+                                 <button onClick={() => setFilter('positive')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === 'positive' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Build</button>
+                                 <button onClick={() => setFilter('negative')} className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${filter === 'negative' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}>Quit</button>
+                             </div>
                         </div>
                         
                         <div className="flex items-center gap-2">
@@ -1145,7 +1145,7 @@ const HabitSection: React.FC<HabitSectionProps> = ({ habits, setHabits, habitFol
                              </button>
 
                              <button onClick={() => openFolderModal()} className="flex items-center gap-1.5 px-2 py-1 bg-secondary text-foreground hover:bg-notion-hover rounded-sm shadow-sm transition-all text-sm font-medium">
-                                 <FolderPlus className="w-3.5 h-3.5" /> Group
+                                 <FolderPlus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Group</span>
                              </button>
 
                              <button onClick={openCreateModal} className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium shrink-0">
