@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Pause, Bell, AlertCircle, ArrowRight, Layers, Moon, Archive, CalendarClock, BarChart3, Check, FileText } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence, TaskSession, CalendarEvent } from '../types';
@@ -187,7 +188,6 @@ const mapTaskToDb = (task: Task, userId: string) => ({
 export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags, setTags, userId, dayStartHour, startWeekDay = 0, onTaskComplete, activeFilterTagId, onToggleTimer, sessions, onDeleteSession, calendarEvents = [] }) => {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const showDetailPanel = selectedTaskId !== null || isCreating;
 
   const [viewLayout, setViewLayout] = useState<'list' | 'reminder' | 'calendar' | 'tracker'>('list');
   const [grouping, setGrouping] = useState<Grouping>('date');
@@ -345,7 +345,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
         setTasks(prev => [newTask, ...prev]); 
         await supabase.from('tasks').insert(mapTaskToDb(newTask, userId));
         setIsCreating(false);
-        setSelectedTaskId(null);
+        setSelectedTaskId(null); // Or set to newTask.id if we want to keep it open
     } else {
         setSelectedTaskId(null);
     }
@@ -465,9 +465,209 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   }, [safeTasks, grouping, sorting, activeFilterTagId, dayStartHour, viewLayout]);
 
   const renderCalendarView = () => {
-    // Placeholder for simplicity in this update, assuming original logic or simplified
+    // Placeholder for simplicity in this update
     return <div className="p-10 text-center text-muted-foreground">Calendar View</div>;
   };
+
+  const renderEmptyState = () => (
+      <div className="flex flex-col h-full bg-background animate-in fade-in justify-center items-center text-center p-8 select-none opacity-50">
+          <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mb-4"><CheckSquare className="w-8 h-8 text-muted-foreground" /></div>
+          <h3 className="text-sm font-semibold text-foreground">No task selected</h3>
+          <p className="text-xs text-muted-foreground mt-2 max-w-[200px] leading-relaxed">Select a task from the list to view details or edit.</p>
+      </div>
+  );
+
+  const renderDetailPanel = () => (
+    <div className="flex flex-col h-full bg-background animate-fade-in relative">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-background/95 backdrop-blur z-10 sticky top-0 shrink-0">
+             <div className="flex items-center gap-2">
+                <button onClick={() => setSelectedTaskId(null)} className="md:hidden text-muted-foreground hover:text-foreground">
+                    <ChevronLeft className="w-5 h-5" />
+                </button>
+                <span className="text-sm font-semibold">{isCreating ? (createType === 'reminder' ? 'New Reminder' : 'New Task') : 'Edit'}</span>
+             </div>
+             <div className="flex items-center gap-1">
+                 {selectedTaskId && (
+                    <button onClick={handleDeleteTask} className="p-2 text-muted-foreground hover:bg-red-50 hover:text-red-600 rounded-sm transition-colors" title="Delete">
+                        <Trash2 className="w-4 h-4" />
+                    </button>
+                 )}
+                 <button onClick={(e) => { handleSaveTask(e); setSelectedTaskId(null); setIsCreating(false); }} className="p-2 rounded-sm transition-colors font-medium text-sm px-4 bg-primary text-primary-foreground hover:bg-primary/90">
+                     {isCreating ? 'Create' : 'Done'}
+                 </button>
+             </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-0 flex flex-col">
+            <div className="w-full flex flex-col h-full">
+                <div className="px-6 pt-6 pb-2">
+                     <textarea
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        placeholder={createType === 'reminder' ? "Reminder..." : "Task name..."}
+                        className="w-full text-xl md:text-2xl font-bold text-foreground placeholder:text-muted-foreground/40 bg-transparent resize-none leading-tight border border-border hover:border-border focus:border-border rounded-md p-3 transition-colors outline-none"
+                        rows={1}
+                        style={{ minHeight: '3.5rem', height: 'auto' }}
+                        onInput={(e) => { e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px'; }}
+                        autoFocus={isCreating}
+                    />
+                </div>
+
+                <div className="px-6 py-2 flex flex-wrap items-center gap-2">
+                    <button 
+                        onClick={() => setActivePopover(activePopover === 'priority' ? null : 'priority')}
+                        className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'priority' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
+                    >
+                        <div className={getPriorityBadgeStyle(priority) + " w-2 h-2 rounded-full"} />
+                        <span className="truncate">{priority}</span>
+                    </button>
+                    
+                    <input 
+                      type="date" 
+                      value={dueDate} 
+                      onChange={(e) => setDueDate(e.target.value)}
+                      className="flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground outline-none" 
+                    />
+
+                    <button 
+                        onClick={() => setActivePopover(activePopover === 'tags' ? null : 'tags')}
+                        className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'tags' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
+                    >
+                        <TagIcon className="w-4 h-4 shrink-0" />
+                        <span className="truncate">{selectedTags.length > 0 ? `${selectedTags.length} Labels` : 'Labels'}</span>
+                    </button>
+
+                    {createType !== 'reminder' && (
+                        <button 
+                            onClick={() => setActivePopover(activePopover === 'duration' ? null : 'duration')}
+                            className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'duration' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
+                        >
+                            <Clock className="w-4 h-4 shrink-0" />
+                            <span className="truncate">{plannedTime ? formatDuration(plannedTime) : 'Duration'}</span>
+                        </button>
+                    )}
+                </div>
+                
+                {activePopover === 'priority' && (
+                     <div className="px-6 py-4 bg-secondary/20 border-y border-border mb-4 animate-in slide-in-from-top-2">
+                         <div className="flex gap-2 flex-wrap">
+                             {priorities.map(p => (
+                                 <button
+                                     key={p}
+                                     onClick={() => { setPriority(p); setActivePopover(null); }}
+                                     className={`flex items-center gap-2 px-3 py-1.5 rounded-sm text-xs font-medium border transition-all ${priority === p ? getPriorityBadgeStyle(p) + ' ring-1 ring-inset ring-black/5' : 'bg-background border-border text-muted-foreground hover:bg-notion-hover'}`}
+                                 >
+                                     {getPriorityIcon(p)} {p}
+                                 </button>
+                             ))}
+                         </div>
+                     </div>
+                )}
+                
+                {activePopover === 'tags' && (
+                     <div className="px-6 py-4 bg-secondary/20 border-y border-border mb-4 animate-in slide-in-from-top-2">
+                         <div className="flex flex-wrap gap-2">
+                             {tags.map(tag => (
+                                 <button 
+                                    key={tag.id}
+                                    onClick={() => toggleTag(tag.id)}
+                                    className={`px-2 py-1 rounded-sm text-xs border ${selectedTags.includes(tag.id) ? 'border-transparent text-white' : 'border-border text-muted-foreground bg-background'}`}
+                                    style={selectedTags.includes(tag.id) ? { backgroundColor: tag.color } : {}}
+                                 >
+                                     {tag.label}
+                                 </button>
+                             ))}
+                              <div className="flex items-center gap-1 border border-border rounded-sm px-2 bg-background">
+                                    <input 
+                                        type="text" 
+                                        placeholder="New tag..." 
+                                        value={newTagInput}
+                                        onChange={e => setNewTagInput(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Enter') handleInlineCreateTag(e); }}
+                                        className="w-20 h-7 text-xs bg-transparent border-none outline-none min-w-0"
+                                    />
+                                    {newTagInput && <button type="button" onClick={handleInlineCreateTag} className="text-notion-blue hover:text-blue-600"><Plus className="w-3 h-3" /></button>}
+                               </div>
+                         </div>
+                     </div>
+                )}
+
+                {activePopover === 'duration' && createType !== 'reminder' && (
+                    <div className="px-6 py-4 bg-secondary/20 border-y border-border mb-4 animate-in slide-in-from-top-2">
+                        <div className="flex flex-wrap gap-2">
+                            {[5, 15, 30, 45, 60, 90, 120].map(m => (
+                                <button 
+                                    key={m}
+                                    onClick={() => { setPlannedTime(m); setActivePopover(null); }}
+                                    className={`px-3 py-1.5 rounded-sm text-xs border ${plannedTime === m ? 'bg-notion-blue text-white border-transparent' : 'bg-background border-border text-muted-foreground'}`}
+                                >
+                                    {formatDuration(m)}
+                                </button>
+                            ))}
+                            <button onClick={() => { setPlannedTime(undefined); setActivePopover(null); }} className="px-3 py-1.5 rounded-sm text-xs border bg-background border-border text-red-500 hover:bg-red-50">Clear</button>
+                        </div>
+                    </div>
+                )}
+
+                <div className="h-px bg-border w-full my-4 shrink-0" />
+                
+                {createType !== 'reminder' && (
+                    <>
+                        <div className="px-6 space-y-3 shrink-0">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                                    <CheckSquare className="w-4 h-4" /> 
+                                    Subtasks
+                                </h3>
+                            </div>
+                            
+                            <div className="space-y-0.5">
+                                {editSubtasks.map(st => (
+                                    <div key={st.id} className="flex items-center gap-2 group min-h-[28px]">
+                                         <button onClick={() => toggleEditSubtask(st.id)} className={`w-4 h-4 rounded-sm border flex items-center justify-center transition-all ${st.completed ? 'bg-notion-blue border-notion-blue text-white' : 'border-muted-foreground/40 bg-transparent hover:border-notion-blue'}`}>
+                                             {st.completed && <Check className="w-3 h-3" />}
+                                         </button>
+                                         <input 
+                                             className={`flex-1 bg-transparent border-none p-0 text-sm focus:ring-0 ${st.completed ? 'text-muted-foreground line-through' : 'text-foreground'}`}
+                                             value={st.title}
+                                             onChange={(e) => setEditSubtasks(prev => prev.map(s => s.id === st.id ? { ...s, title: e.target.value } : s))}
+                                         />
+                                         <button onClick={() => removeEditSubtask(st.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-opacity p-1">
+                                             <X className="w-3.5 h-3.5" />
+                                         </button>
+                                    </div>
+                                ))}
+                                
+                                <div className="flex items-center gap-2 min-h-[28px] group cursor-text">
+                                    <Plus className="w-4 h-4 text-muted-foreground" />
+                                    <input 
+                                        placeholder="Add a subtask..." 
+                                        className="flex-1 bg-transparent border-none p-0 text-sm focus:ring-0 placeholder:text-muted-foreground"
+                                        onKeyDown={(e) => { if(e.key === 'Enter') { addEditSubtask(e.currentTarget.value); e.currentTarget.value = ''; }}}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="h-px bg-border w-full my-4 shrink-0" />
+                    </>
+                )}
+
+                <div className="flex-1 flex flex-col px-6 pb-6">
+                     <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2 mb-3">
+                        <FileText className="w-4 h-4" /> 
+                        Notes
+                    </h3>
+                    <textarea 
+                        placeholder="Type something..." 
+                        value={createNotes} 
+                        onChange={(e) => setCreateNotes(e.target.value)} 
+                        className="flex-1 w-full text-sm text-foreground bg-transparent border border-border hover:border-border focus:border-border rounded-md p-4 resize-none placeholder:text-muted-foreground/50 leading-relaxed transition-colors outline-none" 
+                    />
+                </div>
+            </div>
+        </div>
+    </div>
+  );
 
   const renderListGroups = (groups: { title: string; tasks: Task[] }[]) => {
     const safeGroups = Array.isArray(groups) ? groups : [];
@@ -485,6 +685,9 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
           if (!group || !group.tasks) return null;
           const isNightOwl = new Date().getHours() < (dayStartHour || 0);
           const showMoon = grouping === 'date' && (group.title === 'Today' || group.title === 'Tomorrow') && isNightOwl;
+          
+          // Determine if we should hide date based on group title context
+          const shouldHideDate = grouping === 'date' && (group.title === 'Overdue' || group.title === 'Today' || group.title === 'Tomorrow');
 
           return (
             <div key={group.title + gIdx} className="space-y-0">
@@ -564,12 +767,13 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
                             <div className="flex items-center gap-3 shrink-0">
                                 {(task.dueDate || task.recurrence || task.time) && (
                                         <div className="flex items-center gap-2 text-[10px] text-muted-foreground hidden sm:flex">
-                                            {task.dueDate && <span className={getDayDiff(task.dueDate) < 0 ? 'text-notion-red font-bold' : ''}>{formatRelativeDate(task.dueDate)}</span>}
+                                            {/* Hide date if group implies it */}
+                                            {!shouldHideDate && task.dueDate && <span className={getDayDiff(task.dueDate) < 0 ? 'text-notion-red font-bold' : ''}>{formatRelativeDate(task.dueDate)}</span>}
                                             {task.time && <div className="flex items-center gap-1 text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-sm border border-foreground/10 shadow-sm"><Clock className="w-3 h-3" /><span>{task.time}</span></div>}
                                         </div>
                                 )}
                                 {!isReminder && task.plannedTime && (
-                                    <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm border border-black/5 tabular-nums min-w-[3rem]">
+                                    <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground bg-secondary px-1 py-0.5 rounded-sm border border-black/5 tabular-nums min-w-[4rem]">
                                         <Clock className="w-3 h-3" />
                                         <span>{formatDuration(task.plannedTime)}</span>
                                     </div>
@@ -590,38 +794,38 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
   return (
     <div className="flex h-full bg-background relative overflow-hidden">
         {/* Main List Panel */}
-        <div className={`flex-1 flex flex-col min-w-0 border-r border-border ${showDetailPanel ? 'hidden md:flex' : 'flex'}`}>
+        <div className={`flex-1 flex flex-col min-w-0 border-r border-border ${selectedTaskId || isCreating ? 'hidden md:flex' : 'flex'}`}>
             <div className="px-4 md:px-8 pt-4 md:pt-6 pb-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-                    <div className="flex bg-secondary/50 p-1 rounded-lg shrink-0 self-start md:self-auto overflow-x-auto max-w-full gap-1">
+                <div className="flex flex-row items-center justify-between gap-4 border-b border-border pb-4">
+                    <div className="flex items-center gap-1">
                         <button 
                             onClick={() => { setViewLayout('list'); setCreateType('task'); }} 
-                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewLayout === 'list' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                            className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'list' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
                         >
                             To-Do
                         </button>
                         <button 
                             onClick={() => { setViewLayout('reminder'); setCreateType('reminder'); }} 
-                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewLayout === 'reminder' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                            className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'reminder' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
                         >
                             Reminder
                         </button>
                          <button 
                             onClick={() => { setViewLayout('calendar'); }} 
-                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewLayout === 'calendar' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                            className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'calendar' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
                         >
                             Calendar
                         </button>
                         <button 
                             onClick={() => { setViewLayout('tracker'); setCreateType('task'); }} 
-                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewLayout === 'tracker' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                            className={`px-2 py-1 text-sm font-medium rounded-sm transition-colors ${viewLayout === 'tracker' ? 'bg-notion-blue text-white shadow-sm' : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'}`}
                         >
                             Tracker
                         </button>
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <button onClick={openCreatePanel} className="flex items-center gap-1.5 px-3 py-1.5 bg-notion-blue text-white hover:bg-blue-600 rounded-md shadow-sm transition-all text-sm font-medium">
+                        <button onClick={openCreatePanel} className="flex items-center gap-1.5 px-2 py-1 bg-notion-blue text-white hover:bg-blue-600 rounded-sm shadow-sm transition-all text-sm font-medium">
                             <Plus className="w-4 h-4" /> 
                             <span className="hidden sm:inline">New</span>
                         </button>
@@ -639,195 +843,14 @@ export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, setTasks, tags,
         </div>
 
         {/* Detail Panel */}
-        {showDetailPanel && (
-           <div className="w-full md:w-[500px] flex flex-col h-full bg-background animate-fade-in relative border-l border-border">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-background/95 backdrop-blur z-10 sticky top-0 shrink-0">
-                   <div className="flex items-center gap-2">
-                      <button onClick={() => setSelectedTaskId(null)} className="md:hidden text-muted-foreground hover:text-foreground">
-                          <ChevronLeft className="w-5 h-5" />
-                      </button>
-                      <span className="text-sm font-semibold">{isCreating ? (createType === 'reminder' ? 'New Reminder' : 'New Task') : 'Edit'}</span>
-                   </div>
-                   <div className="flex items-center gap-1">
-                       <button onClick={handleDeleteTask} className="p-2 text-muted-foreground hover:bg-red-50 hover:text-red-600 rounded-sm transition-colors" title="Delete">
-                           <Trash2 className="w-4 h-4" />
-                       </button>
-                       <button onClick={(e) => { handleSaveTask(e); setSelectedTaskId(null); setIsCreating(false); }} className="p-2 rounded-sm transition-colors font-medium text-sm px-4 bg-primary text-primary-foreground hover:bg-primary/90">
-                           {isCreating ? 'Create' : 'Done'}
-                       </button>
-                   </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-0 flex flex-col">
-                  <div className="w-full flex flex-col h-full">
-                      <div className="px-6 pt-6 pb-2">
-                           <textarea
-                              value={title}
-                              onChange={(e) => setTitle(e.target.value)}
-                              placeholder={createType === 'reminder' ? "Reminder..." : "Task name..."}
-                              className="w-full text-xl md:text-2xl font-bold text-foreground placeholder:text-muted-foreground/40 bg-transparent resize-none leading-tight border border-border hover:border-border focus:border-border rounded-md p-3 transition-colors outline-none"
-                              rows={1}
-                              style={{ minHeight: '3.5rem', height: 'auto' }}
-                              onInput={(e) => { e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px'; }}
-                              autoFocus={isCreating}
-                          />
-                      </div>
-
-                      <div className="px-6 py-2 flex flex-wrap items-center gap-2">
-                          <button 
-                              onClick={() => setActivePopover(activePopover === 'priority' ? null : 'priority')}
-                              className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'priority' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
-                          >
-                              <div className={getPriorityBadgeStyle(priority) + " w-2 h-2 rounded-full"} />
-                              <span className="truncate">{priority}</span>
-                          </button>
-                          
-                          <input 
-                            type="date" 
-                            value={dueDate} 
-                            onChange={(e) => setDueDate(e.target.value)}
-                            className="flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground outline-none" 
-                          />
-
-                          <button 
-                              onClick={() => setActivePopover(activePopover === 'tags' ? null : 'tags')}
-                              className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'tags' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
-                          >
-                              <TagIcon className="w-4 h-4 shrink-0" />
-                              <span className="truncate">{selectedTags.length > 0 ? `${selectedTags.length} Labels` : 'Labels'}</span>
-                          </button>
-
-                          {createType !== 'reminder' && (
-                              <button 
-                                  onClick={() => setActivePopover(activePopover === 'duration' ? null : 'duration')}
-                                  className={`flex items-center justify-start gap-2 px-3 h-8 w-32 rounded-md text-xs font-medium border transition-all shadow-sm ${activePopover === 'duration' ? 'bg-secondary border-foreground/20 text-foreground' : 'bg-secondary/40 border-border text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-foreground/20'}`}
-                              >
-                                  <Clock className="w-4 h-4 shrink-0" />
-                                  <span className="truncate">{plannedTime ? formatDuration(plannedTime) : 'Duration'}</span>
-                              </button>
-                          )}
-                      </div>
-                      
-                      {activePopover === 'priority' && (
-                           <div className="px-6 py-4 bg-secondary/20 border-y border-border mb-4 animate-in slide-in-from-top-2">
-                               <div className="flex gap-2 flex-wrap">
-                                   {priorities.map(p => (
-                                       <button
-                                           key={p}
-                                           onClick={() => { setPriority(p); setActivePopover(null); }}
-                                           className={`flex items-center gap-2 px-3 py-1.5 rounded-sm text-xs font-medium border transition-all ${priority === p ? getPriorityBadgeStyle(p) + ' ring-1 ring-inset ring-black/5' : 'bg-background border-border text-muted-foreground hover:bg-notion-hover'}`}
-                                       >
-                                           {getPriorityIcon(p)} {p}
-                                       </button>
-                                   ))}
-                               </div>
-                           </div>
-                      )}
-                      
-                      {activePopover === 'tags' && (
-                           <div className="px-6 py-4 bg-secondary/20 border-y border-border mb-4 animate-in slide-in-from-top-2">
-                               <div className="flex flex-wrap gap-2">
-                                   {tags.map(tag => (
-                                       <button 
-                                          key={tag.id}
-                                          onClick={() => toggleTag(tag.id)}
-                                          className={`px-2 py-1 rounded-sm text-xs border ${selectedTags.includes(tag.id) ? 'border-transparent text-white' : 'border-border text-muted-foreground bg-background'}`}
-                                          style={selectedTags.includes(tag.id) ? { backgroundColor: tag.color } : {}}
-                                       >
-                                           {tag.label}
-                                       </button>
-                                   ))}
-                                    <div className="flex items-center gap-1 border border-border rounded-sm px-2 bg-background">
-                                          <input 
-                                              type="text" 
-                                              placeholder="New tag..." 
-                                              value={newTagInput}
-                                              onChange={e => setNewTagInput(e.target.value)}
-                                              onKeyDown={e => { if (e.key === 'Enter') handleInlineCreateTag(e); }}
-                                              className="w-20 h-7 text-xs bg-transparent border-none outline-none min-w-0"
-                                          />
-                                          {newTagInput && <button type="button" onClick={handleInlineCreateTag} className="text-notion-blue hover:text-blue-600"><Plus className="w-3 h-3" /></button>}
-                                     </div>
-                               </div>
-                           </div>
-                      )}
-
-                      {activePopover === 'duration' && createType !== 'reminder' && (
-                          <div className="px-6 py-4 bg-secondary/20 border-y border-border mb-4 animate-in slide-in-from-top-2">
-                              <div className="flex flex-wrap gap-2">
-                                  {[5, 15, 30, 45, 60, 90, 120].map(m => (
-                                      <button 
-                                          key={m}
-                                          onClick={() => { setPlannedTime(m); setActivePopover(null); }}
-                                          className={`px-3 py-1.5 rounded-sm text-xs border ${plannedTime === m ? 'bg-notion-blue text-white border-transparent' : 'bg-background border-border text-muted-foreground'}`}
-                                      >
-                                          {formatDuration(m)}
-                                      </button>
-                                  ))}
-                                  <button onClick={() => { setPlannedTime(undefined); setActivePopover(null); }} className="px-3 py-1.5 rounded-sm text-xs border bg-background border-border text-red-500 hover:bg-red-50">Clear</button>
-                              </div>
-                          </div>
-                      )}
-
-                      <div className="h-px bg-border w-full my-4 shrink-0" />
-                      
-                      {createType !== 'reminder' && (
-                          <>
-                              <div className="px-6 space-y-3 shrink-0">
-                                  <div className="flex items-center justify-between">
-                                      <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                                          <CheckSquare className="w-4 h-4" /> 
-                                          Subtasks
-                                      </h3>
-                                  </div>
-                                  
-                                  <div className="space-y-0.5">
-                                      {editSubtasks.map(st => (
-                                          <div key={st.id} className="flex items-center gap-2 group min-h-[28px]">
-                                               <button onClick={() => toggleEditSubtask(st.id)} className={`w-4 h-4 rounded-sm border flex items-center justify-center transition-all ${st.completed ? 'bg-notion-blue border-notion-blue text-white' : 'border-muted-foreground/40 bg-transparent hover:border-notion-blue'}`}>
-                                                   {st.completed && <Check className="w-3 h-3" />}
-                                               </button>
-                                               <input 
-                                                   className={`flex-1 bg-transparent border-none p-0 text-sm focus:ring-0 ${st.completed ? 'text-muted-foreground line-through' : 'text-foreground'}`}
-                                                   value={st.title}
-                                                   onChange={(e) => setEditSubtasks(prev => prev.map(s => s.id === st.id ? { ...s, title: e.target.value } : s))}
-                                               />
-                                               <button onClick={() => removeEditSubtask(st.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-opacity p-1">
-                                                   <X className="w-3.5 h-3.5" />
-                                               </button>
-                                          </div>
-                                      ))}
-                                      
-                                      <div className="flex items-center gap-2 min-h-[28px] group cursor-text">
-                                          <Plus className="w-4 h-4 text-muted-foreground" />
-                                          <input 
-                                              placeholder="Add a subtask..." 
-                                              className="flex-1 bg-transparent border-none p-0 text-sm focus:ring-0 placeholder:text-muted-foreground"
-                                              onKeyDown={(e) => { if(e.key === 'Enter') { addEditSubtask(e.currentTarget.value); e.currentTarget.value = ''; }}}
-                                          />
-                                      </div>
-                                  </div>
-                              </div>
-                              <div className="h-px bg-border w-full my-4 shrink-0" />
-                          </>
-                      )}
-
-                      <div className="flex-1 flex flex-col px-6 pb-6">
-                           <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2 mb-3">
-                              <FileText className="w-4 h-4" /> 
-                              Notes
-                          </h3>
-                          <textarea 
-                              placeholder="Type something..." 
-                              value={createNotes} 
-                              onChange={(e) => setCreateNotes(e.target.value)} 
-                              className="flex-1 w-full text-sm text-foreground bg-transparent border border-border hover:border-border focus:border-border rounded-md p-4 resize-none placeholder:text-muted-foreground/50 leading-relaxed transition-colors outline-none" 
-                          />
-                      </div>
-                  </div>
-              </div>
-           </div>
-        )}
+        <div className={`
+            bg-background border-l border-border z-20
+            ${(selectedTaskId || isCreating) 
+                ? 'flex flex-col flex-1 w-full md:w-[500px] md:flex-none' 
+                : 'hidden md:flex md:flex-col md:w-[500px]'}
+        `}>
+            {(selectedTaskId || isCreating) ? renderDetailPanel() : renderEmptyState()}
+        </div>
     </div>
   )
 }

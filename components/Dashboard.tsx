@@ -30,12 +30,12 @@ const NavItem: React.FC<NavItemProps> = ({ id, label, icon: Icon, activeTab, set
       onClick={() => setActiveTab(id)}
       className={`w-full flex items-center gap-3 px-3 py-2 rounded-sm transition-colors ${
         isActive 
-          ? 'bg-notion-hover text-notion-blue font-semibold' 
+          ? 'bg-notion-blue text-white font-semibold shadow-sm' 
           : 'text-muted-foreground hover:bg-notion-hover hover:text-foreground'
       } ${isSidebarCollapsed ? 'justify-center' : ''}`}
       title={isSidebarCollapsed ? label : undefined}
     >
-      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-notion-blue' : 'text-muted-foreground'}`} />
+      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-muted-foreground'}`} />
       {!isSidebarCollapsed && <span className="text-sm truncate">{label}</span>}
     </button>
   );
