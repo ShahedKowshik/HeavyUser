@@ -38,14 +38,14 @@
             input: "rgba(15, 15, 15, 0.1)", // Subtle gray input border
             ring: "#0046ff", // Brand Blue Focus
             background: "#FFFFFF",
-            foreground: "#37352F",
+            foreground: "#0f0f0f", // Darkened from #37352F
             primary: {
               DEFAULT: "#0046ff", // Brand Blue
               foreground: "#FFFFFF",
             },
             secondary: {
               DEFAULT: "#F7F7F5",
-              foreground: "#37352F",
+              foreground: "#0f0f0f", // Darkened
             },
             destructive: {
               DEFAULT: "#EB5757",
@@ -53,19 +53,19 @@
             },
             muted: {
               DEFAULT: "#F7F7F5",
-              foreground: "rgba(55, 53, 47, 0.65)", // Notion muted text
+              foreground: "#525252", // Significantly darker gray (Neutral 700) for accessibility
             },
             accent: {
               DEFAULT: "#F7F7F5", // Hover background
-              foreground: "#37352F",
+              foreground: "#0f0f0f",
             },
             popover: {
               DEFAULT: "#FFFFFF",
-              foreground: "#37352F",
+              foreground: "#0f0f0f",
             },
             card: {
               DEFAULT: "#FFFFFF",
-              foreground: "#37352F",
+              foreground: "#0f0f0f",
             },
             // Notion Palette & Brand Colors
             notion: {
@@ -80,7 +80,7 @@
                blue: "#0046ff", // Brand Blue
                purple: "#9065B0",
                pink: "#C14C8A",
-               gray: "#9B9A97",
+               gray: "#525252", // Darkened from #9B9A97
                brown: "#9F6B53",
                bg_red: "#FDEBEC",
                bg_orange: "#FFF2EB", // Brand Orange Tint
@@ -151,19 +151,19 @@
   <style>
     :root {
       --background: 0 0% 100%;
-      --foreground: 45 4% 20%; /* #37352F */
+      --foreground: 0 0% 6%; /* #0f0f0f - Darkened for better contrast */
       --card: 0 0% 100%;
-      --card-foreground: 45 4% 20%;
+      --card-foreground: 0 0% 6%;
       --popover: 0 0% 100%;
-      --popover-foreground: 45 4% 20%;
+      --popover-foreground: 0 0% 6%;
       --primary: 224 100% 50%; /* #0046ff Brand Blue */
       --primary-foreground: 0 0% 100%;
       --secondary: 60 5% 96%; /* #F7F7F5 */
-      --secondary-foreground: 45 4% 20%;
+      --secondary-foreground: 0 0% 6%;
       --muted: 60 5% 96%;
-      --muted-foreground: 45 2% 60%; /* #9B9A97 */
+      --muted-foreground: 0 0% 32%; /* #525252 - Darkened for accessibility */
       --accent: 60 5% 96%;
-      --accent-foreground: 45 4% 20%;
+      --accent-foreground: 0 0% 6%;
       --destructive: 0 84.2% 60.2%;
       --destructive-foreground: 0 0% 98%;
       --border: 60 2% 91%; /* #E9E9E7 */
@@ -249,7 +249,7 @@
         margin-right: 0.5em !important;
         width: 1em !important;
         height: 1em !important;
-        accent-color: #37352F;
+        accent-color: #0f0f0f; /* Updated to dark */
         flex-shrink: 0;
         cursor: pointer;
     }
@@ -323,7 +323,7 @@
       width: 1.1em;
       height: 1.1em;
       margin: 0;
-      accent-color: #37352F;
+      accent-color: #0f0f0f; /* Updated to dark */
     }
 
     .ProseMirror p.is-editor-empty:first-child::before {

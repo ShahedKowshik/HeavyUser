@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Plus, Trash2, CircleCheck, X, ChevronRight, ListChecks, Tag as TagIcon, Calendar, CheckSquare, Repeat, ArrowUp, ArrowDown, ChevronLeft, Clock, Pause, Bell, AlertCircle, ArrowRight, Layers, Moon, Archive, CalendarClock, BarChart3, Check, FileText, Timer, Target } from 'lucide-react';
 import { Task, Priority, Subtask, Tag, Recurrence, TaskSession, CalendarEvent } from '../types';
@@ -46,7 +45,7 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     const newTag: Tag = {
         id: crypto.randomUUID(),
         label: label.trim(),
-        color: '#9B9A97', 
+        color: '#525252', // Updated to darker gray (Neutral 700) for better contrast
     };
     
     await supabase.from('tags').insert({

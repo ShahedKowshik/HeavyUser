@@ -23,7 +23,7 @@ const createNewTag = async (label: string, userId: string): Promise<Tag> => {
     const newTag: Tag = {
         id: crypto.randomUUID(),
         label: label.trim(),
-        color: '#9B9A97',
+        color: '#525252', // Updated to darker gray (Neutral 700) for better contrast
     };
     
     await supabase.from('tags').insert({
