@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2, Bell } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence, CalendarEvent } from '../types';
@@ -427,8 +426,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                   setter(parsedData);
                   // Security Audit Fix: Removed saveToLocal to prevent caching sensitive data in browser
               }
-          } catch (err) {
-              console.error(`Exception fetching ${tableName}:`, err);
+          } catch (err: any) {
+              // FIX: Gracefully handle network errors
+              if (err?.message?.includes('Failed to fetch') || err?.name === 'TypeError') {
+                  console.warn(`Offline or network error fetching ${tableName}. Switching to offline mode.`);
+                  setIsOnline(false);
+              } else {
+                  console.error(`Exception fetching ${tableName}:`, err);
+              }
           }
       };
 
