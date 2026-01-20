@@ -15,7 +15,7 @@ const fetchEventsForAccount = async (account: CalendarAccount, timeMin: string, 
       timeMax,
       singleEvents: 'true',
       orderBy: 'startTime',
-      maxResults: '1000',
+      maxResults: '2500', // Increased from 1000 to prevent missing events in busy calendars
     });
 
     const token = account.token.trim();

@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2, Bell } from 'lucide-react';
+import { Settings, Zap, Flame, X, Activity, ChevronLeft, Clock, Tag as TagIcon, CheckSquare, StickyNote, WifiOff, MessageSquare, Map, Pause, Book, LayoutDashboard, Sun, Calendar as CalendarIcon, ArrowRight, Flag, Calendar, Repeat, FileText, Check, Plus, AlertCircle, ArrowUp, ArrowDown, BarChart3, ChevronRight, Layers, Archive, CalendarClock, CircleCheck, ListChecks, SkipForward, Minus, Target, Trash2, Bell, RefreshCw } from 'lucide-react';
 import { AppTab, Task, UserSettings, JournalEntry, Tag, Habit, User, Priority, EntryType, Note, Folder, TaskSession, HabitFolder, TaskFolder, Subtask, Recurrence, CalendarEvent } from '../types';
 import { TaskSection } from './TaskSection';
 import SettingsSection from './SettingsSection';
@@ -826,13 +827,29 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       const todayTasks = todayItems.filter(t => t.type !== 'reminder');
       const todayReminders = todayItems.filter(t => t.type === 'reminder');
 
-      // 2. Filter Calendar Events for Today Schedule using REAL DATE
+      // Helper to check overlap
+      const checkOverlap = (start: Date, end: Date, dayStart: Date, dayEnd: Date) => {
+          return start < dayEnd && end > dayStart;
+      };
+
+      const now = new Date();
+      const startOfDay = new Date(now);
+      startOfDay.setHours(0,0,0,0);
+      const endOfDay = new Date(now);
+      endOfDay.setHours(23,59,59,999);
+
+      // 2. Filter Calendar Events
       const todayEvents = calendarEvents.filter(e => {
-          if (e.allDay) return e.start === realToday;
-          const eDate = new Date(e.start);
-          const eDateStr = `${eDate.getFullYear()}-${String(eDate.getMonth() + 1).padStart(2, '0')}-${String(eDate.getDate()).padStart(2, '0')}`;
-          return eDateStr === realToday;
+          if (e.allDay) {
+               // Google Calendar all-day events: start inclusive, end exclusive
+               // e.start and e.end are YYYY-MM-DD strings
+               return e.start <= realToday && e.end > realToday;
+          }
+          const eStart = new Date(e.start);
+          const eEnd = new Date(e.end);
+          return checkOverlap(eStart, eEnd, startOfDay, endOfDay);
       });
+      
       const timedEvents = todayEvents.filter(e => !e.allDay);
 
       // 3. Filter Habits: Positive & Unfinished Only
@@ -1440,6 +1457,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Schedule</span>
                                <CalendarIcon className="w-4 h-4 text-muted-foreground" />
                            </div>
+                           
+                           {/* Add Debug Info for Calendar Connection */}
+                           {userSettings.calendars.length > 0 && calendarEvents.length === 0 && (
+                                <div className="p-4 text-xs text-center text-muted-foreground bg-secondary/10 border-b border-border">
+                                    No events found. If you expect to see events, try reconnecting your calendar in Settings.
+                                </div>
+                           )}
+
                            <div className="flex-1 overflow-y-auto custom-scrollbar relative">
                                 {hours.map((h, i) => (
                                     <div key={h} className="flex relative h-[60px] border-b border-border/40 last:border-0 group">
@@ -1450,14 +1475,29 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                                              {timedEvents.filter(e => {
                                                  const start = new Date(e.start);
                                                  const eH = start.getHours();
-                                                 return eH === h;
+                                                 
+                                                 // Case 1: Starts in this hour today
+                                                 const startsInHour = eH === h && start >= startOfDay;
+                                                 
+                                                 // Case 2: Started before today, but treating as 00:00 start for today
+                                                 // Only render it in the first slot (h === 0) if it started before today
+                                                 const startsBeforeToday = start < startOfDay;
+                                                 const isCarryOver = startsBeforeToday && h === 0;
+
+                                                 return startsInHour || isCarryOver;
                                              }).map(event => {
-                                                 const start = new Date(event.start);
-                                                 const end = new Date(event.end);
+                                                 // Calculate effective start and duration for display
+                                                 let start = new Date(event.start);
+                                                 let end = new Date(event.end);
+                                                 
+                                                 // If starts before today, clamp start to 00:00
+                                                 if (start < startOfDay) {
+                                                     start = startOfDay;
+                                                 }
+                                                 
                                                  const eM = start.getMinutes();
                                                  const top = (eM / 60) * 100;
                                                  
-                                                 // Duration calculation for dynamic height
                                                  const durationMins = (end.getTime() - start.getTime()) / 60000;
                                                  const heightPx = Math.max((durationMins / 60) * 60, 28);
 
