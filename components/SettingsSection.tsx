@@ -407,7 +407,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate, o
                                         className="w-full py-3 text-sm font-medium border border-dashed border-border rounded-md text-muted-foreground hover:text-foreground hover:bg-notion-hover hover:border-foreground/20 transition-all flex items-center justify-center gap-2"
                                      >
                                          {isConnectingGoogle ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                                         Connect Google Calendar
+                                         {settings.calendars && settings.calendars.length > 0 ? "Add Another Calendar Account" : "Connect Google Calendar"}
                                      </button>
                                 </div>
                             </div>

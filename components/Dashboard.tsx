@@ -327,6 +327,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     // Ensure we use the latest calendars list from the user object passed down from App.tsx
     calendars: user.calendars || []
   });
+  
+  // Sync userSettings with user prop changes (especially for calendars update after linking)
+  useEffect(() => {
+    setUserSettings(prev => ({
+      ...prev,
+      calendars: user.calendars || []
+    }));
+  }, [user.calendars]);
 
   const [statsTicker, setStatsTicker] = useState(0);
   const [timeLeft, setTimeLeft] = useState('');

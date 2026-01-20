@@ -71,9 +71,14 @@ const App: React.FC = () => {
                           }
                           
                           // Persist changes to Supabase
-                          await supabase.auth.updateUser({
+                          const { data: { user: updatedUser } } = await supabase.auth.updateUser({
                               data: { calendars: currentCalendars }
                           });
+                          
+                          // PATCH: Update the local session user object so recursion sees new data
+                          if (updatedUser) {
+                              restoredSession.user = updatedUser;
+                          }
                           
                           // Recursion: Process this restored session to load the dashboard correctly
                           return processSession(restoredSession);
