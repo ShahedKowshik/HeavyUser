@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "HeavyUser — Inbox",
+  title: "HeavyUser — Tasks",
   description: "A focused daily workspace for tasks and time.",
 };
 

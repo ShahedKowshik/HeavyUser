@@ -2,20 +2,20 @@
 
 ## Product thesis
 
-HeavyUser is a daily execution surface for people who carry a lot of active work. The first screen has one job: make the next important task obvious while keeping the day's time commitments visible. It is a workbench, not a dashboard.
+HeavyUser is a daily execution surface for people who carry a lot of active work. The first screen has one job: make the next important task obvious while keeping the day's time commitments visible in a planner. It is a workbench, not a dashboard.
 
 ## Current scope
 
 This phase contains a restrained application shell and exactly two work regions:
 
-1. A slim sidebar with only Inbox and bottom-anchored Settings.
+1. A slim task-view rail with task buckets and completion controls.
 2. A quiet top bar with notification and profile controls.
-3. Inbox tasks, occupying 60% of the desktop work surface.
-4. A single-day vertical calendar, occupying 40% of the desktop work surface.
+3. Task views, occupying 60% of the desktop work surface.
+4. A single-day vertical planner, occupying 40% of the desktop work surface.
 
 At widths below 900px, the work regions become one column with tasks first and calendar second. The sidebar becomes a compact horizontal rail. There is no dashboard card grid, authentication, backend, or extra page.
 
-The calendar remains a deterministic, read-only mock schedule. Tasks are the first functional slice: add, edit title, duration, deadline, and priority, complete/uncomplete, delete, and reorder all work locally and persist in the browser's `localStorage`. New tasks default to Normal priority with no deadline or estimate so capture stays low-friction. By default, incomplete tasks sort by deadline and then priority; completing a task moves it to the bottom, while drag-and-drop enables a custom order. The task list should feel like a Things-style inbox: low-friction capture, a clear focus row, inline editing, and controls that stay quiet until the row is hovered or focused. There is no backend, date navigation, calendar editing, or drag-to-calendar behavior yet.
+The planner remains a deterministic, read-only mock day. Tasks are the first functional slice: add, edit title, duration, start date, deadline, and priority, complete/uncomplete, delete, and reorder all work locally and persist in the browser's `localStorage`. New tasks default to Normal priority with no dates or estimate so capture stays low-friction. Four task views classify work from those dates: Backlog has no schedule, Overdue has an incomplete past deadline, Today has work due today or available to start today, and Upcoming has a future start or deadline. By default, incomplete tasks sort by deadline and then priority; completing a task moves it to the bottom, while drag-and-drop enables a custom order. Dates use the fixed `DD Mmm YY` format everywhere, including task rows, editors, and planner labels. The task list should feel like a Things-style task queue: low-friction capture, a clear focus row, a focused edit dialog, and controls that stay quiet until the row is hovered or focused. There is no backend, date navigation, planner editing, or drag-to-planner behavior yet.
 
 ## Visual principles
 
@@ -40,6 +40,7 @@ The calendar remains a deterministic, read-only mock schedule. Tasks are the fir
 | Strong line | `--input` | Unselected checkboxes and neutral event edges |
 | Primary green | `--primary` | Active, current, focus, today, and completion |
 | Green wash | `--primary-soft` | Active row and active event backgrounds |
+| Green focus line | `--primary-line` | Focused task and event borders |
 | Destructive | `--destructive` | Delete affordance on hover |
 
 The shadcn preset is `lyra` with neutral base, green theme, Inter, and default radius. HeavyUser follows Lyra's boxy geometry with square controls and no pill-shaped UI rectangles. Small status dots may remain circular.
@@ -54,7 +55,7 @@ Desktop composition:
 
 ```text
 ┌──────────────────────────── 60% ───────────────────────────┬──────────── 40% ────────────┐
-│ Inbox                                      Add task        │ Schedule             Today │
+│ Task views                                 Add task        │ Planner              Today │
 │ ──────────────────────────────────────────────────────────── │ ─────────────────────────── │
 │ □ Current task                                  45 min      │ 8:00 AM  Plan the day     │
 │ □ Next task                                     25 min      │ 9:00 AM  Deep work        │
@@ -69,7 +70,7 @@ The outer workspace uses `grid-template-columns: 3fr 2fr` with no decorative gap
 ## Component boundaries
 
 - `Home` owns the two-region page composition, task interactions, local persistence, and mock data for this phase.
-- Task rows are semantic `article` elements with a status marker, title, estimated duration, deadline, priority, and compact drag/edit/delete controls. Duration, deadline, and priority occupy fixed columns so the list scans vertically.
+- Task rows are semantic `article` elements with a status marker, title, estimated duration, deadline, priority, and compact drag/edit/delete controls. Duration, deadline, and priority occupy fixed columns so the list scans vertically. The edit control opens a modal dialog so start date and deadline remain easy to compare.
 - Task rows select the focus row when clicked or activated with Enter/Space, reorder through native drag-and-drop, and support Up/Down keyboard reordering. The checkbox toggles completion, the pencil edits all task fields, and the trash icon deletes.
 - Calendar events are semantic list items positioned against a single timeline.
 - `globals.css` is the source of truth for the initial visual system. Do not scatter one-off colors through JSX.
@@ -81,7 +82,7 @@ Use plain, active language. Task titles should describe the work, not the implem
 
 ## Accessibility and responsive behavior
 
-- Use one `h1` for inbox tasks and one `h2` for the calendar region.
+- Use one `h1` for task views and one `h2` for the planner region.
 - Keep the two regions as semantic `section` elements with accessible labels.
 - Preserve visible focus outlines for future controls.
 - Respect reduced-motion preferences.
