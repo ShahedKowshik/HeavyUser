@@ -42,6 +42,7 @@ type Priority = "urgent" | "high" | "normal" | "low";
 type TaskBucket = "backlog" | "overdue" | "today" | "upcoming";
 
 const profileUserId = "#BR83-NAF3";
+const publicAssetPath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const calendarDate = "2026-08-01";
 const shortMonthNames = [
   "Jan",
@@ -1581,7 +1582,13 @@ export default function Home() {
                 }}
               >
                 <span className="hu-avatar">
-                  <Image src="/dummy-portrait.svg" alt="" width={25} height={25} priority />
+                  <Image
+                    src={`${publicAssetPath}/dummy-portrait.svg`}
+                    alt=""
+                    width={25}
+                    height={25}
+                    priority
+                  />
                 </span>
                 <span className="hu-profile-copy">
                   <span className="hu-profile-name">Kowshik</span>
@@ -1594,7 +1601,7 @@ export default function Home() {
                   <div className="hu-popover-profile" role="presentation">
                     <Image
                       className="hu-profile-portrait"
-                      src="/dummy-portrait.svg"
+                      src={`${publicAssetPath}/dummy-portrait.svg`}
                       alt="Kowshik profile portrait"
                       width={38}
                       height={38}
