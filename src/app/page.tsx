@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  CSSProperties,
   DragEvent,
   FormEvent,
   KeyboardEvent as ReactKeyboardEvent,
@@ -25,30 +24,35 @@ import {
   ListTodo,
   Pencil,
   Plus,
+  Settings2,
   TriangleAlert,
   Trash2,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
-
-type Task = {
-  id: string;
-  title: string;
-  duration: number | null;
-  startDate: string | null;
-  deadline: string | null;
-  priority: Priority;
-  status: "open" | "focus" | "done";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/auth-provider";
+import { ProfileDialog } from "@/components/profile-dialog";
+import { GoogleCalendarPanel } from "@/components/google-calendar-panel";
+import { getAppPath, publicBasePath } from "@/lib/supabase/config";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { loadRemoteTasks, persistRemoteTasks } from "@/lib/supabase/tasks";
+import type { Priority, Task } from "@/lib/tasks";
+type TaskBucket = "backlog" | "today" | "upcoming";
+type InlineEditField = "title";
+type NightOwlSettings = {
+  nightOwlMode: boolean;
+  dayStartTime: string;
 };
 
-type Priority = "urgent" | "high" | "normal" | "low";
-type TaskBucket = "backlog" | "overdue" | "today" | "upcoming";
-type InlineEditField = "title";
-
-const profileUserId = "#BR83-NAF3";
-const publicAssetPath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+const publicAssetPath = publicBasePath;
 const calendarDate = "2026-08-01";
+const settingsStorageKey = "heavyuser:settings:v2";
+const defaultNightOwlSettings: NightOwlSettings = {
+  nightOwlMode: false,
+  dayStartTime: "04:00",
+};
 const shortMonthNames = [
   "Jan",
   "Feb",
@@ -81,7 +85,6 @@ const durationPresets = [
 ] as const;
 
 const taskBucketOptions = [
-  { value: "overdue", label: "Overdue", icon: CircleAlert },
   { value: "today", label: "Today", icon: CalendarRange },
   { value: "upcoming", label: "Upcoming", icon: ListTodo },
   { value: "backlog", label: "Backlog", icon: Archive },
@@ -108,6 +111,8 @@ type CalendarEvent = {
 // existing local rows so a navigation rename does not discard user data.
 const storageKey = "heavyuser:inbox-tasks:v4";
 const legacyStorageKeys = ["heavyuser:today-tasks:v3", "heavyuser:today-tasks:v2"] as const;
+const userStorageKeyPrefix = "heavyuser:tasks:v1:";
+const localBackupKeyPrefix = "heavyuser:local-backup:v1:";
 const starterDataVersionStorageKey = "heavyuser:inbox-tasks:starter-version";
 const starterDataVersion = "5";
 
@@ -593,22 +598,6 @@ const calendarEvents = [
   },
 ] satisfies ReadonlyArray<CalendarEvent>;
 
-const timelineStart = 9;
-const timelineHours = 9;
-const currentTime = 10 + 45 / 60;
-const timelineEnd = timelineStart + timelineHours;
-
-function formatHour(hour: number) {
-  const displayHour = hour % 12 || 12;
-  const period = hour >= 12 ? "PM" : "AM";
-  return `${String(displayHour).padStart(2, "0")}:00 ${period}`;
-}
-
-const timeLabels = Array.from({ length: timelineHours + 1 }, (_, index) => {
-  const hour = timelineStart + index;
-  return formatHour(hour);
-});
-
 function sortTasks(tasks: ReadonlyArray<Task>) {
   return [...tasks].sort((firstTask, secondTask) => {
     const firstDone = firstTask.status === "done" ? 1 : 0;
@@ -741,12 +730,13 @@ function PriorityIcon({ priority }: { priority: Priority }) {
 }
 
 function getTaskBucket(task: Task, today = calendarDate): TaskBucket {
-  if (task.status !== "done" && task.deadline && task.deadline < today) {
-    return "overdue";
-  }
-
   if (!task.startDate && !task.deadline) {
     return "backlog";
+  }
+
+  // Keep overdue work in Today so it remains visible without a separate view.
+  if (task.status !== "done" && task.deadline && task.deadline < today) {
+    return "today";
   }
 
   const canStartToday = task.startDate ? task.startDate <= today : !task.deadline;
@@ -775,6 +765,59 @@ type UpcomingTaskGroup = {
 
 function toIsoDate(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function isTimeValue(value: unknown): value is string {
+  return typeof value === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function normalizeNightOwlSettings(value: unknown): NightOwlSettings {
+  if (!value || typeof value !== "object") {
+    return defaultNightOwlSettings;
+  }
+
+  const candidate = value as Partial<NightOwlSettings>;
+  return {
+    nightOwlMode: candidate.nightOwlMode === true,
+    dayStartTime: isTimeValue(candidate.dayStartTime)
+      ? candidate.dayStartTime
+      : defaultNightOwlSettings.dayStartTime,
+  };
+}
+
+function readLocalSettings(): NightOwlSettings {
+  try {
+    const savedSettings = window.localStorage.getItem(settingsStorageKey);
+    return savedSettings ? normalizeNightOwlSettings(JSON.parse(savedSettings)) : defaultNightOwlSettings;
+  } catch {
+    return defaultNightOwlSettings;
+  }
+}
+
+function getTimeMinutes(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function getLogicalDate(timestamp: number, settings: NightOwlSettings) {
+  const date = new Date(timestamp);
+  const currentMinutes = date.getHours() * 60 + date.getMinutes();
+
+  if (settings.nightOwlMode && currentMinutes < getTimeMinutes(settings.dayStartTime)) {
+    date.setDate(date.getDate() - 1);
+  }
+
+  return toIsoDate(date);
+}
+
+function formatTimeValue(value: string) {
+  if (!isTimeValue(value)) {
+    return value;
+  }
+
+  const [hours, minutes] = value.split(":").map(Number);
+  const date = new Date(2000, 0, 1, hours, minutes);
+  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
 function addCalendarDays(value: string, days: number) {
@@ -889,15 +932,15 @@ function getUpcomingGroup(task: Task, today = calendarDate): UpcomingGroupId {
   return definitions.find((definition) => taskDate <= definition.end)?.id ?? "far-away";
 }
 
-function groupUpcomingTasks(tasks: ReadonlyArray<Task>) {
-  const definitions = getUpcomingGroupDefinitions();
+function groupUpcomingTasks(tasks: ReadonlyArray<Task>, today = calendarDate) {
+  const definitions = getUpcomingGroupDefinitions(today);
   return definitions
     .map((definition): UpcomingTaskGroup => ({
       id: definition.id,
       label: definition.label,
       helper: definition.helper,
       dateLabel: definition.dateLabel,
-      tasks: tasks.filter((task) => getUpcomingGroup(task) === definition.id),
+      tasks: tasks.filter((task) => getUpcomingGroup(task, today) === definition.id),
     }))
     .filter((group) => group.tasks.length > 0);
 }
@@ -944,16 +987,17 @@ function formatShortDate(value: string | null) {
   return `${String(day).padStart(2, "0")} ${shortMonthNames[month - 1]} ${String(year).slice(-2)}`;
 }
 
-function formatHeaderDateTime(timestamp: number | null) {
+function formatHeaderDateTime(timestamp: number | null, logicalDate = calendarDate) {
   if (timestamp === null) {
     return null;
   }
 
-  const date = new Date(timestamp);
+  const actualDate = new Date(timestamp);
+  const contextDate = new Date(`${logicalDate}T12:00:00`);
   return {
-    weekday: date.toLocaleDateString(undefined, { weekday: "long" }),
-    date: formatShortDate(toIsoDate(date)),
-    time: date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true }),
+    weekday: contextDate.toLocaleDateString(undefined, { weekday: "long" }),
+    date: formatShortDate(logicalDate),
+    time: actualDate.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true }),
   };
 }
 
@@ -1080,8 +1124,8 @@ function DateField({ ariaLabel, className, value, onChange }: DateFieldProps) {
   );
 }
 
-function isDeadlineOverdue(deadline: string | null, status: Task["status"]) {
-  return Boolean(deadline && status !== "done" && deadline < calendarDate);
+function isDeadlineOverdue(deadline: string | null, status: Task["status"], today = calendarDate) {
+  return Boolean(deadline && status !== "done" && deadline < today);
 }
 
 function parseDuration(value: string) {
@@ -1107,9 +1151,93 @@ function ensureSingleFocus(tasks: ReadonlyArray<Task>) {
   });
 }
 
+function getUserStorageKey(userId: string) {
+  return `${userStorageKeyPrefix}${userId}`;
+}
+
+function writeUserTasks(userId: string, tasks: ReadonlyArray<Task>) {
+  try {
+    window.localStorage.setItem(getUserStorageKey(userId), JSON.stringify(tasks));
+  } catch {
+    // Cloud sync remains the source of truth if browser storage is unavailable.
+  }
+}
+
+function writeUserLocalBackup(userId: string, tasks: ReadonlyArray<Task>) {
+  try {
+    window.localStorage.setItem(`${localBackupKeyPrefix}${userId}`, JSON.stringify(tasks));
+  } catch {
+    // Keep the original pending cache if browser storage is unavailable.
+  }
+}
+
+function readTaskCache(keys: ReadonlyArray<string>, seedDemoData: boolean) {
+  try {
+    const savedTasks = keys
+      .map((key) => window.localStorage.getItem(key))
+      .find((value) => value !== null);
+
+    if (!savedTasks) {
+      if (seedDemoData) {
+        window.localStorage.setItem(starterDataVersionStorageKey, starterDataVersion);
+      }
+      return { tasks: initialTasks, hasStoredTasks: false };
+    }
+
+    const parsedTasks: unknown = JSON.parse(savedTasks);
+    if (!Array.isArray(parsedTasks)) {
+      return { tasks: initialTasks, hasStoredTasks: true };
+    }
+
+    const normalizedTasks = parsedTasks.map(normalizeStoredTask);
+    if (!normalizedTasks.every((task): task is Task => task !== null)) {
+      return { tasks: initialTasks, hasStoredTasks: true };
+    }
+
+    const restoredTasks = ensureSingleFocus(normalizedTasks);
+    if (!seedDemoData) {
+      return { tasks: restoredTasks, hasStoredTasks: true };
+    }
+
+    const hasAppliedStarterUpdate = window.localStorage.getItem(starterDataVersionStorageKey) === starterDataVersion;
+    const missingDemoTasks = demoExpansionTasks.filter(
+      (starterTask) => !restoredTasks.some((task) => task.id === starterTask.id),
+    );
+    const shouldSeedDemoData = !hasAppliedStarterUpdate && missingDemoTasks.length > 0;
+    const nextTasks = shouldSeedDemoData ? ensureSingleFocus([...restoredTasks, ...missingDemoTasks]) : restoredTasks;
+
+    if (shouldSeedDemoData) {
+      window.localStorage.setItem(starterDataVersionStorageKey, starterDataVersion);
+    }
+
+    return { tasks: nextTasks, hasStoredTasks: true };
+  } catch {
+    return { tasks: initialTasks, hasStoredTasks: false };
+  }
+}
+
+function readPendingLocalTasks() {
+  return readTaskCache([storageKey, ...legacyStorageKeys], true);
+}
+
+function clearPendingLocalTasks() {
+  try {
+    [storageKey, ...legacyStorageKeys].forEach((key) => window.localStorage.removeItem(key));
+  } catch {
+    // The imported tasks are still safe in the cloud if storage cleanup fails.
+  }
+}
+
 
 export default function Home() {
   const [tasks, setTasks] = useState<ReadonlyArray<Task>>(initialTasks);
+  const [supabaseClient] = useState(() => getSupabaseBrowserClient());
+  const { status: authStatus, user: authUser, avatarUrl, signOut } = useAuth();
+  const [remoteSyncReady, setRemoteSyncReady] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<"connecting" | "saving" | "synced" | "error">("connecting");
+  const [pendingRemoteDeletes, setPendingRemoteDeletes] = useState<ReadonlyArray<string>>([]);
+  const [taskMigrationMessage, setTaskMigrationMessage] = useState("");
+  const [authActionMessage, setAuthActionMessage] = useState("");
   const [isCustomOrder, setIsCustomOrder] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
@@ -1139,10 +1267,17 @@ export default function Home() {
   const [dueDateDraft, setDueDateDraft] = useState("");
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState<NightOwlSettings>(defaultNightOwlSettings);
+  const [settingsDraft, setSettingsDraft] = useState<NightOwlSettings>(defaultNightOwlSettings);
   const [currentDateTime, setCurrentDateTime] = useState<number | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const router = useRouter();
   const topbarRef = useRef<HTMLElement | null>(null);
+  const profileButtonRef = useRef<HTMLButtonElement | null>(null);
+  const settingsToggleRef = useRef<HTMLInputElement | null>(null);
   const newTaskInputRef = useRef<HTMLInputElement | null>(null);
   const priorityMenuRef = useRef<HTMLDivElement | null>(null);
   const durationMenuRef = useRef<HTMLDivElement | null>(null);
@@ -1155,6 +1290,33 @@ export default function Home() {
 
     return () => window.clearInterval(intervalId);
   }, []);
+
+  useEffect(() => {
+    if (!isSettingsOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    settingsToggleRef.current?.focus();
+
+    function handleSettingsKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      setSettingsDraft(settings);
+      setIsSettingsOpen(false);
+      window.requestAnimationFrame(() => profileButtonRef.current?.focus());
+    }
+
+    document.addEventListener("keydown", handleSettingsKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleSettingsKeyDown);
+    };
+  }, [isSettingsOpen, settings]);
 
   useEffect(() => {
     function handleQuickAddShortcut(event: globalThis.KeyboardEvent) {
@@ -1216,60 +1378,112 @@ export default function Home() {
   useEffect(() => {
     let isCancelled = false;
 
-    const restoreTasks = () => {
+    const restoreTasks = async () => {
+      setSettings(readLocalSettings());
+      if (!authUser || authStatus !== "signed_in") {
+        return;
+      }
+
+      const localCache = readPendingLocalTasks();
+      const localTasks = localCache.tasks;
+
       if (isCancelled) {
         return;
       }
 
+      if (!supabaseClient) {
+        setIsHydrated(true);
+        return;
+      }
+
+      setSyncStatus("connecting");
+
       try {
-        const savedTasks = [storageKey, ...legacyStorageKeys]
-          .map((key) => window.localStorage.getItem(key))
-          .find((value) => value !== null);
+        const remoteTasks = await loadRemoteTasks(supabaseClient, authUser);
+        if (isCancelled) {
+          return;
+        }
 
-        if (savedTasks) {
-          const parsedTasks: unknown = JSON.parse(savedTasks);
-          if (Array.isArray(parsedTasks)) {
-            const normalizedTasks = parsedTasks.map(normalizeStoredTask);
-            if (normalizedTasks.every((task): task is Task => task !== null)) {
-              const restoredTasks = ensureSingleFocus(normalizedTasks);
-              const hasAppliedStarterUpdate =
-                window.localStorage.getItem(starterDataVersionStorageKey) === starterDataVersion;
-              const missingDemoTasks = demoExpansionTasks.filter(
-                (starterTask) => !restoredTasks.some((task) => task.id === starterTask.id),
-              );
-              const shouldSeedDemoData = !hasAppliedStarterUpdate && missingDemoTasks.length > 0;
-              const nextTasks = shouldSeedDemoData
-                ? ensureSingleFocus([...restoredTasks, ...missingDemoTasks])
-                : restoredTasks;
-
-              setTasks(nextTasks);
-              if (shouldSeedDemoData) {
-                window.localStorage.setItem(starterDataVersionStorageKey, starterDataVersion);
-              }
-            }
+        if (remoteTasks.length > 0) {
+          const nextTasks = ensureSingleFocus(remoteTasks);
+          setTasks(nextTasks);
+          writeUserTasks(authUser.id, nextTasks);
+          if (localCache.hasStoredTasks) {
+            writeUserLocalBackup(authUser.id, localTasks);
+            clearPendingLocalTasks();
+            setTaskMigrationMessage("Cloud tasks are loaded. Local tasks on this device were kept as a backup and were not merged.");
           }
         } else {
-          window.localStorage.setItem(starterDataVersionStorageKey, starterDataVersion);
+          setTasks(localTasks);
+          await persistRemoteTasks(supabaseClient, authUser, localTasks);
+          writeUserTasks(authUser.id, localTasks);
+          if (localCache.hasStoredTasks) {
+            clearPendingLocalTasks();
+          }
         }
+
+        setRemoteSyncReady(true);
+        setSyncStatus("synced");
       } catch {
-        // Invalid local data should fall back to the deterministic starter list.
+        if (!isCancelled) {
+          setTasks(localTasks);
+          setSyncStatus("error");
+        }
       } finally {
-        setIsHydrated(true);
+        if (!isCancelled) {
+          setIsHydrated(true);
+        }
       }
     };
 
-    const frameId = window.requestAnimationFrame(restoreTasks);
+    const frameId = window.requestAnimationFrame(() => {
+      void restoreTasks();
+    });
     return () => {
       isCancelled = true;
       window.cancelAnimationFrame(frameId);
     };
-  }, []);
+  }, [authStatus, authUser, supabaseClient]);
 
   useEffect(() => {
-    if (isHydrated) {
-      window.localStorage.setItem(storageKey, JSON.stringify(tasks));
+    if (isHydrated && authUser) {
+      writeUserTasks(authUser.id, tasks);
     }
-  }, [isHydrated, tasks]);
+  }, [authUser, isHydrated, tasks]);
+
+  useEffect(() => {
+    if (!supabaseClient || !authUser || !remoteSyncReady || !isHydrated) {
+      return;
+    }
+
+    const deletedTaskIds = pendingRemoteDeletes;
+    let isCancelled = false;
+
+    const timeoutId = window.setTimeout(() => {
+      setSyncStatus("saving");
+      void persistRemoteTasks(supabaseClient, authUser, tasks, deletedTaskIds)
+      .then(() => {
+        if (isCancelled) {
+          return;
+        }
+
+        setPendingRemoteDeletes((currentIds) =>
+          currentIds.filter((taskId) => !deletedTaskIds.includes(taskId)),
+        );
+        setSyncStatus("synced");
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setSyncStatus("error");
+        }
+      });
+    }, 250);
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [authUser, isHydrated, pendingRemoteDeletes, remoteSyncReady, supabaseClient, tasks]);
 
   useEffect(() => {
     if (!isNotificationsOpen && !isProfileOpen) {
@@ -1364,6 +1578,10 @@ export default function Home() {
     };
   }, [editingId]);
 
+  function getAppToday() {
+    return currentDateTime === null ? calendarDate : getLogicalDate(currentDateTime, settings);
+  }
+
   function handleAddTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const title = newTaskTitle.trim();
@@ -1394,6 +1612,60 @@ export default function Home() {
     setNewTaskDeadline("");
     setNewTaskPriority("normal");
     newTaskInputRef.current?.focus();
+  }
+
+  async function handleSignOut() {
+    const result = await signOut();
+    if (!result.ok) {
+      setAuthActionMessage(result.message);
+      return;
+    }
+
+    setRemoteSyncReady(false);
+    setIsHydrated(false);
+    setPendingRemoteDeletes([]);
+    setTasks([]);
+    setAuthActionMessage("");
+    setIsProfileOpen(false);
+    router.replace(getAppPath("/login"));
+  }
+
+  function handleOpenProfile() {
+    setIsNotificationsOpen(false);
+    setIsProfileOpen(false);
+    setIsProfileEditorOpen(true);
+  }
+
+  function handleOpenSettings() {
+    setSettingsDraft(settings);
+    setIsNotificationsOpen(false);
+    setIsProfileOpen(false);
+    setIsSettingsOpen(true);
+  }
+
+  function restoreProfileFocus() {
+    window.requestAnimationFrame(() => profileButtonRef.current?.focus());
+  }
+
+  function handleCancelSettings() {
+    setSettingsDraft(settings);
+    setIsSettingsOpen(false);
+    restoreProfileFocus();
+  }
+
+  function handleSaveSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextSettings = normalizeNightOwlSettings(settingsDraft);
+
+    setSettings(nextSettings);
+    setSettingsDraft(nextSettings);
+    try {
+      window.localStorage.setItem(settingsStorageKey, JSON.stringify(nextSettings));
+    } catch {
+      // The setting remains active for this session if browser storage is unavailable.
+    }
+    setIsSettingsOpen(false);
+    restoreProfileFocus();
   }
 
   function resetNewTaskDraft() {
@@ -1605,6 +1877,12 @@ export default function Home() {
   }
 
   function handleDeleteTask(taskId: string) {
+    if (supabaseClient && authUser) {
+      setPendingRemoteDeletes((currentIds) =>
+        currentIds.includes(taskId) ? currentIds : [...currentIds, taskId],
+      );
+    }
+
     setTasks((currentTasks) => {
       const deletedTask = currentTasks.find((task) => task.id === taskId);
       const remainingTasks = currentTasks.filter((task) => task.id !== taskId);
@@ -1648,7 +1926,7 @@ export default function Home() {
     setTasks((currentTasks) => {
       const bucketTasks = currentTasks.filter(
         (task) =>
-          getTaskBucket(task) === activeBucket &&
+          getTaskBucket(task, getAppToday()) === activeBucket &&
           (showCompletedTasks || task.status !== "done"),
       );
       const visibleTasks = isCustomOrder ? [...bucketTasks] : sortTasks(bucketTasks);
@@ -1723,7 +2001,7 @@ export default function Home() {
     setTasks((currentTasks) => {
       const bucketTasks = currentTasks.filter(
         (task) =>
-          getTaskBucket(task) === activeBucket &&
+          getTaskBucket(task, getAppToday()) === activeBucket &&
           (showCompletedTasks || task.status !== "done"),
       );
       const visibleTasks = isCustomOrder ? [...bucketTasks] : sortTasks(bucketTasks);
@@ -1744,31 +2022,63 @@ export default function Home() {
     setIsCustomOrder(true);
   }
 
+  const logicalToday = getAppToday();
   const taskCounts = taskBucketOptions.reduce<Record<TaskBucket, number>>(
     (counts, option) => {
       counts[option.value] = tasks.filter(
         (task) =>
-          getTaskBucket(task) === option.value &&
+          getTaskBucket(task, logicalToday) === option.value &&
           task.status !== "done",
       ).length;
       return counts;
     },
-    { backlog: 0, overdue: 0, today: 0, upcoming: 0 },
+    { backlog: 0, today: 0, upcoming: 0 },
   );
   const activeBucketTasks = tasks.filter(
     (task) =>
-      getTaskBucket(task) === activeBucket &&
+      getTaskBucket(task, logicalToday) === activeBucket &&
       (showCompletedTasks || task.status !== "done"),
   );
   const visibleTasks = isCustomOrder ? activeBucketTasks : sortTasks(activeBucketTasks);
   const visibleTaskGroups: ReadonlyArray<UpcomingTaskGroup> =
     activeBucket === "upcoming"
-      ? groupUpcomingTasks(visibleTasks)
+      ? groupUpcomingTasks(visibleTasks, logicalToday)
       : [{ id: "all", label: null, helper: "", dateLabel: "", tasks: visibleTasks }];
-  const dueDatePresets = getDueDatePresets();
+  const dueDatePresets = getDueDatePresets(logicalToday);
   const taskTitlesById = new Map(tasks.map((task) => [task.id, task.title]));
   const editingTask = editingId ? tasks.find((task) => task.id === editingId) ?? null : null;
-  const headerDateTime = formatHeaderDateTime(currentDateTime);
+  const headerDateTime = formatHeaderDateTime(currentDateTime, logicalToday);
+  const profileName =
+    typeof authUser?.user_metadata?.full_name === "string"
+      ? authUser.user_metadata.full_name
+      : authUser?.email?.split("@")[0] ?? "HeavyUser";
+  const profileInitials = profileName
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  const profileWorkspace =
+    syncStatus === "synced"
+      ? "Cloud synced"
+      : syncStatus === "saving"
+        ? "Saving…"
+        : syncStatus === "error"
+          ? "Sync needs attention"
+          : "Connecting…";
+
+  if (authStatus === "loading") {
+    return (
+      <main className="hu-auth-loading" aria-busy="true">
+        <span className="hu-auth-loading-mark" aria-hidden="true" />
+        Loading your workspace…
+      </main>
+    );
+  }
+
+  if (authStatus !== "signed_in" || !authUser) {
+    return null;
+  }
 
   return (
     <main className="hu-shell">
@@ -1783,7 +2093,14 @@ export default function Home() {
               setIsProfileOpen(false);
             }}
           >
-            <span className="hu-brand-name">heavyuser</span>
+            <Image
+              alt="HeavyUser"
+              className="hu-brand-logo"
+              height={20}
+              priority
+              src={`${publicAssetPath}/heavyuser-logo.png`}
+              width={155}
+            />
           </button>
 
           <div className="hu-topbar-actions">
@@ -1825,6 +2142,7 @@ export default function Home() {
                 aria-expanded={isProfileOpen}
                 aria-haspopup="menu"
                 className="hu-profile-button"
+                ref={profileButtonRef}
                 type="button"
                 onClick={() => {
                   setIsProfileOpen((current) => !current);
@@ -1832,36 +2150,49 @@ export default function Home() {
                 }}
               >
                 <span className="hu-avatar">
-                  <Image
-                    src={`${publicAssetPath}/dummy-portrait.svg`}
-                    alt=""
-                    width={25}
-                    height={25}
-                    priority
-                  />
+                  {avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={avatarUrl} alt="" />
+                  ) : (
+                    <span aria-hidden="true">{profileInitials}</span>
+                  )}
                 </span>
                 <span className="hu-profile-copy">
-                  <span className="hu-profile-name">Kowshik</span>
-                  <span className="hu-profile-workspace">{profileUserId}</span>
+                  <span className="hu-profile-name">{profileName}</span>
+                  <span className="hu-profile-workspace">{profileWorkspace}</span>
                 </span>
                 <ChevronDown aria-hidden="true" size={14} />
               </button>
               {isProfileOpen ? (
                 <div className="hu-popover hu-profile-popover" role="menu" aria-label="Profile menu">
                   <div className="hu-popover-profile" role="presentation">
-                    <Image
-                      className="hu-profile-portrait"
-                      src={`${publicAssetPath}/dummy-portrait.svg`}
-                      alt="Kowshik profile portrait"
-                      width={38}
-                      height={38}
-                    />
+                    <span className="hu-profile-portrait">
+                      {avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={avatarUrl} alt="" />
+                      ) : (
+                        <span aria-hidden="true">{profileInitials}</span>
+                      )}
+                    </span>
                     <div className="hu-popover-profile-copy">
-                      <strong>Kowshik</strong>
-                      <span>{profileUserId}</span>
+                      <strong>{profileName}</strong>
+                      <span>{authUser?.email ?? profileWorkspace}</span>
                     </div>
                   </div>
                   <div className="hu-popover-divider" role="presentation" />
+                  <button className="hu-menu-item" role="menuitem" type="button" onClick={handleOpenProfile}>
+                    <Pencil aria-hidden="true" size={14} />
+                    <span>Edit profile</span>
+                  </button>
+                  <button className="hu-menu-item" role="menuitem" type="button" onClick={handleOpenSettings}>
+                    <Settings2 aria-hidden="true" size={14} />
+                    <span>Settings</span>
+                  </button>
+                  <div className="hu-popover-divider" role="presentation" />
+                  <button className="hu-auth-action" type="button" onClick={() => void handleSignOut()}>
+                    Sign out
+                  </button>
+                  {authActionMessage ? <span className="hu-auth-message" role="alert">{authActionMessage}</span> : null}
                 </div>
               ) : null}
             </div>
@@ -1869,6 +2200,12 @@ export default function Home() {
         </header>
 
         <div className="hu-content">
+          {taskMigrationMessage ? (
+            <div className="hu-sync-notice" role="status">
+              <span>{taskMigrationMessage}</span>
+              <button type="button" onClick={() => setTaskMigrationMessage("")}>Dismiss</button>
+            </div>
+          ) : null}
           <div className="hu-workspace">
             <section className="hu-region hu-task-region" aria-labelledby="tasks-title">
               <div className="hu-pane-toolbar">
@@ -2099,6 +2436,7 @@ export default function Home() {
                           {!isCollapsed && group.tasks.map((task) => {
                             const isDone = task.status === "done";
                             const isFocus = task.status === "focus";
+                            const isOverdue = isDeadlineOverdue(task.deadline, task.status, logicalToday);
                             const durationParts = getDurationParts(task.duration);
                             const hasDuration = durationParts !== null;
                             const dueDateLabel = formatTaskDueDate(task.deadline);
@@ -2110,7 +2448,7 @@ export default function Home() {
 
                             return (
                               <article
-                                aria-label={task.title}
+                                aria-label={`${task.title}${isOverdue ? ", overdue" : ""}`}
                                 className={`hu-task-row ${isFocus ? "is-focus" : ""} ${
                                   isDone ? "is-done-row" : ""
                                 } ${draggingId === task.id ? "is-dragging" : ""} ${
@@ -2210,7 +2548,7 @@ export default function Home() {
                                     />
                                   ) : (
                                     <button
-                                      aria-label={`Edit title for ${task.title}`}
+                                      aria-label={`Edit title for ${task.title}${isOverdue ? " (overdue)" : ""}`}
                                       className="hu-inline-edit-trigger hu-task-title-trigger"
                                       type="button"
                                       onClick={(event) => {
@@ -2220,6 +2558,14 @@ export default function Home() {
                                       title="Edit title"
                                     >
                                       <span className="hu-task-title">{task.title}</span>
+                                      {isOverdue ? (
+                                        <CircleAlert
+                                          aria-hidden="true"
+                                          className="hu-overdue-indicator"
+                                          size={13}
+                                          strokeWidth={2.5}
+                                        />
+                                      ) : null}
                                     </button>
                                   )}
                                 </div>
@@ -2367,7 +2713,7 @@ export default function Home() {
                                 <div
                                   aria-label={dueDateLabel ? `Due date: ${dueDateLabel}` : "Due date not set"}
                                   className={`hu-task-due-date ${
-                                    isDeadlineOverdue(task.deadline, task.status) ? "is-overdue" : ""
+                                    isDeadlineOverdue(task.deadline, task.status, logicalToday) ? "is-overdue" : ""
                                   }`}
                                   ref={isDueDateMenuOpen ? dueDateMenuRef : undefined}
                                   title={dueDateLabel || "Edit due date"}
@@ -2452,59 +2798,109 @@ export default function Home() {
               </div>
             </section>
 
-            <section className="hu-region hu-calendar-region" aria-label="Planner">
-              <div className="hu-calendar-body">
-                <div className="hu-timeline">
-                  <div className="hu-time-labels" aria-hidden="true">
-                    {timeLabels.map((label, index) => (
-                      <span
-                        className="hu-time-label"
-                        key={label}
-                        style={{ top: `${(index / timelineHours) * 100}%` }}
-                      >
-                        {label}
-                      </span>
-                    ))}
-                  </div>
+            <GoogleCalendarPanel
+              date={logicalToday}
+              mockEvents={calendarEvents}
+              taskTitlesById={taskTitlesById}
+              currentTime={10 + 45 / 60}
+              timelineStart={9}
+              timelineHours={9}
+            />
+          </div>
+        </div>
 
-                  <div
-                    className="hu-calendar-stage"
-                    role="list"
-                    aria-label={`Planner for ${formatShortDate(calendarDate)}`}
-                    style={{ "--hu-visible-hours": timelineHours } as CSSProperties}
-                  >
-                    <span
-                      className="hu-now-line"
-                      style={{ top: `${((currentTime - timelineStart) / timelineHours) * 100}%` }}
-                    >
-                      <span className="hu-now-label">10:45 AM</span>
-                    </span>
+        {isSettingsOpen ? (
+          <div
+            className="hu-modal-backdrop"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                handleCancelSettings();
+              }
+            }}
+          >
+            <form
+              aria-labelledby="settings-title"
+              className="hu-settings-dialog"
+              role="dialog"
+              aria-modal="true"
+              onSubmit={handleSaveSettings}
+            >
+              <button
+                aria-label="Close settings"
+                className="hu-task-dialog-close hu-icon-button"
+                type="button"
+                onClick={handleCancelSettings}
+              >
+                <X aria-hidden="true" />
+              </button>
 
-                    {calendarEvents
-                      .filter((event) => event.end > timelineStart && event.start < timelineEnd)
-                      .map((event) => (
-                      <div
-                        className={`hu-event ${event.status === "active" ? "is-active" : ""}`}
-                        key={event.id}
-                        role="listitem"
-                        style={{
-                          top: `${Math.max(((event.start - timelineStart) / timelineHours) * 100, 0)}%`,
-                          height: `${Math.min(((event.end - event.start) / timelineHours) * 100, 100)}%`,
-                        }}
-                      >
-                        <div className="hu-event-title">
-                          {event.taskId ? taskTitlesById.get(event.taskId) ?? event.title : event.title}
-                        </div>
-                        <div className="hu-event-meta">{event.time}</div>
-                      </div>
-                      ))}
+              <div className="hu-settings-dialog-body">
+                <div className="hu-settings-intro">
+                  <span className="hu-settings-mark" aria-hidden="true">
+                    <Settings2 size={17} />
+                  </span>
+                  <div>
+                    <span className="hu-field-label">Settings</span>
+                    <h2 id="settings-title">Daily rhythm</h2>
+                    <p>Make HeavyUser follow the way your day actually runs.</p>
                   </div>
                 </div>
 
+                <label className="hu-settings-toggle-row">
+                  <span className="hu-settings-toggle-copy">
+                    <strong>Night owl mode</strong>
+                    <small>Keep the previous day open past midnight.</small>
+                  </span>
+                  <input
+                    aria-describedby="settings-day-start-help"
+                    checked={settingsDraft.nightOwlMode}
+                    className="hu-settings-switch"
+                    ref={settingsToggleRef}
+                    type="checkbox"
+                    onChange={(event) =>
+                      setSettingsDraft((current) => ({
+                        ...current,
+                        nightOwlMode: event.target.checked,
+                      }))
+                    }
+                  />
+                </label>
+
+                <label className="hu-settings-time-field">
+                  <span className="hu-field-label">New day starts at</span>
+                  <input
+                    aria-describedby="settings-day-start-help"
+                    className="hu-edit-input"
+                    disabled={!settingsDraft.nightOwlMode}
+                    onChange={(event) =>
+                      setSettingsDraft((current) => ({
+                        ...current,
+                        dayStartTime: event.target.value,
+                      }))
+                    }
+                    type="time"
+                    value={settingsDraft.dayStartTime}
+                  />
+                  <small id="settings-day-start-help">
+                    {settingsDraft.nightOwlMode
+                      ? `Your task day continues until ${formatTimeValue(settingsDraft.dayStartTime)}.`
+                      : "Turn on Night owl mode to change this time."}
+                  </small>
+                </label>
               </div>
-            </section>
+
+              <div className="hu-task-dialog-actions">
+                <button className="hu-form-button is-primary" type="submit">
+                  Save changes
+                </button>
+                <button className="hu-form-button" type="button" onClick={handleCancelSettings}>
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
-        </div>
+        ) : null}
 
         {editingTask ? (
           <div
@@ -2610,6 +3006,8 @@ export default function Home() {
             </form>
           </div>
         ) : null}
+
+        <ProfileDialog key={`${authUser.id}-${isProfileEditorOpen ? "open" : "closed"}`} open={isProfileEditorOpen} onClose={() => setIsProfileEditorOpen(false)} />
       </div>
     </main>
   );

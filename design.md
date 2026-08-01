@@ -13,9 +13,11 @@ This phase contains a restrained application shell and exactly two work regions:
 3. Task views, occupying 60% of the desktop work surface.
 4. A single-day vertical planner, occupying 40% of the desktop work surface.
 
-At widths below 900px, the work regions become one column with tasks first and calendar second. The sidebar becomes a compact horizontal rail. There is no dashboard card grid, authentication, backend, or extra page.
+At widths below 900px, the work regions become one column with tasks first and calendar second. The sidebar becomes a compact horizontal rail. The workspace is protected by a dedicated passwordless account gate, while the main product surface remains a single focused screen with no dashboard card grid.
 
-The planner remains a deterministic, read-only mock day. Tasks are the first functional slice: add, edit title, duration, start date, deadline, and priority, complete/uncomplete, delete, and reorder all work locally and persist in the browser's `localStorage`. New tasks default to Normal priority with no dates or estimate so capture stays low-friction. Four task views classify work from those dates: Backlog has no schedule, Overdue has an incomplete past deadline, Today has work due today or available to start today, and Upcoming has a future start or deadline. By default, incomplete tasks sort by deadline and then priority; completing a task moves it to the bottom, while drag-and-drop enables a custom order. Dates use the fixed `DD Mmm YY` format everywhere, including task rows, editors, and planner labels. The task list should feel like a Things-style task queue: low-friction capture, a clear focus row, a focused edit dialog, and controls that stay quiet until the row is hovered or focused. There is no backend, date navigation, planner editing, or drag-to-planner behavior yet.
+The planner remains a deterministic, read-only mock day. Tasks are the first functional slice: add, edit title, duration, start date, deadline, and priority, complete/uncomplete, delete, and reorder all work in the authenticated workspace and persist to Supabase. A user-scoped browser cache preserves recovery data and supports a one-time import of existing local tasks when the cloud task list is empty. New tasks default to Normal priority with no dates or estimate so capture stays low-friction. Four task views classify work from those dates: Backlog has no schedule, Overdue has an incomplete past deadline, Today has work due today or available to start today, and Upcoming has a future start or deadline. By default, incomplete tasks sort by deadline and then priority; completing a task moves it to the bottom, while drag-and-drop enables a custom order. Dates use the fixed `DD Mmm YY` format everywhere, including task rows, editors, and planner labels. The task list should feel like a Things-style task queue: low-friction capture, a clear focus row, a focused edit dialog, and controls that stay quiet until the row is hovered or focused. There is no date navigation, planner editing, or drag-to-planner behavior yet.
+
+The profile menu includes account details, profile editing, sign-out, and browser-local Settings. The profile editor stores a display name in Supabase Auth metadata and a private avatar in Supabase Storage. Optional Night owl mode lets a person choose when their task day starts, defaulting to 4:00 AM. Before that cutoff, date-based task views and date labels continue to use the previous day; at the cutoff, the next day becomes active. The preference does not change task data or cloud task synchronization.
 
 ## Visual principles
 
@@ -69,7 +71,7 @@ The outer workspace uses `grid-template-columns: 3fr 2fr` with no decorative gap
 
 ## Component boundaries
 
-- `Home` owns the two-region page composition, task interactions, local persistence, and mock data for this phase.
+- `Home` owns the two-region page composition, task interactions, user-scoped recovery cache, and mock planner data for this phase. Auth and cloud sync live in their dedicated boundaries.
 - Task rows are semantic `article` elements with a status marker, title, estimated duration, deadline, priority, and compact drag/edit/delete controls. Duration, deadline, and priority occupy fixed columns so the list scans vertically. The edit control opens a modal dialog so start date and deadline remain easy to compare.
 - Task rows select the focus row when clicked or activated with Enter/Space, reorder through native drag-and-drop, and support Up/Down keyboard reordering. The checkbox toggles completion, the pencil edits all task fields, and the trash icon deletes.
 - Calendar events are semantic list items positioned against a single timeline.
@@ -78,7 +80,7 @@ The outer workspace uses `grid-template-columns: 3fr 2fr` with no decorative gap
 
 ## Content rules
 
-Use plain, active language. Task titles should describe the work, not the implementation. Task rows show only estimated duration, deadline, and priority as supporting metadata. Calendar entries should name the commitment and show its time range. Avoid feature marketing, empty claims, duplicated counts, and copy that suggests persistence or collaboration already works.
+Use plain, active language. Task titles should describe the work, not the implementation. Task rows show only estimated duration, deadline, and priority as supporting metadata. Calendar entries should name the commitment and show its time range. Account copy should say what happens next, especially when a link is sent or local tasks are kept as a backup. Avoid feature marketing, empty claims, duplicated counts, and copy that suggests collaboration already works.
 
 ## Accessibility and responsive behavior
 
