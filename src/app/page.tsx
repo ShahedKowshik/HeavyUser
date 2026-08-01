@@ -5,9 +5,10 @@ import {
   Dispatch,
   DragEvent,
   FormEvent,
-  KeyboardEvent,
+  KeyboardEvent as ReactKeyboardEvent,
   SetStateAction,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import {
@@ -575,6 +576,7 @@ export default function Home() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const topbarRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
@@ -650,6 +652,38 @@ export default function Home() {
       window.localStorage.setItem(settingsStorageKey, JSON.stringify(settings));
     }
   }, [isSettingsHydrated, settings]);
+
+  useEffect(() => {
+    if (!isNotificationsOpen && !isProfileOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (event.target instanceof Node && topbarRef.current?.contains(event.target)) {
+        return;
+      }
+
+      setIsNotificationsOpen(false);
+      setIsProfileOpen(false);
+    }
+
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      setIsNotificationsOpen(false);
+      setIsProfileOpen(false);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isNotificationsOpen, isProfileOpen]);
 
   function handleAddTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -732,7 +766,7 @@ export default function Home() {
     setEditingPriority("normal");
   }
 
-  function handleEditKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  function handleEditKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
     if (event.key === "Escape") {
       event.preventDefault();
       handleCancelEditing();
@@ -854,7 +888,7 @@ export default function Home() {
     setDragOverId(null);
   }
 
-  function handleTaskRowKeyDown(event: KeyboardEvent<HTMLElement>, taskId: string) {
+  function handleTaskRowKeyDown(event: ReactKeyboardEvent<HTMLElement>, taskId: string) {
     if (event.key === "Enter" || event.key === " ") {
       if (event.target !== event.currentTarget) {
         return;
@@ -897,70 +931,22 @@ export default function Home() {
 
   return (
     <main className={`hu-shell ${isSettingsOpen ? "is-settings" : ""}`}>
-      <aside className="hu-sidebar" aria-label="Main navigation">
-        <div className="hu-sidebar-brand" aria-label="HeavyUser home">
-          <span className="hu-brand-name">heavyuser</span>
-        </div>
-
-        <nav className="hu-sidebar-nav">
+      <div className="hu-main">
+        <header ref={topbarRef} className="hu-topbar" aria-label="Global navigation">
           <button
-            className={`hu-sidebar-link ${!isSettingsOpen ? "is-active" : ""}`}
+            aria-label="Open Inbox"
+            className="hu-brand-button"
             type="button"
-            aria-current={!isSettingsOpen ? "page" : undefined}
-            onClick={() => setIsSettingsOpen(false)}
-          >
-            <CalendarDays aria-hidden="true" size={16} />
-            <span>Inbox</span>
-          </button>
-        </nav>
-
-        <div className="hu-sidebar-footer">
-          <div className="hu-popover-anchor">
-            <button
-              aria-expanded={isProfileOpen}
-              aria-haspopup="menu"
-              className="hu-profile-button hu-sidebar-profile"
-              type="button"
-              onClick={() => {
-                setIsProfileOpen((current) => !current);
-                setIsNotificationsOpen(false);
-              }}
-            >
-              <span className="hu-avatar" aria-hidden="true">
-                K
-              </span>
-              <span className="hu-profile-copy">
-                <span className="hu-profile-name">Kowshik</span>
-                <span className="hu-profile-workspace">Personal workspace</span>
-              </span>
-              <ChevronDown aria-hidden="true" size={14} />
-            </button>
-            {isProfileOpen ? (
-              <div className="hu-popover hu-profile-popover hu-sidebar-profile-popover" role="menu">
-                <strong>Kowshik</strong>
-                <span>Personal workspace</span>
-              </div>
-            ) : null}
-          </div>
-
-          <button
-            className={`hu-sidebar-link hu-settings-link ${isSettingsOpen ? "is-active" : ""}`}
-            type="button"
-            aria-current={isSettingsOpen ? "page" : undefined}
             onClick={() => {
-              setIsSettingsOpen(true);
+              setIsSettingsOpen(false);
               setIsNotificationsOpen(false);
               setIsProfileOpen(false);
             }}
           >
-            <Settings aria-hidden="true" size={16} />
-            <span>Settings</span>
+            <span className="hu-brand-name">heavyuser</span>
+            <span className="hu-brand-context">{isSettingsOpen ? "Settings" : "Inbox"}</span>
           </button>
-        </div>
-      </aside>
 
-      <div className="hu-main">
-        <header className="hu-topbar">
           <div className="hu-topbar-actions">
             <div className="hu-popover-anchor">
               <button
@@ -985,6 +971,51 @@ export default function Home() {
               ) : null}
             </div>
 
+            <div className="hu-popover-anchor">
+              <button
+                aria-expanded={isProfileOpen}
+                aria-haspopup="menu"
+                className="hu-profile-button"
+                type="button"
+                onClick={() => {
+                  setIsProfileOpen((current) => !current);
+                  setIsNotificationsOpen(false);
+                }}
+              >
+                <span className="hu-avatar" aria-hidden="true">
+                  K
+                </span>
+                <span className="hu-profile-copy">
+                  <span className="hu-profile-name">Kowshik</span>
+                  <span className="hu-profile-workspace">Personal workspace</span>
+                </span>
+                <ChevronDown aria-hidden="true" size={14} />
+              </button>
+              {isProfileOpen ? (
+                <div className="hu-popover hu-profile-popover" role="menu" aria-label="Profile menu">
+                  <div className="hu-popover-profile" role="presentation">
+                    <strong>Kowshik</strong>
+                    <span>Personal workspace</span>
+                  </div>
+                  <div className="hu-popover-divider" role="presentation" />
+                  <button
+                    aria-current={isSettingsOpen ? "page" : undefined}
+                    className={`hu-menu-item ${isSettingsOpen ? "is-active" : ""}`}
+                    role="menuitem"
+                    type="button"
+                    onClick={() => {
+                      setIsSettingsOpen(true);
+                      setIsNotificationsOpen(false);
+                      setIsProfileOpen(false);
+                    }}
+                  >
+                    <Settings aria-hidden="true" size={14} />
+                    <span>Settings</span>
+                    {isSettingsOpen ? <Check aria-hidden="true" size={14} /> : null}
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </header>
 
