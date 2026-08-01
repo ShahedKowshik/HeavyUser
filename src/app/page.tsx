@@ -15,13 +15,17 @@ import {
   CalendarRange,
   CalendarDays,
   Check,
-  CheckCheck,
   ChevronDown,
   CircleAlert,
+  CircleCheck,
+  CircleMinus,
   Clock3,
+  Flag,
+  Flame,
   ListTodo,
   Pencil,
   Plus,
+  TriangleAlert,
   Trash2,
   X,
 } from "lucide-react";
@@ -40,6 +44,7 @@ type Task = {
 
 type Priority = "urgent" | "high" | "normal" | "low";
 type TaskBucket = "backlog" | "overdue" | "today" | "upcoming";
+type InlineEditField = "title";
 
 const profileUserId = "#BR83-NAF3";
 const publicAssetPath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
@@ -65,6 +70,15 @@ const priorityOptions = [
   { value: "normal", label: "🟢 Normal" },
   { value: "low", label: "▼ Low" },
 ] satisfies ReadonlyArray<{ value: Priority; label: string }>;
+
+const durationPresets = [
+  { minutes: 15, label: "15m" },
+  { minutes: 30, label: "30m" },
+  { minutes: 45, label: "45m" },
+  { minutes: 60, label: "1h" },
+  { minutes: 90, label: "1h 30m" },
+  { minutes: 120, label: "2h" },
+] as const;
 
 const taskBucketOptions = [
   { value: "overdue", label: "Overdue", icon: CircleAlert },
@@ -681,18 +695,26 @@ function normalizeStoredTask(value: unknown): Task | null {
   };
 }
 
-function formatDuration(duration: number | null) {
+function getDurationParts(duration: number | null) {
   if (duration === null) {
-    return "No estimate";
+    return null;
   }
 
-  if (duration < 60) {
-    return `${duration} min`;
+  const totalMinutes = Math.max(0, Math.round(duration));
+  return {
+    hours: Math.floor(totalMinutes / 60),
+    minutes: totalMinutes % 60,
+  };
+}
+
+function formatDuration(duration: number | null) {
+  const parts = getDurationParts(duration);
+  if (!parts) {
+    return "";
   }
 
-  const hours = Math.floor(duration / 60);
-  const minutes = duration % 60;
-  return minutes === 0 ? `${hours} hr` : `${hours} hr ${minutes} min`;
+  const hours = parts.hours > 0 ? `${String(parts.hours).padStart(2, "0")}h ` : "";
+  return `${hours}${String(parts.minutes).padStart(2, "0")}m`;
 }
 
 const priorityLabels: Record<Priority, string> = {
@@ -703,7 +725,19 @@ const priorityLabels: Record<Priority, string> = {
 };
 
 function formatTaskDueDate(deadline: string | null) {
-  return formatShortDate(deadline) || "No due date";
+  return formatShortDate(deadline);
+}
+
+function PriorityIcon({ priority }: { priority: Priority }) {
+  const Icon = {
+    urgent: Flame,
+    high: TriangleAlert,
+    normal: CircleCheck,
+    low: CircleMinus,
+  }[priority];
+
+    const iconSize = priority === "urgent" ? 17 : 15;
+    return <Icon aria-hidden="true" size={iconSize} strokeWidth={2.2} />;
 }
 
 function getTaskBucket(task: Task, today = calendarDate): TaskBucket {
@@ -747,6 +781,14 @@ function addCalendarDays(value: string, days: number) {
   const date = new Date(`${value}T12:00:00`);
   date.setDate(date.getDate() + days);
   return toIsoDate(date);
+}
+
+function getDueDatePresets(today = calendarDate) {
+  return [
+    { label: "Today", value: today },
+    { label: "Tomorrow", value: addCalendarDays(today, 1) },
+    { label: "Next week", value: addCalendarDays(today, 7) },
+  ] as const;
 }
 
 function getMonthEnd(value: string) {
@@ -966,7 +1008,7 @@ function DateField({ ariaLabel, className, value, onChange }: DateFieldProps) {
       return;
     }
 
-      setDraft(formatShortDate(value));
+    setDraft(formatShortDate(value));
   }
 
   function openNativePicker() {
@@ -1016,6 +1058,7 @@ function DateField({ ariaLabel, className, value, onChange }: DateFieldProps) {
         aria-label={`Choose ${ariaLabel.toLowerCase()}`}
         className="hu-date-picker-button"
         type="button"
+        onMouseDown={(event) => event.preventDefault()}
         onClick={openNativePicker}
       >
         <CalendarDays aria-hidden="true" size={13} />
@@ -1027,11 +1070,11 @@ function DateField({ ariaLabel, className, value, onChange }: DateFieldProps) {
         tabIndex={-1}
         type="date"
         value={value}
-        onChange={(event) => {
-          onChange(event.target.value);
-          setDraft(formatShortDate(event.target.value));
-          setIsEditing(false);
-        }}
+          onChange={(event) => {
+            onChange(event.target.value);
+            setDraft(formatShortDate(event.target.value));
+            setIsEditing(false);
+          }}
       />
     </span>
   );
@@ -1084,14 +1127,26 @@ export default function Home() {
   const [editingStartDate, setEditingStartDate] = useState("");
   const [editingDeadline, setEditingDeadline] = useState("");
   const [editingPriority, setEditingPriority] = useState<Priority>("normal");
+  const [inlineEdit, setInlineEdit] = useState<{
+    taskId: string;
+    field: InlineEditField;
+  } | null>(null);
+  const [priorityMenuTaskId, setPriorityMenuTaskId] = useState<string | null>(null);
+  const [durationMenuTaskId, setDurationMenuTaskId] = useState<string | null>(null);
+  const [dueDateMenuTaskId, setDueDateMenuTaskId] = useState<string | null>(null);
+  const [durationHours, setDurationHours] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState("");
+  const [dueDateDraft, setDueDateDraft] = useState("");
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isCompletedMenuOpen, setIsCompletedMenuOpen] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState<number | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const topbarRef = useRef<HTMLElement | null>(null);
-  const completedFilterRef = useRef<HTMLDivElement | null>(null);
+  const newTaskInputRef = useRef<HTMLInputElement | null>(null);
+  const priorityMenuRef = useRef<HTMLDivElement | null>(null);
+  const durationMenuRef = useRef<HTMLDivElement | null>(null);
+  const dueDateMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const updateDateTime = () => setCurrentDateTime(Date.now());
@@ -1100,6 +1155,63 @@ export default function Home() {
 
     return () => window.clearInterval(intervalId);
   }, []);
+
+  useEffect(() => {
+    function handleQuickAddShortcut(event: globalThis.KeyboardEvent) {
+      if (event.key.toLowerCase() !== "q" || event.metaKey || event.ctrlKey || event.altKey || editingId) {
+        return;
+      }
+
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLSelectElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      if (isAdding) {
+        newTaskInputRef.current?.focus();
+      } else {
+        setIsAdding(true);
+      }
+    }
+
+    document.addEventListener("keydown", handleQuickAddShortcut);
+    return () => document.removeEventListener("keydown", handleQuickAddShortcut);
+  }, [editingId, isAdding]);
+
+  useEffect(() => {
+    if (!isAdding) {
+      return;
+    }
+
+    function handleTaskComposerKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      setNewTaskTitle("");
+      setNewTaskDuration("");
+      setNewTaskStartDate("");
+      setNewTaskDeadline("");
+      setNewTaskPriority("normal");
+      setIsAdding(false);
+    }
+
+    document.addEventListener("keydown", handleTaskComposerKeyDown);
+    return () => document.removeEventListener("keydown", handleTaskComposerKeyDown);
+  }, [isAdding]);
+
+  useEffect(() => {
+    if (isAdding) {
+      newTaskInputRef.current?.focus();
+    }
+  }, [isAdding]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -1192,32 +1304,41 @@ export default function Home() {
   }, [isNotificationsOpen, isProfileOpen]);
 
   useEffect(() => {
-    if (!isCompletedMenuOpen) {
+    if (!priorityMenuTaskId && !durationMenuTaskId && !dueDateMenuTaskId) {
       return;
     }
 
-    function handleCompletedMenuPointerDown(event: PointerEvent) {
-      if (event.target instanceof Node && completedFilterRef.current?.contains(event.target)) {
+    function handleTaskPopoverPointerDown(event: PointerEvent) {
+      if (
+        event.target instanceof Node &&
+        (priorityMenuRef.current?.contains(event.target) ||
+          durationMenuRef.current?.contains(event.target) ||
+          dueDateMenuRef.current?.contains(event.target))
+      ) {
         return;
       }
 
-      setIsCompletedMenuOpen(false);
+      setPriorityMenuTaskId(null);
+      setDurationMenuTaskId(null);
+      setDueDateMenuTaskId(null);
     }
 
-    function handleCompletedMenuKeyDown(event: globalThis.KeyboardEvent) {
+    function handleTaskPopoverKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === "Escape") {
-        setIsCompletedMenuOpen(false);
+        setPriorityMenuTaskId(null);
+        setDurationMenuTaskId(null);
+        setDueDateMenuTaskId(null);
       }
     }
 
-    document.addEventListener("pointerdown", handleCompletedMenuPointerDown);
-    document.addEventListener("keydown", handleCompletedMenuKeyDown);
+    document.addEventListener("pointerdown", handleTaskPopoverPointerDown);
+    document.addEventListener("keydown", handleTaskPopoverKeyDown);
 
     return () => {
-      document.removeEventListener("pointerdown", handleCompletedMenuPointerDown);
-      document.removeEventListener("keydown", handleCompletedMenuKeyDown);
+      document.removeEventListener("pointerdown", handleTaskPopoverPointerDown);
+      document.removeEventListener("keydown", handleTaskPopoverKeyDown);
     };
-  }, [isCompletedMenuOpen]);
+  }, [priorityMenuTaskId, durationMenuTaskId, dueDateMenuTaskId]);
 
   useEffect(() => {
     if (!editingId) {
@@ -1272,6 +1393,19 @@ export default function Home() {
     setNewTaskStartDate("");
     setNewTaskDeadline("");
     setNewTaskPriority("normal");
+    newTaskInputRef.current?.focus();
+  }
+
+  function resetNewTaskDraft() {
+    setNewTaskTitle("");
+    setNewTaskDuration("");
+    setNewTaskStartDate("");
+    setNewTaskDeadline("");
+    setNewTaskPriority("normal");
+  }
+
+  function handleCloseTaskComposer() {
+    resetNewTaskDraft();
     setIsAdding(false);
   }
 
@@ -1309,18 +1443,135 @@ export default function Home() {
     });
   }
 
-  function handleStartEditing(task: Task) {
-    setEditingId(task.id);
+  function seedEditingValues(task: Task) {
     setEditingTitle(task.title);
     setEditingDuration(task.duration === null ? "" : String(task.duration));
     setEditingStartDate(task.startDate ?? "");
     setEditingDeadline(task.deadline ?? "");
     setEditingPriority(task.priority);
+  }
+
+  function handleStartEditing(task: Task) {
     setIsAdding(false);
+    setEditingId(task.id);
+    setInlineEdit(null);
+    setPriorityMenuTaskId(null);
+    setDurationMenuTaskId(null);
+    setDueDateMenuTaskId(null);
+    seedEditingValues(task);
+  }
+
+  function handleStartInlineEditing(task: Task, field: InlineEditField) {
+    setIsAdding(false);
+    setEditingId(null);
+    setInlineEdit({ taskId: task.id, field });
+    setPriorityMenuTaskId(null);
+    setDurationMenuTaskId(null);
+    setDueDateMenuTaskId(null);
+    seedEditingValues(task);
+  }
+
+  function handleStartPriorityEditing(task: Task) {
+    setIsAdding(false);
+    setEditingId(null);
+    setInlineEdit(null);
+    setDurationMenuTaskId(null);
+    setDueDateMenuTaskId(null);
+    setPriorityMenuTaskId((currentTaskId) => (currentTaskId === task.id ? null : task.id));
+  }
+
+  function handleStartDurationEditing(task: Task) {
+    setIsAdding(false);
+    const parts = getDurationParts(task.duration);
+    setEditingId(null);
+    setInlineEdit(null);
+    setPriorityMenuTaskId(null);
+    setDueDateMenuTaskId(null);
+    setDurationHours(parts && parts.hours > 0 ? String(parts.hours) : "");
+    setDurationMinutes(parts ? String(parts.minutes) : "");
+    setDurationMenuTaskId((currentTaskId) => (currentTaskId === task.id ? null : task.id));
+  }
+
+  function handleStartDueDateEditing(task: Task) {
+    setIsAdding(false);
+    setEditingId(null);
+    setInlineEdit(null);
+    setPriorityMenuTaskId(null);
+    setDurationMenuTaskId(null);
+    setDueDateDraft(task.deadline ?? "");
+    setDueDateMenuTaskId((currentTaskId) => (currentTaskId === task.id ? null : task.id));
+  }
+
+  function handleCommitInlineEdit(taskId: string, field: InlineEditField, rawValue: string) {
+    if (inlineEdit?.taskId !== taskId || inlineEdit.field !== field) {
+      return;
+    }
+
+    const task = tasks.find((candidate) => candidate.id === taskId);
+    if (!task) {
+      setInlineEdit(null);
+      return;
+    }
+
+    if (field === "title") {
+      const title = rawValue.trim();
+      if (title) {
+        setTasks((currentTasks) =>
+          currentTasks.map((currentTask) => (currentTask.id === taskId ? { ...currentTask, title } : currentTask)),
+        );
+      }
+    }
+
+    setInlineEdit(null);
+  }
+
+  function handleInlineEditKeyDown(event: ReactKeyboardEvent<HTMLInputElement>, taskId: string) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setInlineEdit(null);
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      handleCommitInlineEdit(taskId, "title", event.currentTarget.value);
+    }
+  }
+
+  function handlePriorityChange(taskId: string, priority: Priority) {
+    setTasks((currentTasks) =>
+      currentTasks.map((task) => (task.id === taskId ? { ...task, priority } : task)),
+    );
+    setPriorityMenuTaskId(null);
+  }
+
+  function handleDurationChange(taskId: string, duration: number | null) {
+    setTasks((currentTasks) =>
+      currentTasks.map((task) => (task.id === taskId ? { ...task, duration } : task)),
+    );
+    setDurationMenuTaskId(null);
+  }
+
+  function handleCustomDurationSave(taskId: string) {
+    const hours = Math.max(0, Math.floor(Number(durationHours) || 0));
+    const minutes = Math.min(59, Math.max(0, Math.floor(Number(durationMinutes) || 0)));
+    const totalMinutes = hours * 60 + minutes;
+    handleDurationChange(taskId, totalMinutes > 0 ? totalMinutes : null);
+  }
+
+  function handleDueDateChange(taskId: string, deadline: string | null) {
+    setTasks((currentTasks) =>
+      currentTasks.map((task) => (task.id === taskId ? { ...task, deadline } : task)),
+    );
+    setDueDateMenuTaskId(null);
   }
 
   function handleCancelEditing() {
     setEditingId(null);
+    setInlineEdit(null);
+    setPriorityMenuTaskId(null);
+    setDurationMenuTaskId(null);
+    setDueDateMenuTaskId(null);
     setEditingTitle("");
     setEditingDuration("");
     setEditingStartDate("");
@@ -1514,6 +1765,7 @@ export default function Home() {
     activeBucket === "upcoming"
       ? groupUpcomingTasks(visibleTasks)
       : [{ id: "all", label: null, helper: "", dateLabel: "", tasks: visibleTasks }];
+  const dueDatePresets = getDueDatePresets();
   const taskTitlesById = new Map(tasks.map((task) => [task.id, task.title]));
   const editingTask = editingId ? tasks.find((task) => task.id === editingId) ?? null : null;
   const headerDateTime = formatHeaderDateTime(currentDateTime);
@@ -1529,7 +1781,6 @@ export default function Home() {
             onClick={() => {
               setIsNotificationsOpen(false);
               setIsProfileOpen(false);
-              setIsCompletedMenuOpen(false);
             }}
           >
             <span className="hu-brand-name">heavyuser</span>
@@ -1578,7 +1829,6 @@ export default function Home() {
                 onClick={() => {
                   setIsProfileOpen((current) => !current);
                   setIsNotificationsOpen(false);
-                  setIsCompletedMenuOpen(false);
                 }}
               >
                 <span className="hu-avatar">
@@ -1639,7 +1889,6 @@ export default function Home() {
                         onClick={() => {
                           setActiveBucket(option.value);
                           setIsCustomOrder(false);
-                          setIsCompletedMenuOpen(false);
                         }}
                       >
                         <option.icon aria-hidden="true" size={13} />
@@ -1650,57 +1899,27 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="hu-pane-toolbar-actions">
-                  <div className="hu-task-completed-filter" ref={completedFilterRef}>
-                    <button
-                      aria-expanded={isCompletedMenuOpen}
-                      aria-label={showCompletedTasks ? "Completed tasks shown" : "Completed tasks hidden"}
-                      aria-haspopup="menu"
-                      className={`hu-task-filter-trigger ${showCompletedTasks ? "is-active" : ""}`}
-                      type="button"
-                      onClick={() => setIsCompletedMenuOpen((current) => !current)}
-                    >
-                      <CheckCheck aria-hidden="true" size={14} />
-                      <span>Completed</span>
-                      <ChevronDown aria-hidden="true" size={13} />
-                    </button>
-                    {isCompletedMenuOpen ? (
-                      <div className="hu-task-filter-menu" role="menu" aria-label="Completed tasks">
-                        <button
-                          aria-checked={!showCompletedTasks}
-                          className="hu-task-filter-option"
-                          role="menuitemradio"
-                          type="button"
-                          onClick={() => {
-                            setShowCompletedTasks(false);
-                            setIsCompletedMenuOpen(false);
-                          }}
-                        >
-                          <span>Hide completed</span>
-                          {!showCompletedTasks ? <Check aria-hidden="true" size={14} /> : null}
-                        </button>
-                        <button
-                          aria-checked={showCompletedTasks}
-                          className="hu-task-filter-option"
-                          role="menuitemradio"
-                          type="button"
-                          onClick={() => {
-                            setShowCompletedTasks(true);
-                            setIsCompletedMenuOpen(false);
-                          }}
-                        >
-                          <span>Show completed</span>
-                          {showCompletedTasks ? <Check aria-hidden="true" size={14} /> : null}
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
+                  <label className="hu-task-completed-filter">
+                    <input
+                      aria-label="Show completed tasks"
+                      checked={showCompletedTasks}
+                      className="hu-task-filter-checkbox"
+                      type="checkbox"
+                      onChange={(event) => setShowCompletedTasks(event.target.checked)}
+                    />
+                    <span>Completed</span>
+                  </label>
                   <button
                     className="hu-add-button"
                     type="button"
                     onClick={() => {
-                      setIsAdding((current) => !current);
+                      if (isAdding) {
+                        handleCloseTaskComposer();
+                        return;
+                      }
+
                       handleCancelEditing();
-                      setIsCompletedMenuOpen(false);
+                      setIsAdding(true);
                     }}
                   >
                     <Plus aria-hidden="true" size={15} />
@@ -1710,23 +1929,27 @@ export default function Home() {
               </div>
 
               {isAdding ? (
-                <form className="hu-task-composer" onSubmit={handleAddTask}>
+                <form aria-label="Add task" className="hu-task-composer" onSubmit={handleAddTask}>
                   <div className="hu-composer-main-field">
                     <label className="hu-field-label" htmlFor="new-task-title">
                       Task
                     </label>
                     <input
                       autoFocus
+                      aria-keyshortcuts="Q"
                       className="hu-task-input"
                       id="new-task-title"
                       minLength={1}
                       onChange={(event) => setNewTaskTitle(event.target.value)}
                       placeholder="What needs doing?"
+                      ref={newTaskInputRef}
                       required
+                      title="Press Q to focus this field"
                       value={newTaskTitle}
                     />
                   </div>
-                  <div className="hu-task-options">
+
+                  <div className="hu-task-options" id="new-task-options">
                     <label className="hu-field">
                       <span className="hu-field-label">Duration</span>
                       <span className="hu-duration-input-wrap">
@@ -1782,20 +2005,6 @@ export default function Home() {
                     <button className="hu-form-button is-primary" type="submit">
                       Add task
                     </button>
-                    <button
-                      className="hu-form-button"
-                      type="button"
-                      onClick={() => {
-                        setIsAdding(false);
-                        setNewTaskTitle("");
-                        setNewTaskDuration("");
-                        setNewTaskStartDate("");
-                        setNewTaskDeadline("");
-                        setNewTaskPriority("normal");
-                      }}
-                    >
-                      Cancel
-                    </button>
                   </div>
                 </form>
               ) : null}
@@ -1818,11 +2027,35 @@ export default function Home() {
                   <>
                     <div className="hu-task-table-head" role="row" aria-label="Task table columns">
                       <span aria-hidden="true" />
-                      <span role="columnheader">Task</span>
+                      <span
+                        aria-label="Priority"
+                        className="hu-table-head-icon-only"
+                        role="columnheader"
+                        title="Priority"
+                      >
+                        <Flag aria-hidden="true" size={13} />
+                      </span>
+                      <span role="columnheader">
+                        <ListTodo aria-hidden="true" size={13} />
+                        <span className="hu-table-head-label">Task</span>
+                      </span>
                       <span aria-hidden="true" />
-                      <span role="columnheader">Priority</span>
-                      <span role="columnheader">Duration</span>
-                      <span role="columnheader">Due date</span>
+                      <span
+                        aria-label="Duration"
+                        className="hu-table-head-icon-only"
+                        role="columnheader"
+                        title="Duration"
+                      >
+                        <Clock3 aria-hidden="true" size={13} />
+                      </span>
+                      <span
+                        aria-label="Due date"
+                        className="hu-table-head-icon-only"
+                        role="columnheader"
+                        title="Due date"
+                      >
+                        <CalendarDays aria-hidden="true" size={13} />
+                      </span>
                     </div>
                     {visibleTaskGroups.map((group) => {
                       const isCollapsed =
@@ -1866,8 +2099,14 @@ export default function Home() {
                           {!isCollapsed && group.tasks.map((task) => {
                             const isDone = task.status === "done";
                             const isFocus = task.status === "focus";
-                            const hasDuration = task.duration !== null;
+                            const durationParts = getDurationParts(task.duration);
+                            const hasDuration = durationParts !== null;
                             const dueDateLabel = formatTaskDueDate(task.deadline);
+                            const activeInlineField = inlineEdit?.taskId === task.id ? inlineEdit.field : null;
+                            const isPriorityMenuOpen = priorityMenuTaskId === task.id;
+                            const isDurationMenuOpen = durationMenuTaskId === task.id;
+                            const isDueDateMenuOpen = dueDateMenuTaskId === task.id;
+                            const hasTaskPopover = isPriorityMenuOpen || isDurationMenuOpen || isDueDateMenuOpen;
 
                             return (
                               <article
@@ -1876,11 +2115,11 @@ export default function Home() {
                                   isDone ? "is-done-row" : ""
                                 } ${draggingId === task.id ? "is-dragging" : ""} ${
                                   dragOverId === task.id ? "is-drag-over" : ""
-                                }`}
-                                draggable={!editingTask}
+                                } ${hasTaskPopover ? "is-task-popover-open" : ""}`}
+                                draggable={!editingTask && !activeInlineField && !hasTaskPopover}
                                 aria-current={isFocus ? "true" : undefined}
                                 key={task.id}
-                                tabIndex={editingTask ? -1 : 0}
+                                tabIndex={editingTask || activeInlineField || hasTaskPopover ? -1 : 0}
                                 onClick={(event) => {
                                   if (
                                     event.target instanceof Element &&
@@ -1899,15 +2138,90 @@ export default function Home() {
                               >
                                 <button
                                   aria-label={`${isDone ? "Mark" : "Complete"} ${task.title}`}
-                                  className={`hu-check is-${task.priority} ${isDone ? "is-done" : ""}`}
+                                  className={`hu-check ${isDone ? "is-done" : ""}`}
                                   type="button"
                                   onClick={() => handleToggleTask(task.id)}
                                 >
                                   {isDone ? <Check aria-hidden="true" /> : null}
                                 </button>
 
+                                <div className="hu-task-priority-cell" ref={isPriorityMenuOpen ? priorityMenuRef : undefined}>
+                                  <button
+                                    aria-expanded={isPriorityMenuOpen}
+                                    aria-haspopup="menu"
+                                    aria-label={`Priority: ${priorityLabels[task.priority]}. Change priority`}
+                                    className={`hu-inline-edit-trigger hu-task-priority-trigger is-${task.priority}`}
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleStartPriorityEditing(task);
+                                    }}
+                                    title="Change priority"
+                                  >
+                                    <PriorityIcon priority={task.priority} />
+                                  </button>
+                                  {isPriorityMenuOpen ? (
+                                    <div
+                                      aria-label={`Change priority for ${task.title}`}
+                                      className="hu-priority-menu"
+                                      role="menu"
+                                    >
+                                      {priorityOptions.map((option) => {
+                                        const optionPriority = option.value;
+                                        const isSelected = task.priority === optionPriority;
+
+                                        return (
+                                          <button
+                                            aria-checked={isSelected}
+                                            className={`hu-priority-option ${isSelected ? "is-selected" : ""}`}
+                                            key={optionPriority}
+                                            role="menuitemradio"
+                                            type="button"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              handlePriorityChange(task.id, optionPriority);
+                                            }}
+                                          >
+                                            <span className={`hu-priority-option-icon is-${optionPriority}`}>
+                                              <PriorityIcon priority={optionPriority} />
+                                            </span>
+                                            <span>{priorityLabels[optionPriority]}</span>
+                                            {isSelected ? <Check aria-hidden="true" size={13} /> : null}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : null}
+                                </div>
+
                                 <div className="hu-task-title-cell">
-                                  <span className="hu-task-title">{task.title}</span>
+                                  {activeInlineField === "title" ? (
+                                    <input
+                                      aria-label={`Edit title for ${task.title}`}
+                                      autoFocus
+                                      className="hu-inline-edit-input hu-inline-title-input"
+                                      minLength={1}
+                                      value={editingTitle}
+                                      onBlur={(event) =>
+                                        handleCommitInlineEdit(task.id, "title", event.currentTarget.value)
+                                      }
+                                      onChange={(event) => setEditingTitle(event.target.value)}
+                                      onKeyDown={(event) => handleInlineEditKeyDown(event, task.id)}
+                                    />
+                                  ) : (
+                                    <button
+                                      aria-label={`Edit title for ${task.title}`}
+                                      className="hu-inline-edit-trigger hu-task-title-trigger"
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleStartInlineEditing(task, "title");
+                                      }}
+                                      title="Edit title"
+                                    >
+                                      <span className="hu-task-title">{task.title}</span>
+                                    </button>
+                                  )}
                                 </div>
 
                                 <div className="hu-task-controls">
@@ -1931,37 +2245,202 @@ export default function Home() {
                                   </button>
                                 </div>
 
-                                <span
-                                  aria-label={`Priority: ${priorityLabels[task.priority]}`}
-                                  className={`hu-task-priority is-${task.priority}`}
-                                >
-                                  <span className="hu-task-priority-dot" aria-hidden="true" />
-                                  {priorityLabels[task.priority]}
-                                </span>
-
-                                <span
-                                  aria-label={hasDuration ? `Duration: ${formatDuration(task.duration)}` : "No duration"}
+                                <div
+                                  aria-label={hasDuration ? `Duration: ${formatDuration(task.duration)}` : "Duration not set"}
                                   className="hu-task-time"
-                                  title={hasDuration ? `Duration: ${formatDuration(task.duration)}` : undefined}
+                                  ref={isDurationMenuOpen ? durationMenuRef : undefined}
+                                  title={hasDuration ? `Duration: ${formatDuration(task.duration)}` : "Edit duration"}
                                 >
-                                  {hasDuration ? (
-                                    <>
-                                      <Clock3 aria-hidden="true" size={11} />
-                                      {formatDuration(task.duration)}
-                                    </>
-                                  ) : "—"}
-                                </span>
+                                  <button
+                                    aria-expanded={isDurationMenuOpen}
+                                    aria-haspopup="dialog"
+                                    aria-label={hasDuration ? `Edit duration: ${formatDuration(task.duration)}` : "Add duration"}
+                                    className="hu-inline-edit-trigger hu-task-time-trigger"
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleStartDurationEditing(task);
+                                    }}
+                                    title="Edit duration"
+                                  >
+                                    {durationParts ? (
+                                      <span className="hu-duration-value">
+                                        <span className="hu-duration-hours">
+                                          {durationParts.hours > 0
+                                            ? `${String(durationParts.hours).padStart(2, "0")}h`
+                                            : null}
+                                        </span>
+                                        <span className="hu-duration-minutes">
+                                          {String(durationParts.minutes).padStart(2, "0")}m
+                                        </span>
+                                      </span>
+                                    ) : (
+                                      <span className="hu-inline-empty-value">—</span>
+                                    )}
+                                  </button>
+                                  {isDurationMenuOpen ? (
+                                    <div
+                                      aria-label={`Set duration for ${task.title}`}
+                                      className="hu-duration-menu"
+                                      role="dialog"
+                                    >
+                                      <span className="hu-popover-kicker">Quick duration</span>
+                                      <div className="hu-duration-presets">
+                                        {durationPresets.map((preset) => (
+                                          <button
+                                            aria-pressed={task.duration === preset.minutes}
+                                            className="hu-duration-preset"
+                                            key={preset.minutes}
+                                            type="button"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              handleDurationChange(task.id, preset.minutes);
+                                            }}
+                                          >
+                                            {preset.label}
+                                          </button>
+                                        ))}
+                                      </div>
+                                      <div className="hu-popover-divider" role="presentation" />
+                                      <span className="hu-popover-kicker">Custom</span>
+                                      <div className="hu-duration-custom">
+                                        <label className="hu-duration-custom-field">
+                                          <span>Hours</span>
+                                          <input
+                                            aria-label="Hours"
+                                            inputMode="numeric"
+                                            min="0"
+                                            type="number"
+                                            value={durationHours}
+                                            onChange={(event) => setDurationHours(event.target.value)}
+                                            onKeyDown={(event) => {
+                                              if (event.key === "Enter") {
+                                                event.preventDefault();
+                                                handleCustomDurationSave(task.id);
+                                              }
+                                            }}
+                                          />
+                                        </label>
+                                        <label className="hu-duration-custom-field">
+                                          <span>Minutes</span>
+                                          <input
+                                            aria-label="Minutes"
+                                            inputMode="numeric"
+                                            max="59"
+                                            min="0"
+                                            type="number"
+                                            value={durationMinutes}
+                                            onChange={(event) => setDurationMinutes(event.target.value)}
+                                            onKeyDown={(event) => {
+                                              if (event.key === "Enter") {
+                                                event.preventDefault();
+                                                handleCustomDurationSave(task.id);
+                                              }
+                                            }}
+                                          />
+                                        </label>
+                                        <button
+                                          className="hu-popover-apply"
+                                          type="button"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            handleCustomDurationSave(task.id);
+                                          }}
+                                        >
+                                          Apply
+                                        </button>
+                                      </div>
+                                      <button
+                                        className="hu-popover-clear"
+                                        type="button"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleDurationChange(task.id, null);
+                                        }}
+                                      >
+                                        Clear duration
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </div>
 
-                                <span
-                                  aria-label={`Due date: ${dueDateLabel}`}
+                                <div
+                                  aria-label={dueDateLabel ? `Due date: ${dueDateLabel}` : "Due date not set"}
                                   className={`hu-task-due-date ${
                                     isDeadlineOverdue(task.deadline, task.status) ? "is-overdue" : ""
                                   }`}
-                                  title={dueDateLabel}
+                                  ref={isDueDateMenuOpen ? dueDateMenuRef : undefined}
+                                  title={dueDateLabel || "Edit due date"}
                                 >
-                                  <CalendarDays aria-hidden="true" size={11} />
-                                  {dueDateLabel}
-                                </span>
+                                  <button
+                                    aria-expanded={isDueDateMenuOpen}
+                                    aria-haspopup="dialog"
+                                    aria-label={dueDateLabel ? `Edit due date: ${dueDateLabel}` : "Add due date"}
+                                    className="hu-inline-edit-trigger hu-task-due-date-trigger"
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleStartDueDateEditing(task);
+                                    }}
+                                    title="Edit due date"
+                                  >
+                                    {dueDateLabel || <span className="hu-inline-empty-value">—</span>}
+                                  </button>
+                                  {isDueDateMenuOpen ? (
+                                    <div
+                                      aria-label={`Set due date for ${task.title}`}
+                                      className="hu-due-date-menu"
+                                      role="dialog"
+                                    >
+                                      <span className="hu-popover-kicker">Quick date</span>
+                                      <div className="hu-due-date-presets">
+                                        {dueDatePresets.map((preset) => (
+                                          <button
+                                            aria-pressed={task.deadline === preset.value}
+                                            className="hu-due-date-preset"
+                                            key={preset.value}
+                                            type="button"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              handleDueDateChange(task.id, preset.value);
+                                            }}
+                                          >
+                                            <span>{preset.label}</span>
+                                            <small>{formatShortDate(preset.value)}</small>
+                                          </button>
+                                        ))}
+                                      </div>
+                                      <div className="hu-popover-divider" role="presentation" />
+                                      <span className="hu-popover-kicker">Custom date</span>
+                                      <DateField
+                                        ariaLabel={`Custom due date for ${task.title}`}
+                                        className="hu-edit-input hu-popover-date-input"
+                                        value={dueDateDraft}
+                                        onChange={setDueDateDraft}
+                                      />
+                                      <button
+                                        className="hu-popover-apply"
+                                        type="button"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleDueDateChange(task.id, dueDateDraft || null);
+                                        }}
+                                      >
+                                        Apply date
+                                      </button>
+                                      <button
+                                        className="hu-popover-clear"
+                                        type="button"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleDueDateChange(task.id, null);
+                                        }}
+                                      >
+                                        Clear due date
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </div>
                               </article>
                             );
                           })}
@@ -2085,6 +2564,21 @@ export default function Home() {
                     </span>
                   </label>
                   <label className="hu-edit-field">
+                    <span className="hu-field-label">Priority</span>
+                    <select
+                      aria-label="Task priority"
+                      className={`hu-edit-input hu-priority-select is-${editingPriority}`}
+                      onChange={(event) => setEditingPriority(event.target.value as Priority)}
+                      value={editingPriority}
+                    >
+                      {priorityOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="hu-edit-field">
                     <span className="hu-field-label">Start date</span>
                     <DateField
                       ariaLabel="Task start date"
@@ -2101,21 +2595,6 @@ export default function Home() {
                       value={editingDeadline}
                       onChange={setEditingDeadline}
                     />
-                  </label>
-                  <label className="hu-edit-field">
-                    <span className="hu-field-label">Priority</span>
-                    <select
-                      aria-label="Task priority"
-                      className={`hu-edit-input hu-priority-select is-${editingPriority}`}
-                      onChange={(event) => setEditingPriority(event.target.value as Priority)}
-                      value={editingPriority}
-                    >
-                      {priorityOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
                   </label>
                 </div>
               </div>
