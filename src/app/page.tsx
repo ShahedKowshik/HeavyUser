@@ -694,6 +694,17 @@ function formatDuration(duration: number | null) {
   return minutes === 0 ? `${hours} hr` : `${hours} hr ${minutes} min`;
 }
 
+const priorityLabels: Record<Priority, string> = {
+  urgent: "Urgent",
+  high: "High",
+  normal: "Normal",
+  low: "Low",
+};
+
+function formatTaskDueDate(deadline: string | null) {
+  return formatShortDate(deadline) || "No due date";
+}
+
 function getTaskBucket(task: Task, today = calendarDate): TaskBucket {
   if (task.status !== "done" && task.deadline && task.deadline < today) {
     return "overdue";
@@ -926,10 +937,6 @@ function parseShortDate(value: string) {
   }
 
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-function formatDeadline(deadline: string | null) {
-  return formatShortDate(deadline) || "No deadline";
 }
 
 type DateFieldProps = {
@@ -1740,9 +1747,9 @@ export default function Home() {
                       />
                     </label>
                     <label className="hu-field">
-                      <span className="hu-field-label">Deadline</span>
+                      <span className="hu-field-label">Due date</span>
                       <DateField
-                        ariaLabel="Task deadline"
+                        ariaLabel="Task due date"
                         className="hu-task-input"
                         value={newTaskDeadline}
                         onChange={setNewTaskDeadline}
@@ -1801,148 +1808,160 @@ export default function Home() {
                     </button>
                   </div>
                 ) : (
-                  visibleTaskGroups.map((group) => {
-                    const isCollapsed =
-                      group.id !== "all" && collapsedUpcomingGroupIds.includes(group.id);
-
-                    return (
-                    <div className={`hu-task-group ${group.id !== "all" ? "is-upcoming-group" : ""}`} key={group.id}>
-                      {group.label ? (
-                        <div className="hu-task-group-heading">
-                          <Button
-                            aria-expanded={!isCollapsed}
-                            className="hu-task-group-toggle"
-                            size="sm"
-                            type="button"
-                            variant="ghost"
-                            onClick={() => {
-                              if (group.id === "all") {
-                                return;
-                              }
-
-                              const groupId: UpcomingGroupId = group.id;
-                              setCollapsedUpcomingGroupIds((current) =>
-                                current.includes(groupId)
-                                  ? current.filter((id) => id !== groupId)
-                                  : [...current, groupId],
-                              );
-                            }}
-                          >
-                            <ChevronDown
-                              aria-hidden="true"
-                              className={isCollapsed ? "is-collapsed" : ""}
-                              size={15}
-                            />
-                            <span>{group.label}</span>
-                            <span className="hu-task-group-date">{group.dateLabel}</span>
-                          </Button>
-                          <span className="hu-task-group-helper">{group.helper}</span>
-                          <span className="hu-task-group-count">{group.tasks.length}</span>
-                        </div>
-                      ) : null}
-                      {!isCollapsed && group.tasks.map((task) => {
-                        const isDone = task.status === "done";
-                        const isFocus = task.status === "focus";
-                        const hasDuration = task.duration !== null;
-                        const hasDeadline = task.deadline !== null;
-
-                        return (
-                          <article
-                        aria-label={task.title}
-                        className={`hu-task-row ${isFocus ? "is-focus" : ""} ${
-                          isDone ? "is-done-row" : ""
-                        } ${draggingId === task.id ? "is-dragging" : ""} ${
-                          dragOverId === task.id ? "is-drag-over" : ""
-                        }`}
-                        draggable={!editingTask}
-                        aria-current={isFocus ? "true" : undefined}
-                        key={task.id}
-                        tabIndex={editingTask ? -1 : 0}
-                        onClick={(event) => {
-                          if (
-                            event.target instanceof Element &&
-                            event.target.closest("button, input, select, textarea")
-                          ) {
-                            return;
-                          }
-
-                          handleSelectTask(task.id);
-                        }}
-                        onKeyDown={(event) => handleTaskRowKeyDown(event, task.id)}
-                        onDragEnd={handleTaskDragEnd}
-                        onDragOver={(event) => handleTaskDragOver(event, task.id)}
-                        onDragStart={(event) => handleTaskDragStart(event, task.id)}
-                        onDrop={(event) => handleTaskDrop(event, task.id)}
-                      >
-                        <button
-                          aria-label={`${isDone ? "Mark" : "Complete"} ${task.title}`}
-                          className={`hu-check is-${task.priority} ${isDone ? "is-done" : ""}`}
-                          type="button"
-                          onClick={() => handleToggleTask(task.id)}
-                        >
-                          {isDone ? <Check aria-hidden="true" /> : null}
-                        </button>
-
-                        <div className="hu-task-title-and-time">
-                          <div className="hu-task-title-cell">
-                            <span className="hu-task-title">{task.title}</span>
-                          </div>
-
-                          <span
-                            aria-label={hasDuration ? `Duration: ${formatDuration(task.duration)}` : "No duration"}
-                            className="hu-task-time"
-                            title={hasDuration ? `Duration: ${formatDuration(task.duration)}` : undefined}
-                          >
-                            {hasDuration ? (
-                              <>
-                                <Clock3 aria-hidden="true" size={11} />
-                                {formatDuration(task.duration)}
-                              </>
-                            ) : null}
-                          </span>
-                        </div>
-
-                          <span
-                            aria-label={hasDeadline ? `Deadline: ${formatDeadline(task.deadline)}` : "No deadline"}
-                            className={`hu-task-deadline ${
-                              isDeadlineOverdue(task.deadline, task.status) ? "is-overdue" : ""
-                            }`}
-                            title={hasDeadline ? `Deadline: ${formatShortDate(task.deadline)}` : undefined}
-                          >
-                            {hasDeadline ? (
-                              <>
-                                <CalendarDays aria-hidden="true" size={11} />
-                                {formatDeadline(task.deadline)}
-                              </>
-                            ) : null}
-                          </span>
-
-                          <div className="hu-task-controls">
-                            <button
-                              aria-label={`Edit ${task.title}`}
-                              className="hu-icon-button"
-                              type="button"
-                              onClick={() => handleStartEditing(task)}
-                              title="Edit task"
-                            >
-                              <Pencil aria-hidden="true" />
-                            </button>
-                            <button
-                              aria-label={`Delete ${task.title}`}
-                              className="hu-icon-button is-danger"
-                              type="button"
-                              onClick={() => handleDeleteTask(task.id)}
-                              title="Delete task"
-                            >
-                              <Trash2 aria-hidden="true" />
-                            </button>
-                          </div>
-                          </article>
-                        );
-                      })}
+                  <>
+                    <div className="hu-task-table-head" role="row" aria-label="Task table columns">
+                      <span aria-hidden="true" />
+                      <span role="columnheader">Task</span>
+                      <span aria-hidden="true" />
+                      <span role="columnheader">Priority</span>
+                      <span role="columnheader">Duration</span>
+                      <span role="columnheader">Due date</span>
                     </div>
-                    );
-                  })
+                    {visibleTaskGroups.map((group) => {
+                      const isCollapsed =
+                        group.id !== "all" && collapsedUpcomingGroupIds.includes(group.id);
+
+                      return (
+                        <div className={`hu-task-group ${group.id !== "all" ? "is-upcoming-group" : ""}`} key={group.id}>
+                          {group.label ? (
+                            <div className="hu-task-group-heading">
+                              <Button
+                                aria-expanded={!isCollapsed}
+                                className="hu-task-group-toggle"
+                                size="sm"
+                                type="button"
+                                variant="ghost"
+                                onClick={() => {
+                                  if (group.id === "all") {
+                                    return;
+                                  }
+
+                                  const groupId: UpcomingGroupId = group.id;
+                                  setCollapsedUpcomingGroupIds((current) =>
+                                    current.includes(groupId)
+                                      ? current.filter((id) => id !== groupId)
+                                      : [...current, groupId],
+                                  );
+                                }}
+                              >
+                                <ChevronDown
+                                  aria-hidden="true"
+                                  className={isCollapsed ? "is-collapsed" : ""}
+                                  size={15}
+                                />
+                                <span>{group.label}</span>
+                                <span className="hu-task-group-date">{group.dateLabel}</span>
+                              </Button>
+                              <span className="hu-task-group-helper">{group.helper}</span>
+                              <span className="hu-task-group-count">{group.tasks.length}</span>
+                            </div>
+                          ) : null}
+                          {!isCollapsed && group.tasks.map((task) => {
+                            const isDone = task.status === "done";
+                            const isFocus = task.status === "focus";
+                            const hasDuration = task.duration !== null;
+                            const dueDateLabel = formatTaskDueDate(task.deadline);
+
+                            return (
+                              <article
+                                aria-label={task.title}
+                                className={`hu-task-row ${isFocus ? "is-focus" : ""} ${
+                                  isDone ? "is-done-row" : ""
+                                } ${draggingId === task.id ? "is-dragging" : ""} ${
+                                  dragOverId === task.id ? "is-drag-over" : ""
+                                }`}
+                                draggable={!editingTask}
+                                aria-current={isFocus ? "true" : undefined}
+                                key={task.id}
+                                tabIndex={editingTask ? -1 : 0}
+                                onClick={(event) => {
+                                  if (
+                                    event.target instanceof Element &&
+                                    event.target.closest("button, input, select, textarea")
+                                  ) {
+                                    return;
+                                  }
+
+                                  handleSelectTask(task.id);
+                                }}
+                                onKeyDown={(event) => handleTaskRowKeyDown(event, task.id)}
+                                onDragEnd={handleTaskDragEnd}
+                                onDragOver={(event) => handleTaskDragOver(event, task.id)}
+                                onDragStart={(event) => handleTaskDragStart(event, task.id)}
+                                onDrop={(event) => handleTaskDrop(event, task.id)}
+                              >
+                                <button
+                                  aria-label={`${isDone ? "Mark" : "Complete"} ${task.title}`}
+                                  className={`hu-check is-${task.priority} ${isDone ? "is-done" : ""}`}
+                                  type="button"
+                                  onClick={() => handleToggleTask(task.id)}
+                                >
+                                  {isDone ? <Check aria-hidden="true" /> : null}
+                                </button>
+
+                                <div className="hu-task-title-cell">
+                                  <span className="hu-task-title">{task.title}</span>
+                                </div>
+
+                                <div className="hu-task-controls">
+                                  <button
+                                    aria-label={`Edit ${task.title}`}
+                                    className="hu-icon-button"
+                                    type="button"
+                                    onClick={() => handleStartEditing(task)}
+                                    title="Edit task"
+                                  >
+                                    <Pencil aria-hidden="true" />
+                                  </button>
+                                  <button
+                                    aria-label={`Delete ${task.title}`}
+                                    className="hu-icon-button is-danger"
+                                    type="button"
+                                    onClick={() => handleDeleteTask(task.id)}
+                                    title="Delete task"
+                                  >
+                                    <Trash2 aria-hidden="true" />
+                                  </button>
+                                </div>
+
+                                <span
+                                  aria-label={`Priority: ${priorityLabels[task.priority]}`}
+                                  className={`hu-task-priority is-${task.priority}`}
+                                >
+                                  <span className="hu-task-priority-dot" aria-hidden="true" />
+                                  {priorityLabels[task.priority]}
+                                </span>
+
+                                <span
+                                  aria-label={hasDuration ? `Duration: ${formatDuration(task.duration)}` : "No duration"}
+                                  className="hu-task-time"
+                                  title={hasDuration ? `Duration: ${formatDuration(task.duration)}` : undefined}
+                                >
+                                  {hasDuration ? (
+                                    <>
+                                      <Clock3 aria-hidden="true" size={11} />
+                                      {formatDuration(task.duration)}
+                                    </>
+                                  ) : "—"}
+                                </span>
+
+                                <span
+                                  aria-label={`Due date: ${dueDateLabel}`}
+                                  className={`hu-task-due-date ${
+                                    isDeadlineOverdue(task.deadline, task.status) ? "is-overdue" : ""
+                                  }`}
+                                  title={dueDateLabel}
+                                >
+                                  <CalendarDays aria-hidden="true" size={11} />
+                                  {dueDateLabel}
+                                </span>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </>
                 )}
               </div>
             </section>
@@ -2068,9 +2087,9 @@ export default function Home() {
                     />
                   </label>
                   <label className="hu-edit-field">
-                    <span className="hu-field-label">Deadline</span>
+                    <span className="hu-field-label">Due date</span>
                     <DateField
-                      ariaLabel="Task deadline"
+                      ariaLabel="Task due date"
                       className="hu-edit-input"
                       value={editingDeadline}
                       onChange={setEditingDeadline}
