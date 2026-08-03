@@ -967,6 +967,15 @@ input:focus-visible {
   padding-top: 1px;
 }
 
+.hu-form-error {
+  flex: 1 1 auto;
+  margin: 0;
+  align-self: center;
+  color: var(--destructive);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
 .hu-form-button {
   min-height: 34px;
   border-color: var(--line-strong);
@@ -2009,6 +2018,86 @@ input[type="number"]::-webkit-outer-spin-button {
   opacity: 0.55;
 }
 
+.hu-scheduler-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hu-work-window-list {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.hu-work-window-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hu-work-window-heading small {
+  color: var(--muted-text);
+  font-size: 10px;
+}
+
+.hu-work-window-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  border-bottom: 1px solid var(--line);
+  padding: 4px 0;
+}
+
+.hu-work-window-row strong {
+  color: var(--foreground);
+  font-size: 11px;
+}
+
+.hu-work-window-fields {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.hu-work-window {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.hu-work-window .hu-edit-input {
+  width: 104px;
+  height: 30px;
+}
+
+.hu-work-window-remove,
+.hu-work-window-add {
+  min-height: 26px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-text);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.hu-work-window-remove:hover,
+.hu-work-window-add:hover {
+  color: var(--primary);
+}
+
+.hu-work-window-off {
+  color: var(--muted-soft);
+  font-size: 11px;
+}
+
 .hu-task-dialog-body {
   display: grid;
   gap: 16px;
@@ -2031,6 +2120,38 @@ input[type="number"]::-webkit-outer-spin-button {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+}
+
+.hu-dialog-scheduling {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.hu-dialog-scheduling-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hu-dialog-scheduling-heading p {
+  margin: 5px 0 0;
+  color: var(--muted-text);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.hu-task-scheduling-toggle {
+  min-width: 150px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-subtle);
+}
+
+.hu-dialog-field-grid.is-scheduling {
+  gap: 10px;
 }
 
 .hu-dialog-title-field {
@@ -2146,6 +2267,37 @@ input[type="number"]::-webkit-outer-spin-button {
   line-height: 1.25;
   text-overflow: clip;
   white-space: nowrap;
+}
+
+.hu-task-schedule-state {
+  display: inline-flex;
+  max-width: 86px;
+  align-items: center;
+  overflow: hidden;
+  color: var(--muted-soft);
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.hu-task-schedule-state.is-at_risk,
+.hu-task-schedule-state.is-calendar_error,
+.hu-task-schedule-state.is-needs-duration,
+.hu-task-schedule-state.is-needs_duration {
+  color: var(--destructive);
+}
+
+.hu-task-schedule-state.is-locked {
+  color: var(--primary);
+}
+
+.hu-task-schedule-state.is-scheduled,
+.hu-task-schedule-state.is-awaiting_completion {
+  color: var(--muted-text);
 }
 
 .hu-task-due-date.is-overdue {
@@ -2458,6 +2610,11 @@ input[type="number"]::-webkit-outer-spin-button {
 .hu-event.is-guest-event {
   border-left-color: #8b5cf6;
   background: color-mix(in oklch, #8b5cf6 7%, var(--surface-subtle));
+}
+
+.hu-event.is-task-block {
+  border-left-color: var(--primary);
+  background: color-mix(in oklch, var(--primary) 10%, var(--surface));
 }
 
 .hu-calendar-picker,
@@ -2901,6 +3058,22 @@ input[type="number"]::-webkit-outer-spin-button {
     width: 100%;
   }
 
+  .hu-scheduler-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hu-work-window-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .hu-work-window-row {
+    grid-template-columns: 1fr;
+    gap: 5px;
+    padding: 8px 0;
+  }
+
   .hu-topbar {
     gap: 10px;
     padding: 0 12px;
@@ -3012,6 +3185,15 @@ input[type="number"]::-webkit-outer-spin-button {
   .hu-task-dialog-actions {
     padding-left: 14px;
     padding-right: 14px;
+  }
+
+  .hu-dialog-scheduling-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .hu-task-scheduling-toggle {
+    min-width: 0;
   }
 }
 

@@ -2,7 +2,7 @@
 
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useState } from "react";
-import { ArrowLeft, ImagePlus, Settings2, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarClock, ImagePlus, Settings2, Trash2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,6 +11,18 @@ import { useAuth } from "@/components/auth-provider";
 import { getAppPath, publicBasePath } from "@/lib/supabase/config";
 import { avatarConstraints, getProfileName, type ProfileDraft } from "@/lib/supabase/profile";
 import type { UserSettings } from "@/lib/supabase/settings";
+import { DEFAULT_SCHEDULER_PREFERENCES, type SchedulerPreferences, type WorkWindow } from "@/lib/scheduler/types";
+import { normalizeSchedulerPreferences } from "@/lib/scheduler/preferences";
+
+const schedulerWeekdays = [
+  { key: "1", label: "Monday" },
+  { key: "2", label: "Tuesday" },
+  { key: "3", label: "Wednesday" },
+  { key: "4", label: "Thursday" },
+  { key: "5", label: "Friday" },
+  { key: "6", label: "Saturday" },
+  { key: "0", label: "Sunday" },
+] as const;
 
 function formatTimeValue(value: string) {
   const [hours, minutes] = value.split(":").map(Number);
@@ -58,6 +70,39 @@ function SettingsContent() {
   const [settingsMessage, setSettingsMessage] = useState("");
   const [settingsMessageType, setSettingsMessageType] = useState<"error" | "success">("success");
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [schedulerDraft, setSchedulerDraft] = useState<SchedulerPreferences>({ ...DEFAULT_SCHEDULER_PREFERENCES });
+  const [isLoadingScheduler, setIsLoadingScheduler] = useState(true);
+  const [isSavingScheduler, setIsSavingScheduler] = useState(false);
+  const [schedulerMessage, setSchedulerMessage] = useState("");
+  const [schedulerMessageType, setSchedulerMessageType] = useState<"error" | "success">("success");
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(getAppPath("/api/scheduler/settings"), { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("Scheduling settings could not be loaded.");
+        }
+        const body = (await response.json()) as { settings?: unknown };
+        if (!cancelled) {
+          setSchedulerDraft(normalizeSchedulerPreferences(body.settings, Intl.DateTimeFormat().resolvedOptions().timeZone));
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setSchedulerMessageType("error");
+          setSchedulerMessage(error instanceof Error ? error.message : "Scheduling settings could not be loaded.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingScheduler(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (!user) {
     return null;
@@ -132,6 +177,53 @@ function SettingsContent() {
 
     setSettingsMessageType("success");
     setSettingsMessage("Settings saved.");
+  }
+
+  async function handleSaveScheduler(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSavingScheduler(true);
+    setSchedulerMessage("");
+    if (schedulerDraft.defaultMinBlockMinutes > schedulerDraft.defaultMaxBlockMinutes) {
+      setSchedulerMessageType("error");
+      setSchedulerMessage("The minimum block must be shorter than the maximum block.");
+      setIsSavingScheduler(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(getAppPath("/api/scheduler/settings"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(schedulerDraft),
+      });
+      const body = (await response.json().catch(() => null)) as { settings?: unknown; error?: string } | null;
+      if (!response.ok) {
+        throw new Error(body?.error ?? "Scheduling settings could not be saved.");
+      }
+      setSchedulerDraft(normalizeSchedulerPreferences(body?.settings, schedulerDraft.timezone));
+      void fetch(getAppPath("/api/scheduler/run"), { method: "POST" });
+      setSchedulerMessageType("success");
+      setSchedulerMessage(schedulerDraft.enabled ? "Saved. Eligible tasks will be scheduled now." : "Saved. Automatic scheduling is paused.");
+    } catch (error) {
+      setSchedulerMessageType("error");
+      setSchedulerMessage(error instanceof Error ? error.message : "Scheduling settings could not be saved.");
+    } finally {
+      setIsSavingScheduler(false);
+    }
+  }
+
+  function updateSchedulerWindows(day: string, windows: ReadonlyArray<WorkWindow>) {
+    setSchedulerDraft((current) => ({
+      ...current,
+      workWindows: { ...current.workWindows, [day]: windows },
+    }));
+  }
+
+  function updateSchedulerWindow(day: string, index: number, key: keyof WorkWindow, value: string) {
+    const windows = [...(schedulerDraft.workWindows[day] ?? [])];
+    const current = windows[index] ?? { start: "09:00", end: "17:00" };
+    windows[index] = { ...current, [key]: value };
+    updateSchedulerWindows(day, windows);
   }
 
   return (
@@ -313,6 +405,137 @@ function SettingsContent() {
                 </button>
               </div>
             </form>
+          </section>
+
+          <section className="hu-settings-section" aria-labelledby="scheduling-title">
+            <div className="hu-settings-section-heading">
+              <span className="hu-settings-mark" aria-hidden="true">
+                <CalendarClock size={17} />
+              </span>
+              <div>
+                <span className="hu-field-label">Task calendar</span>
+                <h2 id="scheduling-title">Protect time for your tasks</h2>
+                <p>HeavyUser will place task work around your Google Calendar and repair flexible blocks when plans change.</p>
+              </div>
+            </div>
+
+            {isLoadingScheduler ? <p className="hu-settings-message">Loading scheduling settings…</p> : (
+              <form className="hu-settings-form" onSubmit={handleSaveScheduler}>
+                <label className="hu-settings-toggle-row" htmlFor="automatic-task-scheduling">
+                  <span className="hu-settings-toggle-copy">
+                    <strong>Schedule tasks automatically</strong>
+                    <small>Eligible tasks are added to Google Calendar as soon as they have a duration.</small>
+                  </span>
+                  <input
+                    id="automatic-task-scheduling"
+                    checked={schedulerDraft.enabled}
+                    className="hu-settings-switch"
+                    type="checkbox"
+                    onChange={(event) => setSchedulerDraft((current) => ({ ...current, enabled: event.target.checked }))}
+                  />
+                </label>
+
+                <div className="hu-scheduler-settings-grid">
+                  <label className="hu-field">
+                    <span className="hu-field-label">Timezone</span>
+                    <input
+                      aria-label="Scheduling timezone"
+                      className="hu-edit-input"
+                      placeholder="Asia/Dhaka"
+                      value={schedulerDraft.timezone}
+                      onChange={(event) => setSchedulerDraft((current) => ({ ...current, timezone: event.target.value }))}
+                    />
+                  </label>
+                  <label className="hu-field">
+                    <span className="hu-field-label">Default minimum block</span>
+                    <span className="hu-duration-input-wrap">
+                      <input
+                        aria-label="Default minimum block in minutes"
+                        className="hu-edit-input hu-duration-input"
+                        min="5"
+                        step="5"
+                        type="number"
+                        value={schedulerDraft.defaultMinBlockMinutes}
+                        onChange={(event) => setSchedulerDraft((current) => ({ ...current, defaultMinBlockMinutes: Number(event.target.value) || 5 }))}
+                      />
+                      <span aria-hidden="true">min</span>
+                    </span>
+                  </label>
+                  <label className="hu-field">
+                    <span className="hu-field-label">Default maximum block</span>
+                    <span className="hu-duration-input-wrap">
+                      <input
+                        aria-label="Default maximum block in minutes"
+                        className="hu-edit-input hu-duration-input"
+                        min="5"
+                        step="5"
+                        type="number"
+                        value={schedulerDraft.defaultMaxBlockMinutes}
+                        onChange={(event) => setSchedulerDraft((current) => ({ ...current, defaultMaxBlockMinutes: Number(event.target.value) || 5 }))}
+                      />
+                      <span aria-hidden="true">min</span>
+                    </span>
+                  </label>
+                  <label className="hu-field">
+                    <span className="hu-field-label">Default visibility</span>
+                    <select
+                      className="hu-edit-input"
+                      value={schedulerDraft.defaultCalendarVisibility}
+                      onChange={(event) => setSchedulerDraft((current) => ({ ...current, defaultCalendarVisibility: event.target.value as SchedulerPreferences["defaultCalendarVisibility"] }))}
+                    >
+                      <option value="default">Google Calendar default</option>
+                      <option value="private">Private</option>
+                      <option value="public">Public</option>
+                    </select>
+                  </label>
+                  <label className="hu-field">
+                    <span className="hu-field-label">Default availability</span>
+                    <select
+                      className="hu-edit-input"
+                      value={schedulerDraft.defaultCalendarTransparency}
+                      onChange={(event) => setSchedulerDraft((current) => ({ ...current, defaultCalendarTransparency: event.target.value as SchedulerPreferences["defaultCalendarTransparency"] }))}
+                    >
+                      <option value="default">Google Calendar default</option>
+                      <option value="opaque">Busy</option>
+                      <option value="transparent">Free</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="hu-work-window-list">
+                  <div className="hu-work-window-heading">
+                    <span className="hu-field-label">Working hours</span>
+                    <small>Weekends are off by default. Add another window for breaks.</small>
+                  </div>
+                  {schedulerWeekdays.map((day) => {
+                    const windows = schedulerDraft.workWindows[day.key] ?? [];
+                    return (
+                      <div className="hu-work-window-row" key={day.key}>
+                        <strong>{day.label}</strong>
+                        <div className="hu-work-window-fields">
+                          {windows.length === 0 ? <span className="hu-work-window-off">Off</span> : windows.map((window, index) => (
+                            <span className="hu-work-window" key={`${day.key}-${index}`}>
+                              <input aria-label={`${day.label} window ${index + 1} start`} className="hu-edit-input" type="time" value={window.start} onChange={(event) => updateSchedulerWindow(day.key, index, "start", event.target.value)} />
+                              <span aria-hidden="true">to</span>
+                              <input aria-label={`${day.label} window ${index + 1} end`} className="hu-edit-input" type="time" value={window.end} onChange={(event) => updateSchedulerWindow(day.key, index, "end", event.target.value)} />
+                              <button className="hu-work-window-remove" type="button" onClick={() => updateSchedulerWindows(day.key, windows.filter((_, windowIndex) => windowIndex !== index))}>Remove</button>
+                            </span>
+                          ))}
+                          {windows.length < 4 ? (
+                            <button className="hu-work-window-add" type="button" onClick={() => updateSchedulerWindows(day.key, [...windows, { start: "13:00", end: "14:00" }])}>+ Add window</button>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {schedulerMessage ? <p className={`hu-settings-message is-${schedulerMessageType}`} role={schedulerMessageType === "error" ? "alert" : "status"}>{schedulerMessage}</p> : null}
+                <div className="hu-settings-actions">
+                  <button className="hu-form-button is-primary" disabled={isSavingScheduler} type="submit">{isSavingScheduler ? "Saving…" : "Save scheduling"}</button>
+                </div>
+              </form>
+            )}
           </section>
         </div>
       </div>

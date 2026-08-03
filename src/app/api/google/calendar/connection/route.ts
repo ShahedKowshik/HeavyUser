@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { stopGoogleChannel } from "@/lib/google/client";
 import { googleErrorMessage, getUsableGoogleAccessToken, loadGoogleConnection, loadGoogleSyncState, publicGoogleConnection, requireAuthenticatedGoogleContext } from "@/lib/google/server";
+import { pauseSchedulerForUser, removeManagedBlocksForConnection } from "@/lib/scheduler/service";
 
 export async function GET() {
   const context = await requireAuthenticatedGoogleContext();
@@ -20,6 +21,18 @@ export async function DELETE() {
 
   const connection = await loadGoogleConnection(context.client, context.user.id);
   const state = await loadGoogleSyncState(context.client, context.user.id);
+  let cleanupWarning: string | null = null;
+
+  if (connection?.selected_calendar_id) {
+    try {
+      const cleanup = await removeManagedBlocksForConnection(connection);
+      if (cleanup.errors.length > 0) {
+        cleanupWarning = "Some future HeavyUser blocks could not be removed from Google Calendar and may need cleanup after reconnecting.";
+      }
+    } catch (cleanupError) {
+      cleanupWarning = googleErrorMessage(cleanupError);
+    }
+  }
 
   if (connection && state?.channel_id && state.resource_id) {
     try {
@@ -40,5 +53,7 @@ export async function DELETE() {
     return NextResponse.json({ error: googleErrorMessage(failed.error) }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  await pauseSchedulerForUser(context.user.id, cleanupWarning ?? "Google Calendar is disconnected. Connect a calendar to resume scheduling.");
+
+  return NextResponse.json({ ok: true, cleanupWarning });
 }

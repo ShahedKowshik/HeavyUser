@@ -127,7 +127,18 @@ export function googleErrorMessage(error: unknown) {
     return error.message;
   }
 
-  return error instanceof Error ? error.message : "Google Calendar could not be reached.";
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object") {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) {
+      return message;
+    }
+  }
+
+  return "Google Calendar could not be reached.";
 }
 
 export type AuthenticatedGoogleContext = {

@@ -8,6 +8,7 @@ import {
   requireAuthenticatedGoogleContext,
 } from "@/lib/google/server";
 import { syncGoogleCalendar } from "@/lib/google/sync";
+import { runSchedulerForUser } from "@/lib/scheduler/service";
 
 export async function POST(request: Request) {
   const context = await requireAuthenticatedGoogleContext();
@@ -34,10 +35,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "That calendar is not writable or is no longer available." }, { status: 403 });
     }
 
-    await Promise.all([
+    const cleanupResults = await Promise.all([
       context.client.from("google_calendar_events").delete().eq("user_id", context.user.id),
       context.client.from("google_calendar_sync_states").delete().eq("user_id", context.user.id),
     ]);
+    const cleanupFailure = cleanupResults.find((result) => result.error);
+    if (cleanupFailure?.error) {
+      throw cleanupFailure.error;
+    }
 
     const { error } = await context.client.from("google_calendar_connections").update({
       selected_calendar_id: selected.id,
@@ -57,7 +62,8 @@ export async function POST(request: Request) {
     }
 
     const sync = await syncGoogleCalendar(context.client, updatedConnection, request);
-    return NextResponse.json({ connection: publicGoogleConnection(updatedConnection), sync });
+    const scheduler = await runSchedulerForUser(context.user.id, request);
+    return NextResponse.json({ connection: publicGoogleConnection(updatedConnection), sync, scheduler });
   } catch (error) {
     return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });
   }

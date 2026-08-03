@@ -59,6 +59,12 @@ export type GoogleEvent = {
   attendees?: GoogleEventAttendee[];
   organizer?: { email?: string; self?: boolean };
   creator?: { email?: string; self?: boolean };
+  visibility?: "default" | "public" | "private" | "confidential";
+  transparency?: "opaque" | "transparent";
+  extendedProperties?: {
+    private?: Record<string, string>;
+    shared?: Record<string, string>;
+  };
 };
 
 type GoogleEventListResponse = {

@@ -2,7 +2,7 @@
 
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
-import type { Task } from "@/lib/tasks";
+import type { CalendarTransparency, CalendarVisibility, Task } from "@/lib/tasks";
 
 type TasksClient = SupabaseClient<Database>;
 
@@ -15,13 +15,26 @@ function mapTask(row: Database["public"]["Tables"]["tasks"]["Row"]): Task {
     deadline: row.deadline,
     priority: row.priority === "urgent" || row.priority === "high" || row.priority === "low" ? row.priority : "normal",
     status: row.status === "focus" || row.status === "done" ? row.status : "open",
+    autoSchedule: row.auto_schedule !== false,
+    minBlockMinutes: row.min_block_minutes,
+    maxBlockMinutes: row.max_block_minutes,
+    calendarVisibility: isCalendarVisibility(row.calendar_visibility) ? row.calendar_visibility : null,
+    calendarTransparency: isCalendarTransparency(row.calendar_transparency) ? row.calendar_transparency : null,
   };
+}
+
+function isCalendarVisibility(value: string | null): value is CalendarVisibility {
+  return value === "default" || value === "public" || value === "private";
+}
+
+function isCalendarTransparency(value: string | null): value is CalendarTransparency {
+  return value === "default" || value === "opaque" || value === "transparent";
 }
 
 export async function loadRemoteTasks(client: TasksClient, user: User) {
   const { data, error } = await client
     .from("tasks")
-    .select("id,user_id,title,duration,start_date,deadline,priority,status,position,created_at,updated_at")
+    .select("id,user_id,title,duration,start_date,deadline,priority,status,auto_schedule,min_block_minutes,max_block_minutes,calendar_visibility,calendar_transparency,position,created_at,updated_at")
     .eq("user_id", user.id)
     .order("position", { ascending: true })
     .order("created_at", { ascending: true });
@@ -64,6 +77,11 @@ export async function persistRemoteTasks(
     deadline: task.deadline,
     priority: task.priority,
     status: task.status,
+    auto_schedule: task.autoSchedule,
+    min_block_minutes: task.minBlockMinutes,
+    max_block_minutes: task.maxBlockMinutes,
+    calendar_visibility: task.calendarVisibility,
+    calendar_transparency: task.calendarTransparency,
     position,
     updated_at: new Date().toISOString(),
   }));

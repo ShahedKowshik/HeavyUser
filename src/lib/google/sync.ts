@@ -11,6 +11,7 @@ import {
   loadGoogleSyncState,
   setGoogleConnectionError,
 } from "@/lib/google/server";
+import { queueSchedulerJob } from "@/lib/scheduler/queue";
 
 const EVENT_KEY_DELETE_BATCH_SIZE = 100;
 
@@ -19,7 +20,11 @@ function getDateTime(value: { dateTime?: string; date?: string } | undefined) {
     return null;
   }
 
-  return value.dateTime ?? null;
+  if (!value.dateTime) {
+    return null;
+  }
+  const timestamp = new Date(value.dateTime).getTime();
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : value.dateTime;
 }
 
 function getDate(value: { dateTime?: string; date?: string } | undefined) {
@@ -63,6 +68,9 @@ function mapGoogleEvent(userId: string, event: GoogleEvent) {
     etag: event.etag ?? null,
     html_link: event.htmlLink ?? null,
     time_zone: event.start?.timeZone ?? event.end?.timeZone ?? null,
+    visibility: event.visibility ?? null,
+    transparency: event.transparency ?? null,
+    private_properties: event.extendedProperties?.private ?? null,
     google_updated_at: event.updated ?? null,
     updated_at: new Date().toISOString(),
   };
@@ -152,7 +160,12 @@ async function ensureWatch(client: GoogleDbClient, connection: GoogleConnection,
   }, { onConflict: "user_id" });
 }
 
-export async function syncGoogleCalendar(client: GoogleDbClient, connection: GoogleConnection, request?: Request) {
+export async function syncGoogleCalendar(
+  client: GoogleDbClient,
+  connection: GoogleConnection,
+  request?: Request,
+  options: { skipSchedulerQueue?: boolean } = {},
+) {
   if (!connection.selected_calendar_id) {
     throw new Error("Choose a Google Calendar before syncing.");
   }
@@ -199,6 +212,20 @@ export async function syncGoogleCalendar(client: GoogleDbClient, connection: Goo
         last_error: watchError instanceof Error ? watchError.message : "Webhook setup failed.",
         updated_at: new Date().toISOString(),
       }).eq("user_id", connection.user_id);
+    }
+
+    // A prior transient failure should not leave the connection marked as
+    // errored after the calendar has successfully synced again.
+    const { error: connectionError } = await client
+      .from("google_calendar_connections")
+      .update({ status: "connected", last_error: null, updated_at: new Date().toISOString() })
+      .eq("user_id", connection.user_id);
+    if (connectionError) {
+      throw connectionError;
+    }
+
+    if (!options.skipSchedulerQueue) {
+      await queueSchedulerJob(client, connection.user_id, "google_sync");
     }
 
     return { eventCount: result.events.filter((event) => event.status !== "cancelled").length, fullSync };

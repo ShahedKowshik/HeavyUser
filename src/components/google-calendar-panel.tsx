@@ -40,6 +40,9 @@ type LiveEvent = {
   htmlLink: string | null;
   timeZone: string | null;
   recurringEventId: string | null;
+  isTaskBlock: boolean;
+  taskId: string | null;
+  scheduleBlockId: string | null;
 };
 
 type EventDraft = {
@@ -61,9 +64,7 @@ type EventGesture = {
   originStart: number;
   originEnd: number;
   stage: HTMLElement;
-  timelineStart: number;
   timelineHours: number;
-  timeZone: string;
 };
 
 type DragPreview = {
@@ -79,9 +80,11 @@ type PendingEventRange = {
 
 type GoogleCalendarPanelProps = {
   date: string;
-  timelineStart: number;
-  timelineHours: number;
 };
+
+const VISIBLE_TIMELINE_HOURS = 8;
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
 
 function formatDateLabel(value: string) {
   const date = new Date(`${value}T12:00:00`);
@@ -105,20 +108,22 @@ function getDateParts(value: Date, timeZone: string) {
   };
 }
 
-function getEventRange(event: LiveEvent, date: string, timeZone: string) {
+function getEventRange(event: LiveEvent, timelineStart: number, timelineEnd: number) {
   if (!event.start || !event.end || event.allDay) {
     return null;
   }
 
-  const start = getDateParts(new Date(event.start), timeZone);
-  const end = getDateParts(new Date(event.end), timeZone);
-  if (start.date > date || end.date < date) {
+  const eventStart = new Date(event.start).getTime();
+  const eventEnd = new Date(event.end).getTime();
+  if (!Number.isFinite(eventStart) || !Number.isFinite(eventEnd) || eventEnd <= timelineStart || eventStart >= timelineEnd) {
     return null;
   }
 
+  const visibleStart = Math.max(eventStart, timelineStart);
+  const visibleEnd = Math.min(eventEnd, timelineEnd);
   return {
-    start: start.date < date ? 0 : start.minutes,
-    end: end.date > date ? 24 * 60 : Math.max(end.minutes, start.minutes + 15),
+    start: (visibleStart - timelineStart) / MINUTE_MS,
+    end: Math.max((visibleEnd - timelineStart) / MINUTE_MS, (visibleStart - timelineStart) / MINUTE_MS + 15),
   };
 }
 
@@ -168,13 +173,13 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
 
-function getMinutesAtPointer(clientY: number, stage: HTMLElement, timelineStart: number, timelineHours: number) {
+function getMinutesAtPointer(clientY: number, stage: HTMLElement, timelineHours: number) {
   const bounds = stage.getBoundingClientRect();
   if (bounds.height <= 0) {
-    return timelineStart * 60;
+    return 0;
   }
 
-  return timelineStart * 60 + ((clientY - bounds.top) / bounds.height) * timelineHours * 60;
+  return ((clientY - bounds.top) / bounds.height) * timelineHours * 60;
 }
 
 function fromDateTimeInput(value: string) {
@@ -187,9 +192,8 @@ function defaultDraft(date: string): EventDraft {
 
 export function GoogleCalendarPanel({
   date,
-  timelineStart,
-  timelineHours,
 }: GoogleCalendarPanelProps) {
+  const timelineHours = VISIBLE_TIMELINE_HOURS;
   const [connection, setConnection] = useState<CalendarConnection | null>(null);
   const [events, setEvents] = useState<ReadonlyArray<LiveEvent>>([]);
   const [calendarOptions, setCalendarOptions] = useState<ReadonlyArray<CalendarOption>>([]);
@@ -206,6 +210,7 @@ export function GoogleCalendarPanel({
   const queuedSync = useRef(false);
   const [eventGesture, setEventGesture] = useState<EventGesture | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
+  const [nowTimestamp, setNowTimestamp] = useState(() => Date.now());
   const eventGestureRef = useRef<EventGesture | null>(null);
   const gestureMoved = useRef(false);
   const suppressEventClick = useRef(false);
@@ -213,28 +218,40 @@ export function GoogleCalendarPanel({
   const pendingEventRanges = useRef(new Map<string, PendingEventRange>());
   const pendingEventRangeTimers = useRef(new Map<string, number>());
 
+  useEffect(() => {
+    const updateNow = () => setNowTimestamp(Date.now());
+    const interval = window.setInterval(updateNow, 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const isConnected = Boolean(connection?.calendarId);
   const timeZone = connection?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const currentTime = getDateParts(new Date(), timeZone).minutes / 60;
+  const currentLocalParts = getDateParts(new Date(nowTimestamp), timeZone);
+  const timelineStartTimestamp = nowTimestamp - ((currentLocalParts.minutes % 60) + 60) * MINUTE_MS;
+  const timelineEndTimestamp = timelineStartTimestamp + timelineHours * HOUR_MS;
   const currentTimeLabel = new Intl.DateTimeFormat(undefined, {
     timeZone,
     hour: "numeric",
     minute: "2-digit",
-  }).format(new Date());
-  const timeLabels = Array.from({ length: timelineHours + 1 }, (_, index) => {
-    const hour = timelineStart + index;
-    const displayHour = hour % 12 || 12;
-    return `${String(displayHour).padStart(2, "0")}:00 ${hour >= 12 ? "PM" : "AM"}`;
+  }).format(new Date(nowTimestamp));
+  const timeLabelFormatter = new Intl.DateTimeFormat(undefined, {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
   });
+  const timeLabels = Array.from({ length: timelineHours + 1 }, (_, index) => (
+    timeLabelFormatter.format(new Date(timelineStartTimestamp + index * HOUR_MS))
+  ));
 
   const visibleLiveEvents = useMemo(() => {
     return events.filter((event) => {
       if (event.allDay) {
         return Boolean(event.startDate && event.endDate && event.startDate <= date && event.endDate > date);
       }
-      return Boolean(getEventRange(event, date, timeZone));
+      return Boolean(getEventRange(event, timelineStartTimestamp, timelineEndTimestamp));
     });
-  }, [date, events, timeZone]);
+  }, [date, events, timelineEndTimestamp, timelineStartTimestamp]);
 
   function mergePendingEventRanges(nextEvents: LiveEvent[]) {
     return nextEvents.map((event) => {
@@ -452,7 +469,7 @@ export function GoogleCalendarPanel({
   }
 
   async function handleDelete() {
-    if (!editingEvent || !window.confirm(`Delete “${editingEvent.title}” from Google Calendar?`)) {
+    if (!editingEvent || !window.confirm(`${editingEvent.isTaskBlock ? "Reschedule" : "Delete"} “${editingEvent.title}” ${editingEvent.isTaskBlock ? "from this time?" : "from Google Calendar?"}`)) {
       return;
     }
     setIsSaving(true);
@@ -482,16 +499,14 @@ export function GoogleCalendarPanel({
   }
 
   function getGestureRange(gesture: EventGesture, clientY: number) {
-    const pointerMinutes = snapMinutes(getMinutesAtPointer(clientY, gesture.stage, gesture.timelineStart, gesture.timelineHours));
+    const pointerMinutes = snapMinutes(getMinutesAtPointer(clientY, gesture.stage, gesture.timelineHours));
     let deltaMinutes = pointerMinutes - gesture.originPointerMinutes;
     const minimumDuration = 15 * 60_000;
     let start = gesture.originStart;
     let end = gesture.originEnd;
 
     if (gesture.mode === "move") {
-      const durationMinutes = (gesture.originEnd - gesture.originStart) / 60_000;
-      const originLocalStart = getDateParts(new Date(gesture.originStart), gesture.timeZone).minutes;
-      deltaMinutes = clamp(snapMinutes(deltaMinutes), -originLocalStart, 24 * 60 - durationMinutes - originLocalStart);
+      deltaMinutes = snapMinutes(deltaMinutes);
       start += deltaMinutes * 60_000;
       end += deltaMinutes * 60_000;
     } else if (gesture.mode === "resize-start") {
@@ -528,13 +543,11 @@ export function GoogleCalendarPanel({
       mode,
       pointerId: event.pointerId,
       originClientY: event.clientY,
-      originPointerMinutes: snapMinutes(getMinutesAtPointer(event.clientY, stage, timelineStart, timelineHours)),
+      originPointerMinutes: snapMinutes(getMinutesAtPointer(event.clientY, stage, timelineHours)),
       originStart: new Date(eventItem.start).getTime(),
       originEnd: new Date(eventItem.end).getTime(),
       stage,
-      timelineStart,
       timelineHours,
-      timeZone,
     } satisfies EventGesture;
     eventGestureRef.current = gesture;
     setEventGesture(gesture);
@@ -753,7 +766,7 @@ export function GoogleCalendarPanel({
             ))}
           </div>
           <div className="hu-calendar-stage" role="list" aria-label={`Planner for ${date}`} style={{ "--hu-visible-hours": timelineHours } as CSSProperties}>
-            <span className="hu-now-line" style={{ top: `${((currentTime - timelineStart) / timelineHours) * 100}%` }}>
+            <span className="hu-now-line" style={{ top: `${clamp(((nowTimestamp - timelineStartTimestamp) / (timelineHours * HOUR_MS)) * 100, 0, 100)}%` }}>
               <span className="hu-now-label">{currentTimeLabel}</span>
             </span>
 
@@ -761,20 +774,18 @@ export function GoogleCalendarPanel({
               const renderedEvent = dragPreview?.eventId === event.id
                 ? { ...event, start: dragPreview.start, end: dragPreview.end }
                 : event;
-              const range = getEventRange(renderedEvent, date, timeZone);
+              const range = getEventRange(renderedEvent, timelineStartTimestamp, timelineEndTimestamp);
               if (!range) return null;
-              const start = range.start / 60;
-              const end = range.end / 60;
               return (
                 <button
-                  className={`hu-event hu-event-button ${event.hasAttendees ? "is-guest-event" : ""} ${eventGesture?.event.id === event.id ? "is-gesture-active" : ""}`}
+                  className={`hu-event hu-event-button ${event.hasAttendees ? "is-guest-event" : ""} ${event.isTaskBlock ? "is-task-block" : ""} ${eventGesture?.event.id === event.id ? "is-gesture-active" : ""}`}
                   key={event.id}
                   role="listitem"
                   style={{
-                    top: `${Math.max(((start - timelineStart) / timelineHours) * 100, 0)}%`,
-                    height: `${Math.min(((end - start) / timelineHours) * 100, 100)}%`,
+                    top: `${(range.start / (timelineHours * 60)) * 100}%`,
+                    height: `${((range.end - range.start) / (timelineHours * 60)) * 100}%`,
                   }}
-                  title="Drag to move. Drag the top or bottom edge to change the time."
+                  title={event.isTaskBlock ? "Drag to move and lock this task block. Delete it to reschedule." : "Drag to move. Drag the top or bottom edge to change the time."}
                   type="button"
                   onPointerDown={(pointerEvent) => startEventGesture(pointerEvent, event, "move")}
                   onClick={() => handleEventClick(event)}
@@ -834,6 +845,7 @@ export function GoogleCalendarPanel({
             </button>
             <span className="hu-calendar-kicker">Google Calendar</span>
             <h2 id="google-event-dialog-title">{isCreating ? "Add event" : "Event details"}</h2>
+            {editingEvent?.isTaskBlock ? <div className="hu-calendar-readonly-note">Moving or editing this task block locks it in place. Deleting it will reschedule the work.</div> : null}
             {editingEvent?.hasAttendees ? <div className="hu-calendar-readonly-note">This meeting has guests. Google may notify them when you save a change.</div> : null}
             {editingEvent?.allDay ? <div className="hu-calendar-readonly-note">All-day event editing will be available in a later release.</div> : null}
             <label>Title<input disabled={Boolean(editingEvent?.allDay)} required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} /></label>
@@ -851,7 +863,7 @@ export function GoogleCalendarPanel({
             <label>Notes<textarea disabled={Boolean(editingEvent?.allDay)} rows={3} value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} /></label>
             <div className="hu-calendar-dialog-actions">
               {editingEvent?.htmlLink ? <a className="hu-calendar-open-link" href={editingEvent.htmlLink} rel="noreferrer" target="_blank"><ExternalLink aria-hidden="true" size={13} />Open in Google</a> : <span />}
-              {!editingEvent?.hasAttendees && !editingEvent?.allDay && editingEvent ? <button className="hu-calendar-delete-button" disabled={isSaving} type="button" onClick={() => void handleDelete()}><Trash2 aria-hidden="true" size={13} />Delete</button> : null}
+              {!editingEvent?.hasAttendees && !editingEvent?.allDay && editingEvent ? <button className="hu-calendar-delete-button" disabled={isSaving} type="button" onClick={() => void handleDelete()}><Trash2 aria-hidden="true" size={13} />{editingEvent.isTaskBlock ? "Reschedule" : "Delete"}</button> : null}
               {editingEvent?.allDay ? <button className="hu-calendar-add-button" type="button" onClick={() => { setIsCreating(false); setEditingEvent(null); }}>Close</button> : <button className="hu-calendar-add-button" disabled={isSaving} type="submit"><Pencil aria-hidden="true" size={13} />{isSaving ? "Saving…" : "Save event"}</button>}
             </div>
           </form>

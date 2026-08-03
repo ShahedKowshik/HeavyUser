@@ -1,3 +1,5 @@
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+
 export type Database = {
   public: {
     Tables: {
@@ -103,6 +105,9 @@ export type Database = {
           etag: string | null;
           html_link: string | null;
           time_zone: string | null;
+          visibility: string | null;
+          transparency: string | null;
+          private_properties: Json | null;
           google_updated_at: string | null;
           updated_at: string;
         };
@@ -126,6 +131,9 @@ export type Database = {
           etag?: string | null;
           html_link?: string | null;
           time_zone?: string | null;
+          visibility?: string | null;
+          transparency?: string | null;
+          private_properties?: Json | null;
           google_updated_at?: string | null;
           updated_at?: string;
         };
@@ -149,6 +157,9 @@ export type Database = {
           etag?: string | null;
           html_link?: string | null;
           time_zone?: string | null;
+          visibility?: string | null;
+          transparency?: string | null;
+          private_properties?: Json | null;
           google_updated_at?: string | null;
           updated_at?: string;
         };
@@ -164,6 +175,11 @@ export type Database = {
           deadline: string | null;
           priority: string;
           status: string;
+          auto_schedule: boolean;
+          min_block_minutes: number | null;
+          max_block_minutes: number | null;
+          calendar_visibility: string | null;
+          calendar_transparency: string | null;
           position: number;
           created_at: string;
           updated_at: string;
@@ -177,6 +193,11 @@ export type Database = {
           deadline?: string | null;
           priority?: string;
           status?: string;
+          auto_schedule?: boolean;
+          min_block_minutes?: number | null;
+          max_block_minutes?: number | null;
+          calendar_visibility?: string | null;
+          calendar_transparency?: string | null;
           position?: number;
           created_at?: string;
           updated_at?: string;
@@ -190,15 +211,230 @@ export type Database = {
           deadline?: string | null;
           priority?: string;
           status?: string;
+          auto_schedule?: boolean;
+          min_block_minutes?: number | null;
+          max_block_minutes?: number | null;
+          calendar_visibility?: string | null;
+          calendar_transparency?: string | null;
           position?: number;
           created_at?: string;
           updated_at?: string;
         };
         Relationships: [];
       };
+      task_scheduling_preferences: {
+        Row: {
+          user_id: string;
+          enabled: boolean;
+          timezone: string | null;
+          work_windows: Json;
+          default_min_block_minutes: number;
+          default_max_block_minutes: number;
+          default_calendar_visibility: string;
+          default_calendar_transparency: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          enabled?: boolean;
+          timezone?: string | null;
+          work_windows?: Json;
+          default_min_block_minutes?: number;
+          default_max_block_minutes?: number;
+          default_calendar_visibility?: string;
+          default_calendar_transparency?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          enabled?: boolean;
+          timezone?: string | null;
+          work_windows?: Json;
+          default_min_block_minutes?: number;
+          default_max_block_minutes?: number;
+          default_calendar_visibility?: string;
+          default_calendar_transparency?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      task_schedule_blocks: {
+        Row: {
+          id: string;
+          user_id: string;
+          task_id: string;
+          calendar_id: string;
+          provider_event_id: string | null;
+          provider_event_key: string | null;
+          start_at: string;
+          end_at: string;
+          planned_start_at: string;
+          planned_end_at: string;
+          state: string;
+          sync_version: number;
+          etag: string | null;
+          last_error: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          user_id: string;
+          task_id: string;
+          calendar_id: string;
+          provider_event_id?: string | null;
+          provider_event_key?: string | null;
+          start_at: string;
+          end_at: string;
+          planned_start_at: string;
+          planned_end_at: string;
+          state?: string;
+          sync_version?: number;
+          etag?: string | null;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          task_id?: string;
+          calendar_id?: string;
+          provider_event_id?: string | null;
+          provider_event_key?: string | null;
+          start_at?: string;
+          end_at?: string;
+          planned_start_at?: string;
+          planned_end_at?: string;
+          state?: string;
+          sync_version?: number;
+          etag?: string | null;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      task_schedule_status: {
+        Row: {
+          user_id: string;
+          task_id: string;
+          state: string;
+          scheduled_minutes: number;
+          missing_minutes: number;
+          warning: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          task_id: string;
+          state: string;
+          scheduled_minutes?: number;
+          missing_minutes?: number;
+          warning?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          task_id?: string;
+          state?: string;
+          scheduled_minutes?: number;
+          missing_minutes?: number;
+          warning?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      scheduler_queue: {
+        Row: {
+          user_id: string;
+          reason: string;
+          requested_at: string;
+          run_after: string;
+          attempts: number;
+          locked_at: string | null;
+          last_error: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          reason?: string;
+          requested_at?: string;
+          run_after?: string;
+          attempts?: number;
+          locked_at?: string | null;
+          last_error?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          reason?: string;
+          requested_at?: string;
+          run_after?: string;
+          attempts?: number;
+          locked_at?: string | null;
+          last_error?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      task_schedule_cleanup: {
+        Row: {
+          id: number;
+          user_id: string;
+          calendar_id: string;
+          provider_event_id: string;
+          created_at: string;
+          processed_at: string | null;
+          last_error: string | null;
+        };
+        Insert: {
+          id?: number;
+          user_id: string;
+          calendar_id: string;
+          provider_event_id: string;
+          created_at?: string;
+          processed_at?: string | null;
+          last_error?: string | null;
+        };
+        Update: {
+          id?: number;
+          user_id?: string;
+          calendar_id?: string;
+          provider_event_id?: string;
+          created_at?: string;
+          processed_at?: string | null;
+          last_error?: string | null;
+        };
+        Relationships: [];
+      };
+      scheduler_user_locks: {
+        Row: {
+          user_id: string;
+          locked_at: string;
+        };
+        Insert: {
+          user_id: string;
+          locked_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          locked_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      try_claim_scheduler_lock: {
+        Args: { p_user_id: string };
+        Returns: boolean;
+      };
+      release_scheduler_lock: {
+        Args: { p_user_id: string };
+        Returns: undefined;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
