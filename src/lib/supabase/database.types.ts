@@ -87,6 +87,27 @@ export type Database = {
         };
         Relationships: [];
       };
+      google_calendar_event_deletions: {
+        Row: {
+          user_id: string;
+          event_key: string;
+          provider_event_id: string;
+          deleted_at: string;
+        };
+        Insert: {
+          user_id: string;
+          event_key: string;
+          provider_event_id: string;
+          deleted_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          event_key?: string;
+          provider_event_id?: string;
+          deleted_at?: string;
+        };
+        Relationships: [];
+      };
       google_calendar_events: {
         Row: {
           event_key: string;
@@ -360,6 +381,7 @@ export type Database = {
           attempts: number;
           locked_at: string | null;
           last_error: string | null;
+          force_replan: boolean;
           updated_at: string;
         };
         Insert: {
@@ -370,6 +392,7 @@ export type Database = {
           attempts?: number;
           locked_at?: string | null;
           last_error?: string | null;
+          force_replan?: boolean;
           updated_at?: string;
         };
         Update: {
@@ -380,6 +403,7 @@ export type Database = {
           attempts?: number;
           locked_at?: string | null;
           last_error?: string | null;
+          force_replan?: boolean;
           updated_at?: string;
         };
         Relationships: [];

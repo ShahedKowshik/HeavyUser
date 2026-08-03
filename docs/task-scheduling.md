@@ -9,7 +9,8 @@ HeavyUser keeps task definitions in Supabase and creates only its own timed bloc
 - Work is placed inside the weekly windows in Settings. Weekends are off unless explicitly configured.
 - Long tasks are split using the account defaults, with optional per-task overrides.
 - A moved or resized HeavyUser block becomes locked. Deleting a HeavyUser block asks the scheduler to place that work again.
-- Locked blocks are never moved for a new meeting; if a meeting overlaps one, both stay and the task is marked At risk with a conflict warning.
+- Locked blocks are never moved by normal scheduling. Changing a task's priority is an explicit replan request, so its future blocks (including locked ones) may move; past blocks never move.
+- If a meeting overlaps a protected block, both stay and the task is marked At risk with a conflict warning.
 - Calendar time never marks a task complete. The user must complete the task in HeavyUser.
 
 ## Background repair
@@ -44,4 +45,4 @@ Changing calendars removes future HeavyUser blocks from the old calendar before 
 
 The task list keeps the existing one-line layout. Opening a task shows its schedule state and current calendar blocks with dates, times, and locked/past state: Scheduled, Scheduling, Needs duration, At risk, Locked, Awaiting completion, Paused, or Calendar error. A passed block never completes the task; it becomes Awaiting completion until the user marks the task done.
 
-The first release is behind the account-level “Schedule tasks automatically” switch. Turning it on explains that eligible existing tasks will be scheduled immediately.
+The first release is behind the account-level “Schedule tasks automatically” switch. Turning it on explains that eligible existing tasks will be scheduled immediately. HeavyUser shows a calendar block only after Google Calendar accepts it, so a task that is still being scheduled does not appear at a guessed time.

@@ -2241,7 +2241,8 @@ input[type="number"]::-webkit-outer-spin-button {
 
 .hu-task-schedule-status.is-scheduled,
 .hu-task-schedule-status.is-locked,
-.hu-task-schedule-status.is-awaiting_completion {
+.hu-task-schedule-status.is-awaiting_completion,
+.hu-task-schedule-status.is-scheduling {
   border-color: var(--primary-line);
   background: var(--primary-soft);
   color: var(--primary);
@@ -3237,6 +3238,13 @@ input[type="number"]::-webkit-outer-spin-button {
   user-select: none;
 }
 
+.hu-event.is-task-block {
+  border-color: var(--primary-line);
+  border-left-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--foreground);
+}
+
 .hu-event.is-gesture-active {
   z-index: 4;
   cursor: grabbing;
@@ -3246,12 +3254,6 @@ input[type="number"]::-webkit-outer-spin-button {
 .hu-event.is-planner-synthetic {
   border-style: dashed;
   cursor: default;
-}
-
-.hu-event.is-pending-schedule {
-  border-color: var(--primary-line);
-  border-left-color: var(--primary);
-  background: color-mix(in oklch, var(--primary-soft) 72%, var(--surface));
 }
 
 .hu-event-resize-handle {

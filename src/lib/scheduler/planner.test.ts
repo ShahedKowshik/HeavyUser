@@ -217,6 +217,47 @@ describe("planSchedule", () => {
     ]);
   });
 
+  it("keeps saved locked and past blocks visible when automatic scheduling is paused", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 120 })],
+      existingBlocks: [
+        {
+          id: "past-1",
+          taskId: "task-1",
+          calendarId: "primary",
+          start: "2026-08-03T07:00:00.000Z",
+          end: "2026-08-03T08:00:00.000Z",
+          plannedStart: "2026-08-03T07:00:00.000Z",
+          plannedEnd: "2026-08-03T08:00:00.000Z",
+          state: "flexible",
+          providerEventId: "past-event",
+          etag: "past-etag",
+          syncVersion: 1,
+        },
+        {
+          id: "locked-1",
+          taskId: "task-1",
+          calendarId: "primary",
+          start: "2026-08-03T13:00:00.000Z",
+          end: "2026-08-03T14:00:00.000Z",
+          plannedStart: "2026-08-03T13:00:00.000Z",
+          plannedEnd: "2026-08-03T14:00:00.000Z",
+          state: "locked",
+          providerEventId: "locked-event",
+          etag: "locked-etag",
+          syncVersion: 1,
+        },
+      ],
+      busyIntervals: [],
+      preferences: { ...preferences, enabled: false },
+      now: Date.parse("2026-08-03T08:00:00Z"),
+    });
+
+    expect(result.tasks[0].state).toBe("paused");
+    expect(result.tasks[0].scheduledMinutes).toBe(120);
+    expect(result.tasks[0].blocks.map((block) => block.id)).toEqual(["past-1", "locked-1"]);
+  });
+
   it("keeps another task away from a locked block", () => {
     const result = planSchedule({
       tasks: [

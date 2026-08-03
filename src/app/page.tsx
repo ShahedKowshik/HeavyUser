@@ -262,8 +262,6 @@ const scheduleStateLabels: Record<TaskScheduleState, string> = {
   calendar_error: "Calendar error",
 };
 
-const TASK_SCHEDULER_DELAY_MS = 5_000;
-
 function getScheduleLabel(task: Task, status: TaskScheduleStatus | undefined) {
   if (task.status === "done") {
     return null;
@@ -687,6 +685,74 @@ function ensureSingleFocus(tasks: ReadonlyArray<Task>) {
   });
 }
 
+function areTasksEquivalent(firstTask: Task, secondTask: Task) {
+  return firstTask.id === secondTask.id
+    && firstTask.title === secondTask.title
+    && firstTask.duration === secondTask.duration
+    && firstTask.startDate === secondTask.startDate
+    && firstTask.deadline === secondTask.deadline
+    && firstTask.priority === secondTask.priority
+    && firstTask.status === secondTask.status
+    && firstTask.autoSchedule === secondTask.autoSchedule
+    && firstTask.minBlockMinutes === secondTask.minBlockMinutes
+    && firstTask.maxBlockMinutes === secondTask.maxBlockMinutes
+    && firstTask.calendarVisibility === secondTask.calendarVisibility
+    && firstTask.calendarTransparency === secondTask.calendarTransparency;
+}
+
+function mergeRemoteTasks(
+  localTasks: ReadonlyArray<Task>,
+  currentTasks: ReadonlyArray<Task>,
+  remoteTasks: ReadonlyArray<Task>,
+) {
+  const localById = new Map(localTasks.map((task) => [task.id, task]));
+  const remoteById = new Map(remoteTasks.map((task) => [task.id, task]));
+  const locallyDeletedIds = new Set(
+    localTasks
+      .filter((task) => !currentTasks.some((currentTask) => currentTask.id === task.id))
+      .map((task) => task.id),
+  );
+  const locallyChangedIds = new Set(
+    currentTasks
+      .filter((task) => {
+        const localTask = localById.get(task.id);
+        return !localTask || !areTasksEquivalent(task, localTask);
+      })
+      .map((task) => task.id),
+  );
+
+  if (locallyDeletedIds.size === 0 && locallyChangedIds.size === 0) {
+    return { tasks: ensureSingleFocus(remoteTasks), deletedTaskIds: [] };
+  }
+
+  const mergedTasks: Task[] = [];
+  const seenIds = new Set<string>();
+  for (const currentTask of currentTasks) {
+    if (locallyDeletedIds.has(currentTask.id)) {
+      continue;
+    }
+
+    const nextTask = locallyChangedIds.has(currentTask.id)
+      ? currentTask
+      : remoteById.get(currentTask.id);
+    if (nextTask) {
+      mergedTasks.push(nextTask);
+      seenIds.add(nextTask.id);
+    }
+  }
+
+  for (const remoteTask of remoteTasks) {
+    if (!seenIds.has(remoteTask.id) && !locallyDeletedIds.has(remoteTask.id)) {
+      mergedTasks.push(remoteTask);
+    }
+  }
+
+  return {
+    tasks: ensureSingleFocus(mergedTasks),
+    deletedTaskIds: [...locallyDeletedIds],
+  };
+}
+
 function getUserStorageKey(userId: string) {
   return `${userStorageKeyPrefix}${userId}`;
 }
@@ -733,6 +799,8 @@ function clearUserTasks(userId: string) {
 
 export default function Home() {
   const [tasks, setTasks] = useState<ReadonlyArray<Task>>([]);
+  const tasksRef = useRef<ReadonlyArray<Task>>([]);
+  tasksRef.current = tasks;
   const [supabaseClient] = useState(() => getSupabaseBrowserClient());
   const { status: authStatus, user: authUser, settings } = useAuth();
   const [remoteSyncReady, setRemoteSyncReady] = useState(false);
@@ -763,6 +831,7 @@ export default function Home() {
   const [editingCalendarTransparency, setEditingCalendarTransparency] = useState<CalendarTransparency | null>(null);
   const [scheduleStatuses, setScheduleStatuses] = useState<Record<string, TaskScheduleStatus>>({});
   const [scheduleBlocks, setScheduleBlocks] = useState<Record<string, ReadonlyArray<ScheduleBlockSnapshot>>>({});
+  const [schedulerError, setSchedulerError] = useState("");
   const [inlineEdit, setInlineEdit] = useState<{
     taskId: string;
     field: InlineEditField;
@@ -867,6 +936,7 @@ export default function Home() {
 
       const localTasks = readUserTasks(authUser.id);
       setTasks([]);
+      tasksRef.current = [];
       setRemoteSyncReady(false);
       setIsHydrated(false);
       setPendingRemoteDeletes([]);
@@ -874,14 +944,20 @@ export default function Home() {
       setEditingId(null);
       setScheduleStatuses({});
       setScheduleBlocks({});
+      setSchedulerError("");
 
       if (isCancelled) {
         return;
       }
 
+      // Show the account's local snapshot immediately. The remote response
+      // remains authoritative below, while remoteSyncReady keeps this cached
+      // snapshot from being written back before that response arrives.
+      setTasks(localTasks);
+      tasksRef.current = localTasks;
+      setIsHydrated(true);
+
       if (!supabaseClient) {
-        setTasks(localTasks);
-        setIsHydrated(true);
         return;
       }
 
@@ -891,37 +967,30 @@ export default function Home() {
           return;
         }
 
-        if (remoteTasks.length > 0) {
-          const nextTasks = ensureSingleFocus(remoteTasks);
-          setTasks(nextTasks);
-          writeUserTasks(authUser.id, nextTasks);
-        } else {
+        const merged = mergeRemoteTasks(localTasks, tasksRef.current, remoteTasks);
+        tasksRef.current = merged.tasks;
+        setTasks(merged.tasks);
+        if (merged.tasks.length === 0 && remoteTasks.length === 0) {
           clearUserTasks(authUser.id);
-          setTasks([]);
+        } else {
+          writeUserTasks(authUser.id, merged.tasks);
         }
 
+        if (merged.deletedTaskIds.length > 0) {
+          setPendingRemoteDeletes((currentIds) => [...new Set([...currentIds, ...merged.deletedTaskIds])]);
+        }
         setRemoteSyncReady(true);
-        requestSchedulerRun(TASK_SCHEDULER_DELAY_MS);
+        void loadScheduleSnapshot();
       } catch {
-        if (!isCancelled) {
-          setTasks(localTasks);
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsHydrated(true);
-        }
+        // Keep the local snapshot visible if Supabase is temporarily slow or
+        // unavailable. A later account refresh can try the remote load again.
       }
     };
 
-    const frameId = window.requestAnimationFrame(() => {
-      void restoreTasks();
-    });
+    void restoreTasks();
     return () => {
       isCancelled = true;
-      window.cancelAnimationFrame(frameId);
     };
-    // The scheduler helper is intentionally stable for this restore lifecycle.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authStatus, authUser, supabaseClient]);
 
   useEffect(() => {
@@ -1064,6 +1133,8 @@ export default function Home() {
     try {
       const response = await fetch(getAppPath("/api/scheduler/status"), { cache: "no-store" });
       if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { error?: string } | null;
+        setSchedulerError(body?.error ?? "Scheduling status could not be loaded.");
         return;
       }
 
@@ -1082,9 +1153,19 @@ export default function Home() {
       setScheduleStatuses(nextStatuses);
       setScheduleBlocks(nextBlocks);
     } catch {
-      // Task editing remains usable if schedule data is temporarily unavailable.
+      setSchedulerError("Scheduling status could not be loaded. We will try again.");
     }
   }
+
+  useEffect(() => {
+    // The event listener intentionally calls the schedule loader without
+    // making the page rebind it on every render.
+    const refreshScheduleSnapshot = () => {
+      void loadScheduleSnapshot();
+    };
+    window.addEventListener("heavyuser:schedule-refresh", refreshScheduleSnapshot);
+    return () => window.removeEventListener("heavyuser:schedule-refresh", refreshScheduleSnapshot);
+  }, []);
 
   function requestSchedulerRun(delayMs = 400) {
     if (schedulerRunInFlightRef.current) {
@@ -1105,17 +1186,28 @@ export default function Home() {
 
       schedulerRunInFlightRef.current = true;
       void (async () => {
+        let retryDelay: number | null = null;
         try {
-          await fetch(getAppPath("/api/scheduler/run"), { method: "POST" });
+          const response = await fetch(getAppPath("/api/scheduler/run"), { method: "POST" });
+          const body = (await response.json().catch(() => null)) as { error?: string } | null;
+          if (!response.ok) {
+            setSchedulerError(body?.error ?? "Scheduling could not finish. We will try again.");
+            if (response.status === 409) {
+              schedulerRunQueuedRef.current = true;
+              retryDelay = 1_000;
+            }
+          } else {
+            setSchedulerError("");
+          }
         } catch {
-          // The queue worker remains responsible for repairing a failed run.
+          setSchedulerError("Scheduling could not finish. We will try again.");
         } finally {
           await loadScheduleSnapshot();
           window.dispatchEvent(new Event("heavyuser:calendar-refresh"));
           schedulerRunInFlightRef.current = false;
           if (schedulerRunQueuedRef.current) {
             schedulerRunQueuedRef.current = false;
-            requestSchedulerRun();
+            requestSchedulerRun(retryDelay ?? 0);
           }
         }
       })();
@@ -1668,6 +1760,7 @@ export default function Home() {
                 setPendingRemoteDeletes([]);
                 setScheduleStatuses({});
                 setScheduleBlocks({});
+                setSchedulerError("");
                 setTasks([]);
               }}
             />
@@ -2276,7 +2369,7 @@ export default function Home() {
               settings={settings}
               tasks={tasks}
               scheduleBlocks={scheduleBlocks}
-              scheduleStatuses={scheduleStatuses}
+              schedulerError={schedulerError}
             />
           </div>
         </div>

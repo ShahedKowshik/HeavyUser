@@ -256,6 +256,19 @@ export async function deleteGoogleEvent(input: { accessToken: string; calendarId
   );
 }
 
+/** Google deletion is idempotent for HeavyUser's local state. */
+export async function deleteGoogleEventIfPresent(input: { accessToken: string; calendarId: string; eventId: string }) {
+  try {
+    await deleteGoogleEvent(input);
+    return true;
+  } catch (error) {
+    if (error instanceof GoogleApiError && (error.status === 404 || error.status === 410)) {
+      return false;
+    }
+    throw error;
+  }
+}
+
 export async function watchGoogleEvents(input: {
   accessToken: string;
   calendarId: string;

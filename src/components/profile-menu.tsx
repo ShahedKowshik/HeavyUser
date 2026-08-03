@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Pencil, Settings2 } from "lucide-react";
+import { ChevronDown, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
 import { getProfileName, getPublicUserId } from "@/lib/supabase/profile";
@@ -67,9 +67,9 @@ export function ProfileMenu({ onSignedOut }: { onSignedOut?: () => void }) {
     router.replace(getAppPath("/login"));
   }
 
-  function openSettings(anchor = "") {
+  function openSettings() {
     setIsOpen(false);
-    router.push(getAppPath(`/settings${anchor}`));
+    router.push(getAppPath("/settings"));
   }
 
   return (
@@ -119,10 +119,6 @@ export function ProfileMenu({ onSignedOut }: { onSignedOut?: () => void }) {
             </div>
           </div>
           <div className="hu-popover-divider" role="presentation" />
-          <button className="hu-menu-item" role="menuitem" type="button" onClick={() => openSettings("#account")}>
-            <Pencil aria-hidden="true" size={14} />
-            <span>Edit profile</span>
-          </button>
           <button className="hu-menu-item" role="menuitem" type="button" onClick={() => openSettings()}>
             <Settings2 aria-hidden="true" size={14} />
             <span>Settings</span>

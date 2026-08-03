@@ -65,6 +65,8 @@ export type PlannedBlock = {
   taskId: string;
   start: string;
   end: string;
+  id?: string;
+  state?: "flexible" | "locked" | "replaced" | "cancelled";
 };
 
 export type TaskPlan = {
@@ -90,6 +92,7 @@ export type ScheduleBlockSnapshot = {
   id: string;
   taskId: string;
   calendarId: string;
+  providerEventId: string | null;
   start: string;
   end: string;
   plannedStart: string;

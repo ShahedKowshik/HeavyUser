@@ -270,7 +270,7 @@ export function planSchedule(input: {
   // protected time—even when the protected block belongs to a later task in
   // the priority order.
   for (const block of input.existingBlocks) {
-    if (block.state === "locked" || new Date(block.end).getTime() <= now) {
+    if (block.state === "locked" || new Date(block.start).getTime() < now) {
       intervals.push({ start: block.start, end: block.end, source: "locked" });
     }
   }
@@ -278,15 +278,26 @@ export function planSchedule(input: {
   if (!preferences.enabled) {
     return {
       busyIntervals: intervals,
-      tasks: input.tasks.map((task) => ({
-        taskId: task.id,
-        state: task.duration === null ? "needs_duration" : "paused",
-        fixedMinutes: 0,
-        scheduledMinutes: 0,
-        missingMinutes: 0,
-        warning: null,
-        blocks: [],
-      })),
+      tasks: input.tasks.map((task) => {
+        const taskBlocks = getTaskBlocks(task.id, input.existingBlocks);
+        const fixedBlocks = taskBlocks.filter((block) => block.state === "locked" || new Date(block.start).getTime() < now);
+        const fixedMinutes = fixedBlocks.reduce((total, block) => total + getMinutes(block.start, block.end), 0);
+        return {
+          taskId: task.id,
+          state: task.duration === null ? "needs_duration" : "paused",
+          fixedMinutes,
+          scheduledMinutes: fixedMinutes,
+          missingMinutes: 0,
+          warning: null,
+          blocks: fixedBlocks.map((block) => ({
+            taskId: task.id,
+            start: block.start,
+            end: block.end,
+            id: block.id,
+            state: block.state,
+          })),
+        };
+      }),
     };
   }
 
@@ -326,7 +337,7 @@ export function planSchedule(input: {
   const orderedTasks = [...input.tasks].sort(taskOrder);
   for (const task of orderedTasks) {
     const taskBlocks = getTaskBlocks(task.id, input.existingBlocks);
-    const fixedBlocks = taskBlocks.filter((block) => block.state === "locked" || new Date(block.end).getTime() <= now);
+    const fixedBlocks = taskBlocks.filter((block) => block.state === "locked" || new Date(block.start).getTime() < now);
     const fixedMinutes = fixedBlocks.reduce((total, block) => total + getMinutes(block.start, block.end), 0);
     const hasFutureFixedBlock = fixedBlocks.some((block) => new Date(block.end).getTime() > now);
     const hasLockedConflict = fixedBlocks.some((block) =>

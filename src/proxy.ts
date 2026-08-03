@@ -24,12 +24,28 @@ export async function proxy(request: NextRequest) {
   const isSchedulerProcess = routePath === "/api/scheduler/process";
   const config = getSupabaseConfig();
   const nonce = randomBytes(16).toString("base64");
+  const isDevelopment = process.env.NODE_ENV !== "production";
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
+  // Next's development Fast Refresh runtime uses eval to compile its update
+  // wrapper. Keep this exception local to development; production stays strict.
+  const scriptSources = [
+    "'self'",
+    ...(isDevelopment ? ["'unsafe-eval'"] : []),
+    `'nonce-${nonce}'`,
+    "'strict-dynamic'",
+  ].join(" ");
+  // Codex's local browser annotation layer mounts a temporary inline stylesheet
+  // while annotation mode is active. Keep this compatibility allowance local
+  // to development; production remains strict.
+  const styleSources = [
+    "'self'",
+    ...(isDevelopment ? ["'unsafe-inline'"] : []),
+  ].join(" ");
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
-    "style-src 'self'",
+    `script-src ${scriptSources}`,
+    `style-src ${styleSources}`,
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in",
     "font-src 'self' data:",

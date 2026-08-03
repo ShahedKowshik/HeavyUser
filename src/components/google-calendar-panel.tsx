@@ -4,7 +4,8 @@ import { FormEvent, PointerEvent as ReactPointerEvent, TouchEvent as ReactTouchE
 import type { CSSProperties } from "react";
 import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, ExternalLink, Pencil, Plus, RefreshCw, Trash2, Video, X } from "lucide-react";
 import { getAppPath } from "@/lib/supabase/config";
-import type { ScheduleBlockSnapshot, TaskScheduleStatus } from "@/lib/scheduler/types";
+import { dedupePlannerEvents } from "@/lib/google/event-utils";
+import type { ScheduleBlockSnapshot } from "@/lib/scheduler/types";
 import type { UserSettings } from "@/lib/supabase/settings";
 import type { Task } from "@/lib/tasks";
 
@@ -48,7 +49,6 @@ type LiveEvent = {
   taskId: string | null;
   scheduleBlockId: string | null;
   isPlannerSynthetic?: boolean;
-  isPendingSchedule?: boolean;
 };
 
 type EventDraft = {
@@ -100,7 +100,7 @@ type GoogleCalendarPanelProps = {
   settings: UserSettings;
   tasks: ReadonlyArray<Task>;
   scheduleBlocks: Readonly<Record<string, ReadonlyArray<ScheduleBlockSnapshot>>>;
-  scheduleStatuses: Readonly<Record<string, TaskScheduleStatus>>;
+  schedulerError?: string;
 };
 
 const TIMELINE_HOURS = 24;
@@ -294,7 +294,7 @@ export function GoogleCalendarPanel({
   settings,
   tasks,
   scheduleBlocks,
-  scheduleStatuses,
+  schedulerError = "",
 }: GoogleCalendarPanelProps) {
   const timelineHours = TIMELINE_HOURS;
   const [connection, setConnection] = useState<CalendarConnection | null>(null);
@@ -328,6 +328,7 @@ export function GoogleCalendarPanel({
   const pendingEventRangeTimers = useRef(new Map<string, number>());
   const pendingLocalEvents = useRef(new Map<string, LiveEvent>());
   const pendingLocalEventTimers = useRef(new Map<string, number>());
+  const pendingDeletedEvents = useRef(new Map<string, { providerEventId: string; timer: number }>());
 
   useEffect(() => {
     const updateNow = () => setNowTimestamp(Date.now());
@@ -360,98 +361,68 @@ export function GoogleCalendarPanel({
   const showJumpToNow = selectedDate !== date || isTimelineAwayFromNow;
   const selectedDateIndex = Math.max(0, plannerDates.indexOf(selectedDate));
   const taskById = new Map(tasks.map((task) => [task.id, task]));
-  const calendarEvents = events.map((event) => {
-    const task = event.isTaskBlock && event.taskId ? taskById.get(event.taskId) : null;
-    return task ? { ...event, title: task.title } : event;
-  });
+  const preferredScheduleBlockIds = new Set(
+    events.map((event) => event.scheduleBlockId).filter((blockId): blockId is string => Boolean(blockId)),
+  );
+  const calendarEvents = dedupePlannerEvents(
+    events.map((event) => {
+      const task = event.isTaskBlock && event.taskId ? taskById.get(event.taskId) : null;
+      return task ? { ...event, title: task.title } : event;
+    }),
+    preferredScheduleBlockIds,
+  );
   const calendarScheduleBlockIds = new Set(
     calendarEvents.map((event) => event.scheduleBlockId).filter((blockId): blockId is string => Boolean(blockId)),
   );
-  const scheduledBlockEvents = Object.values(scheduleBlocks)
-    .flat()
-    .filter((block) => block.state !== "cancelled" && block.state !== "replaced" && !calendarScheduleBlockIds.has(block.id))
-    .map((block): LiveEvent | null => {
-      const task = taskById.get(block.taskId);
-      if (!task) {
-        return null;
-      }
+  const calendarProviderEventIds = new Set(calendarEvents.map((event) => event.providerEventId));
+  const scheduledBlockEvents = dedupePlannerEvents(
+    Object.values(scheduleBlocks)
+      .flat()
+      .filter((block) => (
+        block.state !== "cancelled"
+        && block.state !== "replaced"
+        && !calendarScheduleBlockIds.has(block.id)
+        && (!block.providerEventId || !calendarProviderEventIds.has(block.providerEventId))
+      ))
+      .map((block): LiveEvent | null => {
+        const task = taskById.get(block.taskId);
+        if (!task) {
+          return null;
+        }
 
-      return {
-        id: `heavyuser-schedule-block:${block.id}`,
-        providerEventId: `heavyuser-schedule-block:${block.id}`,
-        title: task.title,
-        description: null,
-        location: null,
-        meetingUrl: null,
-        start: block.start,
-        end: block.end,
-        startDate: null,
-        endDate: null,
-        allDay: false,
-        hasAttendees: false,
-        etag: null,
-        htmlLink: null,
-        timeZone,
-        recurringEventId: null,
-        isTaskBlock: true,
-        taskId: task.id,
-        scheduleBlockId: block.id,
-        isPlannerSynthetic: true,
-        isPendingSchedule: false,
-      };
-    })
-    .filter((event): event is LiveEvent => event !== null);
-  const scheduledTaskIds = new Set([
-    ...calendarEvents.map((event) => event.taskId).filter((taskId): taskId is string => Boolean(taskId)),
-    ...scheduledBlockEvents.map((event) => event.taskId).filter((taskId): taskId is string => Boolean(taskId)),
-  ]);
-  const pendingTasks = tasks.filter((task) => {
-    const status = scheduleStatuses[task.id];
-    return isConnected
-      && task.status !== "done"
-      && task.autoSchedule
-      && task.duration !== null
-      && task.duration > 0
-      && !scheduledTaskIds.has(task.id)
-      && (!status || status.state === "scheduling");
-  });
-  const pendingTaskEvents = pendingTasks.map((task, index) => {
-    const nowParts = getDateTimeParts(new Date(nowTimestamp), timeZone);
-    const roundedNow = Math.ceil(nowTimestamp / (15 * MINUTE_MS)) * 15 * MINUTE_MS;
-    const pendingDate = task.startDate && task.startDate > nowParts.date ? task.startDate : nowParts.date;
-    const fallbackStart = pendingDate === nowParts.date
-      ? roundedNow
-      : getTimestampForLocalDateTime(pendingDate, 9 * 60, timeZone);
-    const start = fallbackStart + pendingTasks
-      .slice(0, index)
-      .reduce((offset, previousTask) => offset + Math.max(previousTask.duration ?? 15, 15) * MINUTE_MS, 0);
-    const end = start + (task.duration ?? 15) * MINUTE_MS;
-    const eventKey = `heavyuser-pending-task:${task.id}`;
-    return {
-      id: eventKey,
-      providerEventId: eventKey,
-      title: task.title,
-      description: null,
-      location: null,
-      meetingUrl: null,
-      start: new Date(start).toISOString(),
-      end: new Date(end).toISOString(),
-      startDate: null,
-      endDate: null,
-      allDay: false,
-      hasAttendees: false,
-      etag: null,
-      htmlLink: null,
-      timeZone,
-      recurringEventId: null,
-      isTaskBlock: true,
-      taskId: task.id,
-      scheduleBlockId: null,
-      isPlannerSynthetic: true,
-      isPendingSchedule: true,
-    } satisfies LiveEvent;
-  });
-  const plannerEvents = [...calendarEvents, ...scheduledBlockEvents, ...pendingTaskEvents];
+        return {
+          id: `heavyuser-schedule-block:${block.id}`,
+          providerEventId: block.providerEventId ?? `heavyuser-schedule-block:${block.id}`,
+          title: task.title,
+          description: null,
+          location: null,
+          meetingUrl: null,
+          start: block.start,
+          end: block.end,
+          startDate: null,
+          endDate: null,
+          allDay: false,
+          hasAttendees: false,
+          etag: null,
+          htmlLink: null,
+          timeZone,
+          recurringEventId: null,
+          isTaskBlock: true,
+          taskId: task.id,
+          scheduleBlockId: block.id,
+          isPlannerSynthetic: true,
+        };
+      })
+      .filter((event): event is LiveEvent => event !== null),
+    preferredScheduleBlockIds,
+  );
+  // Do not draw a guessed block while the scheduler is working. A block is
+  // shown only after Google accepted it and the saved schedule snapshot has
+  // a matching block to render.
+  const plannerEvents = dedupePlannerEvents(
+    [...calendarEvents, ...scheduledBlockEvents],
+    preferredScheduleBlockIds,
+  );
 
   const plannerTimelineDays = plannerDates.map((plannerDate) => {
     const timelineStartTimestamp = getTimestampForLocalDateTime(plannerDate, dayStartMinutes, timeZone);
@@ -660,6 +631,7 @@ export function GoogleCalendarPanel({
   }
 
   function rememberPendingLocalEvent(event: LiveEvent) {
+    clearPendingDeletedEvent(event.id);
     pendingLocalEvents.current.set(event.id, event);
     const previousTimer = pendingLocalEventTimers.current.get(event.id);
     if (previousTimer !== undefined) {
@@ -681,8 +653,40 @@ export function GoogleCalendarPanel({
     }
   }
 
+  function rememberPendingDeletedEvent(event: LiveEvent) {
+    const previous = pendingDeletedEvents.current.get(event.id);
+    if (previous) {
+      window.clearTimeout(previous.timer);
+    }
+
+    const timer = window.setTimeout(() => {
+      pendingDeletedEvents.current.delete(event.id);
+    }, 120_000);
+    pendingDeletedEvents.current.set(event.id, { providerEventId: event.providerEventId, timer });
+  }
+
+  function clearPendingDeletedEvent(eventId: string) {
+    const pending = pendingDeletedEvents.current.get(eventId);
+    if (!pending) {
+      return;
+    }
+
+    window.clearTimeout(pending.timer);
+    pendingDeletedEvents.current.delete(eventId);
+  }
+
   function mergePendingLocalEvents(nextEvents: LiveEvent[]) {
-    const merged = new Map(nextEvents.map((event) => [event.id, event]));
+    const pendingDeletions = [...pendingDeletedEvents.current.entries()];
+    const merged = new Map(nextEvents
+      .filter((event) => !pendingDeletions.some(([eventId, pending]) => event.id === eventId || event.providerEventId === pending.providerEventId))
+      .map((event) => [event.id, event]));
+    for (const [eventId, pending] of pendingDeletions) {
+      const deletionConfirmed = !nextEvents.some((event) => event.id === eventId || event.providerEventId === pending.providerEventId);
+      if (deletionConfirmed) {
+        clearPendingDeletedEvent(eventId);
+      }
+    }
+
     for (const [eventId, pendingEvent] of pendingLocalEvents.current) {
       const serverEvent = merged.get(eventId);
       const isConfirmed = serverEvent
@@ -716,7 +720,7 @@ export function GoogleCalendarPanel({
     setIsCalendarPickerOpen(true);
   }
 
-  async function loadConnectionAndEvents(showSpinner = true) {
+  async function loadConnectionAndEvents(showSpinner = true, options: { sync?: boolean } = {}) {
     if (syncInFlight.current) {
       queuedSync.current = true;
       return;
@@ -744,13 +748,17 @@ export function GoogleCalendarPanel({
         return;
       }
 
-      const syncResponse = await fetch(getAppPath("/api/google/calendar/sync"), {
-        method: "POST",
-        cache: "no-store",
-      });
-      const syncBody = (await syncResponse.json().catch(() => null)) as { connection?: CalendarConnection; error?: string } | null;
-      if (!syncResponse.ok) {
-        throw new Error(syncBody?.error ?? "Calendar events could not be synchronized.");
+      let syncConnection: CalendarConnection | undefined;
+      if (options.sync !== false) {
+        const syncResponse = await fetch(getAppPath("/api/google/calendar/sync"), {
+          method: "POST",
+          cache: "no-store",
+        });
+        const syncBody = (await syncResponse.json().catch(() => null)) as { connection?: CalendarConnection; error?: string } | null;
+        if (!syncResponse.ok) {
+          throw new Error(syncBody?.error ?? "Calendar events could not be synchronized.");
+        }
+        syncConnection = syncBody?.connection;
       }
 
       const eventsResponse = await fetch(getAppPath("/api/google/calendar/events"), { cache: "no-store" });
@@ -758,7 +766,7 @@ export function GoogleCalendarPanel({
       if (!eventsResponse.ok) {
         throw new Error(eventsBody?.error ?? "Calendar events could not be loaded.");
       }
-      setConnection(eventsBody?.connection ?? syncBody?.connection ?? nextConnection);
+      setConnection(eventsBody?.connection ?? syncConnection ?? nextConnection);
       setEvents(mergePendingLocalEvents(mergePendingEventRanges(eventsBody?.events ?? [])));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Calendar could not be loaded.");
@@ -850,6 +858,7 @@ export function GoogleCalendarPanel({
       }
       setIsCalendarPickerOpen(false);
       await loadConnectionAndEvents(false);
+      window.dispatchEvent(new Event("heavyuser:schedule-refresh"));
     } catch (selectError) {
       setError(selectError instanceof Error ? selectError.message : "That calendar could not be selected.");
     } finally {
@@ -904,6 +913,7 @@ export function GoogleCalendarPanel({
       }
       setEditingEvent(null);
       setIsCreating(false);
+      window.dispatchEvent(new Event("heavyuser:schedule-refresh"));
       void loadConnectionAndEvents(false);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "The event could not be saved.");
@@ -919,15 +929,26 @@ export function GoogleCalendarPanel({
     setIsSaving(true);
     setError("");
     try {
-      const response = await fetch(`${getAppPath("/api/google/calendar/events")}?eventKey=${encodeURIComponent(editingEvent.id)}`, { method: "DELETE" });
+      const deleteParams = new URLSearchParams();
+      if (editingEvent.isPlannerSynthetic && editingEvent.scheduleBlockId) {
+        deleteParams.set("scheduleBlockId", editingEvent.scheduleBlockId);
+      } else {
+        deleteParams.set("eventKey", editingEvent.id);
+      }
+      const response = await fetch(`${getAppPath("/api/google/calendar/events")}?${deleteParams.toString()}`, { method: "DELETE" });
       const body = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) {
         throw new Error(body?.error ?? "The event could not be deleted.");
       }
+      rememberPendingDeletedEvent(editingEvent);
       clearPendingLocalEvent(editingEvent.id);
-      setEvents((currentEvents) => currentEvents.filter((currentEvent) => currentEvent.id !== editingEvent.id));
+      setEvents((currentEvents) => mergePendingLocalEvents(currentEvents.filter((currentEvent) => currentEvent.id !== editingEvent.id)));
       setEditingEvent(null);
-      void loadConnectionAndEvents(false);
+      window.dispatchEvent(new Event("heavyuser:schedule-refresh"));
+      // The delete route already removed the cache row. Read that cache back
+      // without immediately asking Google for a list response that may still
+      // contain the just-deleted event while propagation finishes.
+      void loadConnectionAndEvents(false, { sync: false });
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "The event could not be deleted.");
     } finally {
@@ -1026,6 +1047,7 @@ export function GoogleCalendarPanel({
       // interaction lock as soon as Google accepts the write; the read sync can
       // finish in the background without preventing another drag.
       setIsSaving(false);
+      window.dispatchEvent(new Event("heavyuser:schedule-refresh"));
       void loadConnectionAndEvents(false);
     } catch (moveError) {
       const pending = pendingEventRanges.current.get(eventItem.id);
@@ -1057,7 +1079,6 @@ export function GoogleCalendarPanel({
       suppressEventClick.current = false;
       return;
     }
-
     beginEdit(eventItem);
   }
 
@@ -1219,7 +1240,7 @@ export function GoogleCalendarPanel({
         ) : null}
       </div>
 
-      {error ? <div className="hu-calendar-alert" role="alert">{error}</div> : null}
+      {error || schedulerError ? <div className="hu-calendar-alert" role="alert">{error || schedulerError}</div> : null}
 
       {!isConnected && !isLoading ? (
         <div className="hu-calendar-empty">
@@ -1307,15 +1328,15 @@ export function GoogleCalendarPanel({
                         const eventTimeLabel = formatEventTime(renderedEvent, timeZone);
                         return (
                           <button
-                            aria-label={`${event.title}. ${eventTimeLabel}${event.isPendingSchedule ? ". Scheduling now." : ""}`}
-                            className={`hu-event hu-event-button ${event.hasAttendees ? "is-guest-event" : ""} ${event.isTaskBlock ? "is-task-block" : ""} ${event.isPlannerSynthetic ? "is-planner-synthetic" : ""} ${event.isPendingSchedule ? "is-pending-schedule" : ""} ${eventIsTiny ? "is-tiny" : ""} ${eventGesture?.event.id === event.id ? "is-gesture-active" : ""}`}
+                            aria-label={`${event.title}. ${eventTimeLabel}`}
+                            className={`hu-event hu-event-button ${event.hasAttendees ? "is-guest-event" : ""} ${event.isTaskBlock ? "is-task-block" : ""} ${event.isPlannerSynthetic ? "is-planner-synthetic" : ""} ${eventIsTiny ? "is-tiny" : ""} ${eventGesture?.event.id === event.id ? "is-gesture-active" : ""}`}
                             key={event.id}
                             role="listitem"
                             style={{
                               top: `${(range.start / (timelineHours * 60)) * 100}%`,
                               height: `${((range.end - range.start) / (timelineHours * 60)) * 100}%`,
                             }}
-                            title={`${event.title} · ${eventTimeLabel}${event.isPendingSchedule ? " · Scheduling…" : ""}`}
+                            title={`${event.title} · ${eventTimeLabel}`}
                             type="button"
                             onPointerDown={event.isPlannerSynthetic ? undefined : (pointerEvent) => startEventGesture(pointerEvent, event, "move")}
                             onClick={event.isPlannerSynthetic ? undefined : () => handleEventClick(event)}
@@ -1392,21 +1413,22 @@ export function GoogleCalendarPanel({
             </button>
             <span className="hu-calendar-kicker">Google Calendar</span>
             <h2 id="google-event-dialog-title">{isCreating ? "Add event" : "Event details"}</h2>
-            {editingEvent?.isTaskBlock ? <div className="hu-calendar-readonly-note">Moving or editing this task block locks it in place. Deleting it will reschedule the work.</div> : null}
+            {editingEvent?.isPlannerSynthetic ? <div className="hu-calendar-readonly-note">This scheduled block is still syncing. You can reschedule it now, but editing details will be available after it finishes syncing.</div> : null}
+            {!editingEvent?.isPlannerSynthetic && editingEvent?.isTaskBlock ? <div className="hu-calendar-readonly-note">Moving or editing this task block locks it in place. Deleting it will reschedule the work.</div> : null}
             {editingEvent?.hasAttendees ? <div className="hu-calendar-readonly-note">This meeting has guests. Google may notify them when you save a change.</div> : null}
             {editingEvent?.allDay ? <div className="hu-calendar-readonly-note">All-day event editing will be available in a later release.</div> : null}
-            <label>Title<input disabled={Boolean(editingEvent?.allDay)} required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} /></label>
+            <label>Title<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic)} required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} /></label>
             <div className="hu-calendar-event-grid">
-              <label>Start<input disabled={Boolean(editingEvent?.allDay)} required type="datetime-local" value={draft.start} onChange={(event) => setDraft((current) => ({ ...current, start: event.target.value }))} /></label>
-              <label>End<input disabled={Boolean(editingEvent?.allDay)} required type="datetime-local" value={draft.end} onChange={(event) => setDraft((current) => ({ ...current, end: event.target.value }))} /></label>
+              <label>Start<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic)} required type="datetime-local" value={draft.start} onChange={(event) => setDraft((current) => ({ ...current, start: event.target.value }))} /></label>
+              <label>End<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic)} required type="datetime-local" value={draft.end} onChange={(event) => setDraft((current) => ({ ...current, end: event.target.value }))} /></label>
             </div>
-            <label>Duration (minutes)<input disabled={Boolean(editingEvent?.allDay)} min="5" max="1440" step="5" type="number" value={getDraftDurationMinutes(draft.start, draft.end) ?? ""} onChange={(event) => {
+            <label>Duration (minutes)<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic)} min="5" max="1440" step="5" type="number" value={getDraftDurationMinutes(draft.start, draft.end) ?? ""} onChange={(event) => {
               const minutes = Number(event.target.value);
               if (Number.isFinite(minutes) && minutes > 0) {
                 setDraft((current) => ({ ...current, end: addMinutesToDateTimeInput(current.start, minutes) }));
               }
             }} /></label>
-            <label>Location<input disabled={Boolean(editingEvent?.allDay)} value={draft.location} onChange={(event) => setDraft((current) => ({ ...current, location: event.target.value }))} /></label>
+            <label>Location<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic)} value={draft.location} onChange={(event) => setDraft((current) => ({ ...current, location: event.target.value }))} /></label>
             {editingEvent?.meetingUrl ? (
               <a className="hu-calendar-meeting-link" href={editingEvent.meetingUrl} rel="noreferrer" target="_blank">
                 <Video aria-hidden="true" size={14} />
@@ -1414,11 +1436,11 @@ export function GoogleCalendarPanel({
                 <ExternalLink aria-hidden="true" size={12} />
               </a>
             ) : null}
-            <label>Notes<textarea disabled={Boolean(editingEvent?.allDay)} rows={3} value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} /></label>
+            <label>Notes<textarea disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic)} rows={3} value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} /></label>
             <div className="hu-calendar-dialog-actions">
               {editingEvent?.htmlLink ? <a className="hu-calendar-open-link" href={editingEvent.htmlLink} rel="noreferrer" target="_blank"><ExternalLink aria-hidden="true" size={13} />Open in Google</a> : <span />}
               {!editingEvent?.hasAttendees && !editingEvent?.allDay && editingEvent ? <button className="hu-calendar-delete-button" disabled={isSaving} type="button" onClick={() => void handleDelete()}><Trash2 aria-hidden="true" size={13} />{editingEvent.isTaskBlock ? "Reschedule" : "Delete"}</button> : null}
-              {editingEvent?.allDay ? <button className="hu-calendar-add-button" type="button" onClick={() => { setIsCreating(false); setEditingEvent(null); }}>Close</button> : <button className="hu-calendar-add-button" disabled={isSaving} type="submit"><Pencil aria-hidden="true" size={13} />{isSaving ? "Saving…" : "Save event"}</button>}
+              {editingEvent?.allDay || editingEvent?.isPlannerSynthetic ? <button className="hu-calendar-add-button" type="button" onClick={() => { setIsCreating(false); setEditingEvent(null); }}>Close</button> : <button className="hu-calendar-add-button" disabled={isSaving} type="submit"><Pencil aria-hidden="true" size={13} />{isSaving ? "Saving…" : "Save event"}</button>}
             </div>
           </form>
         </div>

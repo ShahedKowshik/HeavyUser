@@ -90,22 +90,93 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
     }
 
     let isMounted = true;
-    void client.auth.getSession().then(({ data }) => {
-      if (isMounted) {
-        applyUser(data.session?.user ?? null);
+    let clientSessionResolved = false;
+    let serverCheckResolved = false;
+    let serverUser: User | null = null;
+    const fallbackTimer = window.setTimeout(() => {
+      if (isMounted && !clientSessionResolved && !serverUser) {
+        applyUser(null);
       }
-    });
+    }, 4_000);
 
     const {
       data: { subscription },
     } = client.auth.onAuthStateChange((_event, session) => {
-      if (isMounted) {
-        applyUser(session?.user ?? null);
+      if (!isMounted) {
+        return;
       }
+
+      if (session?.user) {
+        clientSessionResolved = true;
+        applyUser(session.user);
+        return;
+      }
+
+      // Do not let an INITIAL_SESSION event with no browser-readable session
+      // hide a verified server session while the cookie-backed client catches
+      // up. Explicit sign-out events still clear the user immediately.
+      if (_event === "INITIAL_SESSION" && (!serverCheckResolved || serverUser)) {
+        return;
+      }
+
+      clientSessionResolved = true;
+      applyUser(null);
     });
+
+    void fetch(getAppPath("/api/auth/session"), { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) {
+          return null;
+        }
+
+        const body = (await response.json().catch(() => null)) as { user?: User | null } | null;
+        return body?.user ?? null;
+      })
+      .then((nextUser) => {
+        serverCheckResolved = true;
+        if (!isMounted || clientSessionResolved) {
+          return;
+        }
+
+        if (nextUser) {
+          serverUser = nextUser;
+          applyUser(nextUser);
+        } else {
+          clientSessionResolved = true;
+          applyUser(null);
+        }
+      })
+      .catch(() => {
+        serverCheckResolved = true;
+        if (isMounted && !clientSessionResolved && !serverUser) {
+          // Let the browser session check decide whether the user is signed
+          // in when the server fallback itself is temporarily unavailable.
+          return;
+        }
+      });
+
+    void client.auth.getSession()
+      .then(({ data }) => {
+        if (isMounted) {
+          if (data.session?.user) {
+            clientSessionResolved = true;
+            applyUser(data.session.user);
+          } else if (serverCheckResolved && !serverUser) {
+            clientSessionResolved = true;
+            applyUser(data.session?.user ?? null);
+          }
+        }
+      })
+      .catch(() => {
+        if (isMounted && serverCheckResolved && !serverUser) {
+          clientSessionResolved = true;
+          applyUser(null);
+        }
+      });
 
     return () => {
       isMounted = false;
+      window.clearTimeout(fallbackTimer);
       subscription.unsubscribe();
     };
   }, [applyUser, client]);

@@ -115,6 +115,23 @@ export function mapGoogleEvent(userId: string, event: GoogleEvent) {
   };
 }
 
+export async function recordGoogleEventDeletion(
+  client: GoogleDbClient,
+  userId: string,
+  eventKey: string,
+  providerEventId: string,
+) {
+  const { error } = await client.from("google_calendar_event_deletions").upsert({
+    user_id: userId,
+    event_key: eventKey,
+    provider_event_id: providerEventId,
+    deleted_at: new Date().toISOString(),
+  }, { onConflict: "user_id,event_key" });
+  if (error) {
+    throw new Error(`Google Calendar deletion record failed: ${error.message}`);
+  }
+}
+
 export async function upsertGoogleCalendarEvent(client: GoogleDbClient, userId: string, event: GoogleEvent) {
   const row = mapGoogleEvent(userId, event);
   const { error } = await client
@@ -123,12 +140,39 @@ export async function upsertGoogleCalendarEvent(client: GoogleDbClient, userId: 
   if (error) {
     throw new Error(`Google Calendar event cache update failed: ${error.message}`);
   }
+
+  // A provider event can be recreated with the same event key after a
+  // successful delete. Do not let the old tombstone hide the new event.
+  const { error: deletionCleanupError } = await client
+    .from("google_calendar_event_deletions")
+    .delete()
+    .eq("user_id", userId)
+    .eq("event_key", row.event_key);
+  if (deletionCleanupError) {
+    throw new Error(`Google Calendar deletion record cleanup failed: ${deletionCleanupError.message}`);
+  }
   return row;
 }
 
 async function applyEvents(client: GoogleDbClient, userId: string, events: GoogleEvent[]) {
-  const activeEvents = events.filter((event) => event.status !== "cancelled");
-  const cancelledKeys = [...new Set(events.filter((event) => event.status === "cancelled").map(getGoogleEventKey))];
+  const { data: deletionRows, error: deletionLoadError } = await client
+    .from("google_calendar_event_deletions")
+    .select("event_key,provider_event_id")
+    .eq("user_id", userId);
+  if (deletionLoadError) {
+    throw new Error(`Google Calendar deletion records could not be loaded: ${deletionLoadError.message}`);
+  }
+
+  const deletedEventKeys = new Set((deletionRows ?? []).map((row) => row.event_key));
+  const deletedProviderEventIds = new Set((deletionRows ?? []).map((row) => row.provider_event_id));
+  const activeEvents = events.filter((event) => (
+    event.status !== "cancelled"
+    && !deletedEventKeys.has(getGoogleEventKey(event))
+    && !deletedProviderEventIds.has(event.id)
+  ));
+  const cancelledEvents = events.filter((event) => event.status === "cancelled");
+  const cancelledKeys = [...new Set(cancelledEvents.map(getGoogleEventKey))];
+  const cancelledProviderEventIds = [...new Set(cancelledEvents.map((event) => event.id))];
 
   if (cancelledKeys.length > 0) {
     for (let index = 0; index < cancelledKeys.length; index += EVENT_KEY_DELETE_BATCH_SIZE) {
@@ -136,6 +180,26 @@ async function applyEvents(client: GoogleDbClient, userId: string, events: Googl
       const { error } = await client.from("google_calendar_events").delete().in("event_key", batch).eq("user_id", userId);
       if (error) {
         throw new Error(`Google Calendar event cleanup failed: ${error.message}`);
+      }
+    }
+
+    const { error: deletionCleanupError } = await client
+      .from("google_calendar_event_deletions")
+      .delete()
+      .eq("user_id", userId)
+      .in("event_key", cancelledKeys);
+    if (deletionCleanupError) {
+      throw new Error(`Google Calendar deletion record cleanup failed: ${deletionCleanupError.message}`);
+    }
+
+    if (cancelledProviderEventIds.length > 0) {
+      const { error: providerDeletionCleanupError } = await client
+        .from("google_calendar_event_deletions")
+        .delete()
+        .eq("user_id", userId)
+        .in("provider_event_id", cancelledProviderEventIds);
+      if (providerDeletionCleanupError) {
+        throw new Error(`Google Calendar provider deletion record cleanup failed: ${providerDeletionCleanupError.message}`);
       }
     }
   }
@@ -288,7 +352,11 @@ export async function syncGoogleCalendar(
       throw connectionError;
     }
 
-    if (!options.skipSchedulerQueue) {
+    // Incremental Google syncs commonly return no events. Those reads are not
+    // scheduling changes, so do not wake the scheduler on every polling tick.
+    // A full sync or a non-empty change page still needs a replan because an
+    // event may have been created, moved, edited, or deleted in Google.
+    if (!options.skipSchedulerQueue && (fullSync || result.events.length > 0)) {
       await queueSchedulerJob(client, connection.user_id, "google_sync");
     }
 
