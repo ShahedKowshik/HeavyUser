@@ -2,7 +2,7 @@
 
 import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { CalendarDays, Check, ExternalLink, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { CalendarDays, Check, ExternalLink, Pencil, Plus, RefreshCw, Trash2, Video, X } from "lucide-react";
 import { getAppPath } from "@/lib/supabase/config";
 
 type CalendarConnection = {
@@ -30,6 +30,7 @@ type LiveEvent = {
   title: string;
   description: string | null;
   location: string | null;
+  meetingUrl: string | null;
   start: string | null;
   end: string | null;
   startDate: string | null;
@@ -785,7 +786,7 @@ export function GoogleCalendarPanel({
                     top: `${(range.start / (timelineHours * 60)) * 100}%`,
                     height: `${((range.end - range.start) / (timelineHours * 60)) * 100}%`,
                   }}
-                  title={event.isTaskBlock ? "Drag to move and lock this task block. Delete it to reschedule." : "Drag to move. Drag the top or bottom edge to change the time."}
+                  title={event.meetingUrl ? "Video meeting available. Open the event for details." : event.isTaskBlock ? "Drag to move and lock this task block. Delete it to reschedule." : "Drag to move. Drag the top or bottom edge to change the time."}
                   type="button"
                   onPointerDown={(pointerEvent) => startEventGesture(pointerEvent, event, "move")}
                   onClick={() => handleEventClick(event)}
@@ -798,7 +799,14 @@ export function GoogleCalendarPanel({
                       startEventGesture(pointerEvent, event, "resize-start");
                     }}
                   />
-                  <span className="hu-event-title">{event.title}</span>
+                  <span className="hu-event-heading">
+                    <span className="hu-event-title">{event.title}</span>
+                    {event.meetingUrl ? (
+                      <span aria-label="Video meeting available" className="hu-event-meeting" title="Video meeting available">
+                        <Video aria-hidden="true" size={12} />
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="hu-event-meta">{formatEventTime(renderedEvent, timeZone)}</span>
                   <span
                     aria-hidden="true"
@@ -860,6 +868,13 @@ export function GoogleCalendarPanel({
               }
             }} /></label>
             <label>Location<input disabled={Boolean(editingEvent?.allDay)} value={draft.location} onChange={(event) => setDraft((current) => ({ ...current, location: event.target.value }))} /></label>
+            {editingEvent?.meetingUrl ? (
+              <a className="hu-calendar-meeting-link" href={editingEvent.meetingUrl} rel="noreferrer" target="_blank">
+                <Video aria-hidden="true" size={14} />
+                Open video meeting
+                <ExternalLink aria-hidden="true" size={12} />
+              </a>
+            ) : null}
             <label>Notes<textarea disabled={Boolean(editingEvent?.allDay)} rows={3} value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} /></label>
             <div className="hu-calendar-dialog-actions">
               {editingEvent?.htmlLink ? <a className="hu-calendar-open-link" href={editingEvent.htmlLink} rel="noreferrer" target="_blank"><ExternalLink aria-hidden="true" size={13} />Open in Google</a> : <span />}

@@ -27,6 +27,7 @@ function toEventResponse(row: Record<string, unknown>) {
     title: row.summary,
     description: row.description,
     location: row.location,
+    meetingUrl: typeof row.meeting_url === "string" ? row.meeting_url : null,
     start: row.start_at,
     end: row.end_at,
     startDate: row.start_date,

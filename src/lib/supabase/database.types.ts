@@ -95,6 +95,7 @@ export type Database = {
           summary: string;
           description: string | null;
           location: string | null;
+          meeting_url: string | null;
           start_at: string | null;
           end_at: string | null;
           start_date: string | null;
@@ -121,6 +122,7 @@ export type Database = {
           summary?: string;
           description?: string | null;
           location?: string | null;
+          meeting_url?: string | null;
           start_at?: string | null;
           end_at?: string | null;
           start_date?: string | null;
@@ -147,6 +149,7 @@ export type Database = {
           summary?: string;
           description?: string | null;
           location?: string | null;
+          meeting_url?: string | null;
           start_at?: string | null;
           end_at?: string | null;
           start_date?: string | null;

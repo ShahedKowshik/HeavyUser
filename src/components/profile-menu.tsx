@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Pencil, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
-import { getProfileName } from "@/lib/supabase/profile";
+import { getProfileName, getPublicUserId } from "@/lib/supabase/profile";
 import { getAppPath } from "@/lib/supabase/config";
 
-export function ProfileMenu({ workspaceLabel, onSignedOut }: { workspaceLabel: string; onSignedOut?: () => void }) {
+export function ProfileMenu({ onSignedOut }: { onSignedOut?: () => void }) {
   const router = useRouter();
   const { user, avatarUrl, signOut } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
@@ -47,6 +47,7 @@ export function ProfileMenu({ workspaceLabel, onSignedOut }: { workspaceLabel: s
   }
 
   const profileName = getProfileName(user);
+  const publicUserId = getPublicUserId(user);
   const profileInitials = profileName
     .split(/\s+/)
     .map((part) => part[0])
@@ -78,6 +79,7 @@ export function ProfileMenu({ workspaceLabel, onSignedOut }: { workspaceLabel: s
         aria-haspopup="menu"
         className="hu-profile-button"
         type="button"
+        title={`${profileName} · ${publicUserId}`}
         onClick={() => {
           setIsOpen((current) => !current);
           setMessage("");
@@ -93,7 +95,9 @@ export function ProfileMenu({ workspaceLabel, onSignedOut }: { workspaceLabel: s
         </span>
         <span className="hu-profile-copy">
           <span className="hu-profile-name">{profileName}</span>
-          <span className="hu-profile-workspace">{workspaceLabel}</span>
+          <span className="hu-profile-workspace">
+            <span className="hu-profile-user-id">{publicUserId}</span>
+          </span>
         </span>
         <ChevronDown aria-hidden="true" size={14} />
       </button>
@@ -110,7 +114,8 @@ export function ProfileMenu({ workspaceLabel, onSignedOut }: { workspaceLabel: s
             </span>
             <div className="hu-popover-profile-copy">
               <strong>{profileName}</strong>
-              <span>{user.email ?? workspaceLabel}</span>
+              <span>{user.email ?? profileName}</span>
+              <small className="hu-popover-profile-id">User ID {publicUserId}</small>
             </div>
           </div>
           <div className="hu-popover-divider" role="presentation" />

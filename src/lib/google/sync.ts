@@ -35,6 +35,41 @@ function getDate(value: { dateTime?: string; date?: string } | undefined) {
   return value.date ?? null;
 }
 
+function isMeetingUrl(value: string) {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase();
+    return hostname === "meet.google.com"
+      || hostname === "hangouts.google.com"
+      || hostname === "zoom.us"
+      || hostname.endsWith(".zoom.us")
+      || hostname === "zoom.com"
+      || hostname.endsWith(".zoom.com")
+      || hostname === "teams.microsoft.com"
+      || hostname.endsWith(".webex.com");
+  } catch {
+    return false;
+  }
+}
+
+function findMeetingUrl(event: GoogleEvent) {
+  const conferenceUrl = event.conferenceData?.entryPoints?.find(
+    (entryPoint) => entryPoint.entryPointType === "video" && typeof entryPoint.uri === "string" && isMeetingUrl(entryPoint.uri),
+  )?.uri;
+  if (conferenceUrl) {
+    return conferenceUrl;
+  }
+
+  for (const text of [event.location, event.description]) {
+    const urls = text?.match(/https?:\/\/[^\s<>"']+/g) ?? [];
+    const meetingUrl = urls.find((url) => isMeetingUrl(url.replace(/[),.;]+$/, "")));
+    if (meetingUrl) {
+      return meetingUrl.replace(/[),.;]+$/, "");
+    }
+  }
+
+  return null;
+}
+
 export function getGoogleEventKey(event: GoogleEvent) {
   const originalStart = event.originalStartTime?.dateTime ?? event.originalStartTime?.date ?? "";
   return `${event.id}::${originalStart}`;
@@ -58,6 +93,7 @@ function mapGoogleEvent(userId: string, event: GoogleEvent) {
     summary: event.summary ?? "Untitled event",
     description: event.description ?? null,
     location: event.location ?? null,
+    meeting_url: findMeetingUrl(event),
     start_at: startDateTime,
     end_at: endDateTime,
     start_date: startDate,

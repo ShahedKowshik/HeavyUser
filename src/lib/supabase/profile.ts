@@ -39,6 +39,32 @@ export function getProfileName(user: User | null) {
   return user?.email?.split("@")[0] ?? "HeavyUser";
 }
 
+const publicUserIdAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const publicUserIdLetters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+
+export function getPublicUserId(user: Pick<User, "id">) {
+  let firstHash = 2166136261;
+  let secondHash = 2246822519;
+
+  for (const character of user.id.replaceAll("-", "").toUpperCase()) {
+    const code = character.charCodeAt(0);
+    firstHash = Math.imul(firstHash ^ code, 16777619) >>> 0;
+    secondHash = Math.imul(secondHash ^ code, 3266489917) >>> 0;
+  }
+
+  const letter = publicUserIdLetters[firstHash % publicUserIdLetters.length];
+  const number = String(Math.floor(firstHash / publicUserIdLetters.length) % 1000).padStart(3, "0");
+  let suffixSeed = secondHash;
+  let suffix = "";
+
+  for (let index = 0; index < 4; index += 1) {
+    suffix += publicUserIdAlphabet[suffixSeed % publicUserIdAlphabet.length];
+    suffixSeed = Math.imul(suffixSeed ^ (firstHash >>> (index + 1)), 16777619) >>> 0;
+  }
+
+  return `#${letter}${number}-${suffix}`;
+}
+
 export async function getSignedAvatarUrl(client: ProfileClient, user: User | null) {
   const avatarPath = user ? getAvatarPath(user) : null;
   if (!avatarPath) {
@@ -107,4 +133,3 @@ export async function updateUserProfile(client: ProfileClient, user: User, draft
 
   return { user: data.user, errorMessage: null };
 }
-

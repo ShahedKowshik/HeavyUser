@@ -43,6 +43,14 @@ export type GoogleEventAttendee = {
   self?: boolean;
 };
 
+export type GoogleConferenceData = {
+  entryPoints?: Array<{
+    entryPointType?: string;
+    uri?: string;
+    label?: string;
+  }>;
+};
+
 export type GoogleEvent = {
   id: string;
   status?: string;
@@ -59,6 +67,7 @@ export type GoogleEvent = {
   attendees?: GoogleEventAttendee[];
   organizer?: { email?: string; self?: boolean };
   creator?: { email?: string; self?: boolean };
+  conferenceData?: GoogleConferenceData;
   visibility?: "default" | "public" | "private" | "confidential";
   transparency?: "opaque" | "transparent";
   extendedProperties?: {
@@ -186,7 +195,7 @@ export async function listGoogleEvents(input: {
   syncToken?: string | null;
   pageToken?: string;
 }) {
-  const query = new URLSearchParams({ singleEvents: "true", showDeleted: "true", maxResults: "2500" });
+  const query = new URLSearchParams({ singleEvents: "true", showDeleted: "true", maxResults: "2500", conferenceDataVersion: "1" });
   if (input.syncToken) {
     query.set("syncToken", input.syncToken);
   }

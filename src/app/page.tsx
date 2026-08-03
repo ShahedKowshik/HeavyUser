@@ -36,7 +36,7 @@ import { GoogleCalendarPanel } from "@/components/google-calendar-panel";
 import { getAppPath, publicBasePath } from "@/lib/supabase/config";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { loadRemoteTasks, persistRemoteTasks } from "@/lib/supabase/tasks";
-import type { CalendarTransparency, CalendarVisibility, Priority, Task, TaskScheduleState } from "@/lib/tasks";
+import type { CalendarTransparency, CalendarVisibility, Priority, Task } from "@/lib/tasks";
 import type { UserSettings } from "@/lib/supabase/settings";
 type TaskBucket = "backlog" | "today" | "upcoming";
 type InlineEditField = "title";
@@ -244,33 +244,6 @@ const priorityLabels: Record<Priority, string> = {
 
 function formatTaskDueDate(deadline: string | null) {
   return formatShortDate(deadline);
-}
-
-const scheduleStateLabels: Record<TaskScheduleState, string> = {
-  scheduled: "Scheduled",
-  scheduling: "Scheduling",
-  needs_duration: "Needs duration",
-  at_risk: "At risk",
-  locked: "Locked",
-  awaiting_completion: "Awaiting completion",
-  paused: "Paused",
-  calendar_error: "Calendar error",
-};
-
-function getScheduleLabel(task: Task, status: { state: TaskScheduleState; warning: string | null; missingMinutes: number } | undefined) {
-  if (task.status === "done") {
-    return null;
-  }
-  if (task.duration === null) {
-    return "Needs duration";
-  }
-  if (!task.autoSchedule) {
-    return "Paused";
-  }
-  if (!status) {
-    return "Scheduling";
-  }
-  return scheduleStateLabels[status.state];
 }
 
 function PriorityIcon({ priority }: { priority: Priority }) {
@@ -719,7 +692,6 @@ export default function Home() {
   const [supabaseClient] = useState(() => getSupabaseBrowserClient());
   const { status: authStatus, user: authUser, settings } = useAuth();
   const [remoteSyncReady, setRemoteSyncReady] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<"connecting" | "saving" | "synced" | "error">("connecting");
   const [pendingRemoteDeletes, setPendingRemoteDeletes] = useState<ReadonlyArray<string>>([]);
   const [isCustomOrder, setIsCustomOrder] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -745,7 +717,6 @@ export default function Home() {
   const [editingMaxBlockMinutes, setEditingMaxBlockMinutes] = useState("");
   const [editingCalendarVisibility, setEditingCalendarVisibility] = useState<CalendarVisibility | null>(null);
   const [editingCalendarTransparency, setEditingCalendarTransparency] = useState<CalendarTransparency | null>(null);
-  const [scheduleStatuses, setScheduleStatuses] = useState<Record<string, { state: TaskScheduleState; warning: string | null; missingMinutes: number }>>({});
   const [inlineEdit, setInlineEdit] = useState<{
     taskId: string;
     field: InlineEditField;
@@ -853,7 +824,6 @@ export default function Home() {
       setPendingRemoteDeletes([]);
       setIsCustomOrder(false);
       setEditingId(null);
-      setScheduleStatuses({});
 
       if (isCancelled) {
         return;
@@ -861,12 +831,9 @@ export default function Home() {
 
       if (!supabaseClient) {
         setTasks(localTasks);
-        setSyncStatus("error");
         setIsHydrated(true);
         return;
       }
-
-      setSyncStatus("connecting");
 
       try {
         const remoteTasks = await loadRemoteTasks(supabaseClient, authUser);
@@ -884,13 +851,10 @@ export default function Home() {
         }
 
         setRemoteSyncReady(true);
-        setSyncStatus("synced");
-        void loadScheduleStatuses();
         requestSchedulerRun();
       } catch {
         if (!isCancelled) {
           setTasks(localTasks);
-          setSyncStatus("error");
         }
       } finally {
         if (!isCancelled) {
@@ -906,8 +870,6 @@ export default function Home() {
       isCancelled = true;
       window.cancelAnimationFrame(frameId);
     };
-    // The scheduler request helper is intentionally stable for this restore lifecycle.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authStatus, authUser, supabaseClient]);
 
   useEffect(() => {
@@ -925,7 +887,6 @@ export default function Home() {
     let isCancelled = false;
 
     const timeoutId = window.setTimeout(() => {
-      setSyncStatus("saving");
       void persistRemoteTasks(supabaseClient, authUser, tasks, deletedTaskIds)
       .then(() => {
         if (isCancelled) {
@@ -939,29 +900,16 @@ export default function Home() {
           // empty array would start another save after every successful save.
           return nextIds.length === currentIds.length ? currentIds : nextIds;
         });
-        setSyncStatus("synced");
         requestSchedulerRun();
       })
-      .catch(() => {
-        if (!isCancelled) {
-          setSyncStatus("error");
-        }
-      });
+      .catch(() => undefined);
     }, 250);
 
     return () => {
       isCancelled = true;
       window.clearTimeout(timeoutId);
     };
-    // The scheduler request helper is intentionally stable for this persistence lifecycle.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, isHydrated, pendingRemoteDeletes, remoteSyncReady, supabaseClient, tasks]);
-
-  useEffect(() => {
-    if (authStatus === "signed_in" && authUser && isHydrated) {
-      void loadScheduleStatuses();
-    }
-  }, [authStatus, authUser, isHydrated]);
 
   useEffect(() => {
     if (!isNotificationsOpen) {
@@ -1058,38 +1006,13 @@ export default function Home() {
     return currentDateTime === null ? calendarDate : getLogicalDate(currentDateTime, settings);
   }
 
-  async function loadScheduleStatuses() {
-    try {
-      const response = await fetch(getAppPath("/api/scheduler/status"), { cache: "no-store" });
-      if (!response.ok) {
-        return;
-      }
-      const body = (await response.json().catch(() => null)) as {
-        statuses?: Array<{ task_id: string; state: TaskScheduleState; warning: string | null; missing_minutes: number }>;
-      } | null;
-      const nextStatuses: Record<string, { state: TaskScheduleState; warning: string | null; missingMinutes: number }> = {};
-      for (const status of body?.statuses ?? []) {
-        nextStatuses[status.task_id] = {
-          state: status.state,
-          warning: status.warning,
-          missingMinutes: status.missing_minutes,
-        };
-      }
-      setScheduleStatuses(nextStatuses);
-    } catch {
-      // Task sync remains usable if schedule status is temporarily unavailable.
-    }
-  }
-
   function requestSchedulerRun() {
     if (schedulerRunTimerRef.current !== null) {
       window.clearTimeout(schedulerRunTimerRef.current);
     }
 
     schedulerRunTimerRef.current = window.setTimeout(() => {
-      void fetch(getAppPath("/api/scheduler/run"), { method: "POST" })
-        .then(() => loadScheduleStatuses())
-        .catch(() => undefined);
+      void fetch(getAppPath("/api/scheduler/run"), { method: "POST" }).catch(() => undefined);
       schedulerRunTimerRef.current = null;
     }, 400);
   }
@@ -1554,15 +1477,6 @@ export default function Home() {
   const dueDatePresets = getDueDatePresets(logicalToday);
   const editingTask = editingId ? tasks.find((task) => task.id === editingId) ?? null : null;
   const headerDateTime = formatHeaderDateTime(currentDateTime, logicalToday);
-  const profileWorkspace =
-    syncStatus === "synced"
-      ? "Cloud synced"
-      : syncStatus === "saving"
-        ? "Saving…"
-        : syncStatus === "error"
-          ? "Sync needs attention"
-          : "Connecting…";
-
   if (authStatus === "loading" || (authStatus === "signed_in" && !isHydrated)) {
     return (
       <main className="hu-auth-loading" aria-busy="true">
@@ -1632,12 +1546,10 @@ export default function Home() {
             </div>
 
             <ProfileMenu
-              workspaceLabel={profileWorkspace}
               onSignedOut={() => {
                 setRemoteSyncReady(false);
                 setIsHydrated(false);
                 setPendingRemoteDeletes([]);
-                setScheduleStatuses({});
                 setTasks([]);
               }}
             />
@@ -1885,8 +1797,6 @@ export default function Home() {
                             const isDurationMenuOpen = durationMenuTaskId === task.id;
                             const isDueDateMenuOpen = dueDateMenuTaskId === task.id;
                             const hasTaskPopover = isPriorityMenuOpen || isDurationMenuOpen || isDueDateMenuOpen;
-                            const taskScheduleStatus = scheduleStatuses[task.id];
-                            const scheduleLabel = getScheduleLabel(task, taskScheduleStatus);
 
                             return (
                               <article
@@ -2174,14 +2084,6 @@ export default function Home() {
                                   >
                                     {dueDateLabel || <span className="hu-inline-empty-value">—</span>}
                                   </button>
-                                  {scheduleLabel ? (
-                                    <span
-                                      className={`hu-task-schedule-state is-${taskScheduleStatus?.state ?? (task.duration === null ? "needs-duration" : "scheduling")}`}
-                                      title={taskScheduleStatus?.warning ?? scheduleLabel}
-                                    >
-                                      {scheduleLabel}
-                                    </span>
-                                  ) : null}
                                   {isDueDateMenuOpen ? (
                                     <div
                                       aria-label={`Set due date for ${task.title}`}

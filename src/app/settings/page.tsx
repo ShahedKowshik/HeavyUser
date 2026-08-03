@@ -240,7 +240,7 @@ function SettingsContent() {
           />
         </Link>
         <div className="hu-topbar-actions">
-          <ProfileMenu workspaceLabel="Settings" />
+          <ProfileMenu />
         </div>
       </header>
 

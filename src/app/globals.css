@@ -300,6 +300,12 @@ input:focus-visible {
   white-space: nowrap;
 }
 
+.hu-profile-user-id {
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
 .hu-avatar {
   display: grid;
   width: 25px;
@@ -374,6 +380,13 @@ input:focus-visible {
   gap: 3px;
   justify-items: start;
   text-align: left;
+}
+
+.hu-popover-profile-id {
+  color: var(--primary);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
 }
 
 .hu-popover strong {
@@ -2256,11 +2269,11 @@ input[type="number"]::-webkit-outer-spin-button {
 
 .hu-task-due-date {
   position: relative;
-  display: inline-flex;
+  display: grid;
+  align-content: center;
+  justify-items: center;
   min-width: 0;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
+  gap: 1px;
   overflow: visible;
   color: var(--foreground);
   font-size: 11px;
@@ -2269,35 +2282,11 @@ input[type="number"]::-webkit-outer-spin-button {
   white-space: nowrap;
 }
 
-.hu-task-schedule-state {
-  display: inline-flex;
-  max-width: 86px;
-  align-items: center;
+.hu-task-due-date-trigger {
+  max-width: 100%;
   overflow: hidden;
-  color: var(--muted-soft);
-  font-size: 8px;
-  font-weight: 750;
-  letter-spacing: 0.02em;
-  line-height: 1.1;
   text-overflow: ellipsis;
-  text-transform: uppercase;
   white-space: nowrap;
-}
-
-.hu-task-schedule-state.is-at_risk,
-.hu-task-schedule-state.is-calendar_error,
-.hu-task-schedule-state.is-needs-duration,
-.hu-task-schedule-state.is-needs_duration {
-  color: var(--destructive);
-}
-
-.hu-task-schedule-state.is-locked {
-  color: var(--primary);
-}
-
-.hu-task-schedule-state.is-scheduled,
-.hu-task-schedule-state.is-awaiting_completion {
-  color: var(--muted-text);
 }
 
 .hu-task-due-date.is-overdue {
@@ -2608,13 +2597,13 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 .hu-event.is-guest-event {
-  border-left-color: #8b5cf6;
-  background: color-mix(in oklch, #8b5cf6 7%, var(--surface-subtle));
+  border-left-color: var(--primary);
+  background: var(--primary-soft);
 }
 
 .hu-event.is-task-block {
   border-left-color: var(--primary);
-  background: color-mix(in oklch, var(--primary) 10%, var(--surface));
+  background: var(--primary-soft);
 }
 
 .hu-calendar-picker,
@@ -2829,7 +2818,7 @@ input[type="number"]::-webkit-outer-spin-button {
   border: 1px solid var(--line);
   border-left: 3px solid var(--line-strong);
   border-radius: var(--hu-radius);
-  background: var(--surface-subtle);
+  background: var(--primary-soft);
   cursor: grab;
   touch-action: none;
   user-select: none;
@@ -2873,6 +2862,8 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 .hu-event-title {
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   color: var(--foreground);
   font-size: 12px;
@@ -2880,6 +2871,20 @@ input[type="number"]::-webkit-outer-spin-button {
   letter-spacing: -0.015em;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.hu-event-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.hu-event-meeting {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--primary);
 }
 
 .hu-event-meta {
@@ -2890,6 +2895,26 @@ input[type="number"]::-webkit-outer-spin-button {
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.hu-calendar-meeting-link {
+  display: inline-flex;
+  min-height: 29px;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 0 8px;
+  border: 1px solid var(--primary-line);
+  border-radius: var(--hu-radius);
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.hu-calendar-meeting-link:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
 }
 
 .hu-now-line {
