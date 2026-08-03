@@ -277,7 +277,47 @@ async function updateBlock(client: SchedulerAdminClient, userId: string, blockId
   }
 }
 
-async function markExternalChanges(client: SchedulerAdminClient, blocks: BlockRow[], events: CalendarEventRow[], now: number) {
+async function verifyMissingManagedEvent(input: {
+  client: SchedulerAdminClient;
+  block: BlockRow;
+  accessToken: string;
+  calendarId: string;
+}) {
+  try {
+    const providerEvent = await getGoogleEvent({
+      accessToken: input.accessToken,
+      calendarId: input.calendarId,
+      eventId: input.block.provider_event_id!,
+    });
+
+    // A concurrent sync can temporarily remove the cache row while the
+    // provider event is still present. Restore the cache and keep the block
+    // instead of treating that transient gap as a user deletion.
+    if (providerEvent.status !== "cancelled") {
+      await upsertGoogleCalendarEvent(input.client, input.block.user_id, providerEvent);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    // Google returns a cancelled event with a 200 in some cases, but a
+    // recently deleted event can also return 404/410. Both are confirmed
+    // deletion signals; rate limits and other transient failures are not.
+    if (error instanceof GoogleApiError && (error.status === 404 || error.status === 410)) {
+      return true;
+    }
+    throw error;
+  }
+}
+
+async function markExternalChanges(
+  client: SchedulerAdminClient,
+  blocks: BlockRow[],
+  events: CalendarEventRow[],
+  now: number,
+  accessToken: string,
+  calendarId: string,
+) {
   const eventsByProviderId = new Map(events.map((event) => [event.provider_event_id, event]));
   let locked = 0;
   for (const block of blocks) {
@@ -287,6 +327,11 @@ async function markExternalChanges(client: SchedulerAdminClient, blocks: BlockRo
 
     const event = eventsByProviderId.get(block.provider_event_id);
     if (!event) {
+      const deleted = await verifyMissingManagedEvent({ client, block, accessToken, calendarId });
+      if (!deleted) {
+        continue;
+      }
+
       await updateBlock(client, block.user_id, block.id, {
         state: "replaced",
         sync_version: block.sync_version + 1,
@@ -909,7 +954,7 @@ async function runSchedulerForUserWithClient(
     data = await loadSchedulerData(client, userId, connection);
   }
   const blocks = data.blocks;
-  const locked = await markExternalChanges(client, blocks, data.events, now);
+  const locked = await markExternalChanges(client, blocks, data.events, now, accessToken, connection.selected_calendar_id);
   if (options.forceReplan) {
     // A priority change is an explicit request to rebuild future work. It may
     // move blocks that were previously locked, but never touches past blocks.
