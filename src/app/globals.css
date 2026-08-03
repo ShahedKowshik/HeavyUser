@@ -693,29 +693,6 @@ input:focus-visible {
   to { transform: rotate(360deg); }
 }
 
-.hu-sync-notice {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 9px 14px;
-  border-bottom: 1px solid var(--primary-line);
-  background: var(--primary-soft);
-  color: var(--foreground);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.hu-sync-notice button {
-  flex-shrink: 0;
-  border: 0;
-  background: transparent;
-  color: var(--primary);
-  cursor: pointer;
-  font-size: 10px;
-  font-weight: 800;
-}
-
 .hu-menu-item {
   display: flex;
   width: 100%;
@@ -2430,19 +2407,6 @@ input[type="number"]::-webkit-outer-spin-button {
   line-height: 1.45;
 }
 
-.hu-calendar-preview-label {
-  margin-top: 8px;
-  color: var(--muted-soft);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.hu-calendar-body.is-preview {
-  padding-top: 10px;
-}
-
 .hu-calendar-all-day {
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr);
@@ -2876,11 +2840,6 @@ input[type="number"]::-webkit-outer-spin-button {
   .hu-auth-card h1 {
     max-width: 11ch;
     font-size: 32px;
-  }
-
-  .hu-sync-notice {
-    align-items: flex-start;
-    padding: 9px 12px;
   }
 
   .hu-profile-editor-avatar {

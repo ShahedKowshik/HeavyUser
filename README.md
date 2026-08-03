@@ -22,9 +22,9 @@ The interface is deliberately small: a task queue on the left, a single-day plan
 - Edit, complete, delete, and reorder tasks.
 - Move between Backlog, Today, and Upcoming views derived from task dates.
 - Select one focus task so the next action stays visible.
-- Review a deterministic read-only day planner alongside the queue.
+- Review a connected Google Calendar day alongside the queue, or see a clear connect state when no calendar is linked.
 - Sign in with a passwordless email link and keep tasks synced to Supabase.
-- Import existing local tasks once when a new account has no cloud tasks yet.
+- Keep a user-scoped browser cache as a recovery backup without mixing accounts.
 - Edit the account display name and private profile portrait.
 - Open a dedicated Settings page to edit account details and save the daily rhythm across signed-in devices.
 - Use the responsive layout on desktop and mobile, with keyboard-accessible controls and visible focus states.
@@ -83,7 +83,7 @@ pnpm build
 ## Project map
 
 ```text
-src/app/page.tsx       Product surface, task interactions, persistence, and planner data
+src/app/page.tsx       Product surface, task interactions, persistence, and planner composition
 src/app/login/         Passwordless account entry screen
 src/app/auth/          Magic-link confirmation route
 src/components/        Auth provider, profile menu, and shared UI

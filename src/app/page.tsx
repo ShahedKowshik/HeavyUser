@@ -87,506 +87,10 @@ const priorityOrder: Record<Priority, number> = {
   low: 3,
 };
 
-type CalendarEvent = {
-  id: string;
-  title: string;
-  taskId?: string;
-  time: string;
-  start: number;
-  end: number;
-  status: "neutral" | "active";
-};
+// Only account-scoped browser backups are valid. The v2 namespace intentionally
+// does not read any unscoped cache written by older versions of the app.
+const userStorageKeyPrefix = "heavyuser:tasks:v2:";
 
-// Keep inbox tasks separate from the old Today surface while migrating any
-// existing local rows so a navigation rename does not discard user data.
-const storageKey = "heavyuser:inbox-tasks:v4";
-const legacyStorageKeys = ["heavyuser:today-tasks:v3", "heavyuser:today-tasks:v2"] as const;
-const userStorageKeyPrefix = "heavyuser:tasks:v1:";
-const localBackupKeyPrefix = "heavyuser:local-backup:v1:";
-const starterDataVersionStorageKey = "heavyuser:inbox-tasks:starter-version";
-const starterDataVersion = "5";
-
-const initialTasks = [
-  {
-    id: "task-01",
-    title: "Finish the onboarding flow copy",
-    duration: 45,
-    startDate: "2026-08-01",
-    deadline: "2026-08-01",
-    priority: "high",
-    status: "focus",
-  },
-  {
-    id: "task-02",
-    title: "Review activation metrics from last week",
-    duration: 30,
-    startDate: "2026-08-02",
-    deadline: "2026-08-03",
-    priority: "high",
-    status: "open",
-  },
-  {
-    id: "task-03",
-    title: "Prepare the design review agenda",
-    duration: 25,
-    startDate: null,
-    deadline: null,
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-04",
-    title: "Send the revised launch timeline",
-    duration: 15,
-    startDate: "2026-08-01",
-    deadline: "2026-08-02",
-    priority: "urgent",
-    status: "open",
-  },
-  {
-    id: "task-05",
-    title: "Capture notes from the customer call",
-    duration: 20,
-    startDate: null,
-    deadline: null,
-    priority: "low",
-    status: "done",
-  },
-  {
-    id: "task-06",
-    title: "Clear the three highest-priority replies",
-    duration: 20,
-    startDate: "2026-07-31",
-    deadline: "2026-08-01",
-    priority: "normal",
-    status: "done",
-  },
-  {
-    id: "task-07",
-    title: "Draft the product brief outline",
-    duration: 45,
-    startDate: "2026-08-03",
-    deadline: "2026-08-04",
-    priority: "high",
-    status: "open",
-  },
-  {
-    id: "task-08",
-    title: "QA the new onboarding checklist",
-    duration: 30,
-    startDate: "2026-08-05",
-    deadline: "2026-08-05",
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-09",
-    title: "Plan tomorrow's stakeholder update",
-    duration: 20,
-    startDate: "2026-08-02",
-    deadline: "2026-08-02",
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-10",
-    title: "Clean up customer research notes",
-    duration: 30,
-    startDate: null,
-    deadline: null,
-    priority: "low",
-    status: "done",
-  },
-  {
-    id: "task-11",
-    title: "Turn interview notes into themes",
-    duration: 40,
-    startDate: null,
-    deadline: null,
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-12",
-    title: "Reconcile the Q3 campaign handoff",
-    duration: 35,
-    startDate: null,
-    deadline: null,
-    priority: "high",
-    status: "open",
-  },
-  {
-    id: "task-13",
-    title: "Write the customer story opening",
-    duration: 50,
-    startDate: null,
-    deadline: null,
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-14",
-    title: "Review open support escalations",
-    duration: 25,
-    startDate: null,
-    deadline: null,
-    priority: "urgent",
-    status: "open",
-  },
-  {
-    id: "task-15",
-    title: "Archive old experiment docs",
-    duration: 30,
-    startDate: null,
-    deadline: null,
-    priority: "low",
-    status: "done",
-  },
-  {
-    id: "task-16",
-    title: "Map onboarding edge cases",
-    duration: 45,
-    startDate: null,
-    deadline: null,
-    priority: "high",
-    status: "open",
-  },
-  {
-    id: "task-17",
-    title: "Clean up analytics event names",
-    duration: 35,
-    startDate: null,
-    deadline: null,
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-18",
-    title: "Create a release checklist",
-    duration: 30,
-    startDate: null,
-    deadline: null,
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-19",
-    title: "Send the partner follow-up",
-    duration: 20,
-    startDate: "2026-07-28",
-    deadline: "2026-07-28",
-    priority: "high",
-    status: "open",
-  },
-  {
-    id: "task-20",
-    title: "Update the pricing FAQ",
-    duration: 30,
-    startDate: "2026-07-29",
-    deadline: "2026-07-29",
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-21",
-    title: "Resolve billing copy review",
-    duration: 25,
-    startDate: "2026-07-30",
-    deadline: "2026-07-30",
-    priority: "urgent",
-    status: "open",
-  },
-  {
-    id: "task-22",
-    title: "Confirm research incentives",
-    duration: 15,
-    startDate: "2026-07-31",
-    deadline: "2026-07-31",
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-23",
-    title: "Close the old launch retro",
-    duration: 40,
-    startDate: "2026-07-27",
-    deadline: "2026-07-27",
-    priority: "low",
-    status: "done",
-  },
-  {
-    id: "task-24",
-    title: "Review the weekly product scorecard",
-    duration: 35,
-    startDate: "2026-08-01",
-    deadline: "2026-08-01",
-    priority: "high",
-    status: "open",
-  },
-  {
-    id: "task-25",
-    title: "Prepare talking points for standup",
-    duration: 20,
-    startDate: "2026-08-01",
-    deadline: "2026-08-01",
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-26",
-    title: "File the vendor receipts",
-    duration: 25,
-    startDate: "2026-08-01",
-    deadline: "2026-08-01",
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-27",
-    title: "Draft the experiment readout",
-    duration: 45,
-    startDate: "2026-08-01",
-    deadline: "2026-08-01",
-    priority: "high",
-    status: "open",
-  },
-  {
-    id: "task-28",
-    title: "Triage new customer feedback",
-    duration: 30,
-    startDate: "2026-08-01",
-    deadline: null,
-    priority: "urgent",
-    status: "open",
-  },
-  {
-    id: "task-29",
-    title: "Refine the account handoff checklist",
-    duration: 35,
-    startDate: "2026-07-31",
-    deadline: "2026-08-02",
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-30",
-    title: "Respond to the legal review",
-    duration: 20,
-    startDate: "2026-08-01",
-    deadline: "2026-08-01",
-    priority: "urgent",
-    status: "open",
-  },
-  {
-    id: "task-31",
-    title: "Outline the Q3 planning memo",
-    duration: 45,
-    startDate: "2026-08-06",
-    deadline: "2026-08-08",
-    priority: "high",
-    status: "open",
-  },
-  {
-    id: "task-32",
-    title: "Schedule the customer advisory call",
-    duration: 20,
-    startDate: "2026-08-04",
-    deadline: "2026-08-05",
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-33",
-    title: "Draft the activation experiment brief",
-    duration: 50,
-    startDate: "2026-08-07",
-    deadline: "2026-08-10",
-    priority: "high",
-    status: "open",
-  },
-  {
-    id: "task-34",
-    title: "Prepare next sprint capacity notes",
-    duration: 30,
-    startDate: "2026-08-10",
-    deadline: "2026-08-11",
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-35",
-    title: "Compile the monthly insight digest",
-    duration: 60,
-    startDate: "2026-08-12",
-    deadline: "2026-08-14",
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-36",
-    title: "Build the rollout risk register",
-    duration: 40,
-    startDate: "2026-08-03",
-    deadline: "2026-08-06",
-    priority: "urgent",
-    status: "open",
-  },
-  {
-    id: "task-37",
-    title: "Plan the next design critique",
-    duration: 25,
-    startDate: "2026-08-09",
-    deadline: "2026-08-10",
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-38",
-    title: "Review the accessibility audit",
-    duration: 45,
-    startDate: "2026-08-05",
-    deadline: "2026-08-07",
-    priority: "high",
-    status: "open",
-  },
-  {
-    id: "task-39",
-    title: "Collect launch partner logos",
-    duration: 30,
-    startDate: "2026-08-11",
-    deadline: "2026-08-13",
-    priority: "low",
-    status: "open",
-  },
-  {
-    id: "task-40",
-    title: "Write the customer success handoff",
-    duration: 35,
-    startDate: "2026-08-13",
-    deadline: "2026-08-15",
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-41",
-    title: "Prepare annual planning themes",
-    duration: 50,
-    startDate: "2026-09-15",
-    deadline: "2026-09-20",
-    priority: "high",
-    status: "open",
-  },
-  {
-    id: "task-42",
-    title: "Plan the holiday release calendar",
-    duration: 45,
-    startDate: "2026-11-10",
-    deadline: "2026-11-14",
-    priority: "normal",
-    status: "open",
-  },
-  {
-    id: "task-43",
-    title: "Outline next year's research agenda",
-    duration: 60,
-    startDate: "2027-01-12",
-    deadline: "2027-01-15",
-    priority: "low",
-    status: "open",
-  },
-] satisfies ReadonlyArray<Task>;
-
-const demoExpansionTasks = initialTasks.slice(10);
-
-const calendarEvents = [
-  {
-    id: "event-01",
-    title: "Plan the day",
-    time: "9:00 – 9:20 AM",
-    start: 9,
-    end: 9 + 20 / 60,
-    status: "neutral",
-  },
-  {
-    id: "event-02",
-    title: "Review activation metrics from last week",
-    taskId: "task-02",
-    time: "9:50 – 10:20 AM",
-    start: 9 + 50 / 60,
-    end: 10 + 20 / 60,
-    status: "neutral",
-  },
-  {
-    id: "event-03",
-    title: "Finish the onboarding flow copy",
-    taskId: "task-01",
-    time: "10:30 – 11:15 AM",
-    start: 10.5,
-    end: 11.25,
-    status: "active",
-  },
-  {
-    id: "event-04",
-    title: "Prepare the design review agenda",
-    taskId: "task-03",
-    time: "11:30 – 11:55 AM",
-    start: 11.5,
-    end: 11.5 + 25 / 60,
-    status: "neutral",
-  },
-  {
-    id: "event-05",
-    title: "Design review",
-    time: "12:30 – 1:30 PM",
-    start: 12.5,
-    end: 13.5,
-    status: "neutral",
-  },
-  {
-    id: "event-06",
-    title: "Lunch",
-    time: "1:30 – 2:15 PM",
-    start: 13.5,
-    end: 14.25,
-    status: "neutral",
-  },
-  {
-    id: "event-07",
-    title: "Send the revised launch timeline",
-    taskId: "task-04",
-    time: "2:30 – 2:45 PM",
-    start: 14.5,
-    end: 14.75,
-    status: "neutral",
-  },
-  {
-    id: "event-08",
-    title: "Draft the product brief outline",
-    taskId: "task-07",
-    time: "3:30 – 4:15 PM",
-    start: 15.5,
-    end: 16.25,
-    status: "neutral",
-  },
-  {
-    id: "event-09",
-    title: "QA the new onboarding checklist",
-    taskId: "task-08",
-    time: "4:30 – 5:00 PM",
-    start: 16.5,
-    end: 17,
-    status: "neutral",
-  },
-  {
-    id: "event-10",
-    title: "Plan tomorrow's stakeholder update",
-    taskId: "task-09",
-    time: "5:30 – 5:50 PM",
-    start: 17.5,
-    end: 17.5 + 20 / 60,
-    status: "neutral",
-  },
-] satisfies ReadonlyArray<CalendarEvent>;
 
 function sortTasks(tasks: ReadonlyArray<Task>) {
   return [...tasks].sort((firstTask, secondTask) => {
@@ -1116,80 +620,45 @@ function writeUserTasks(userId: string, tasks: ReadonlyArray<Task>) {
   }
 }
 
-function writeUserLocalBackup(userId: string, tasks: ReadonlyArray<Task>) {
+function readUserTasks(userId: string) {
   try {
-    window.localStorage.setItem(`${localBackupKeyPrefix}${userId}`, JSON.stringify(tasks));
-  } catch {
-    // Keep the original pending cache if browser storage is unavailable.
-  }
-}
-
-function readTaskCache(keys: ReadonlyArray<string>, seedDemoData: boolean) {
-  try {
-    const savedTasks = keys
-      .map((key) => window.localStorage.getItem(key))
-      .find((value) => value !== null);
-
+    const savedTasks = window.localStorage.getItem(getUserStorageKey(userId));
     if (!savedTasks) {
-      if (seedDemoData) {
-        window.localStorage.setItem(starterDataVersionStorageKey, starterDataVersion);
-      }
-      return { tasks: initialTasks, hasStoredTasks: false };
+      return [];
     }
 
     const parsedTasks: unknown = JSON.parse(savedTasks);
     if (!Array.isArray(parsedTasks)) {
-      return { tasks: initialTasks, hasStoredTasks: true };
+      return [];
     }
 
     const normalizedTasks = parsedTasks.map(normalizeStoredTask);
     if (!normalizedTasks.every((task): task is Task => task !== null)) {
-      return { tasks: initialTasks, hasStoredTasks: true };
+      return [];
     }
 
-    const restoredTasks = ensureSingleFocus(normalizedTasks);
-    if (!seedDemoData) {
-      return { tasks: restoredTasks, hasStoredTasks: true };
-    }
-
-    const hasAppliedStarterUpdate = window.localStorage.getItem(starterDataVersionStorageKey) === starterDataVersion;
-    const missingDemoTasks = demoExpansionTasks.filter(
-      (starterTask) => !restoredTasks.some((task) => task.id === starterTask.id),
-    );
-    const shouldSeedDemoData = !hasAppliedStarterUpdate && missingDemoTasks.length > 0;
-    const nextTasks = shouldSeedDemoData ? ensureSingleFocus([...restoredTasks, ...missingDemoTasks]) : restoredTasks;
-
-    if (shouldSeedDemoData) {
-      window.localStorage.setItem(starterDataVersionStorageKey, starterDataVersion);
-    }
-
-    return { tasks: nextTasks, hasStoredTasks: true };
+    return ensureSingleFocus(normalizedTasks);
   } catch {
-    return { tasks: initialTasks, hasStoredTasks: false };
+    return [];
   }
 }
 
-function readPendingLocalTasks() {
-  return readTaskCache([storageKey, ...legacyStorageKeys], true);
-}
-
-function clearPendingLocalTasks() {
+function clearUserTasks(userId: string) {
   try {
-    [storageKey, ...legacyStorageKeys].forEach((key) => window.localStorage.removeItem(key));
+    window.localStorage.removeItem(getUserStorageKey(userId));
   } catch {
-    // The imported tasks are still safe in the cloud if storage cleanup fails.
+    // The cloud remains the source of truth if browser storage is unavailable.
   }
 }
 
 
 export default function Home() {
-  const [tasks, setTasks] = useState<ReadonlyArray<Task>>(initialTasks);
+  const [tasks, setTasks] = useState<ReadonlyArray<Task>>([]);
   const [supabaseClient] = useState(() => getSupabaseBrowserClient());
   const { status: authStatus, user: authUser, settings } = useAuth();
   const [remoteSyncReady, setRemoteSyncReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState<"connecting" | "saving" | "synced" | "error">("connecting");
   const [pendingRemoteDeletes, setPendingRemoteDeletes] = useState<ReadonlyArray<string>>([]);
-  const [taskMigrationMessage, setTaskMigrationMessage] = useState("");
   const [isCustomOrder, setIsCustomOrder] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
@@ -1300,14 +769,21 @@ export default function Home() {
         return;
       }
 
-      const localCache = readPendingLocalTasks();
-      const localTasks = localCache.tasks;
+      const localTasks = readUserTasks(authUser.id);
+      setTasks([]);
+      setRemoteSyncReady(false);
+      setIsHydrated(false);
+      setPendingRemoteDeletes([]);
+      setIsCustomOrder(false);
+      setEditingId(null);
 
       if (isCancelled) {
         return;
       }
 
       if (!supabaseClient) {
+        setTasks(localTasks);
+        setSyncStatus("error");
         setIsHydrated(true);
         return;
       }
@@ -1324,18 +800,9 @@ export default function Home() {
           const nextTasks = ensureSingleFocus(remoteTasks);
           setTasks(nextTasks);
           writeUserTasks(authUser.id, nextTasks);
-          if (localCache.hasStoredTasks) {
-            writeUserLocalBackup(authUser.id, localTasks);
-            clearPendingLocalTasks();
-            setTaskMigrationMessage("Cloud tasks are loaded. Local tasks on this device were kept as a backup and were not merged.");
-          }
         } else {
-          setTasks(localTasks);
-          await persistRemoteTasks(supabaseClient, authUser, localTasks);
-          writeUserTasks(authUser.id, localTasks);
-          if (localCache.hasStoredTasks) {
-            clearPendingLocalTasks();
-          }
+          clearUserTasks(authUser.id);
+          setTasks([]);
         }
 
         setRemoteSyncReady(true);
@@ -1905,7 +1372,6 @@ export default function Home() {
       ? groupUpcomingTasks(visibleTasks, logicalToday)
       : [{ id: "all", label: null, helper: "", dateLabel: "", tasks: visibleTasks }];
   const dueDatePresets = getDueDatePresets(logicalToday);
-  const taskTitlesById = new Map(tasks.map((task) => [task.id, task.title]));
   const editingTask = editingId ? tasks.find((task) => task.id === editingId) ?? null : null;
   const headerDateTime = formatHeaderDateTime(currentDateTime, logicalToday);
   const profileWorkspace =
@@ -1917,7 +1383,7 @@ export default function Home() {
           ? "Sync needs attention"
           : "Connecting…";
 
-  if (authStatus === "loading") {
+  if (authStatus === "loading" || (authStatus === "signed_in" && !isHydrated)) {
     return (
       <main className="hu-auth-loading" aria-busy="true">
         <span className="hu-auth-loading-mark" aria-hidden="true" />
@@ -1991,7 +1457,6 @@ export default function Home() {
                 setRemoteSyncReady(false);
                 setIsHydrated(false);
                 setPendingRemoteDeletes([]);
-                setTaskMigrationMessage("");
                 setTasks([]);
               }}
             />
@@ -1999,12 +1464,6 @@ export default function Home() {
         </header>
 
         <div className="hu-content">
-          {taskMigrationMessage ? (
-            <div className="hu-sync-notice" role="status">
-              <span>{taskMigrationMessage}</span>
-              <button type="button" onClick={() => setTaskMigrationMessage("")}>Dismiss</button>
-            </div>
-          ) : null}
           <div className="hu-workspace">
             <section className="hu-region hu-task-region" aria-labelledby="tasks-title">
               <div className="hu-pane-toolbar">
@@ -2599,9 +2058,6 @@ export default function Home() {
 
             <GoogleCalendarPanel
               date={logicalToday}
-              mockEvents={calendarEvents}
-              taskTitlesById={taskTitlesById}
-              currentTime={10 + 45 / 60}
               timelineStart={9}
               timelineHours={9}
             />

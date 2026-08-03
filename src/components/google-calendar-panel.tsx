@@ -5,16 +5,6 @@ import type { CSSProperties } from "react";
 import { CalendarDays, Check, ExternalLink, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { getAppPath } from "@/lib/supabase/config";
 
-export type PlannerMockEvent = {
-  id: string;
-  title: string;
-  taskId?: string;
-  time: string;
-  start: number;
-  end: number;
-  status: "neutral" | "active";
-};
-
 type CalendarConnection = {
   status: string;
   accountEmail: string | null;
@@ -62,9 +52,6 @@ type EventDraft = {
 
 type GoogleCalendarPanelProps = {
   date: string;
-  mockEvents: ReadonlyArray<PlannerMockEvent>;
-  taskTitlesById: ReadonlyMap<string, string>;
-  currentTime: number;
   timelineStart: number;
   timelineHours: number;
 };
@@ -137,9 +124,6 @@ function defaultDraft(date: string): EventDraft {
 
 export function GoogleCalendarPanel({
   date,
-  mockEvents,
-  taskTitlesById,
-  currentTime,
   timelineStart,
   timelineHours,
 }: GoogleCalendarPanelProps) {
@@ -156,6 +140,12 @@ export function GoogleCalendarPanel({
   const [isSaving, setIsSaving] = useState(false);
 
   const timeZone = connection?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const currentTime = getDateParts(new Date(), timeZone).minutes / 60;
+  const currentTimeLabel = new Intl.DateTimeFormat(undefined, {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date());
   const timeLabels = Array.from({ length: timelineHours + 1 }, (_, index) => {
     const hour = timelineStart + index;
     const displayHour = hour % 12 || 12;
@@ -391,12 +381,11 @@ export function GoogleCalendarPanel({
           <button className="hu-calendar-connect-button" type="button" onClick={() => { window.location.href = getAppPath("/api/google/calendar/connect"); }}>
             Connect Google Calendar
           </button>
-          <div className="hu-calendar-preview-label">Preview</div>
         </div>
       ) : null}
 
-      <div className={`hu-calendar-body ${!isConnected ? "is-preview" : ""}`}>
-        {isConnected && allDayEvents.length > 0 ? (
+      {isConnected ? <div className="hu-calendar-body">
+        {allDayEvents.length > 0 ? (
           <div className="hu-calendar-all-day" aria-label="All-day events">
             <span>All day</span>
             <div>
@@ -419,10 +408,10 @@ export function GoogleCalendarPanel({
           </div>
           <div className="hu-calendar-stage" role="list" aria-label={`Planner for ${date}`} style={{ "--hu-visible-hours": timelineHours } as CSSProperties}>
             <span className="hu-now-line" style={{ top: `${((currentTime - timelineStart) / timelineHours) * 100}%` }}>
-              <span className="hu-now-label">10:45 AM</span>
+              <span className="hu-now-label">{currentTimeLabel}</span>
             </span>
 
-            {isConnected ? timedEvents.map((event) => {
+            {timedEvents.map((event) => {
               const range = getEventRange(event, date, timeZone);
               if (!range) return null;
               const start = range.start / 60;
@@ -443,23 +432,10 @@ export function GoogleCalendarPanel({
                   <span className="hu-event-meta">{formatEventTime(event, timeZone)}</span>
                 </button>
               );
-            }) : mockEvents.filter((event) => event.end > timelineStart && event.start < timelineStart + timelineHours).map((event) => (
-              <div
-                className={`hu-event ${event.status === "active" ? "is-active" : ""}`}
-                key={event.id}
-                role="listitem"
-                style={{
-                  top: `${Math.max(((event.start - timelineStart) / timelineHours) * 100, 0)}%`,
-                  height: `${Math.min(((event.end - event.start) / timelineHours) * 100, 100)}%`,
-                }}
-              >
-                <div className="hu-event-title">{event.taskId ? taskTitlesById.get(event.taskId) ?? event.title : event.title}</div>
-                <div className="hu-event-meta">{event.time}</div>
-              </div>
-            ))}
+            })}
           </div>
         </div>
-      </div>
+      </div> : null}
 
       {isCalendarPickerOpen ? (
         <div className="hu-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsCalendarPickerOpen(false); }}>

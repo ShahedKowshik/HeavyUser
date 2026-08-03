@@ -21,7 +21,7 @@ Do not add additional navigation destinations, dashboards, password authenticati
 
 ## Important files
 
-- `src/app/page.tsx` — first screen, task interactions, user-scoped cache, and deterministic mock data.
+- `src/app/page.tsx` — first screen, task interactions, and user-scoped cache.
 - `src/app/login/` and `src/app/auth/` — passwordless account entry and magic-link confirmation.
 - `src/components/auth-provider.tsx` — browser session, profile state, and account-synced settings.
 - `src/app/globals.css` — HeavyUser visual system and responsive layout.
