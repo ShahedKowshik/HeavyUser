@@ -1,3 +1,5 @@
+import "server-only";
+
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -12,11 +14,11 @@ export type GoogleSyncState = Database["public"]["Tables"]["google_calendar_sync
 export async function getAuthenticatedGoogleContext() {
   const client = await getSupabaseServerClient();
   if (!client) {
-    return { client: null, user: null } as const;
+    return { client: null, admin: null, user: null } as const;
   }
 
   const { data } = await client.auth.getUser();
-  return { client, user: data.user } as const;
+  return { client, admin: getSupabaseAdminClient(), user: data.user } as const;
 }
 
 export function getSupabaseAdminClient() {
@@ -60,10 +62,13 @@ export async function loadGoogleSyncState(client: GoogleDbClient, userId: string
 }
 
 export async function setGoogleConnectionError(client: GoogleDbClient, userId: string, message: string) {
-  await client
+  const { error } = await client
     .from("google_calendar_connections")
     .update({ status: "error", last_error: message, updated_at: new Date().toISOString() })
     .eq("user_id", userId);
+  if (error) {
+    throw error;
+  }
 }
 
 export async function getUsableGoogleAccessToken(client: GoogleDbClient, connection: GoogleConnection) {
@@ -123,34 +128,26 @@ export function isGoogleAuthError(error: unknown) {
 }
 
 export function googleErrorMessage(error: unknown) {
-  if (error instanceof GoogleApiError) {
-    return error.message;
-  }
+  const message = error instanceof GoogleApiError || error instanceof Error
+    ? error.message
+    : error && typeof error === "object" && typeof (error as { message?: unknown }).message === "string"
+      ? (error as { message: string }).message
+      : "Google Calendar could not be reached.";
 
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (error && typeof error === "object") {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === "string" && message.trim()) {
-      return message;
-    }
-  }
-
-  return "Google Calendar could not be reached.";
+  return message.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").slice(0, 240);
 }
 
 export type AuthenticatedGoogleContext = {
   client: GoogleDbClient;
+  admin: GoogleDbClient;
   user: User;
 };
 
 export async function requireAuthenticatedGoogleContext(): Promise<AuthenticatedGoogleContext | null> {
   const context = await getAuthenticatedGoogleContext();
-  if (!context.client || !context.user) {
+  if (!context.client || !context.admin || !context.user) {
     return null;
   }
 
-  return { client: context.client, user: context.user };
+  return { client: context.client, admin: context.admin, user: context.user };
 }

@@ -1,9 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
+import { randomBytes, randomUUID } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { getAppPath, getSupabaseConfig, publicBasePath } from "@/lib/supabase/config";
 
 function copyCookies(source: NextResponse, target: NextResponse) {
   source.cookies.getAll().forEach(({ name, value }) => target.cookies.set(name, value));
+  ["Cache-Control", "Content-Security-Policy", "Strict-Transport-Security", "X-Request-Id"].forEach((header) => {
+    const value = source.headers.get(header);
+    if (value) {
+      target.headers.set(header, value);
+    }
+  });
   target.headers.set("Cache-Control", "private, no-store");
   return target;
 }
@@ -12,9 +19,43 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const routePath = publicBasePath && pathname.startsWith(publicBasePath) ? pathname.slice(publicBasePath.length) || "/" : pathname;
   const isLogin = routePath === "/login";
-  const isAuthConfirm = routePath.startsWith("/auth/confirm");
+  const isAuthConfirm = routePath === "/auth/confirm";
+  const isWebhook = routePath === "/api/google/calendar/webhook";
+  const isSchedulerProcess = routePath === "/api/scheduler/process";
   const config = getSupabaseConfig();
-  const response = NextResponse.next({ request });
+  const nonce = randomBytes(16).toString("base64");
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+  const csp = [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    "style-src 'self'",
+    "style-src-attr 'unsafe-inline'",
+    "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in",
+    "font-src 'self' data:",
+    "connect-src 'self' https://*.supabase.co https://*.supabase.in https://www.googleapis.com https://oauth2.googleapis.com",
+    "worker-src 'self' blob:",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self' https://accounts.google.com",
+    "object-src 'none'",
+  ].join("; ");
+  requestHeaders.set("Content-Security-Policy", csp);
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set("Content-Security-Policy", csp);
+  const suppliedRequestId = request.headers.get("x-request-id");
+  const requestId = suppliedRequestId && /^[A-Za-z0-9._-]{1,64}$/.test(suppliedRequestId)
+    ? suppliedRequestId
+    : randomUUID();
+  response.headers.set("X-Request-Id", requestId);
+  if (process.env.NODE_ENV === "production") {
+    response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+  }
+
+  if (isAuthConfirm || isWebhook || isSchedulerProcess) {
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
+  }
 
   if (!config) {
     if (isLogin || isAuthConfirm) {

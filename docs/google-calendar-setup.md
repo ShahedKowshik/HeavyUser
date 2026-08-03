@@ -34,13 +34,14 @@ The webhook URL is not entered as an OAuth redirect URI. It is:
 Copy `.env.example` into the deployment environment and fill in:
 
 - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from the OAuth client.
-- `GOOGLE_REDIRECT_URI` with the exact callback URL. If omitted, HeavyUser derives it from the current request origin.
+- `HEAVYUSER_APP_ORIGIN` with the one canonical HTTPS origin, such as `https://web.heavyuser.app`.
+- `GOOGLE_REDIRECT_URI` with the exact callback URL. It must use the canonical app origin when set.
 - `GOOGLE_TOKEN_ENCRYPTION_KEY` with a long random secret. Do not rotate it without re-authorizing connected calendars.
 - `SUPABASE_SERVICE_ROLE_KEY` for the server-only webhook worker. Never expose this value to the browser.
 
 ## Supabase
 
-Run the migration in `supabase/migrations/20260802020000_create_google_calendar.sql` against the project that HeavyUser uses. It creates the connection, sync-state, and event-cache tables with user-level row security.
+Apply the migrations in order against the linked project. The latest security migration (`20260804000000_security_hardening.sql`) scopes event identity by user, stores only a hash of each webhook token, and removes browser access to encrypted credentials and internal scheduler state.
 
 ## Private-test behavior
 
@@ -49,4 +50,4 @@ Run the migration in `supabase/migrations/20260802020000_create_google_calendar.
 - Personal events can be created, edited, and deleted.
 - Events with guests are displayed but read-only.
 - The app-load sync works even when running on localhost.
-- Automatic Google webhook delivery requires a public HTTPS deployment; the webhook channel is renewed automatically when the application can reach its public callback URL.
+- Automatic Google webhook delivery requires a public HTTPS deployment and the canonical app origin setting. The webhook channel is renewed automatically only after Google’s channel token is stored as a hash; requests without the matching channel token are ignored.

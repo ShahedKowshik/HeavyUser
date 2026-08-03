@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { getAppUrl } from "@/lib/supabase/config";
+import { getAppPath, getAppUrl } from "@/lib/supabase/config";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   getSignedAvatarUrl,
@@ -207,6 +207,10 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
 
       setSettings(normalizeUserSettings(nextSettings));
       applyUser(result.user);
+      // Night Owl changes the boundary used by All day scheduling. Re-run the
+      // planner after the account setting is saved so existing flexible blocks
+      // follow the new logical day immediately.
+      void fetch(getAppPath("/api/scheduler/run"), { method: "POST" }).catch(() => undefined);
       return { ok: true };
     },
     [applyUser, client, user],

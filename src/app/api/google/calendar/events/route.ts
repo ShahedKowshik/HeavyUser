@@ -14,8 +14,9 @@ import {
   publicGoogleConnection,
   requireAuthenticatedGoogleContext,
 } from "@/lib/google/server";
-import { syncGoogleCalendar } from "@/lib/google/sync";
-import { runSchedulerForUser } from "@/lib/scheduler/service";
+import { syncGoogleCalendar, upsertGoogleCalendarEvent } from "@/lib/google/sync";
+import { runSchedulerForUserWithRetry } from "@/lib/scheduler/service";
+import { rejectCrossOriginMutation, rejectOversizedBody } from "@/lib/security/http";
 
 function toEventResponse(row: Record<string, unknown>) {
   const privateProperties = row.private_properties && typeof row.private_properties === "object"
@@ -50,7 +51,7 @@ async function getSelectedCalendarContext() {
     return { response: NextResponse.json({ error: "You must be signed in." }, { status: 401 }) } as const;
   }
 
-  const connection = await loadGoogleConnection(context.client, context.user.id);
+  const connection = await loadGoogleConnection(context.admin, context.user.id);
   if (!connection?.selected_calendar_id) {
     return { response: NextResponse.json({ error: "Connect and choose a Google Calendar first." }, { status: 400 }) } as const;
   }
@@ -67,6 +68,10 @@ function getManagedBlockId(localEvent: Record<string, unknown>) {
   return typeof blockId === "string" ? blockId : null;
 }
 
+function isTextWithinLimit(value: unknown, maximum: number) {
+  return typeof value === "string" && value.length <= maximum;
+}
+
 async function lockManagedBlock(userId: string, localEvent: Record<string, unknown>, start: string | null, end: string | null, etag: string | null) {
   const blockId = getManagedBlockId(localEvent);
   if (!blockId) {
@@ -78,13 +83,16 @@ async function lockManagedBlock(userId: string, localEvent: Record<string, unkno
     return;
   }
 
-  const { data: block } = await admin
+  const { data: block, error: blockError } = await admin
     .from("task_schedule_blocks")
     .select("sync_version")
     .eq("user_id", userId)
     .eq("id", blockId)
     .maybeSingle();
-  await admin
+  if (blockError) {
+    throw blockError;
+  }
+  const { error: updateError } = await admin
     .from("task_schedule_blocks")
     .update({
       state: "locked",
@@ -97,6 +105,9 @@ async function lockManagedBlock(userId: string, localEvent: Record<string, unkno
     })
     .eq("user_id", userId)
     .eq("id", blockId);
+  if (updateError) {
+    throw updateError;
+  }
 }
 
 async function replaceManagedBlock(userId: string, localEvent: Record<string, unknown>) {
@@ -106,28 +117,33 @@ async function replaceManagedBlock(userId: string, localEvent: Record<string, un
     return;
   }
 
-  const { data: block } = await admin
+  const { data: block, error: blockError } = await admin
     .from("task_schedule_blocks")
     .select("sync_version")
     .eq("user_id", userId)
     .eq("id", blockId)
     .maybeSingle();
-  await admin
+  if (blockError) {
+    throw blockError;
+  }
+  const { error: updateError } = await admin
     .from("task_schedule_blocks")
     .update({ state: "replaced", sync_version: (block?.sync_version ?? 0) + 1, last_error: "The calendar block was deleted.", updated_at: new Date().toISOString() })
     .eq("user_id", userId)
     .eq("id", blockId);
+  if (updateError) {
+    throw updateError;
+  }
 }
 
-export async function GET(request: Request) {
+export async function GET() {
   const result = await getSelectedCalendarContext();
   if ("response" in result) {
     return result.response;
   }
 
   try {
-    await syncGoogleCalendar(result.context.client, result.connection, request);
-    const { data, error } = await result.context.client
+    const { data, error } = await result.context.admin
       .from("google_calendar_events")
       .select("*")
       .eq("user_id", result.context.user.id)
@@ -149,6 +165,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originError = rejectCrossOriginMutation(request) ?? rejectOversizedBody(request);
+  if (originError) {
+    return originError;
+  }
+
   const result = await getSelectedCalendarContext();
   if ("response" in result) {
     return result.response;
@@ -164,13 +185,19 @@ export async function POST(request: Request) {
   const title = typeof body?.title === "string" ? body.title.trim() : "";
   const start = typeof body?.start === "string" ? body.start : "";
   const end = typeof body?.end === "string" ? body.end : "";
-  if (!title || !start || !end || Number.isNaN(new Date(start).getTime()) || Number.isNaN(new Date(end).getTime())) {
+  const startTime = new Date(start).getTime();
+  const endTime = new Date(end).getTime();
+  if (!title || title.length > 240 || !start || !end || !Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) {
     return NextResponse.json({ error: "Enter an event title, start time, and end time." }, { status: 400 });
+  }
+  if ((body?.description !== undefined && !isTextWithinLimit(body.description, 10_000))
+    || (body?.location !== undefined && !isTextWithinLimit(body.location, 2_000))) {
+    return NextResponse.json({ error: "Event details are too long." }, { status: 400 });
   }
 
   try {
-    const accessToken = await getUsableGoogleAccessToken(result.context.client, result.connection);
-    await insertGoogleEvent({
+    const accessToken = await getUsableGoogleAccessToken(result.context.admin, result.connection);
+    const createdEvent = await insertGoogleEvent({
       accessToken,
       calendarId: result.connection.selected_calendar_id!,
       resource: {
@@ -181,14 +208,27 @@ export async function POST(request: Request) {
         end: { dateTime: new Date(end).toISOString(), timeZone: result.connection.selected_calendar_timezone ?? "UTC" },
       },
     });
-    await syncGoogleCalendar(result.context.client, result.connection, request);
-    return NextResponse.json({ ok: true });
+    let syncPending = false;
+    try {
+      await syncGoogleCalendar(result.context.admin, result.connection, request);
+    } catch {
+      // The Google write succeeded. Keep the event locally visible even if
+      // Google's follow-up list sync is temporarily unavailable or delayed.
+      syncPending = true;
+    }
+    const localEvent = await upsertGoogleCalendarEvent(result.context.admin, result.context.user.id, createdEvent);
+    return NextResponse.json({ ok: true, event: toEventResponse(localEvent), syncPending });
   } catch (error) {
     return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });
   }
 }
 
 export async function PATCH(request: Request) {
+  const originError = rejectCrossOriginMutation(request) ?? rejectOversizedBody(request);
+  if (originError) {
+    return originError;
+  }
+
   const result = await getSelectedCalendarContext();
   if ("response" in result) {
     return result.response;
@@ -206,18 +246,35 @@ export async function PATCH(request: Request) {
   } | null;
   const isTimelineMove = body?.source === "timeline";
   const eventKey = typeof body?.eventKey === "string" ? body.eventKey : "";
-  if (!eventKey) {
+  if (!eventKey || eventKey.length > 512) {
     return NextResponse.json({ error: "The event could not be identified." }, { status: 400 });
   }
+  const hasStart = typeof body?.start === "string";
+  const hasEnd = typeof body?.end === "string";
+  if (hasStart !== hasEnd) {
+    return NextResponse.json({ error: "Provide both a start and end time." }, { status: 400 });
+  }
+  if (hasStart && hasEnd) {
+    const startTime = new Date(body?.start as string).getTime();
+    const endTime = new Date(body?.end as string).getTime();
+    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) {
+      return NextResponse.json({ error: "The end time must be after the start time." }, { status: 400 });
+    }
+  }
+  if ((body?.title !== undefined && !isTextWithinLimit(body.title, 240))
+    || (body?.description !== undefined && !isTextWithinLimit(body.description, 10_000))
+    || (body?.location !== undefined && !isTextWithinLimit(body.location, 2_000))) {
+    return NextResponse.json({ error: "Event details are too long." }, { status: 400 });
+  }
 
-  const { data: localEvent, error: localError } = await result.context.client
+  const { data: localEvent, error: localError } = await result.context.admin
     .from("google_calendar_events")
     .select("*")
     .eq("user_id", result.context.user.id)
     .eq("event_key", eventKey)
     .maybeSingle();
   if (localError) {
-    return NextResponse.json({ error: localError.message }, { status: 500 });
+    return NextResponse.json({ error: "The event could not be loaded." }, { status: 500 });
   }
   if (!localEvent) {
     return NextResponse.json({ error: "That event is no longer available. Refresh the planner." }, { status: 404 });
@@ -227,7 +284,7 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const accessToken = await getUsableGoogleAccessToken(result.context.client, result.connection);
+    const accessToken = await getUsableGoogleAccessToken(result.context.admin, result.connection);
     const latest = await getGoogleEvent({
       accessToken,
       calendarId: result.connection.selected_calendar_id!,
@@ -266,10 +323,11 @@ export async function PATCH(request: Request) {
         updatedEvent.etag ?? latest.etag ?? localEvent.etag,
       );
     }
+    const localUpdatedEvent = await upsertGoogleCalendarEvent(result.context.admin, result.context.user.id, updatedEvent);
     // The client performs one serialized read sync after the write. Keeping
     // sync-token advancement out of this request prevents a drag write and a
     // nearby modal edit from running competing Google syncs at the same time.
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, event: toEventResponse(localUpdatedEvent) });
   } catch (error) {
     if (error instanceof GoogleApiError && error.status === 412) {
       return NextResponse.json({ conflict: true, error: "This event changed in Google Calendar. Refresh before editing it." }, { status: 409 });
@@ -279,23 +337,28 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const originError = rejectCrossOriginMutation(request);
+  if (originError) {
+    return originError;
+  }
+
   const result = await getSelectedCalendarContext();
   if ("response" in result) {
     return result.response;
   }
 
   const eventKey = new URL(request.url).searchParams.get("eventKey") ?? "";
-  if (!eventKey) {
+  if (!eventKey || eventKey.length > 512) {
     return NextResponse.json({ error: "The event could not be identified." }, { status: 400 });
   }
-  const { data: localEvent, error: localError } = await result.context.client
+  const { data: localEvent, error: localError } = await result.context.admin
     .from("google_calendar_events")
     .select("*")
     .eq("user_id", result.context.user.id)
     .eq("event_key", eventKey)
     .maybeSingle();
   if (localError) {
-    return NextResponse.json({ error: localError.message }, { status: 500 });
+    return NextResponse.json({ error: "The event could not be loaded." }, { status: 500 });
   }
   if (!localEvent) {
     return NextResponse.json({ ok: true });
@@ -305,16 +368,24 @@ export async function DELETE(request: Request) {
   }
 
   try {
-    const accessToken = await getUsableGoogleAccessToken(result.context.client, result.connection);
+    const accessToken = await getUsableGoogleAccessToken(result.context.admin, result.connection);
     await deleteGoogleEvent({
       accessToken,
       calendarId: result.connection.selected_calendar_id!,
       eventId: localEvent.provider_event_id,
     });
-    await syncGoogleCalendar(result.context.client, result.connection, request);
+    const { error: eventDeleteError } = await result.context.admin
+      .from("google_calendar_events")
+      .delete()
+      .eq("user_id", result.context.user.id)
+      .eq("event_key", eventKey);
+    if (eventDeleteError) {
+      throw eventDeleteError;
+    }
+    await syncGoogleCalendar(result.context.admin, result.connection, request);
     if (localEvent.private_properties && typeof localEvent.private_properties === "object") {
       await replaceManagedBlock(result.context.user.id, localEvent as unknown as Record<string, unknown>);
-      await runSchedulerForUser(result.context.user.id, request);
+      await runSchedulerForUserWithRetry(result.context.user.id, request);
     }
     return NextResponse.json({ ok: true });
   } catch (error) {

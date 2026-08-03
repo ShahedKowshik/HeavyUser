@@ -13,13 +13,13 @@ export async function GET() {
     return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
   }
 
-  const connection = await loadGoogleConnection(context.client, context.user.id);
+  const connection = await loadGoogleConnection(context.admin, context.user.id);
   if (!connection) {
     return NextResponse.json({ calendars: [], connection: null });
   }
 
   try {
-    const accessToken = await getUsableGoogleAccessToken(context.client, connection);
+    const accessToken = await getUsableGoogleAccessToken(context.admin, connection);
     const calendars = await listGoogleCalendars(accessToken);
     return NextResponse.json({
       calendars: calendars.map((calendar) => ({

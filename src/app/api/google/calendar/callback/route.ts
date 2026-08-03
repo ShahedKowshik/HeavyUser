@@ -3,20 +3,28 @@ import { exchangeGoogleCode } from "@/lib/google/client";
 import { encryptSecret } from "@/lib/google/crypto";
 import { getGoogleConfig, getGoogleRedirectUri } from "@/lib/google/config";
 import { getAuthenticatedGoogleContext } from "@/lib/google/server";
-import { getAppPath } from "@/lib/supabase/config";
+import { getAppPath, getAppRedirectOrigin } from "@/lib/supabase/config";
 
 function redirectWithError(request: Request, reason: string) {
-  return NextResponse.redirect(new URL(`${getAppPath("/")}?google_calendar=error&reason=${encodeURIComponent(reason)}`, request.url));
+  const origin = getAppRedirectOrigin(request);
+  if (!origin) {
+    return NextResponse.json({ error: "The application origin is not configured." }, { status: 503 });
+  }
+  return NextResponse.redirect(new URL(`${getAppPath("/")}?google_calendar=error&reason=${encodeURIComponent(reason)}`, origin));
 }
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
+  const redirectOrigin = getAppRedirectOrigin(request);
+  if (!redirectOrigin) {
+    return NextResponse.json({ error: "The application origin is not configured." }, { status: 503 });
+  }
   const context = await getAuthenticatedGoogleContext();
   const config = getGoogleConfig();
   const stateCookie = request.headers.get("cookie")?.match(/(?:^|; )heavyuser_google_oauth_state=([^;]+)/)?.[1];
   const verifierCookie = request.headers.get("cookie")?.match(/(?:^|; )heavyuser_google_oauth_verifier=([^;]+)/)?.[1];
 
-  if (!context.client || !context.user) {
+  if (!context.client || !context.admin || !context.user) {
     return redirectWithError(request, "signed_out");
   }
 
@@ -42,7 +50,7 @@ export async function GET(request: Request) {
       clientSecret: config.clientSecret,
       redirectUri: getGoogleRedirectUri(request),
     });
-    const existing = await context.client
+    const existing = await context.admin
       .from("google_calendar_connections")
       .select("refresh_token_encrypted")
       .eq("user_id", context.user.id)
@@ -60,12 +68,16 @@ export async function GET(request: Request) {
       return redirectWithError(request, "missing_refresh_token");
     }
 
-    await Promise.all([
-      context.client.from("google_calendar_events").delete().eq("user_id", context.user.id),
-      context.client.from("google_calendar_sync_states").delete().eq("user_id", context.user.id),
+    const cleanupResults = await Promise.all([
+      context.admin.from("google_calendar_events").delete().eq("user_id", context.user.id),
+      context.admin.from("google_calendar_sync_states").delete().eq("user_id", context.user.id),
     ]);
+    const cleanupError = cleanupResults.find((result) => result.error)?.error;
+    if (cleanupError) {
+      throw cleanupError;
+    }
 
-    const { error } = await context.client.from("google_calendar_connections").upsert({
+    const { error } = await context.admin.from("google_calendar_connections").upsert({
       user_id: context.user.id,
       google_account_email: null,
       selected_calendar_id: null,
@@ -84,7 +96,7 @@ export async function GET(request: Request) {
       throw error;
     }
 
-    const response = NextResponse.redirect(new URL(`${getAppPath("/")}?google_calendar=select`, request.url));
+    const response = NextResponse.redirect(new URL(`${getAppPath("/")}?google_calendar=select`, redirectOrigin));
     response.cookies.delete("heavyuser_google_oauth_state");
     response.cookies.delete("heavyuser_google_oauth_verifier");
     return response;

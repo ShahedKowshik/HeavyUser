@@ -12,7 +12,7 @@ import { getAppPath, publicBasePath } from "@/lib/supabase/config";
 import { avatarConstraints, getProfileName, type ProfileDraft } from "@/lib/supabase/profile";
 import type { UserSettings } from "@/lib/supabase/settings";
 import { DEFAULT_SCHEDULER_PREFERENCES, type SchedulerPreferences, type WorkWindow } from "@/lib/scheduler/types";
-import { normalizeSchedulerPreferences } from "@/lib/scheduler/preferences";
+import { hasWorkingWindow, normalizeSchedulerPreferences } from "@/lib/scheduler/preferences";
 
 const schedulerWeekdays = [
   { key: "1", label: "Monday" },
@@ -189,6 +189,12 @@ function SettingsContent() {
       setIsSavingScheduler(false);
       return;
     }
+    if (schedulerDraft.enabled && !hasWorkingWindow(schedulerDraft)) {
+      setSchedulerMessageType("error");
+      setSchedulerMessage("Add at least one working window or turn off automatic scheduling.");
+      setIsSavingScheduler(false);
+      return;
+    }
 
     try {
       const response = await fetch(getAppPath("/api/scheduler/settings"), {
@@ -196,14 +202,18 @@ function SettingsContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(schedulerDraft),
       });
-      const body = (await response.json().catch(() => null)) as { settings?: unknown; error?: string } | null;
+      const body = (await response.json().catch(() => null)) as { settings?: unknown; error?: string; schedulerError?: string | null } | null;
       if (!response.ok) {
         throw new Error(body?.error ?? "Scheduling settings could not be saved.");
       }
       setSchedulerDraft(normalizeSchedulerPreferences(body?.settings, schedulerDraft.timezone));
-      void fetch(getAppPath("/api/scheduler/run"), { method: "POST" });
-      setSchedulerMessageType("success");
-      setSchedulerMessage(schedulerDraft.enabled ? "Saved. Eligible tasks will be scheduled now." : "Saved. Automatic scheduling is paused.");
+      if (body?.schedulerError) {
+        setSchedulerMessageType("error");
+        setSchedulerMessage(`Saved, but scheduling needs attention: ${body.schedulerError}`);
+      } else {
+        setSchedulerMessageType("success");
+        setSchedulerMessage(schedulerDraft.enabled ? "Saved. Eligible tasks were rescheduled." : "Saved. Automatic scheduling is paused.");
+      }
     } catch (error) {
       setSchedulerMessageType("error");
       setSchedulerMessage(error instanceof Error ? error.message : "Scheduling settings could not be saved.");
@@ -215,12 +225,34 @@ function SettingsContent() {
   function updateSchedulerWindows(day: string, windows: ReadonlyArray<WorkWindow>) {
     setSchedulerDraft((current) => ({
       ...current,
-      workWindows: { ...current.workWindows, [day]: windows },
+      workWindows: {
+        ...current.workWindows,
+        [day]: [
+          ...(current.workWindows[day] ?? []).filter((window) => window.allDay),
+          ...windows,
+        ],
+      },
     }));
   }
 
+  function toggleSchedulerAllDay(day: string, enabled: boolean) {
+    setSchedulerDraft((current) => {
+      const windows = current.workWindows[day] ?? [];
+      const manualWindows = windows.filter((window) => !window.allDay);
+      return {
+        ...current,
+        workWindows: {
+          ...current.workWindows,
+          [day]: enabled
+            ? [{ start: "00:00", end: "23:59", allDay: true }, ...manualWindows]
+            : manualWindows,
+        },
+      };
+    });
+  }
+
   function updateSchedulerWindow(day: string, index: number, key: keyof WorkWindow, value: string) {
-    const windows = [...(schedulerDraft.workWindows[day] ?? [])];
+    const windows = (schedulerDraft.workWindows[day] ?? []).filter((window) => !window.allDay);
     const current = windows[index] ?? { start: "09:00", end: "17:00" };
     windows[index] = { ...current, [key]: value };
     updateSchedulerWindows(day, windows);
@@ -505,24 +537,43 @@ function SettingsContent() {
                 <div className="hu-work-window-list">
                   <div className="hu-work-window-heading">
                     <span className="hu-field-label">Working hours</span>
-                    <small>Weekends are off by default. Add another window for breaks.</small>
+                    <small>All day follows Night Owl. Add another window for breaks.</small>
                   </div>
                   {schedulerWeekdays.map((day) => {
                     const windows = schedulerDraft.workWindows[day.key] ?? [];
+                    const allDay = windows.some((window) => window.allDay);
+                    const manualWindows = windows.filter((window) => !window.allDay);
                     return (
                       <div className="hu-work-window-row" key={day.key}>
-                        <strong>{day.label}</strong>
+                        <div className="hu-work-window-day">
+                          <strong>{day.label}</strong>
+                          <label className="hu-work-window-all-day">
+                            <input
+                              aria-label={`${day.label} all day`}
+                              checked={allDay}
+                              type="checkbox"
+                              onChange={(event) => toggleSchedulerAllDay(day.key, event.target.checked)}
+                            />
+                            <span>All day</span>
+                          </label>
+                        </div>
                         <div className="hu-work-window-fields">
-                          {windows.length === 0 ? <span className="hu-work-window-off">Off</span> : windows.map((window, index) => (
+                          {allDay ? (
+                            <span className="hu-work-window-full-day">
+                              {schedulerDraft.nightOwlMode
+                                ? `Whole logical day · starts ${formatTimeValue(schedulerDraft.dayStartTime)}`
+                                : "Whole calendar day"}
+                            </span>
+                          ) : manualWindows.length === 0 ? <span className="hu-work-window-off">Off</span> : manualWindows.map((window, index) => (
                             <span className="hu-work-window" key={`${day.key}-${index}`}>
                               <input aria-label={`${day.label} window ${index + 1} start`} className="hu-edit-input" type="time" value={window.start} onChange={(event) => updateSchedulerWindow(day.key, index, "start", event.target.value)} />
                               <span aria-hidden="true">to</span>
                               <input aria-label={`${day.label} window ${index + 1} end`} className="hu-edit-input" type="time" value={window.end} onChange={(event) => updateSchedulerWindow(day.key, index, "end", event.target.value)} />
-                              <button className="hu-work-window-remove" type="button" onClick={() => updateSchedulerWindows(day.key, windows.filter((_, windowIndex) => windowIndex !== index))}>Remove</button>
+                              <button className="hu-work-window-remove" type="button" onClick={() => updateSchedulerWindows(day.key, manualWindows.filter((_, windowIndex) => windowIndex !== index))}>Remove</button>
                             </span>
                           ))}
-                          {windows.length < 4 ? (
-                            <button className="hu-work-window-add" type="button" onClick={() => updateSchedulerWindows(day.key, [...windows, { start: "13:00", end: "14:00" }])}>+ Add window</button>
+                          {!allDay && manualWindows.length < 4 ? (
+                            <button className="hu-work-window-add" type="button" onClick={() => updateSchedulerWindows(day.key, [...manualWindows, { start: "13:00", end: "14:00" }])}>+ Add window</button>
                           ) : null}
                         </div>
                       </div>

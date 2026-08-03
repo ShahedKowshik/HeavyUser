@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { GOOGLE_CALENDAR_SCOPES, getGoogleConfig, getGoogleRedirectUri } from "@/lib/google/config";
 import { getAuthenticatedGoogleContext } from "@/lib/google/server";
-import { getAppPath } from "@/lib/supabase/config";
+import { getAppPath, getAppRedirectOrigin } from "@/lib/supabase/config";
 
 function toBase64Url(value: Buffer) {
   return value.toString("base64url");
@@ -11,12 +11,16 @@ function toBase64Url(value: Buffer) {
 export async function GET(request: Request) {
   const context = await getAuthenticatedGoogleContext();
   const config = getGoogleConfig();
-  if (!context.client || !context.user) {
-    return NextResponse.redirect(new URL(getAppPath("/login"), request.url));
+  const origin = getAppRedirectOrigin(request);
+  if (!origin) {
+    return NextResponse.json({ error: "The application origin is not configured." }, { status: 503 });
+  }
+  if (!context.client || !context.admin || !context.user) {
+    return NextResponse.redirect(new URL(getAppPath("/login"), origin));
   }
 
   if (!config) {
-    return NextResponse.redirect(new URL(`${getAppPath("/")}?google_calendar=error&reason=not_configured`, request.url));
+    return NextResponse.redirect(new URL(`${getAppPath("/")}?google_calendar=error&reason=not_configured`, origin));
   }
 
   const state = toBase64Url(randomBytes(32));

@@ -1,9 +1,12 @@
 "use client";
 
-import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, PointerEvent as ReactPointerEvent, TouchEvent as ReactTouchEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { CalendarDays, Check, ExternalLink, Pencil, Plus, RefreshCw, Trash2, Video, X } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, ExternalLink, Pencil, Plus, RefreshCw, Trash2, Video, X } from "lucide-react";
 import { getAppPath } from "@/lib/supabase/config";
+import type { ScheduleBlockSnapshot, TaskScheduleStatus } from "@/lib/scheduler/types";
+import type { UserSettings } from "@/lib/supabase/settings";
+import type { Task } from "@/lib/tasks";
 
 type CalendarConnection = {
   status: string;
@@ -44,6 +47,8 @@ type LiveEvent = {
   isTaskBlock: boolean;
   taskId: string | null;
   scheduleBlockId: string | null;
+  isPlannerSynthetic?: boolean;
+  isPendingSchedule?: boolean;
 };
 
 type EventDraft = {
@@ -74,6 +79,17 @@ type DragPreview = {
   end: string;
 };
 
+type TimelineSwipe = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+};
+
+type TimelineTouch = {
+  startX: number;
+  startY: number;
+};
+
 type PendingEventRange = {
   start: string;
   end: string;
@@ -81,9 +97,21 @@ type PendingEventRange = {
 
 type GoogleCalendarPanelProps = {
   date: string;
+  settings: UserSettings;
+  tasks: ReadonlyArray<Task>;
+  scheduleBlocks: Readonly<Record<string, ReadonlyArray<ScheduleBlockSnapshot>>>;
+  scheduleStatuses: Readonly<Record<string, TaskScheduleStatus>>;
 };
 
-const VISIBLE_TIMELINE_HOURS = 8;
+const TIMELINE_HOURS = 24;
+const TIMELINE_HOUR_HEIGHT = 56;
+const DAY_MARKER_HEIGHT = 42;
+const PLANNER_DAYS = 7;
+const SCROLL_RETURN_THRESHOLD = 48;
+const CURRENT_TIME_BEFORE_MINUTES = 60;
+const CURRENT_TIME_AFTER_MINUTES = 7 * 60;
+const CURRENT_TIME_WINDOW_HOURS = (CURRENT_TIME_BEFORE_MINUTES + CURRENT_TIME_AFTER_MINUTES) / 60;
+const MIN_EVENT_DURATION_MINUTES = 5;
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 
@@ -92,7 +120,7 @@ function formatDateLabel(value: string) {
   return date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
 }
 
-function getDateParts(value: Date, timeZone: string) {
+function getDateTimeParts(value: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
     year: "numeric",
@@ -100,13 +128,60 @@ function getDateParts(value: Date, timeZone: string) {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+    second: "2-digit",
     hour12: false,
+    hourCycle: "h23",
   }).formatToParts(value);
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return {
     date: `${values.year}-${values.month}-${values.day}`,
     minutes: Number(values.hour) * 60 + Number(values.minute),
+    seconds: Number(values.second),
   };
+}
+
+function getTimestampForLocalDateTime(date: string, minutes: number, timeZone: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const hour = Math.floor(minutes / 60) % 24;
+  const minute = minutes % 60;
+  const utcGuess = Date.UTC(year, month - 1, day, hour, minute, 0);
+  const localParts = getDateTimeParts(new Date(utcGuess), timeZone);
+  const localAsUtc = Date.UTC(
+    Number(localParts.date.slice(0, 4)),
+    Number(localParts.date.slice(5, 7)) - 1,
+    Number(localParts.date.slice(8, 10)),
+    Math.floor(localParts.minutes / 60),
+    localParts.minutes % 60,
+    localParts.seconds,
+  );
+  return utcGuess + (utcGuess - localAsUtc);
+}
+
+function addCalendarDays(value: string, days: number) {
+  const date = new Date(`${value}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function getTimeMinutes(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function formatDayButtonLabel(value: string, today: string) {
+  if (value === today) {
+    return "Today";
+  }
+  if (value === addCalendarDays(today, 1)) {
+    return "Tomorrow";
+  }
+  return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { weekday: "short" });
+}
+
+function formatStartTime(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  const date = new Date(2000, 0, 1, hours, minutes);
+  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
 function getEventRange(event: LiveEvent, timelineStart: number, timelineEnd: number) {
@@ -124,7 +199,7 @@ function getEventRange(event: LiveEvent, timelineStart: number, timelineEnd: num
   const visibleEnd = Math.min(eventEnd, timelineEnd);
   return {
     start: (visibleStart - timelineStart) / MINUTE_MS,
-    end: Math.max((visibleEnd - timelineStart) / MINUTE_MS, (visibleStart - timelineStart) / MINUTE_MS + 15),
+    end: (visibleEnd - timelineStart) / MINUTE_MS,
   };
 }
 
@@ -174,6 +249,29 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
 
+function getCurrentTimeOffset(nowTimestamp: number, timelineStartTimestamp: number, hourHeight: number) {
+  return Math.max(
+    0,
+    ((nowTimestamp - timelineStartTimestamp) / MINUTE_MS - CURRENT_TIME_BEFORE_MINUTES) * (hourHeight / 60),
+  );
+}
+
+function getDayIndexAtScroll(scrollTop: number, dayBlockHeight: number) {
+  return clamp(Math.floor((scrollTop + 8) / dayBlockHeight), 0, PLANNER_DAYS - 1);
+}
+
+function getDayTimeOffsetAtScroll(scrollTop: number, dayIndex: number, dayBlockHeight: number, dayHeight: number) {
+  return clamp(scrollTop - dayIndex * dayBlockHeight - DAY_MARKER_HEIGHT, 0, dayHeight);
+}
+
+function getDayScrollTop(dayIndex: number, timeOffset: number, dayBlockHeight: number, dayHeight: number) {
+  return dayIndex * dayBlockHeight + DAY_MARKER_HEIGHT + clamp(timeOffset, 0, dayHeight);
+}
+
+function getTimelineMarkerPosition(timestamp: number, timelineStartTimestamp: number, timelineEndTimestamp: number) {
+  return clamp(((timestamp - timelineStartTimestamp) / (timelineEndTimestamp - timelineStartTimestamp)) * 100, 0, 100);
+}
+
 function getMinutesAtPointer(clientY: number, stage: HTMLElement, timelineHours: number) {
   const bounds = stage.getBoundingClientRect();
   if (bounds.height <= 0) {
@@ -193,8 +291,12 @@ function defaultDraft(date: string): EventDraft {
 
 export function GoogleCalendarPanel({
   date,
+  settings,
+  tasks,
+  scheduleBlocks,
+  scheduleStatuses,
 }: GoogleCalendarPanelProps) {
-  const timelineHours = VISIBLE_TIMELINE_HOURS;
+  const timelineHours = TIMELINE_HOURS;
   const [connection, setConnection] = useState<CalendarConnection | null>(null);
   const [events, setEvents] = useState<ReadonlyArray<LiveEvent>>([]);
   const [calendarOptions, setCalendarOptions] = useState<ReadonlyArray<CalendarOption>>([]);
@@ -212,12 +314,20 @@ export function GoogleCalendarPanel({
   const [eventGesture, setEventGesture] = useState<EventGesture | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
   const [nowTimestamp, setNowTimestamp] = useState(() => Date.now());
+  const [selectedDate, setSelectedDate] = useState(date);
+  const [isTimelineAwayFromNow, setIsTimelineAwayFromNow] = useState(false);
+  const [timelineViewportHeight, setTimelineViewportHeight] = useState(0);
+  const timelineScrollRef = useRef<HTMLDivElement | null>(null);
+  const timelineSwipeRef = useRef<TimelineSwipe | null>(null);
+  const timelineTouchRef = useRef<TimelineTouch | null>(null);
   const eventGestureRef = useRef<EventGesture | null>(null);
   const gestureMoved = useRef(false);
   const suppressEventClick = useRef(false);
   const dragWriteChain = useRef(Promise.resolve());
   const pendingEventRanges = useRef(new Map<string, PendingEventRange>());
   const pendingEventRangeTimers = useRef(new Map<string, number>());
+  const pendingLocalEvents = useRef(new Map<string, LiveEvent>());
+  const pendingLocalEventTimers = useRef(new Map<string, number>());
 
   useEffect(() => {
     const updateNow = () => setNowTimestamp(Date.now());
@@ -227,9 +337,13 @@ export function GoogleCalendarPanel({
 
   const isConnected = Boolean(connection?.calendarId);
   const timeZone = connection?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const currentLocalParts = getDateParts(new Date(nowTimestamp), timeZone);
-  const timelineStartTimestamp = nowTimestamp - ((currentLocalParts.minutes % 60) + 60) * MINUTE_MS;
-  const timelineEndTimestamp = timelineStartTimestamp + timelineHours * HOUR_MS;
+  const dayStartMinutes = settings.nightOwlMode ? getTimeMinutes(settings.dayStartTime) : 0;
+  const timelineHourHeight = timelineViewportHeight > 0
+    ? timelineViewportHeight / CURRENT_TIME_WINDOW_HOURS
+    : TIMELINE_HOUR_HEIGHT;
+  const timelineDayHeight = TIMELINE_HOURS * timelineHourHeight;
+  const timelineDayBlockHeight = DAY_MARKER_HEIGHT + timelineDayHeight;
+  const plannerDates = Array.from({ length: PLANNER_DAYS }, (_, index) => addCalendarDays(date, index));
   const currentTimeLabel = new Intl.DateTimeFormat(undefined, {
     timeZone,
     hour: "numeric",
@@ -241,18 +355,282 @@ export function GoogleCalendarPanel({
     minute: "2-digit",
     hour12: true,
   });
-  const timeLabels = Array.from({ length: timelineHours + 1 }, (_, index) => (
-    timeLabelFormatter.format(new Date(timelineStartTimestamp + index * HOUR_MS))
-  ));
-
-  const visibleLiveEvents = useMemo(() => {
-    return events.filter((event) => {
-      if (event.allDay) {
-        return Boolean(event.startDate && event.endDate && event.startDate <= date && event.endDate > date);
+  const currentDayStartTimestamp = getTimestampForLocalDateTime(date, dayStartMinutes, timeZone);
+  const currentDayTimeOffset = getCurrentTimeOffset(nowTimestamp, currentDayStartTimestamp, timelineHourHeight);
+  const showJumpToNow = selectedDate !== date || isTimelineAwayFromNow;
+  const selectedDateIndex = Math.max(0, plannerDates.indexOf(selectedDate));
+  const taskById = new Map(tasks.map((task) => [task.id, task]));
+  const calendarEvents = events.map((event) => {
+    const task = event.isTaskBlock && event.taskId ? taskById.get(event.taskId) : null;
+    return task ? { ...event, title: task.title } : event;
+  });
+  const calendarScheduleBlockIds = new Set(
+    calendarEvents.map((event) => event.scheduleBlockId).filter((blockId): blockId is string => Boolean(blockId)),
+  );
+  const scheduledBlockEvents = Object.values(scheduleBlocks)
+    .flat()
+    .filter((block) => block.state !== "cancelled" && block.state !== "replaced" && !calendarScheduleBlockIds.has(block.id))
+    .map((block): LiveEvent | null => {
+      const task = taskById.get(block.taskId);
+      if (!task) {
+        return null;
       }
-      return Boolean(getEventRange(event, timelineStartTimestamp, timelineEndTimestamp));
+
+      return {
+        id: `heavyuser-schedule-block:${block.id}`,
+        providerEventId: `heavyuser-schedule-block:${block.id}`,
+        title: task.title,
+        description: null,
+        location: null,
+        meetingUrl: null,
+        start: block.start,
+        end: block.end,
+        startDate: null,
+        endDate: null,
+        allDay: false,
+        hasAttendees: false,
+        etag: null,
+        htmlLink: null,
+        timeZone,
+        recurringEventId: null,
+        isTaskBlock: true,
+        taskId: task.id,
+        scheduleBlockId: block.id,
+        isPlannerSynthetic: true,
+        isPendingSchedule: false,
+      };
+    })
+    .filter((event): event is LiveEvent => event !== null);
+  const scheduledTaskIds = new Set([
+    ...calendarEvents.map((event) => event.taskId).filter((taskId): taskId is string => Boolean(taskId)),
+    ...scheduledBlockEvents.map((event) => event.taskId).filter((taskId): taskId is string => Boolean(taskId)),
+  ]);
+  const pendingTasks = tasks.filter((task) => {
+    const status = scheduleStatuses[task.id];
+    return isConnected
+      && task.status !== "done"
+      && task.autoSchedule
+      && task.duration !== null
+      && task.duration > 0
+      && !scheduledTaskIds.has(task.id)
+      && (!status || status.state === "scheduling");
+  });
+  const pendingTaskEvents = pendingTasks.map((task, index) => {
+    const nowParts = getDateTimeParts(new Date(nowTimestamp), timeZone);
+    const roundedNow = Math.ceil(nowTimestamp / (15 * MINUTE_MS)) * 15 * MINUTE_MS;
+    const pendingDate = task.startDate && task.startDate > nowParts.date ? task.startDate : nowParts.date;
+    const fallbackStart = pendingDate === nowParts.date
+      ? roundedNow
+      : getTimestampForLocalDateTime(pendingDate, 9 * 60, timeZone);
+    const start = fallbackStart + pendingTasks
+      .slice(0, index)
+      .reduce((offset, previousTask) => offset + Math.max(previousTask.duration ?? 15, 15) * MINUTE_MS, 0);
+    const end = start + (task.duration ?? 15) * MINUTE_MS;
+    const eventKey = `heavyuser-pending-task:${task.id}`;
+    return {
+      id: eventKey,
+      providerEventId: eventKey,
+      title: task.title,
+      description: null,
+      location: null,
+      meetingUrl: null,
+      start: new Date(start).toISOString(),
+      end: new Date(end).toISOString(),
+      startDate: null,
+      endDate: null,
+      allDay: false,
+      hasAttendees: false,
+      etag: null,
+      htmlLink: null,
+      timeZone,
+      recurringEventId: null,
+      isTaskBlock: true,
+      taskId: task.id,
+      scheduleBlockId: null,
+      isPlannerSynthetic: true,
+      isPendingSchedule: true,
+    } satisfies LiveEvent;
+  });
+  const plannerEvents = [...calendarEvents, ...scheduledBlockEvents, ...pendingTaskEvents];
+
+  const plannerTimelineDays = plannerDates.map((plannerDate) => {
+    const timelineStartTimestamp = getTimestampForLocalDateTime(plannerDate, dayStartMinutes, timeZone);
+    const timelineEndTimestamp = timelineStartTimestamp + timelineHours * HOUR_MS;
+    const allDayEvents = plannerEvents.filter((event) => (
+      event.allDay
+      && Boolean(event.startDate && event.endDate && event.startDate <= plannerDate && event.endDate > plannerDate)
+    ));
+    const timedEvents = plannerEvents.filter((event) => (
+      !event.allDay && Boolean(getEventRange(event, timelineStartTimestamp, timelineEndTimestamp))
+    ));
+
+    return {
+      date: plannerDate,
+      timelineStartTimestamp,
+      timelineEndTimestamp,
+      timeLabels: Array.from({ length: timelineHours + 1 }, (_, index) => (
+        timeLabelFormatter.format(new Date(timelineStartTimestamp + index * HOUR_MS))
+      )),
+      allDayEvents,
+      timedEvents,
+    };
+  });
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setSelectedDate(date));
+    return () => window.cancelAnimationFrame(frame);
+  }, [date]);
+
+  useLayoutEffect(() => {
+    const scrollElement = timelineScrollRef.current;
+    if (!scrollElement) {
+      return;
+    }
+
+    const measureViewport = () => {
+      const nextHeight = scrollElement.clientHeight;
+      if (nextHeight > 0) {
+        setTimelineViewportHeight((currentHeight) => currentHeight === nextHeight ? currentHeight : nextHeight);
+      }
+    };
+
+    measureViewport();
+    const resizeObserver = new ResizeObserver(measureViewport);
+    resizeObserver.observe(scrollElement);
+    return () => resizeObserver.disconnect();
+  }, [isConnected]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const scrollElement = timelineScrollRef.current;
+      if (!scrollElement) {
+        return;
+      }
+
+      const targetScrollTop = getDayScrollTop(0, currentDayTimeOffset, timelineDayBlockHeight, timelineDayHeight);
+      scrollElement.scrollTo({ top: targetScrollTop, behavior: "auto" });
+      setIsTimelineAwayFromNow(false);
     });
-  }, [date, events, timelineEndTimestamp, timelineStartTimestamp]);
+
+    return () => window.cancelAnimationFrame(frame);
+    // Keep the user's scroll position stable as the clock ticks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, dayStartMinutes, isConnected, timeZone, timelineDayBlockHeight, timelineDayHeight]);
+
+  function scrollToPlannerDay(targetDate: string, preserveTime = true) {
+    const scrollElement = timelineScrollRef.current;
+    const targetIndex = plannerDates.indexOf(targetDate);
+    if (!scrollElement || targetIndex < 0) {
+      return;
+    }
+
+    const currentIndex = getDayIndexAtScroll(scrollElement.scrollTop, timelineDayBlockHeight);
+    const currentTimeOffset = getDayTimeOffsetAtScroll(scrollElement.scrollTop, currentIndex, timelineDayBlockHeight, timelineDayHeight);
+    const targetTimeOffset = preserveTime ? currentTimeOffset : 0;
+    scrollElement.scrollTo({ top: getDayScrollTop(targetIndex, targetTimeOffset, timelineDayBlockHeight, timelineDayHeight), behavior: "smooth" });
+    setSelectedDate(targetDate);
+  }
+
+  function jumpToNow() {
+    const scrollElement = timelineScrollRef.current;
+    if (!scrollElement) {
+      return;
+    }
+
+    const targetScrollTop = getDayScrollTop(0, currentDayTimeOffset, timelineDayBlockHeight, timelineDayHeight);
+    scrollElement.scrollTo({ top: targetScrollTop, behavior: "smooth" });
+    setSelectedDate(date);
+    setIsTimelineAwayFromNow(false);
+  }
+
+  function handleTimelineScroll(scrollElement: HTMLDivElement) {
+    const dayIndex = getDayIndexAtScroll(scrollElement.scrollTop, timelineDayBlockHeight);
+    const nextDate = plannerDates[dayIndex];
+    if (nextDate && nextDate !== selectedDate) {
+      setSelectedDate(nextDate);
+    }
+
+    const currentTarget = getDayScrollTop(0, currentDayTimeOffset, timelineDayBlockHeight, timelineDayHeight);
+    setIsTimelineAwayFromNow(Math.abs(scrollElement.scrollTop - currentTarget) > SCROLL_RETURN_THRESHOLD);
+  }
+
+  function handleHorizontalDaySwipe(deltaX: number, deltaY: number) {
+    if (Math.abs(deltaX) < 56 || Math.abs(deltaX) <= Math.abs(deltaY)) {
+      return;
+    }
+
+    const scrollElement = timelineScrollRef.current;
+    if (!scrollElement) {
+      return;
+    }
+
+    const currentIndex = getDayIndexAtScroll(scrollElement.scrollTop, timelineDayBlockHeight);
+    const nextIndex = currentIndex + (deltaX < 0 ? 1 : -1);
+    if (nextIndex < 0 || nextIndex >= plannerDates.length) {
+      return;
+    }
+
+    scrollToPlannerDay(plannerDates[nextIndex], true);
+  }
+
+  function handleTimelinePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.pointerType !== "pen") {
+      return;
+    }
+
+    if (event.target instanceof Element && event.target.closest(".hu-event, button")) {
+      return;
+    }
+
+    timelineSwipeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+  }
+
+  function handleTimelinePointerUp(event: ReactPointerEvent<HTMLDivElement>) {
+    const swipe = timelineSwipeRef.current;
+    timelineSwipeRef.current = null;
+    if (!swipe || swipe.pointerId !== event.pointerId) {
+      return;
+    }
+
+    handleHorizontalDaySwipe(event.clientX - swipe.startX, event.clientY - swipe.startY);
+  }
+
+  function handleTimelinePointerCancel() {
+    timelineSwipeRef.current = null;
+  }
+
+  function handleTimelineTouchStart(event: ReactTouchEvent<HTMLDivElement>) {
+    if (event.touches.length !== 1) {
+      timelineTouchRef.current = null;
+      return;
+    }
+
+    if (event.target instanceof Element && event.target.closest(".hu-event, button")) {
+      return;
+    }
+
+    const touch = event.touches[0];
+    timelineTouchRef.current = { startX: touch.clientX, startY: touch.clientY };
+  }
+
+  function handleTimelineTouchEnd(event: ReactTouchEvent<HTMLDivElement>) {
+    const touch = timelineTouchRef.current;
+    timelineTouchRef.current = null;
+    const changedTouch = event.changedTouches[0];
+    if (!touch || !changedTouch) {
+      return;
+    }
+
+    handleHorizontalDaySwipe(changedTouch.clientX - touch.startX, changedTouch.clientY - touch.startY);
+  }
+
+  function handleTimelineTouchCancel() {
+    timelineTouchRef.current = null;
+  }
 
   function mergePendingEventRanges(nextEvents: LiveEvent[]) {
     return nextEvents.map((event) => {
@@ -278,6 +656,52 @@ export function GoogleCalendarPanel({
       // propagating. Keep the successful local move visible until Google
       // confirms the same range instead of flashing the event backward.
       return { ...event, start: pending.start, end: pending.end };
+    });
+  }
+
+  function rememberPendingLocalEvent(event: LiveEvent) {
+    pendingLocalEvents.current.set(event.id, event);
+    const previousTimer = pendingLocalEventTimers.current.get(event.id);
+    if (previousTimer !== undefined) {
+      window.clearTimeout(previousTimer);
+    }
+    const timer = window.setTimeout(() => {
+      pendingLocalEvents.current.delete(event.id);
+      pendingLocalEventTimers.current.delete(event.id);
+    }, 60_000);
+    pendingLocalEventTimers.current.set(event.id, timer);
+  }
+
+  function clearPendingLocalEvent(eventId: string) {
+    pendingLocalEvents.current.delete(eventId);
+    const timer = pendingLocalEventTimers.current.get(eventId);
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      pendingLocalEventTimers.current.delete(eventId);
+    }
+  }
+
+  function mergePendingLocalEvents(nextEvents: LiveEvent[]) {
+    const merged = new Map(nextEvents.map((event) => [event.id, event]));
+    for (const [eventId, pendingEvent] of pendingLocalEvents.current) {
+      const serverEvent = merged.get(eventId);
+      const isConfirmed = serverEvent
+        && serverEvent.title === pendingEvent.title
+        && serverEvent.start === pendingEvent.start
+        && serverEvent.end === pendingEvent.end
+        && serverEvent.description === pendingEvent.description
+        && serverEvent.location === pendingEvent.location;
+      if (isConfirmed) {
+        clearPendingLocalEvent(eventId);
+      } else {
+        merged.set(eventId, pendingEvent);
+      }
+    }
+
+    return [...merged.values()].sort((first, second) => {
+      const firstStart = first.start ? new Date(first.start).getTime() : Number.POSITIVE_INFINITY;
+      const secondStart = second.start ? new Date(second.start).getTime() : Number.POSITIVE_INFINITY;
+      return firstStart - secondStart;
     });
   }
 
@@ -320,13 +744,22 @@ export function GoogleCalendarPanel({
         return;
       }
 
+      const syncResponse = await fetch(getAppPath("/api/google/calendar/sync"), {
+        method: "POST",
+        cache: "no-store",
+      });
+      const syncBody = (await syncResponse.json().catch(() => null)) as { connection?: CalendarConnection; error?: string } | null;
+      if (!syncResponse.ok) {
+        throw new Error(syncBody?.error ?? "Calendar events could not be synchronized.");
+      }
+
       const eventsResponse = await fetch(getAppPath("/api/google/calendar/events"), { cache: "no-store" });
       const eventsBody = (await eventsResponse.json().catch(() => null)) as { events?: LiveEvent[]; connection?: CalendarConnection; error?: string } | null;
       if (!eventsResponse.ok) {
         throw new Error(eventsBody?.error ?? "Calendar events could not be loaded.");
       }
-      setConnection(eventsBody?.connection ?? nextConnection);
-      setEvents(mergePendingEventRanges(eventsBody?.events ?? []));
+      setConnection(eventsBody?.connection ?? syncBody?.connection ?? nextConnection);
+      setEvents(mergePendingLocalEvents(mergePendingEventRanges(eventsBody?.events ?? [])));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Calendar could not be loaded.");
     } finally {
@@ -370,11 +803,13 @@ export function GoogleCalendarPanel({
     const interval = window.setInterval(syncWhenVisible, 30_000);
     window.addEventListener("focus", syncWhenVisible);
     document.addEventListener("visibilitychange", syncWhenVisible);
+    window.addEventListener("heavyuser:calendar-refresh", syncWhenVisible);
 
     return () => {
       window.clearInterval(interval);
       window.removeEventListener("focus", syncWhenVisible);
       document.removeEventListener("visibilitychange", syncWhenVisible);
+      window.removeEventListener("heavyuser:calendar-refresh", syncWhenVisible);
     };
     // The sync callback intentionally uses the latest modal state while the connection is active.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -384,7 +819,7 @@ export function GoogleCalendarPanel({
     setError("");
     setIsCreating(true);
     setEditingEvent(null);
-    setDraft(defaultDraft(date));
+    setDraft(defaultDraft(selectedDate));
   }
 
   function beginEdit(event: LiveEvent) {
@@ -455,13 +890,21 @@ export function GoogleCalendarPanel({
           end: fromDateTimeInput(draft.end),
         }),
       });
-      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      const body = (await response.json().catch(() => null)) as { error?: string; event?: LiveEvent } | null;
       if (!response.ok) {
         throw new Error(body?.error ?? "The event could not be saved.");
       }
+      const savedEvent = body?.event;
+      if (savedEvent) {
+        rememberPendingLocalEvent(savedEvent);
+        setEvents((currentEvents) => mergePendingLocalEvents([
+          ...currentEvents.filter((currentEvent) => currentEvent.id !== savedEvent.id),
+          savedEvent,
+        ]));
+      }
       setEditingEvent(null);
       setIsCreating(false);
-      await loadConnectionAndEvents(false);
+      void loadConnectionAndEvents(false);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "The event could not be saved.");
     } finally {
@@ -481,8 +924,10 @@ export function GoogleCalendarPanel({
       if (!response.ok) {
         throw new Error(body?.error ?? "The event could not be deleted.");
       }
+      clearPendingLocalEvent(editingEvent.id);
+      setEvents((currentEvents) => currentEvents.filter((currentEvent) => currentEvent.id !== editingEvent.id));
       setEditingEvent(null);
-      await loadConnectionAndEvents(false);
+      void loadConnectionAndEvents(false);
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "The event could not be deleted.");
     } finally {
@@ -502,7 +947,7 @@ export function GoogleCalendarPanel({
   function getGestureRange(gesture: EventGesture, clientY: number) {
     const pointerMinutes = snapMinutes(getMinutesAtPointer(clientY, gesture.stage, gesture.timelineHours));
     let deltaMinutes = pointerMinutes - gesture.originPointerMinutes;
-    const minimumDuration = 15 * 60_000;
+    const minimumDuration = MIN_EVENT_DURATION_MINUTES * MINUTE_MS;
     let start = gesture.originStart;
     let end = gesture.originEnd;
 
@@ -697,15 +1142,12 @@ export function GoogleCalendarPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const allDayEvents = visibleLiveEvents.filter((event) => event.allDay);
-  const timedEvents = visibleLiveEvents.filter((event) => !event.allDay);
-
   return (
     <section className="hu-region hu-calendar-region" aria-label="Planner">
       <div className="hu-calendar-toolbar">
         <div>
           <span className="hu-calendar-kicker">Planner</span>
-          <strong>{formatDateLabel(date)}</strong>
+          <strong>{formatDateLabel(selectedDate)}</strong>
         </div>
         <div className="hu-calendar-actions">
           {isConnected ? (
@@ -731,6 +1173,52 @@ export function GoogleCalendarPanel({
         </div>
       </div>
 
+      <div
+        className="hu-calendar-date-bar"
+        title={settings.nightOwlMode ? `Night Owl day starts at ${formatStartTime(settings.dayStartTime)}.` : "Full calendar day."}
+      >
+        <div className="hu-calendar-date-nav" aria-label="Planner dates">
+          <button
+            aria-label="Previous day"
+            className="hu-calendar-date-arrow"
+            disabled={selectedDateIndex === 0}
+            type="button"
+            onClick={() => scrollToPlannerDay(plannerDates[selectedDateIndex - 1])}
+          >
+            <ChevronLeft aria-hidden="true" size={15} />
+          </button>
+          <div className="hu-calendar-date-strip">
+            {plannerDates.map((plannerDate) => (
+              <button
+                aria-pressed={selectedDate === plannerDate}
+                className={`hu-calendar-day-button ${selectedDate === plannerDate ? "is-active" : ""}`}
+                key={plannerDate}
+                type="button"
+                onClick={() => scrollToPlannerDay(plannerDate)}
+              >
+                <span className="hu-calendar-day-label">{formatDayButtonLabel(plannerDate, date)}</span>
+                <span className="hu-calendar-day-number">{new Date(`${plannerDate}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+              </button>
+            ))}
+          </div>
+          <button
+            aria-label="Next day"
+            className="hu-calendar-date-arrow"
+            disabled={selectedDateIndex === plannerDates.length - 1}
+            type="button"
+            onClick={() => scrollToPlannerDay(plannerDates[selectedDateIndex + 1])}
+          >
+            <ChevronRight aria-hidden="true" size={15} />
+          </button>
+        </div>
+        {showJumpToNow ? (
+          <button aria-label="Jump to current time" className="hu-calendar-now-button" type="button" onClick={jumpToNow}>
+            <Clock3 aria-hidden="true" size={13} />
+            Now
+          </button>
+        ) : null}
+      </div>
+
       {error ? <div className="hu-calendar-alert" role="alert">{error}</div> : null}
 
       {!isConnected && !isLoading ? (
@@ -745,78 +1233,129 @@ export function GoogleCalendarPanel({
       ) : null}
 
       {isConnected ? <div className="hu-calendar-body">
-        {allDayEvents.length > 0 ? (
-          <div className="hu-calendar-all-day" aria-label="All-day events">
-            <span>All day</span>
-            <div>
-              {allDayEvents.map((event) => (
-                <button className="hu-all-day-event" key={event.id} type="button" onClick={() => beginEdit(event)}>
-                  {event.title}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
         <div className="hu-timeline">
-          <div className="hu-time-labels" aria-hidden="true">
-            {timeLabels.map((label, index) => (
-              <span className="hu-time-label" key={label} style={{ top: `${(index / timelineHours) * 100}%` }}>
-                {label}
-              </span>
-            ))}
-          </div>
-          <div className="hu-calendar-stage" role="list" aria-label={`Planner for ${date}`} style={{ "--hu-visible-hours": timelineHours } as CSSProperties}>
-            <span className="hu-now-line" style={{ top: `${clamp(((nowTimestamp - timelineStartTimestamp) / (timelineHours * HOUR_MS)) * 100, 0, 100)}%` }}>
-              <span className="hu-now-label">{currentTimeLabel}</span>
-            </span>
+          <div
+            className="hu-timeline-scroll"
+            ref={timelineScrollRef}
+            onPointerCancel={handleTimelinePointerCancel}
+            onPointerDown={handleTimelinePointerDown}
+            onPointerUp={handleTimelinePointerUp}
+            onTouchCancel={handleTimelineTouchCancel}
+            onTouchEnd={handleTimelineTouchEnd}
+            onTouchStart={handleTimelineTouchStart}
+            onScroll={(event) => handleTimelineScroll(event.currentTarget)}
+          >
+            {plannerTimelineDays.map((day) => {
+              const midnightTimestamp = getTimestampForLocalDateTime(addCalendarDays(day.date, 1), 0, timeZone);
+              const midnightPosition = getTimelineMarkerPosition(midnightTimestamp, day.timelineStartTimestamp, day.timelineEndTimestamp);
+              const isCurrentDay = day.date === date;
+              const timeLabels = day.timeLabels;
 
-            {timedEvents.map((event) => {
-              const renderedEvent = dragPreview?.eventId === event.id
-                ? { ...event, start: dragPreview.start, end: dragPreview.end }
-                : event;
-              const range = getEventRange(renderedEvent, timelineStartTimestamp, timelineEndTimestamp);
-              if (!range) return null;
               return (
-                <button
-                  className={`hu-event hu-event-button ${event.hasAttendees ? "is-guest-event" : ""} ${event.isTaskBlock ? "is-task-block" : ""} ${eventGesture?.event.id === event.id ? "is-gesture-active" : ""}`}
-                  key={event.id}
-                  role="listitem"
-                  style={{
-                    top: `${(range.start / (timelineHours * 60)) * 100}%`,
-                    height: `${((range.end - range.start) / (timelineHours * 60)) * 100}%`,
-                  }}
-                  title={event.meetingUrl ? "Video meeting available. Open the event for details." : event.isTaskBlock ? "Drag to move and lock this task block. Delete it to reschedule." : "Drag to move. Drag the top or bottom edge to change the time."}
-                  type="button"
-                  onPointerDown={(pointerEvent) => startEventGesture(pointerEvent, event, "move")}
-                  onClick={() => handleEventClick(event)}
-                >
-                  <span
-                    aria-hidden="true"
-                    className="hu-event-resize-handle hu-event-resize-handle-start"
-                    onPointerDown={(pointerEvent) => {
-                      pointerEvent.stopPropagation();
-                      startEventGesture(pointerEvent, event, "resize-start");
-                    }}
-                  />
-                  <span className="hu-event-heading">
-                    <span className="hu-event-title">{event.title}</span>
-                    {event.meetingUrl ? (
-                      <span aria-label="Video meeting available" className="hu-event-meeting" title="Video meeting available">
-                        <Video aria-hidden="true" size={12} />
-                      </span>
+                <section className="hu-calendar-day" data-date={day.date} key={day.date}>
+                  <div className="hu-calendar-day-heading">
+                    <div className="hu-calendar-day-heading-copy">
+                      <span className="hu-calendar-day-kicker">Planner day</span>
+                      <strong>{formatDateLabel(day.date)}</strong>
+                      <span>{settings.nightOwlMode ? `Night Owl · ${formatStartTime(settings.dayStartTime)} start` : "Midnight start"}</span>
+                    </div>
+                    {day.allDayEvents.length > 0 ? (
+                      <div className="hu-calendar-day-all-day" aria-label={`All-day events for ${day.date}`}>
+                        <span>All day</span>
+                        {day.allDayEvents.map((event) => (
+                          <button className="hu-all-day-event" key={event.id} type="button" onClick={() => beginEdit(event)}>
+                            {event.title}
+                          </button>
+                        ))}
+                      </div>
                     ) : null}
-                  </span>
-                  <span className="hu-event-meta">{formatEventTime(renderedEvent, timeZone)}</span>
-                  <span
-                    aria-hidden="true"
-                    className="hu-event-resize-handle hu-event-resize-handle-end"
-                    onPointerDown={(pointerEvent) => {
-                      pointerEvent.stopPropagation();
-                      startEventGesture(pointerEvent, event, "resize-end");
-                    }}
-                  />
-                </button>
+                  </div>
+                  <div className="hu-calendar-day-grid">
+                    <div className="hu-time-labels" aria-hidden="true" style={{ "--hu-visible-hours": timelineHours, "--hu-hour-height": `${timelineHourHeight}px` } as CSSProperties}>
+                      {timeLabels.map((label, index) => (
+                        <span className="hu-time-label" key={`${day.date}-${label}-${index}`} style={{ top: `${(index / timelineHours) * 100}%` }}>
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="hu-calendar-stage" role="list" aria-label={`Planner for ${day.date}`} style={{ "--hu-visible-hours": timelineHours, "--hu-hour-height": `${timelineHourHeight}px` } as CSSProperties}>
+                      <span className={`hu-timeline-marker hu-timeline-marker-midnight ${midnightPosition === 0 ? "is-at-start" : ""}`} style={{ top: `${midnightPosition}%` }}>
+                        <span>12 AM</span>
+                      </span>
+                      {settings.nightOwlMode ? (
+                        <span className="hu-timeline-marker hu-timeline-marker-night-owl is-at-start" style={{ top: "0%" }}>
+                          <span>{formatStartTime(settings.dayStartTime)} · day starts</span>
+                        </span>
+                      ) : null}
+                      {isCurrentDay && nowTimestamp >= day.timelineStartTimestamp && nowTimestamp <= day.timelineEndTimestamp ? (
+                        <span className="hu-now-line" style={{ top: `${getTimelineMarkerPosition(nowTimestamp, day.timelineStartTimestamp, day.timelineEndTimestamp)}%` }}>
+                          <span className="hu-now-label">{currentTimeLabel}</span>
+                        </span>
+                      ) : null}
+
+                      {day.timedEvents.map((event) => {
+                        const renderedEvent = dragPreview?.eventId === event.id
+                          ? { ...event, start: dragPreview.start, end: dragPreview.end }
+                          : event;
+                        const range = getEventRange(renderedEvent, day.timelineStartTimestamp, day.timelineEndTimestamp);
+                        if (!range) return null;
+                        const visibleMinutes = range.end - range.start;
+                        const eventHeight = (visibleMinutes / 60) * timelineHourHeight;
+                        const eventIsCompact = eventHeight < 72;
+                        const eventHidesTitle = eventHeight < 30;
+                        const eventIsTiny = eventHeight < 18;
+                        const eventTimeLabel = formatEventTime(renderedEvent, timeZone);
+                        return (
+                          <button
+                            aria-label={`${event.title}. ${eventTimeLabel}${event.isPendingSchedule ? ". Scheduling now." : ""}`}
+                            className={`hu-event hu-event-button ${event.hasAttendees ? "is-guest-event" : ""} ${event.isTaskBlock ? "is-task-block" : ""} ${event.isPlannerSynthetic ? "is-planner-synthetic" : ""} ${event.isPendingSchedule ? "is-pending-schedule" : ""} ${eventIsTiny ? "is-tiny" : ""} ${eventGesture?.event.id === event.id ? "is-gesture-active" : ""}`}
+                            key={event.id}
+                            role="listitem"
+                            style={{
+                              top: `${(range.start / (timelineHours * 60)) * 100}%`,
+                              height: `${((range.end - range.start) / (timelineHours * 60)) * 100}%`,
+                            }}
+                            title={`${event.title} · ${eventTimeLabel}${event.isPendingSchedule ? " · Scheduling…" : ""}`}
+                            type="button"
+                            onPointerDown={event.isPlannerSynthetic ? undefined : (pointerEvent) => startEventGesture(pointerEvent, event, "move")}
+                            onClick={event.isPlannerSynthetic ? undefined : () => handleEventClick(event)}
+                          >
+                            {!event.isPlannerSynthetic ? (
+                              <span
+                                aria-hidden="true"
+                                className="hu-event-resize-handle hu-event-resize-handle-start"
+                                onPointerDown={(pointerEvent) => {
+                                  pointerEvent.stopPropagation();
+                                  startEventGesture(pointerEvent, event, "resize-start");
+                                }}
+                              />
+                            ) : null}
+                            <span className={`hu-event-heading ${eventIsCompact ? "is-compact" : ""}`}>
+                              <span className={`hu-event-title ${eventHidesTitle ? "is-hidden" : ""}`}>{event.title}</span>
+                              {event.meetingUrl ? (
+                                <span aria-label="Video meeting available" className="hu-event-meeting" title="Video meeting available">
+                                  <Video aria-hidden="true" size={12} />
+                                </span>
+                              ) : null}
+                              {eventIsCompact ? <span className="hu-event-meta">{eventTimeLabel}</span> : null}
+                            </span>
+                            {!eventIsCompact ? <span className="hu-event-meta">{eventTimeLabel}</span> : null}
+                            {!event.isPlannerSynthetic ? (
+                              <span
+                                aria-hidden="true"
+                                className="hu-event-resize-handle hu-event-resize-handle-end"
+                                onPointerDown={(pointerEvent) => {
+                                  pointerEvent.stopPropagation();
+                                  startEventGesture(pointerEvent, event, "resize-end");
+                                }}
+                              />
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </section>
               );
             })}
           </div>

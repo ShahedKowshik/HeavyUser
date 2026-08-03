@@ -9,8 +9,8 @@ import {
 const VALID_VISIBILITY: ReadonlyArray<CalendarVisibility> = ["default", "public", "private"];
 const VALID_TRANSPARENCY: ReadonlyArray<CalendarTransparency> = ["default", "opaque", "transparent"];
 
-function isTime(value: unknown): value is string {
-  return typeof value === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
+function isTime(value: unknown, allowEndOfDay = false): value is string {
+  return typeof value === "string" && (allowEndOfDay && value === "24:00" || /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value));
 }
 
 function isTimezone(value: unknown): value is string {
@@ -30,12 +30,26 @@ function normalizeWindow(value: unknown): WorkWindow | null {
     return null;
   }
 
-  const candidate = value as { start?: unknown; end?: unknown };
-  if (!isTime(candidate.start) || !isTime(candidate.end) || candidate.start >= candidate.end) {
+  const candidate = value as { start?: unknown; end?: unknown; allDay?: unknown };
+  if (candidate.allDay === true) {
+    return { start: "00:00", end: "23:59", allDay: true };
+  }
+  if (!isTime(candidate.start) || !isTime(candidate.end, true) || candidate.start >= candidate.end) {
     return null;
   }
 
   return { start: candidate.start, end: candidate.end };
+}
+
+function normalizeDayWindows(value: unknown, fallback: ReadonlyArray<WorkWindow>) {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const normalized = value.map(normalizeWindow).filter((window): window is WorkWindow => window !== null);
+  const allDayWindow = normalized.find((window) => window.allDay);
+  const manualWindows = normalized.filter((window) => !window.allDay).slice(0, 4);
+  return allDayWindow ? [allDayWindow, ...manualWindows] : manualWindows;
 }
 
 export function normalizeWorkWindows(value: unknown): WorkWindows {
@@ -45,15 +59,17 @@ export function normalizeWorkWindows(value: unknown): WorkWindows {
       const valueForDay = source[String(day)];
       return [
         String(day),
-        Array.isArray(valueForDay)
-          ? valueForDay.map(normalizeWindow).filter((window): window is WorkWindow => window !== null).slice(0, 4)
-          : DEFAULT_SCHEDULER_PREFERENCES.workWindows[String(day)] ?? [],
+        normalizeDayWindows(valueForDay, DEFAULT_SCHEDULER_PREFERENCES.workWindows[String(day)] ?? []),
       ];
     }),
   );
 }
 
-export function normalizeSchedulerPreferences(value: unknown, timezoneFallback = "UTC"): SchedulerPreferences {
+export function normalizeSchedulerPreferences(
+  value: unknown,
+  timezoneFallback = "UTC",
+  daySettings?: Partial<Pick<SchedulerPreferences, "nightOwlMode" | "dayStartTime">>,
+): SchedulerPreferences {
   const candidate = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const minValue = candidate.default_min_block_minutes ?? candidate.defaultMinBlockMinutes;
   const maxCandidate = candidate.default_max_block_minutes ?? candidate.defaultMaxBlockMinutes;
@@ -64,6 +80,11 @@ export function normalizeSchedulerPreferences(value: unknown, timezoneFallback =
     ? Math.round(maxCandidate)
     : DEFAULT_SCHEDULER_PREFERENCES.defaultMaxBlockMinutes;
   const max = Math.max(min, maxValue >= 5 ? maxValue : DEFAULT_SCHEDULER_PREFERENCES.defaultMaxBlockMinutes);
+  const dayStartValue = candidate.day_start_time ?? candidate.dayStartTime;
+  const hasNightOwlValue = candidate.night_owl_mode !== undefined || candidate.nightOwlMode !== undefined;
+  const nightOwlMode = hasNightOwlValue
+    ? candidate.night_owl_mode === true || candidate.nightOwlMode === true
+    : daySettings?.nightOwlMode ?? DEFAULT_SCHEDULER_PREFERENCES.nightOwlMode;
   const visibilityValue = candidate.default_calendar_visibility ?? candidate.defaultCalendarVisibility;
   const transparencyValue = candidate.default_calendar_transparency ?? candidate.defaultCalendarTransparency;
   const visibility = VALID_VISIBILITY.includes(visibilityValue as CalendarVisibility)
@@ -79,11 +100,19 @@ export function normalizeSchedulerPreferences(value: unknown, timezoneFallback =
       ? candidate.timezone
       : (isTimezone(timezoneFallback) ? timezoneFallback : DEFAULT_SCHEDULER_PREFERENCES.timezone),
     workWindows: normalizeWorkWindows(candidate.work_windows ?? candidate.workWindows),
+    nightOwlMode,
+    dayStartTime: isTime(dayStartValue)
+      ? dayStartValue
+      : (isTime(daySettings?.dayStartTime) ? daySettings.dayStartTime : DEFAULT_SCHEDULER_PREFERENCES.dayStartTime),
     defaultMinBlockMinutes: min,
     defaultMaxBlockMinutes: max,
     defaultCalendarVisibility: visibility,
     defaultCalendarTransparency: transparency,
   };
+}
+
+export function hasWorkingWindow(preferences: SchedulerPreferences) {
+  return Object.values(preferences.workWindows).some((windows) => windows.length > 0);
 }
 
 export function preferencesToRow(preferences: SchedulerPreferences, userId: string) {

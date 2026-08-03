@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedGoogleContext } from "@/lib/google/server";
-import { loadTaskScheduleStatus } from "@/lib/scheduler/service";
+import { loadTaskScheduleSnapshot } from "@/lib/scheduler/service";
 
 export async function GET() {
   const context = await getAuthenticatedGoogleContext();
@@ -9,8 +9,8 @@ export async function GET() {
   }
 
   try {
-    return NextResponse.json({ statuses: await loadTaskScheduleStatus(context.user.id) });
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Scheduling status could not be loaded." }, { status: 500 });
+    return NextResponse.json(await loadTaskScheduleSnapshot(context.user.id));
+  } catch {
+    return NextResponse.json({ error: "Scheduling status could not be loaded." }, { status: 500 });
   }
 }

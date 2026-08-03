@@ -1,3 +1,5 @@
+import "server-only";
+
 import { randomUUID } from "node:crypto";
 import type { GoogleConnection, GoogleDbClient } from "@/lib/google/server";
 import {
@@ -12,6 +14,7 @@ import {
   setGoogleConnectionError,
 } from "@/lib/google/server";
 import { queueSchedulerJob } from "@/lib/scheduler/queue";
+import { hashSecret } from "@/lib/security/http";
 
 const EVENT_KEY_DELETE_BATCH_SIZE = 100;
 
@@ -75,7 +78,7 @@ export function getGoogleEventKey(event: GoogleEvent) {
   return `${event.id}::${originalStart}`;
 }
 
-function mapGoogleEvent(userId: string, event: GoogleEvent) {
+export function mapGoogleEvent(userId: string, event: GoogleEvent) {
   const startDateTime = getDateTime(event.start);
   const endDateTime = getDateTime(event.end);
   const startDate = getDate(event.start);
@@ -112,6 +115,17 @@ function mapGoogleEvent(userId: string, event: GoogleEvent) {
   };
 }
 
+export async function upsertGoogleCalendarEvent(client: GoogleDbClient, userId: string, event: GoogleEvent) {
+  const row = mapGoogleEvent(userId, event);
+  const { error } = await client
+    .from("google_calendar_events")
+    .upsert(row, { onConflict: "user_id,event_key" });
+  if (error) {
+    throw new Error(`Google Calendar event cache update failed: ${error.message}`);
+  }
+  return row;
+}
+
 async function applyEvents(client: GoogleDbClient, userId: string, events: GoogleEvent[]) {
   const activeEvents = events.filter((event) => event.status !== "cancelled");
   const cancelledKeys = [...new Set(events.filter((event) => event.status === "cancelled").map(getGoogleEventKey))];
@@ -132,7 +146,7 @@ async function applyEvents(client: GoogleDbClient, userId: string, events: Googl
 
   const { error } = await client.from("google_calendar_events").upsert(
     activeEvents.map((event) => mapGoogleEvent(userId, event)),
-    { onConflict: "event_key" },
+    { onConflict: "user_id,event_key" },
   );
   if (error) {
     throw new Error(`Google Calendar event sync failed: ${error.message}`);
@@ -171,29 +185,34 @@ async function ensureWatch(client: GoogleDbClient, connection: GoogleConnection,
 
   const state = await loadGoogleSyncState(client, connection.user_id);
   const expiration = state?.channel_expiration ? new Date(state.channel_expiration).getTime() : 0;
-  if (state?.channel_id && expiration > Date.now() + 24 * 60 * 60 * 1000) {
+  if (state?.channel_id && state.channel_token_hash && expiration > Date.now() + 24 * 60 * 60 * 1000) {
     return;
   }
 
   const { getGoogleWebhookUri } = await import("@/lib/google/config");
+  const channelToken = randomUUID();
   const channel = await watchGoogleEvents({
     accessToken,
     calendarId: connection.selected_calendar_id!,
     channelId: randomUUID(),
-    channelToken: randomUUID(),
-    address: getGoogleWebhookUri(request),
+    channelToken,
+    address: getGoogleWebhookUri(),
   });
 
-  await client.from("google_calendar_sync_states").upsert({
+  const { error } = await client.from("google_calendar_sync_states").upsert({
     user_id: connection.user_id,
     sync_token: state?.sync_token ?? null,
     channel_id: channel.id,
     resource_id: channel.resourceId,
+    channel_token_hash: hashSecret(channelToken),
     channel_expiration: channel.expiration ? new Date(Number(channel.expiration)).toISOString() : null,
     last_synced_at: state?.last_synced_at ?? null,
     last_error: null,
     updated_at: new Date().toISOString(),
   }, { onConflict: "user_id" });
+  if (error) {
+    throw error;
+  }
 }
 
 export async function syncGoogleCalendar(
@@ -212,7 +231,8 @@ export async function syncGoogleCalendar(
 
   try {
     if (fullSync) {
-      await client.from("google_calendar_events").delete().eq("user_id", connection.user_id);
+      const { error } = await client.from("google_calendar_events").delete().eq("user_id", connection.user_id);
+      if (error) throw error;
     }
 
     try {
@@ -223,31 +243,39 @@ export async function syncGoogleCalendar(
       }
 
       fullSync = true;
-      await client.from("google_calendar_events").delete().eq("user_id", connection.user_id);
+      const { error: cleanupError } = await client.from("google_calendar_events").delete().eq("user_id", connection.user_id);
+      if (cleanupError) throw cleanupError;
       result = await performEventSync(client, connection, null);
     }
 
     await applyEvents(client, connection.user_id, result.events);
-    await client.from("google_calendar_sync_states").upsert({
+    const { error: syncStateError } = await client.from("google_calendar_sync_states").upsert({
       user_id: connection.user_id,
       sync_token: result.nextSyncToken,
       channel_id: state?.channel_id ?? null,
       resource_id: state?.resource_id ?? null,
+      channel_token_hash: state?.channel_token_hash ?? null,
       channel_expiration: state?.channel_expiration ?? null,
       last_synced_at: new Date().toISOString(),
       last_error: null,
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" });
+    if (syncStateError) {
+      throw syncStateError;
+    }
 
     try {
       await ensureWatch(client, connection, request, result.accessToken);
     } catch (watchError) {
       // Localhost and private preview URLs cannot receive Google webhooks. The
       // app-load incremental sync remains available as a safe fallback.
-      await client.from("google_calendar_sync_states").update({
+      const { error: watchStateError } = await client.from("google_calendar_sync_states").update({
         last_error: watchError instanceof Error ? watchError.message : "Webhook setup failed.",
         updated_at: new Date().toISOString(),
       }).eq("user_id", connection.user_id);
+      if (watchStateError) {
+        throw watchStateError;
+      }
     }
 
     // A prior transient failure should not leave the connection marked as

@@ -9,6 +9,8 @@ const inter = Inter({
   variable: "--font-sans",
 });
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "HeavyUser — Tasks",
   description: "A focused daily workspace for tasks and time.",

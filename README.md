@@ -67,7 +67,9 @@ Open [http://localhost:3000](http://localhost:3000).
 ```bash
 pnpm lint
 pnpm typecheck
+pnpm test
 pnpm build
+pnpm audit --prod
 ```
 
 ## Stack

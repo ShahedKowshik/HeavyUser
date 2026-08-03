@@ -4,3 +4,7 @@ allowBuilds:
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+overrides:
+  fast-uri: 3.1.5
+  sharp: 0.35.3
+  postcss: 8.5.25

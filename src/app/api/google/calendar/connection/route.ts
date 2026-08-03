@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { stopGoogleChannel } from "@/lib/google/client";
 import { googleErrorMessage, getUsableGoogleAccessToken, loadGoogleConnection, loadGoogleSyncState, publicGoogleConnection, requireAuthenticatedGoogleContext } from "@/lib/google/server";
 import { pauseSchedulerForUser, removeManagedBlocksForConnection } from "@/lib/scheduler/service";
+import { rejectCrossOriginMutation } from "@/lib/security/http";
 
 export async function GET() {
   const context = await requireAuthenticatedGoogleContext();
@@ -9,18 +10,23 @@ export async function GET() {
     return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
   }
 
-  const connection = await loadGoogleConnection(context.client, context.user.id);
+  const connection = await loadGoogleConnection(context.admin, context.user.id);
   return NextResponse.json({ connection: publicGoogleConnection(connection) });
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
   const context = await requireAuthenticatedGoogleContext();
   if (!context) {
     return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
   }
 
-  const connection = await loadGoogleConnection(context.client, context.user.id);
-  const state = await loadGoogleSyncState(context.client, context.user.id);
+  const originError = rejectCrossOriginMutation(request);
+  if (originError) {
+    return originError;
+  }
+
+  const connection = await loadGoogleConnection(context.admin, context.user.id);
+  const state = await loadGoogleSyncState(context.admin, context.user.id);
   let cleanupWarning: string | null = null;
 
   if (connection?.selected_calendar_id) {
@@ -36,7 +42,7 @@ export async function DELETE() {
 
   if (connection && state?.channel_id && state.resource_id) {
     try {
-      const accessToken = await getUsableGoogleAccessToken(context.client, connection);
+      const accessToken = await getUsableGoogleAccessToken(context.admin, connection);
       await stopGoogleChannel({ accessToken, channelId: state.channel_id, resourceId: state.resource_id });
     } catch {
       // The channel may already have expired; deleting local state is sufficient.
@@ -44,9 +50,9 @@ export async function DELETE() {
   }
 
   const results = await Promise.all([
-    context.client.from("google_calendar_events").delete().eq("user_id", context.user.id),
-    context.client.from("google_calendar_sync_states").delete().eq("user_id", context.user.id),
-    context.client.from("google_calendar_connections").delete().eq("user_id", context.user.id),
+    context.admin.from("google_calendar_events").delete().eq("user_id", context.user.id),
+    context.admin.from("google_calendar_sync_states").delete().eq("user_id", context.user.id),
+    context.admin.from("google_calendar_connections").delete().eq("user_id", context.user.id),
   ]);
   const failed = results.find((result) => result.error);
   if (failed?.error) {

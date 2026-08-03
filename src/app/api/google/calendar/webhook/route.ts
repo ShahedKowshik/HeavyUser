@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { loadGoogleConnection, getSupabaseAdminClient } from "@/lib/google/server";
 import { syncGoogleCalendar } from "@/lib/google/sync";
+import { matchesSecret } from "@/lib/security/http";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const channelId = request.headers.get("x-goog-channel-id");
   const resourceId = request.headers.get("x-goog-resource-id");
-  if (!channelId || !resourceId) {
+  const channelToken = request.headers.get("x-goog-channel-token");
+  if (!channelId || !resourceId || !channelToken) {
     return new NextResponse(null, { status: 204 });
   }
 
@@ -14,13 +18,13 @@ export async function POST(request: Request) {
     return new NextResponse(null, { status: 204 });
   }
 
-  const { data: state } = await admin
+  const { data: state, error } = await admin
     .from("google_calendar_sync_states")
     .select("*")
     .eq("channel_id", channelId)
     .eq("resource_id", resourceId)
     .maybeSingle();
-  if (!state) {
+  if (error || !state || !state.channel_token_hash || !matchesSecret(channelToken, state.channel_token_hash)) {
     return new NextResponse(null, { status: 204 });
   }
 

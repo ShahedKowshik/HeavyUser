@@ -8,9 +8,15 @@ import {
   requireAuthenticatedGoogleContext,
 } from "@/lib/google/server";
 import { syncGoogleCalendar } from "@/lib/google/sync";
-import { runSchedulerForUser } from "@/lib/scheduler/service";
+import { runSchedulerForUserWithRetry } from "@/lib/scheduler/service";
+import { rejectCrossOriginMutation, rejectOversizedBody } from "@/lib/security/http";
 
 export async function POST(request: Request) {
+  const originError = rejectCrossOriginMutation(request) ?? rejectOversizedBody(request);
+  if (originError) {
+    return originError;
+  }
+
   const context = await requireAuthenticatedGoogleContext();
   if (!context) {
     return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
@@ -18,17 +24,17 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => null)) as { calendarId?: unknown } | null;
   const calendarId = typeof body?.calendarId === "string" ? body.calendarId : "";
-  if (!calendarId) {
+  if (!calendarId || calendarId.length > 512) {
     return NextResponse.json({ error: "Choose a calendar." }, { status: 400 });
   }
 
-  const connection = await loadGoogleConnection(context.client, context.user.id);
+  const connection = await loadGoogleConnection(context.admin, context.user.id);
   if (!connection) {
     return NextResponse.json({ error: "Connect Google Calendar first." }, { status: 400 });
   }
 
   try {
-    const accessToken = await getUsableGoogleAccessToken(context.client, connection);
+    const accessToken = await getUsableGoogleAccessToken(context.admin, connection);
     const calendars = await listGoogleCalendars(accessToken);
     const selected = calendars.find((calendar) => calendar.id === calendarId);
     if (!selected) {
@@ -36,15 +42,15 @@ export async function POST(request: Request) {
     }
 
     const cleanupResults = await Promise.all([
-      context.client.from("google_calendar_events").delete().eq("user_id", context.user.id),
-      context.client.from("google_calendar_sync_states").delete().eq("user_id", context.user.id),
+      context.admin.from("google_calendar_events").delete().eq("user_id", context.user.id),
+      context.admin.from("google_calendar_sync_states").delete().eq("user_id", context.user.id),
     ]);
     const cleanupFailure = cleanupResults.find((result) => result.error);
     if (cleanupFailure?.error) {
       throw cleanupFailure.error;
     }
 
-    const { error } = await context.client.from("google_calendar_connections").update({
+    const { error } = await context.admin.from("google_calendar_connections").update({
       selected_calendar_id: selected.id,
       selected_calendar_name: selected.summary ?? selected.id,
       selected_calendar_timezone: selected.timeZone ?? "UTC",
@@ -56,13 +62,13 @@ export async function POST(request: Request) {
       throw error;
     }
 
-    const updatedConnection = await loadGoogleConnection(context.client, context.user.id);
+    const updatedConnection = await loadGoogleConnection(context.admin, context.user.id);
     if (!updatedConnection) {
       throw new Error("The calendar connection could not be saved.");
     }
 
-    const sync = await syncGoogleCalendar(context.client, updatedConnection, request);
-    const scheduler = await runSchedulerForUser(context.user.id, request);
+    const sync = await syncGoogleCalendar(context.admin, updatedConnection, request);
+    const scheduler = await runSchedulerForUserWithRetry(context.user.id, request);
     return NextResponse.json({ connection: publicGoogleConnection(updatedConnection), sync, scheduler });
   } catch (error) {
     return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });

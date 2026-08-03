@@ -1,4 +1,6 @@
-import { createHash } from "node:crypto";
+import "server-only";
+
+import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   deleteGoogleEvent,
@@ -15,12 +17,21 @@ import {
   type GoogleConnection,
   type GoogleDbClient,
 } from "@/lib/google/server";
-import { getGoogleEventKey, syncGoogleCalendar } from "@/lib/google/sync";
+import { getGoogleEventKey, syncGoogleCalendar, upsertGoogleCalendarEvent } from "@/lib/google/sync";
 import type { Database } from "@/lib/supabase/database.types";
+import { normalizeUserSettings } from "@/lib/supabase/settings";
 import type { CalendarTransparency, CalendarVisibility } from "@/lib/tasks";
 import { normalizeSchedulerPreferences } from "@/lib/scheduler/preferences";
 import { planSchedule } from "@/lib/scheduler/planner";
-import type { BusyInterval, ScheduledBlock, SchedulerPreferences, SchedulerTask } from "@/lib/scheduler/types";
+import type {
+  BusyInterval,
+  ScheduleBlockSnapshot,
+  ScheduledBlock,
+  SchedulerPreferences,
+  SchedulerTask,
+  TaskScheduleSnapshot,
+  TaskScheduleStatus,
+} from "@/lib/scheduler/types";
 
 type SchedulerAdminClient = SupabaseClient<Database>;
 type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
@@ -29,6 +40,9 @@ type StatusRow = Database["public"]["Tables"]["task_schedule_status"]["Row"];
 type CalendarEventRow = Database["public"]["Tables"]["google_calendar_events"]["Row"];
 
 const RETRY_MINUTES = [1, 5, 15, 60];
+const BUSY_RETRY_DELAY_MS = 750;
+const BUSY_RETRY_TIMEOUT_MS = 45_000;
+const MAX_QUEUE_RUNTIME_MS = 45_000;
 
 export type SchedulerSummary = {
   userId: string;
@@ -180,13 +194,13 @@ function providerEventId(userId: string, taskId: string, blockId: string) {
   return `hu${digest}`;
 }
 
-function plannedBlockId(taskId: string, start: string, end: string) {
-  const digest = createHash("sha256").update(`${taskId}:${start}:${end}`).digest("hex").slice(0, 24);
+function plannedBlockId(userId: string, taskId: string, start: string, end: string) {
+  const digest = createHash("sha256").update(`${userId}:${taskId}:${start}:${end}`).digest("hex").slice(0, 24);
   return `block-${digest}`;
 }
 
-function availablePlannedBlockId(taskId: string, start: string, end: string, blocks: ReadonlyArray<BlockRow>) {
-  const base = plannedBlockId(taskId, start, end);
+function availablePlannedBlockId(userId: string, taskId: string, start: string, end: string, blocks: ReadonlyArray<BlockRow>) {
+  const base = plannedBlockId(userId, taskId, start, end);
   if (!blocks.some((block) => block.id === base)) {
     return base;
   }
@@ -206,10 +220,11 @@ function getFutureBlocks(blocks: ReadonlyArray<BlockRow>, taskId: string, now: n
     .sort((first, second) => first.start_at.localeCompare(second.start_at));
 }
 
-async function updateBlock(client: SchedulerAdminClient, blockId: string, values: Database["public"]["Tables"]["task_schedule_blocks"]["Update"]) {
+async function updateBlock(client: SchedulerAdminClient, userId: string, blockId: string, values: Database["public"]["Tables"]["task_schedule_blocks"]["Update"]) {
   const { error } = await client
     .from("task_schedule_blocks")
     .update({ ...values, updated_at: new Date().toISOString() })
+    .eq("user_id", userId)
     .eq("id", blockId);
   if (error) {
     throw error;
@@ -226,7 +241,7 @@ async function markExternalChanges(client: SchedulerAdminClient, blocks: BlockRo
 
     const event = eventsByProviderId.get(block.provider_event_id);
     if (!event) {
-      await updateBlock(client, block.id, {
+      await updateBlock(client, block.user_id, block.id, {
         state: "replaced",
         sync_version: block.sync_version + 1,
         last_error: "The Google Calendar event was deleted.",
@@ -247,7 +262,7 @@ async function markExternalChanges(client: SchedulerAdminClient, blocks: BlockRo
       || new Date(event.end_at).getTime() !== new Date(block.end_at).getTime();
     const metadataChanged = Boolean(event.etag && block.etag && event.etag !== block.etag);
     if (timeChanged || metadataChanged) {
-      await updateBlock(client, block.id, {
+      await updateBlock(client, block.user_id, block.id, {
         state: "locked",
         start_at: event.start_at ?? block.start_at,
         end_at: event.end_at ?? block.end_at,
@@ -263,16 +278,23 @@ async function markExternalChanges(client: SchedulerAdminClient, blocks: BlockRo
 }
 
 async function loadPreferences(client: SchedulerAdminClient, userId: string, fallbackTimezone: string) {
-  const { data, error } = await client
-    .from("task_scheduling_preferences")
-    .select("*")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) {
-    throw error;
+  const [preferencesResult, userResult] = await Promise.all([
+    client
+      .from("task_scheduling_preferences")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    client.auth.admin.getUserById(userId),
+  ]);
+  if (preferencesResult.error) {
+    throw preferencesResult.error;
+  }
+  if (userResult.error) {
+    throw userResult.error;
   }
 
-  return normalizeSchedulerPreferences(data, fallbackTimezone);
+  const daySettings = normalizeUserSettings(userResult.data.user?.user_metadata?.heavyuser_settings);
+  return normalizeSchedulerPreferences(preferencesResult.data, fallbackTimezone, daySettings);
 }
 
 async function loadSchedulerData(client: SchedulerAdminClient, userId: string, connection: GoogleConnection) {
@@ -334,8 +356,16 @@ async function removeBlockEvent(client: SchedulerAdminClient, connection: Google
       calendarId: block.calendar_id,
       eventId: block.provider_event_id,
     });
+    const { error } = await client
+      .from("google_calendar_events")
+      .delete()
+      .eq("user_id", block.user_id)
+      .eq("provider_event_id", block.provider_event_id);
+    if (error) {
+      throw error;
+    }
   }
-  await updateBlock(client, block.id, { state: "cancelled", sync_version: block.sync_version + 1, last_error: null });
+  await updateBlock(client, block.user_id, block.id, { state: "cancelled", sync_version: block.sync_version + 1, last_error: null });
 }
 
 async function processTaskCleanup(client: SchedulerAdminClient, userId: string, accessToken: string) {
@@ -358,15 +388,28 @@ async function processTaskCleanup(client: SchedulerAdminClient, userId: string, 
         calendarId: cleanup.calendar_id,
         eventId: cleanup.provider_event_id,
       });
-      await client
+      const { error: eventDeleteError } = await client
         .from("google_calendar_events")
         .delete()
         .eq("user_id", userId)
         .eq("provider_event_id", cleanup.provider_event_id);
-      await client.from("task_schedule_cleanup").update({ processed_at: new Date().toISOString(), last_error: null }).eq("id", cleanup.id);
+      if (eventDeleteError) {
+        throw eventDeleteError;
+      }
+      const { error: processedError } = await client.from("task_schedule_cleanup")
+        .update({ processed_at: new Date().toISOString(), last_error: null })
+        .eq("id", cleanup.id);
+      if (processedError) {
+        throw processedError;
+      }
     } catch (cleanupError) {
       failures += 1;
-      await client.from("task_schedule_cleanup").update({ last_error: googleErrorMessage(cleanupError) }).eq("id", cleanup.id);
+      const { error: cleanupUpdateError } = await client.from("task_schedule_cleanup")
+        .update({ last_error: googleErrorMessage(cleanupError) })
+        .eq("id", cleanup.id);
+      if (cleanupUpdateError) {
+        throw cleanupUpdateError;
+      }
     }
   }
   return failures;
@@ -376,12 +419,15 @@ async function queueBlockCleanup(client: SchedulerAdminClient, block: BlockRow, 
   if (!block.provider_event_id) {
     return;
   }
-  await client.from("task_schedule_cleanup").insert({
+  const { error } = await client.from("task_schedule_cleanup").insert({
     user_id: block.user_id,
     calendar_id: block.calendar_id,
     provider_event_id: block.provider_event_id,
     last_error: lastError,
   });
+  if (error) {
+    throw error;
+  }
 }
 
 async function removeBlocksFromPreviousCalendars(
@@ -409,12 +455,20 @@ async function removeBlocksFromPreviousCalendars(
     try {
       if (block.provider_event_id) {
         await safeDeleteGoogleEvent({ accessToken, calendarId: block.calendar_id, eventId: block.provider_event_id });
+        const { error: eventDeleteError } = await client
+          .from("google_calendar_events")
+          .delete()
+          .eq("user_id", userId)
+          .eq("provider_event_id", block.provider_event_id);
+        if (eventDeleteError) {
+          throw eventDeleteError;
+        }
       }
-      await updateBlock(client, block.id, { state: "cancelled", sync_version: block.sync_version + 1, last_error: null });
+      await updateBlock(client, userId, block.id, { state: "cancelled", sync_version: block.sync_version + 1, last_error: null });
     } catch (cleanupError) {
       failures += 1;
       const message = googleErrorMessage(cleanupError);
-      await updateBlock(client, block.id, { state: "cancelled", sync_version: block.sync_version + 1, last_error: message });
+      await updateBlock(client, userId, block.id, { state: "cancelled", sync_version: block.sync_version + 1, last_error: message });
       await queueBlockCleanup(client, block, message);
     }
   }
@@ -454,12 +508,12 @@ export async function removeManagedBlocksForConnection(connection: GoogleConnect
           eventId: block.provider_event_id,
         });
       }
-      await updateBlock(client, block.id, { state: "cancelled", sync_version: block.sync_version + 1, last_error: null });
+      await updateBlock(client, block.user_id, block.id, { state: "cancelled", sync_version: block.sync_version + 1, last_error: null });
       deleted += 1;
     } catch (cleanupError) {
       const message = googleErrorMessage(cleanupError);
       errors.push(message);
-      await updateBlock(client, block.id, { state: "cancelled", sync_version: block.sync_version + 1, last_error: message });
+      await updateBlock(client, block.user_id, block.id, { state: "cancelled", sync_version: block.sync_version + 1, last_error: message });
       await queueBlockCleanup(client, block, message);
     }
   }
@@ -507,7 +561,7 @@ async function applyTaskPlan(input: {
     for (let index = 0; index < desiredFlexible.length; index += 1) {
       const desired = desiredFlexible[index];
       const existing = existingFlexible[index];
-      const blockId = existing?.id ?? availablePlannedBlockId(task.id, desired.start, desired.end, blocks);
+      const blockId = existing?.id ?? availablePlannedBlockId(connection.user_id, task.id, desired.start, desired.end, blocks);
       const eventId = existing?.provider_event_id ?? providerEventId(connection.user_id, task.id, blockId);
       const resource = eventResource({
         task,
@@ -556,6 +610,7 @@ async function applyTaskPlan(input: {
         if (insertError) {
           throw insertError;
         }
+        await upsertGoogleCalendarEvent(client, connection.user_id, event);
         created += 1;
         continue;
       }
@@ -569,7 +624,7 @@ async function applyTaskPlan(input: {
           etag: existing.etag,
           resource,
         });
-        await updateBlock(client, existing.id, {
+        await updateBlock(client, connection.user_id, existing.id, {
           calendar_id: connection.selected_calendar_id!,
           provider_event_id: event.id,
           provider_event_key: getGoogleEventKey(event),
@@ -583,8 +638,9 @@ async function applyTaskPlan(input: {
           last_error: null,
         });
         if (changed) moved += 1;
+        await upsertGoogleCalendarEvent(client, connection.user_id, event);
       } else {
-        await updateBlock(client, existing.id, {
+        await updateBlock(client, connection.user_id, existing.id, {
           planned_start_at: desired.start,
           planned_end_at: desired.end,
           last_error: null,
@@ -610,7 +666,21 @@ export class SchedulerBusyError extends Error {
   }
 }
 
-async function runSchedulerForUserWithClient(client: SchedulerAdminClient, userId: string, request?: Request) {
+async function refreshSchedulerLock(client: SchedulerAdminClient, userId: string, lockToken: string) {
+  const { data, error } = await client.rpc("refresh_scheduler_lock", {
+    p_user_id: userId,
+    p_lock_token: lockToken,
+  });
+  if (error) {
+    throw error;
+  }
+  if (!data) {
+    throw new SchedulerBusyError();
+  }
+}
+
+async function runSchedulerForUserWithClient(client: SchedulerAdminClient, userId: string, request: Request | undefined, lockToken: string) {
+  await refreshSchedulerLock(client, userId, lockToken);
   const connection = await loadGoogleConnection(client, userId);
   if (!connection?.selected_calendar_id) {
     await pauseSchedulerForUser(userId);
@@ -659,6 +729,7 @@ async function runSchedulerForUserWithClient(client: SchedulerAdminClient, userI
   let hasCalendarErrors = cleanupFailures > 0;
   const warnings: string[] = [];
   for (const task of data.tasks) {
+    await refreshSchedulerLock(client, userId, lockToken);
     const taskPlan = plan.tasks.find((candidate) => candidate.taskId === task.id);
     if (!taskPlan) continue;
     try {
@@ -702,7 +773,11 @@ export async function runSchedulerForUser(userId: string, request?: Request) {
     throw new Error("The scheduler is not configured on this deployment.");
   }
 
-  const { data: claimed, error: claimError } = await client.rpc("try_claim_scheduler_lock", { p_user_id: userId });
+  const lockToken = randomUUID();
+  const { data: claimed, error: claimError } = await client.rpc("try_claim_scheduler_lock", {
+    p_user_id: userId,
+    p_lock_token: lockToken,
+  });
   if (claimError) {
     throw claimError;
   }
@@ -711,14 +786,56 @@ export async function runSchedulerForUser(userId: string, request?: Request) {
   }
 
   try {
-    return await runSchedulerForUserWithClient(client, userId, request);
+    const { data: queuedJob, error: queueReadError } = await client
+      .from("scheduler_queue")
+      .select("requested_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (queueReadError) {
+      throw queueReadError;
+    }
+
+    const result = await runSchedulerForUserWithClient(client, userId, request, lockToken);
+    if (queuedJob?.requested_at) {
+      // Immediate runs also satisfy the queued repair request. Keep a newer
+      // request if another change arrived while this run was in flight.
+      const { error: queueDeleteError } = await client
+        .from("scheduler_queue")
+        .delete()
+        .eq("user_id", userId)
+        .eq("requested_at", queuedJob.requested_at);
+      if (queueDeleteError) {
+        throw queueDeleteError;
+      }
+    }
+    return result;
   } catch (error) {
     if (!(error instanceof SchedulerBusyError)) {
       await markCalendarErrorForUser(client, userId, googleErrorMessage(error));
     }
     throw error;
   } finally {
-    await client.rpc("release_scheduler_lock", { p_user_id: userId });
+    const { error: releaseError } = await client.rpc("release_scheduler_lock", {
+      p_user_id: userId,
+      p_lock_token: lockToken,
+    });
+    if (releaseError) {
+      throw releaseError;
+    }
+  }
+}
+
+export async function runSchedulerForUserWithRetry(userId: string, request?: Request) {
+  const retryUntil = Date.now() + BUSY_RETRY_TIMEOUT_MS;
+  while (true) {
+    try {
+      return await runSchedulerForUser(userId, request);
+    } catch (error) {
+      if (!(error instanceof SchedulerBusyError) || Date.now() >= retryUntil) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, BUSY_RETRY_DELAY_MS));
+    }
   }
 }
 
@@ -730,6 +847,48 @@ export async function loadTaskScheduleStatus(userId: string) {
   const { data, error } = await client.from("task_schedule_status").select("*").eq("user_id", userId);
   if (error) throw error;
   return data ?? [];
+}
+
+export async function loadTaskScheduleSnapshot(userId: string): Promise<TaskScheduleSnapshot> {
+  const client = getSupabaseAdminClient();
+  if (!client) {
+    return { statuses: [], blocks: [] };
+  }
+
+  const [statusesResult, blocksResult] = await Promise.all([
+    client.from("task_schedule_status").select("*").eq("user_id", userId),
+    client
+      .from("task_schedule_blocks")
+      .select("id,task_id,calendar_id,start_at,end_at,planned_start_at,planned_end_at,state")
+      .eq("user_id", userId)
+      .not("state", "in", "(replaced,cancelled)")
+      .order("start_at", { ascending: true }),
+  ]);
+  if (statusesResult.error) throw statusesResult.error;
+  if (blocksResult.error) throw blocksResult.error;
+
+  const statuses: TaskScheduleStatus[] = (statusesResult.data ?? []).map((status) => ({
+    taskId: status.task_id,
+    state: status.state as TaskScheduleStatus["state"],
+    scheduledMinutes: status.scheduled_minutes,
+    missingMinutes: status.missing_minutes,
+    warning: status.warning,
+    updatedAt: status.updated_at,
+  }));
+  const blocks: ScheduleBlockSnapshot[] = (blocksResult.data ?? []).map((block) => ({
+    id: block.id,
+    taskId: block.task_id,
+    calendarId: block.calendar_id,
+    start: block.start_at,
+    end: block.end_at,
+    plannedStart: block.planned_start_at,
+    plannedEnd: block.planned_end_at,
+    state: block.state === "locked" || block.state === "replaced" || block.state === "cancelled"
+      ? block.state
+      : "flexible",
+  }));
+
+  return { statuses, blocks };
 }
 
 export async function pauseSchedulerForUser(userId: string, warning = "Connect a Google Calendar to schedule this task.") {
@@ -752,7 +911,10 @@ export async function pauseSchedulerForUser(userId: string, warning = "Connect a
 }
 
 async function markCalendarErrorForUser(client: SchedulerAdminClient, userId: string, warning: string) {
-  const { data: tasks } = await client.from("tasks").select("id,duration").eq("user_id", userId);
+  const { data: tasks, error } = await client.from("tasks").select("id,duration").eq("user_id", userId);
+  if (error) {
+    throw error;
+  }
   for (const task of tasks ?? []) {
     await setTaskStatus(client, userId, task.id, {
       state: "calendar_error",
@@ -770,25 +932,34 @@ export async function processSchedulerQueue(limit = 10, request?: Request) {
   }
 
   const now = new Date();
+  const boundedLimit = Math.min(Math.max(Math.floor(limit), 1), 10);
+  const startedAt = Date.now();
   const { data: queue, error } = await client
     .from("scheduler_queue")
     .select("*")
     .lte("run_after", now.toISOString())
+    .lt("attempts", 20)
     .or(`locked_at.is.null,locked_at.lt.${new Date(Date.now() - 10 * 60_000).toISOString()}`)
     .order("requested_at", { ascending: true })
-    .limit(limit);
+    .limit(boundedLimit);
   if (error) throw error;
 
   const results: SchedulerSummary[] = [];
   for (const job of queue ?? []) {
+    if (Date.now() - startedAt >= MAX_QUEUE_RUNTIME_MS) {
+      break;
+    }
     const lockedAt = new Date().toISOString();
-    const { data: claimed } = await client
+    const { data: claimed, error: claimError } = await client
       .from("scheduler_queue")
-      .update({ locked_at: lockedAt, attempts: job.attempts + 1, updated_at: lockedAt })
+      .update({ locked_at: lockedAt, attempts: Math.min(job.attempts + 1, 20), updated_at: lockedAt })
       .eq("user_id", job.user_id)
       .or(`locked_at.is.null,locked_at.lt.${new Date(Date.now() - 10 * 60_000).toISOString()}`)
       .select("user_id")
       .maybeSingle();
+    if (claimError) {
+      throw claimError;
+    }
     if (!claimed) continue;
 
     try {
@@ -796,21 +967,30 @@ export async function processSchedulerQueue(limit = 10, request?: Request) {
       // A task/settings/calendar change can enqueue a newer request while this
       // run is in flight. Only remove the row we actually claimed; otherwise
       // the newer request would be lost.
-      await client
+      const { error: queueDeleteError } = await client
         .from("scheduler_queue")
         .delete()
         .eq("user_id", job.user_id)
         .eq("requested_at", job.requested_at);
+      if (queueDeleteError) {
+        throw queueDeleteError;
+      }
       results.push(result);
     } catch (queueError) {
+      const nextAttempt = Math.min(job.attempts + 1, 20);
       const attemptIndex = Math.min(job.attempts, RETRY_MINUTES.length - 1);
-      const nextRun = new Date(Date.now() + RETRY_MINUTES[attemptIndex] * 60_000).toISOString();
-      await client.from("scheduler_queue").update({
+      const delay = nextAttempt >= 20 ? 24 * 60 : RETRY_MINUTES[attemptIndex];
+      const nextRun = new Date(Date.now() + delay * 60_000).toISOString();
+      const { error: retryUpdateError } = await client.from("scheduler_queue").update({
+        attempts: nextAttempt,
         run_after: nextRun,
         locked_at: null,
         last_error: googleErrorMessage(queueError),
         updated_at: new Date().toISOString(),
       }).eq("user_id", job.user_id).eq("requested_at", job.requested_at);
+      if (retryUpdateError) {
+        throw retryUpdateError;
+      }
     }
   }
 

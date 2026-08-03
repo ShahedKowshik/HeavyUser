@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { processSchedulerQueue } from "@/lib/scheduler/service";
 
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
 function isAuthorized(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
@@ -17,7 +20,7 @@ export async function GET(request: Request) {
 
   try {
     return NextResponse.json({ results: await processSchedulerQueue(10, request) });
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "The scheduler queue could not be processed." }, { status: 502 });
+  } catch {
+    return NextResponse.json({ error: "The scheduler queue could not be processed." }, { status: 502 });
   }
 }

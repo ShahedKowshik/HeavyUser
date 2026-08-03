@@ -40,7 +40,11 @@ function localParts(timestamp: number, timezone: string): LocalParts {
   };
 }
 
-function parseMinutes(value: string) {
+function parseMinutes(value: string, allowEndOfDay = false) {
+  if (allowEndOfDay && value === "24:00") {
+    return 24 * 60;
+  }
+
   const match = /^(\d{2}):(\d{2})$/.exec(value);
   if (!match) {
     return null;
@@ -57,12 +61,39 @@ function parseMinutes(value: string) {
 
 function getWindowMinutes(window: WorkWindow) {
   const start = parseMinutes(window.start);
-  const end = parseMinutes(window.end);
+  const end = parseMinutes(window.end, true);
   if (start === null || end === null || end <= start) {
     return null;
   }
 
   return { start, end };
+}
+
+function isAllDayWindow(window: WorkWindow) {
+  return window.allDay === true;
+}
+
+function getWorkingWindows(day: number, preferences: SchedulerPreferences): ReadonlyArray<WorkWindow> {
+  const currentWindows = preferences.workWindows[String(day)] ?? [];
+  const previousWindows = preferences.workWindows[String((day + 6) % 7)] ?? [];
+  const currentIsAllDay = currentWindows.some(isAllDayWindow);
+  const manualWindows = currentWindows.filter((window) => !isAllDayWindow(window));
+  const windows: WorkWindow[] = [];
+
+  if (preferences.nightOwlMode && previousWindows.some(isAllDayWindow) && preferences.dayStartTime !== "00:00") {
+    windows.push({ start: "00:00", end: preferences.dayStartTime });
+  }
+
+  if (currentIsAllDay) {
+    windows.push({
+      start: preferences.nightOwlMode ? preferences.dayStartTime : "00:00",
+      end: "24:00",
+    });
+  } else {
+    windows.push(...manualWindows);
+  }
+
+  return windows;
 }
 
 function isDeadlinePassed(deadline: string, now: number, preferences: SchedulerPreferences) {
@@ -75,7 +106,7 @@ function isDeadlinePassed(deadline: string, now: number, preferences: SchedulerP
   }
 
   const parts = localParts(now, preferences.timezone);
-  const windows = preferences.workWindows[String(parts.day)] ?? [];
+  const windows = getWorkingWindows(parts.day, preferences);
   return !windows.some((window) => {
     const parsed = getWindowMinutes(window);
     return parsed !== null && parsed.end > parts.minute;
@@ -84,7 +115,7 @@ function isDeadlinePassed(deadline: string, now: number, preferences: SchedulerP
 
 function isWorkingAt(timestamp: number, preferences: SchedulerPreferences) {
   const parts = localParts(timestamp, preferences.timezone);
-  const windows = preferences.workWindows[String(parts.day)] ?? [];
+  const windows = getWorkingWindows(parts.day, preferences);
   return windows.some((window) => {
     const parsed = getWindowMinutes(window);
     return parsed ? parts.minute >= parsed.start && parts.minute < parsed.end : false;
@@ -256,6 +287,39 @@ export function planSchedule(input: {
         warning: null,
         blocks: [],
       })),
+    };
+  }
+
+  const hasWorkingWindow = Object.values(preferences.workWindows).some((windows) => windows.length > 0);
+  if (!hasWorkingWindow) {
+    return {
+      busyIntervals: intervals,
+      tasks: input.tasks.map((task) => {
+        const taskBlocks = getTaskBlocks(task.id, input.existingBlocks);
+        const fixedBlocks = taskBlocks.filter((block) => block.state === "locked" || new Date(block.end).getTime() <= now);
+        const fixedMinutes = fixedBlocks.reduce((total, block) => total + getMinutes(block.start, block.end), 0);
+        const hasFutureFixedBlock = fixedBlocks.some((block) => new Date(block.end).getTime() > now);
+        const missingMinutes = task.duration === null ? 0 : Math.max(0, task.duration - fixedMinutes);
+        const warning = task.duration !== null && task.autoSchedule && task.status !== "done" && missingMinutes > 0
+          ? "No working hours are configured. Add a working window in Settings."
+          : null;
+
+        return {
+          taskId: task.id,
+          state: getState(task, fixedMinutes, fixedMinutes, missingMinutes, warning, hasFutureFixedBlock),
+          fixedMinutes,
+          scheduledMinutes: fixedMinutes,
+          missingMinutes,
+          warning,
+          blocks: fixedBlocks.map((block) => ({
+            taskId: task.id,
+            start: block.start,
+            end: block.end,
+            id: block.id,
+            state: block.state,
+          })),
+        };
+      }),
     };
   }
 

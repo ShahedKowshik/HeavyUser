@@ -36,7 +36,8 @@ import { GoogleCalendarPanel } from "@/components/google-calendar-panel";
 import { getAppPath, publicBasePath } from "@/lib/supabase/config";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { loadRemoteTasks, persistRemoteTasks } from "@/lib/supabase/tasks";
-import type { CalendarTransparency, CalendarVisibility, Priority, Task } from "@/lib/tasks";
+import type { CalendarTransparency, CalendarVisibility, Priority, Task, TaskScheduleState } from "@/lib/tasks";
+import type { ScheduleBlockSnapshot, TaskScheduleStatus } from "@/lib/scheduler/types";
 import type { UserSettings } from "@/lib/supabase/settings";
 type TaskBucket = "backlog" | "today" | "upcoming";
 type InlineEditField = "title";
@@ -90,6 +91,8 @@ const priorityOrder: Record<Priority, number> = {
 // Only account-scoped browser backups are valid. The v2 namespace intentionally
 // does not read any unscoped cache written by older versions of the app.
 const userStorageKeyPrefix = "heavyuser:tasks:v2:";
+const MAX_TASK_TITLE_LENGTH = 240;
+const MAX_TASK_DURATION_MINUTES = 10080;
 
 
 function sortTasks(tasks: ReadonlyArray<Task>) {
@@ -125,7 +128,8 @@ function isTask(value: unknown): value is Task {
   return (
     typeof candidate.id === "string" &&
     typeof candidate.title === "string" &&
-    (typeof candidate.duration === "number" || candidate.duration === null) &&
+    candidate.title.length <= MAX_TASK_TITLE_LENGTH &&
+    ((typeof candidate.duration === "number" && Number.isFinite(candidate.duration) && candidate.duration > 0 && candidate.duration <= MAX_TASK_DURATION_MINUTES) || candidate.duration === null) &&
     (typeof candidate.startDate === "string" || candidate.startDate === null) &&
     (typeof candidate.deadline === "string" || candidate.deadline === null) &&
     isPriority(candidate.priority) &&
@@ -175,6 +179,7 @@ function normalizeStoredTask(value: unknown): Task | null {
   if (
     typeof candidate.id !== "string" ||
     typeof candidate.title !== "string" ||
+    candidate.title.length > MAX_TASK_TITLE_LENGTH ||
     (candidate.status !== "open" && candidate.status !== "focus" && candidate.status !== "done")
   ) {
     return null;
@@ -244,6 +249,45 @@ const priorityLabels: Record<Priority, string> = {
 
 function formatTaskDueDate(deadline: string | null) {
   return formatShortDate(deadline);
+}
+
+const scheduleStateLabels: Record<TaskScheduleState, string> = {
+  scheduled: "Scheduled",
+  scheduling: "Scheduling",
+  needs_duration: "Needs duration",
+  at_risk: "At risk",
+  locked: "Locked",
+  awaiting_completion: "Awaiting completion",
+  paused: "Paused",
+  calendar_error: "Calendar error",
+};
+
+const TASK_SCHEDULER_DELAY_MS = 5_000;
+
+function getScheduleLabel(task: Task, status: TaskScheduleStatus | undefined) {
+  if (task.status === "done") {
+    return null;
+  }
+  if (task.duration === null) {
+    return "Needs duration";
+  }
+  if (!task.autoSchedule) {
+    return "Paused";
+  }
+  return status ? scheduleStateLabels[status.state] : "Scheduling";
+}
+
+function formatScheduleBlock(block: ScheduleBlockSnapshot) {
+  const start = new Date(block.start);
+  const end = new Date(block.end);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return null;
+  }
+
+  const date = start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const startTime = start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const endTime = end.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return { date, time: `${startTime}–${endTime}` };
 }
 
 function PriorityIcon({ priority }: { priority: Priority }) {
@@ -622,7 +666,7 @@ function isDeadlineOverdue(deadline: string | null, status: Task["status"], toda
 
 function parseDuration(value: string) {
   const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : null;
+  return Number.isFinite(parsed) && parsed > 0 && parsed <= MAX_TASK_DURATION_MINUTES ? Math.round(parsed) : null;
 }
 
 function ensureSingleFocus(tasks: ReadonlyArray<Task>) {
@@ -717,6 +761,8 @@ export default function Home() {
   const [editingMaxBlockMinutes, setEditingMaxBlockMinutes] = useState("");
   const [editingCalendarVisibility, setEditingCalendarVisibility] = useState<CalendarVisibility | null>(null);
   const [editingCalendarTransparency, setEditingCalendarTransparency] = useState<CalendarTransparency | null>(null);
+  const [scheduleStatuses, setScheduleStatuses] = useState<Record<string, TaskScheduleStatus>>({});
+  const [scheduleBlocks, setScheduleBlocks] = useState<Record<string, ReadonlyArray<ScheduleBlockSnapshot>>>({});
   const [inlineEdit, setInlineEdit] = useState<{
     taskId: string;
     field: InlineEditField;
@@ -737,6 +783,8 @@ export default function Home() {
   const durationMenuRef = useRef<HTMLDivElement | null>(null);
   const dueDateMenuRef = useRef<HTMLDivElement | null>(null);
   const schedulerRunTimerRef = useRef<number | null>(null);
+  const schedulerRunInFlightRef = useRef(false);
+  const schedulerRunQueuedRef = useRef(false);
 
   useEffect(() => () => {
     if (schedulerRunTimerRef.current !== null) {
@@ -824,6 +872,8 @@ export default function Home() {
       setPendingRemoteDeletes([]);
       setIsCustomOrder(false);
       setEditingId(null);
+      setScheduleStatuses({});
+      setScheduleBlocks({});
 
       if (isCancelled) {
         return;
@@ -851,7 +901,7 @@ export default function Home() {
         }
 
         setRemoteSyncReady(true);
-        requestSchedulerRun();
+        requestSchedulerRun(TASK_SCHEDULER_DELAY_MS);
       } catch {
         if (!isCancelled) {
           setTasks(localTasks);
@@ -870,6 +920,8 @@ export default function Home() {
       isCancelled = true;
       window.cancelAnimationFrame(frameId);
     };
+    // The scheduler helper is intentionally stable for this restore lifecycle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authStatus, authUser, supabaseClient]);
 
   useEffect(() => {
@@ -909,6 +961,8 @@ export default function Home() {
       isCancelled = true;
       window.clearTimeout(timeoutId);
     };
+    // The scheduler helper is intentionally stable for this persistence lifecycle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, isHydrated, pendingRemoteDeletes, remoteSyncReady, supabaseClient, tasks]);
 
   useEffect(() => {
@@ -1006,15 +1060,66 @@ export default function Home() {
     return currentDateTime === null ? calendarDate : getLogicalDate(currentDateTime, settings);
   }
 
-  function requestSchedulerRun() {
+  async function loadScheduleSnapshot() {
+    try {
+      const response = await fetch(getAppPath("/api/scheduler/status"), { cache: "no-store" });
+      if (!response.ok) {
+        return;
+      }
+
+      const body = (await response.json().catch(() => null)) as {
+        statuses?: ReadonlyArray<TaskScheduleStatus>;
+        blocks?: ReadonlyArray<ScheduleBlockSnapshot>;
+      } | null;
+      const nextStatuses: Record<string, TaskScheduleStatus> = {};
+      for (const status of body?.statuses ?? []) {
+        nextStatuses[status.taskId] = status;
+      }
+      const nextBlocks: Record<string, Array<ScheduleBlockSnapshot>> = {};
+      for (const block of body?.blocks ?? []) {
+        (nextBlocks[block.taskId] ??= []).push(block);
+      }
+      setScheduleStatuses(nextStatuses);
+      setScheduleBlocks(nextBlocks);
+    } catch {
+      // Task editing remains usable if schedule data is temporarily unavailable.
+    }
+  }
+
+  function requestSchedulerRun(delayMs = 400) {
+    if (schedulerRunInFlightRef.current) {
+      schedulerRunQueuedRef.current = true;
+      return;
+    }
+
     if (schedulerRunTimerRef.current !== null) {
       window.clearTimeout(schedulerRunTimerRef.current);
     }
 
     schedulerRunTimerRef.current = window.setTimeout(() => {
-      void fetch(getAppPath("/api/scheduler/run"), { method: "POST" }).catch(() => undefined);
       schedulerRunTimerRef.current = null;
-    }, 400);
+      if (schedulerRunInFlightRef.current) {
+        schedulerRunQueuedRef.current = true;
+        return;
+      }
+
+      schedulerRunInFlightRef.current = true;
+      void (async () => {
+        try {
+          await fetch(getAppPath("/api/scheduler/run"), { method: "POST" });
+        } catch {
+          // The queue worker remains responsible for repairing a failed run.
+        } finally {
+          await loadScheduleSnapshot();
+          window.dispatchEvent(new Event("heavyuser:calendar-refresh"));
+          schedulerRunInFlightRef.current = false;
+          if (schedulerRunQueuedRef.current) {
+            schedulerRunQueuedRef.current = false;
+            requestSchedulerRun();
+          }
+        }
+      })();
+    }, delayMs);
   }
 
   function handleAddTask(event: FormEvent<HTMLFormElement>) {
@@ -1022,6 +1127,10 @@ export default function Home() {
     const title = newTaskTitle.trim();
 
     if (!title) {
+      return;
+    }
+    if (title.length > MAX_TASK_TITLE_LENGTH) {
+      setTaskComposerError(`Keep the task title under ${MAX_TASK_TITLE_LENGTH} characters.`);
       return;
     }
 
@@ -1265,6 +1374,10 @@ export default function Home() {
       setEditingError("Enter a task title.");
       return;
     }
+    if (title.length > MAX_TASK_TITLE_LENGTH) {
+      setEditingError(`Keep the task title under ${MAX_TASK_TITLE_LENGTH} characters.`);
+      return;
+    }
 
     if (editingStartDate && editingDeadline && editingStartDate > editingDeadline) {
       setEditingError("The start date must be on or before the due date.");
@@ -1476,6 +1589,9 @@ export default function Home() {
       : [{ id: "all", label: null, helper: "", dateLabel: "", tasks: visibleTasks }];
   const dueDatePresets = getDueDatePresets(logicalToday);
   const editingTask = editingId ? tasks.find((task) => task.id === editingId) ?? null : null;
+  const editingScheduleStatus = editingTask ? scheduleStatuses[editingTask.id] : undefined;
+  const editingScheduleBlocks = editingTask ? scheduleBlocks[editingTask.id] ?? [] : [];
+  const editingScheduleLabel = editingTask ? getScheduleLabel(editingTask, editingScheduleStatus) : null;
   const headerDateTime = formatHeaderDateTime(currentDateTime, logicalToday);
   if (authStatus === "loading" || (authStatus === "signed_in" && !isHydrated)) {
     return (
@@ -1550,6 +1666,8 @@ export default function Home() {
                 setRemoteSyncReady(false);
                 setIsHydrated(false);
                 setPendingRemoteDeletes([]);
+                setScheduleStatuses({});
+                setScheduleBlocks({});
                 setTasks([]);
               }}
             />
@@ -1627,6 +1745,7 @@ export default function Home() {
                       aria-keyshortcuts="Q"
                       className="hu-task-input"
                       id="new-task-title"
+                      maxLength={MAX_TASK_TITLE_LENGTH}
                       minLength={1}
                       onChange={(event) => setNewTaskTitle(event.target.value)}
                       placeholder="What needs doing?"
@@ -1646,6 +1765,7 @@ export default function Home() {
                           className="hu-task-input hu-duration-input"
                           inputMode="numeric"
                           min="5"
+                          max={MAX_TASK_DURATION_MINUTES}
                           onChange={(event) => setNewTaskDuration(event.target.value)}
                           placeholder="30"
                           step="5"
@@ -2007,6 +2127,7 @@ export default function Home() {
                                           <input
                                             aria-label="Hours"
                                             inputMode="numeric"
+                                            max={Math.floor(MAX_TASK_DURATION_MINUTES / 60)}
                                             min="0"
                                             type="number"
                                             value={durationHours}
@@ -2152,6 +2273,10 @@ export default function Home() {
 
             <GoogleCalendarPanel
               date={logicalToday}
+              settings={settings}
+              tasks={tasks}
+              scheduleBlocks={scheduleBlocks}
+              scheduleStatuses={scheduleStatuses}
             />
           </div>
         </div>
@@ -2188,6 +2313,7 @@ export default function Home() {
                   <input
                     autoFocus
                     className="hu-edit-input"
+                    maxLength={MAX_TASK_TITLE_LENGTH}
                     minLength={1}
                     onChange={(event) => setEditingTitle(event.target.value)}
                     placeholder="Task title"
@@ -2204,6 +2330,7 @@ export default function Home() {
                         className="hu-edit-input hu-duration-input"
                         inputMode="numeric"
                         min="5"
+                        max={MAX_TASK_DURATION_MINUTES}
                         onChange={(event) => setEditingDuration(event.target.value)}
                         placeholder="30"
                         step="5"
@@ -2327,6 +2454,50 @@ export default function Home() {
                         <option value="transparent">Free</option>
                       </select>
                     </label>
+                  </div>
+                  <div className="hu-task-schedule-panel" aria-live="polite">
+                    <div className="hu-task-schedule-heading">
+                      <div>
+                        <span className="hu-field-label">Actual schedule</span>
+                        <p>These are the calendar blocks HeavyUser has placed for this task.</p>
+                      </div>
+                      {editingScheduleLabel ? (
+                        <span className={`hu-task-schedule-status is-${editingScheduleStatus?.state ?? (editingTask.duration === null ? "needs_duration" : "scheduling")}`}>
+                          {editingScheduleLabel}
+                        </span>
+                      ) : null}
+                    </div>
+                    {editingScheduleBlocks.length > 0 ? (
+                      <div className="hu-task-schedule-list">
+                        {editingScheduleBlocks.slice(0, 6).map((block) => {
+                          const formattedBlock = formatScheduleBlock(block);
+                          if (!formattedBlock) {
+                            return null;
+                          }
+                          const isPast = currentDateTime !== null && new Date(block.end).getTime() <= currentDateTime;
+                          return (
+                            <div className={`hu-task-schedule-item ${isPast ? "is-past" : ""}`} key={block.id}>
+                              <CalendarDays aria-hidden="true" size={13} />
+                              <span className="hu-task-schedule-item-date">{formattedBlock.date}</span>
+                              <time dateTime={block.start}>{formattedBlock.time}</time>
+                              <span className="hu-task-schedule-item-state">{isPast ? "Past" : block.state === "locked" ? "Locked" : "Planned"}</span>
+                            </div>
+                          );
+                        })}
+                        {editingScheduleBlocks.length > 6 ? (
+                          <span className="hu-task-schedule-more">+ {editingScheduleBlocks.length - 6} more block{editingScheduleBlocks.length - 6 === 1 ? "" : "s"}</span>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="hu-task-schedule-empty">
+                        {editingTask.duration === null
+                          ? "Add a duration to let HeavyUser find the next available time."
+                          : editingTask.autoSchedule
+                            ? "No calendar block yet. Save changes and HeavyUser will find the next available working time."
+                            : "Automatic scheduling is paused for this task."}
+                      </p>
+                    )}
+                    {editingScheduleStatus?.warning ? <p className="hu-task-schedule-warning"><CircleAlert aria-hidden="true" size={13} />{editingScheduleStatus.warning}</p> : null}
                   </div>
                 </div>
               </div>

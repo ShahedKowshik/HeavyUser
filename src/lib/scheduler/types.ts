@@ -8,6 +8,7 @@ import type {
 export type WorkWindow = {
   start: string;
   end: string;
+  allDay?: boolean;
 };
 
 export type WorkWindows = Record<string, ReadonlyArray<WorkWindow>>;
@@ -16,6 +17,8 @@ export type SchedulerPreferences = {
   enabled: boolean;
   timezone: string;
   workWindows: WorkWindows;
+  nightOwlMode: boolean;
+  dayStartTime: string;
   defaultMinBlockMinutes: number;
   defaultMaxBlockMinutes: number;
   defaultCalendarVisibility: CalendarVisibility;
@@ -74,6 +77,31 @@ export type TaskPlan = {
   blocks: ReadonlyArray<PlannedBlock>;
 };
 
+export type TaskScheduleStatus = {
+  taskId: string;
+  state: TaskScheduleState;
+  scheduledMinutes: number;
+  missingMinutes: number;
+  warning: string | null;
+  updatedAt: string;
+};
+
+export type ScheduleBlockSnapshot = {
+  id: string;
+  taskId: string;
+  calendarId: string;
+  start: string;
+  end: string;
+  plannedStart: string;
+  plannedEnd: string;
+  state: "flexible" | "locked" | "replaced" | "cancelled";
+};
+
+export type TaskScheduleSnapshot = {
+  statuses: ReadonlyArray<TaskScheduleStatus>;
+  blocks: ReadonlyArray<ScheduleBlockSnapshot>;
+};
+
 export type SchedulePlan = {
   tasks: ReadonlyArray<TaskPlan>;
   busyIntervals: ReadonlyArray<BusyInterval>;
@@ -93,6 +121,8 @@ export const DEFAULT_SCHEDULER_PREFERENCES: SchedulerPreferences = {
   enabled: false,
   timezone: "UTC",
   workWindows: DEFAULT_WORK_WINDOWS,
+  nightOwlMode: false,
+  dayStartTime: "04:00",
   defaultMinBlockMinutes: 30,
   defaultMaxBlockMinutes: 90,
   defaultCalendarVisibility: "default",

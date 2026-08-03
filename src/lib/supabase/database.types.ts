@@ -57,6 +57,7 @@ export type Database = {
           sync_token: string | null;
           channel_id: string | null;
           resource_id: string | null;
+          channel_token_hash: string | null;
           channel_expiration: string | null;
           last_synced_at: string | null;
           last_error: string | null;
@@ -67,6 +68,7 @@ export type Database = {
           sync_token?: string | null;
           channel_id?: string | null;
           resource_id?: string | null;
+          channel_token_hash?: string | null;
           channel_expiration?: string | null;
           last_synced_at?: string | null;
           last_error?: string | null;
@@ -77,6 +79,7 @@ export type Database = {
           sync_token?: string | null;
           channel_id?: string | null;
           resource_id?: string | null;
+          channel_token_hash?: string | null;
           channel_expiration?: string | null;
           last_synced_at?: string | null;
           last_error?: string | null;
@@ -415,14 +418,17 @@ export type Database = {
         Row: {
           user_id: string;
           locked_at: string;
+          lock_token: string;
         };
         Insert: {
           user_id: string;
           locked_at?: string;
+          lock_token: string;
         };
         Update: {
           user_id?: string;
           locked_at?: string;
+          lock_token?: string;
         };
         Relationships: [];
       };
@@ -430,11 +436,15 @@ export type Database = {
     Views: Record<string, never>;
     Functions: {
       try_claim_scheduler_lock: {
-        Args: { p_user_id: string };
+        Args: { p_lock_token: string; p_user_id: string };
+        Returns: boolean;
+      };
+      refresh_scheduler_lock: {
+        Args: { p_lock_token: string; p_user_id: string };
         Returns: boolean;
       };
       release_scheduler_lock: {
-        Args: { p_user_id: string };
+        Args: { p_lock_token: string; p_user_id: string };
         Returns: undefined;
       };
     };

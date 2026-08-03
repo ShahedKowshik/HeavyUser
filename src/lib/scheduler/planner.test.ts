@@ -14,6 +14,8 @@ const preferences: SchedulerPreferences = {
     "5": [{ start: "09:00", end: "17:00" }],
     "6": [],
   },
+  nightOwlMode: false,
+  dayStartTime: "04:00",
   defaultMinBlockMinutes: 30,
   defaultMaxBlockMinutes: 90,
   defaultCalendarVisibility: "default",
@@ -81,6 +83,96 @@ describe("planSchedule", () => {
     });
 
     expect(result.tasks[0].blocks[0].start).toBe("2026-08-03T10:00:00.000Z");
+  });
+
+  it.each([5, 15])("keeps a %s-minute task block exact", (duration) => {
+    const result = planSchedule({
+      tasks: [task({ duration })],
+      existingBlocks: [],
+      busyIntervals: [],
+      preferences,
+      now: Date.parse("2026-08-03T08:00:00Z"),
+    });
+
+    const block = result.tasks[0].blocks[0];
+    expect(new Date(block.end).getTime() - new Date(block.start).getTime()).toBe(duration * 60_000);
+  });
+
+  it("moves work to the next available working day when today's window is removed", () => {
+    const changedPreferences: SchedulerPreferences = {
+      ...preferences,
+      workWindows: {
+        ...preferences.workWindows,
+        "1": [],
+      },
+    };
+    const result = planSchedule({
+      tasks: [task({ duration: 60 })],
+      existingBlocks: [],
+      busyIntervals: [],
+      preferences: changedPreferences,
+      now: Date.parse("2026-08-03T08:00:00Z"),
+    });
+
+    expect(result.tasks[0].blocks[0].start).toBe("2026-08-04T09:00:00.000Z");
+    expect(result.tasks[0].missingMinutes).toBe(0);
+  });
+
+  it("explains when automatic scheduling has no working hours instead of scanning forever", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 60 })],
+      existingBlocks: [],
+      busyIntervals: [],
+      preferences: {
+        ...preferences,
+        workWindows: { "0": [], "1": [], "2": [], "3": [], "4": [], "5": [], "6": [] },
+      },
+      now: Date.parse("2026-08-03T08:00:00Z"),
+    });
+
+    expect(result.tasks[0].state).toBe("at_risk");
+    expect(result.tasks[0].warning).toBe("No working hours are configured. Add a working window in Settings.");
+    expect(result.tasks[0].missingMinutes).toBe(60);
+  });
+
+  it("uses the full calendar day when an all-day window is enabled", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 60 })],
+      existingBlocks: [],
+      busyIntervals: [],
+      preferences: {
+        ...preferences,
+        workWindows: {
+          ...preferences.workWindows,
+          "1": [{ start: "00:00", end: "23:59", allDay: true }],
+        },
+      },
+      now: Date.parse("2026-08-03T08:00:00Z"),
+    });
+
+    expect(result.tasks[0].blocks[0].start).toBe("2026-08-03T08:00:00.000Z");
+    expect(result.tasks[0].missingMinutes).toBe(0);
+  });
+
+  it("uses the Night Owl boundary for an all-day logical day", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 60 })],
+      existingBlocks: [],
+      busyIntervals: [],
+      preferences: {
+        ...preferences,
+        nightOwlMode: true,
+        dayStartTime: "04:00",
+        workWindows: {
+          ...preferences.workWindows,
+          "1": [{ start: "00:00", end: "23:59", allDay: true }],
+        },
+      },
+      now: Date.parse("2026-08-03T23:30:00Z"),
+    });
+
+    expect(result.tasks[0].blocks[0].start).toBe("2026-08-03T23:30:00.000Z");
+    expect(result.tasks[0].blocks[0].end).toBe("2026-08-04T00:30:00.000Z");
   });
 
   it("does not use weekends and reports missing time when a deadline is impossible", () => {

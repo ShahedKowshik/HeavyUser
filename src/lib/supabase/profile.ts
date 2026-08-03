@@ -13,6 +13,7 @@ export const avatarConstraints = {
   maxBytes: 2 * 1024 * 1024,
   acceptedTypes: ["image/jpeg", "image/png", "image/webp"] as const,
 };
+const MAX_PROFILE_NAME_LENGTH = 80;
 
 function getAvatarPath(user: User) {
   const avatarPath = user.user_metadata?.avatar_path;
@@ -79,6 +80,9 @@ export async function updateUserProfile(client: ProfileClient, user: User, draft
   const fullName = draft.fullName.trim();
   if (!fullName) {
     return { user: null, errorMessage: "Add a name before saving." };
+  }
+  if (fullName.length > MAX_PROFILE_NAME_LENGTH) {
+    return { user: null, errorMessage: `Keep your display name under ${MAX_PROFILE_NAME_LENGTH} characters.` };
   }
 
   if (draft.avatarFile) {
