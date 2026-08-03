@@ -24,35 +24,25 @@ import {
   ListTodo,
   Pencil,
   Plus,
-  Settings2,
   TriangleAlert,
   Trash2,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
-import { ProfileDialog } from "@/components/profile-dialog";
+import { ProfileMenu } from "@/components/profile-menu";
 import { GoogleCalendarPanel } from "@/components/google-calendar-panel";
-import { getAppPath, publicBasePath } from "@/lib/supabase/config";
+import { publicBasePath } from "@/lib/supabase/config";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { loadRemoteTasks, persistRemoteTasks } from "@/lib/supabase/tasks";
 import type { Priority, Task } from "@/lib/tasks";
+import type { UserSettings } from "@/lib/supabase/settings";
 type TaskBucket = "backlog" | "today" | "upcoming";
 type InlineEditField = "title";
-type NightOwlSettings = {
-  nightOwlMode: boolean;
-  dayStartTime: string;
-};
 
 const publicAssetPath = publicBasePath;
 const calendarDate = "2026-08-01";
-const settingsStorageKey = "heavyuser:settings:v2";
-const defaultNightOwlSettings: NightOwlSettings = {
-  nightOwlMode: false,
-  dayStartTime: "04:00",
-};
 const shortMonthNames = [
   "Jan",
   "Feb",
@@ -767,39 +757,12 @@ function toIsoDate(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function isTimeValue(value: unknown): value is string {
-  return typeof value === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
-}
-
-function normalizeNightOwlSettings(value: unknown): NightOwlSettings {
-  if (!value || typeof value !== "object") {
-    return defaultNightOwlSettings;
-  }
-
-  const candidate = value as Partial<NightOwlSettings>;
-  return {
-    nightOwlMode: candidate.nightOwlMode === true,
-    dayStartTime: isTimeValue(candidate.dayStartTime)
-      ? candidate.dayStartTime
-      : defaultNightOwlSettings.dayStartTime,
-  };
-}
-
-function readLocalSettings(): NightOwlSettings {
-  try {
-    const savedSettings = window.localStorage.getItem(settingsStorageKey);
-    return savedSettings ? normalizeNightOwlSettings(JSON.parse(savedSettings)) : defaultNightOwlSettings;
-  } catch {
-    return defaultNightOwlSettings;
-  }
-}
-
 function getTimeMinutes(value: string) {
   const [hours, minutes] = value.split(":").map(Number);
   return hours * 60 + minutes;
 }
 
-function getLogicalDate(timestamp: number, settings: NightOwlSettings) {
+function getLogicalDate(timestamp: number, settings: UserSettings) {
   const date = new Date(timestamp);
   const currentMinutes = date.getHours() * 60 + date.getMinutes();
 
@@ -808,16 +771,6 @@ function getLogicalDate(timestamp: number, settings: NightOwlSettings) {
   }
 
   return toIsoDate(date);
-}
-
-function formatTimeValue(value: string) {
-  if (!isTimeValue(value)) {
-    return value;
-  }
-
-  const [hours, minutes] = value.split(":").map(Number);
-  const date = new Date(2000, 0, 1, hours, minutes);
-  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
 function addCalendarDays(value: string, days: number) {
@@ -1232,12 +1185,11 @@ function clearPendingLocalTasks() {
 export default function Home() {
   const [tasks, setTasks] = useState<ReadonlyArray<Task>>(initialTasks);
   const [supabaseClient] = useState(() => getSupabaseBrowserClient());
-  const { status: authStatus, user: authUser, avatarUrl, signOut } = useAuth();
+  const { status: authStatus, user: authUser, settings } = useAuth();
   const [remoteSyncReady, setRemoteSyncReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState<"connecting" | "saving" | "synced" | "error">("connecting");
   const [pendingRemoteDeletes, setPendingRemoteDeletes] = useState<ReadonlyArray<string>>([]);
   const [taskMigrationMessage, setTaskMigrationMessage] = useState("");
-  const [authActionMessage, setAuthActionMessage] = useState("");
   const [isCustomOrder, setIsCustomOrder] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
@@ -1266,18 +1218,10 @@ export default function Home() {
   const [durationMinutes, setDurationMinutes] = useState("");
   const [dueDateDraft, setDueDateDraft] = useState("");
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settings, setSettings] = useState<NightOwlSettings>(defaultNightOwlSettings);
-  const [settingsDraft, setSettingsDraft] = useState<NightOwlSettings>(defaultNightOwlSettings);
   const [currentDateTime, setCurrentDateTime] = useState<number | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
-  const router = useRouter();
   const topbarRef = useRef<HTMLElement | null>(null);
-  const profileButtonRef = useRef<HTMLButtonElement | null>(null);
-  const settingsToggleRef = useRef<HTMLInputElement | null>(null);
   const newTaskInputRef = useRef<HTMLInputElement | null>(null);
   const priorityMenuRef = useRef<HTMLDivElement | null>(null);
   const durationMenuRef = useRef<HTMLDivElement | null>(null);
@@ -1290,33 +1234,6 @@ export default function Home() {
 
     return () => window.clearInterval(intervalId);
   }, []);
-
-  useEffect(() => {
-    if (!isSettingsOpen) {
-      return;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    settingsToggleRef.current?.focus();
-
-    function handleSettingsKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key !== "Escape") {
-        return;
-      }
-
-      event.preventDefault();
-      setSettingsDraft(settings);
-      setIsSettingsOpen(false);
-      window.requestAnimationFrame(() => profileButtonRef.current?.focus());
-    }
-
-    document.addEventListener("keydown", handleSettingsKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", handleSettingsKeyDown);
-    };
-  }, [isSettingsOpen, settings]);
 
   useEffect(() => {
     function handleQuickAddShortcut(event: globalThis.KeyboardEvent) {
@@ -1379,7 +1296,6 @@ export default function Home() {
     let isCancelled = false;
 
     const restoreTasks = async () => {
-      setSettings(readLocalSettings());
       if (!authUser || authStatus !== "signed_in") {
         return;
       }
@@ -1486,7 +1402,7 @@ export default function Home() {
   }, [authUser, isHydrated, pendingRemoteDeletes, remoteSyncReady, supabaseClient, tasks]);
 
   useEffect(() => {
-    if (!isNotificationsOpen && !isProfileOpen) {
+    if (!isNotificationsOpen) {
       return;
     }
 
@@ -1496,7 +1412,6 @@ export default function Home() {
       }
 
       setIsNotificationsOpen(false);
-      setIsProfileOpen(false);
     }
 
     function handleKeyDown(event: globalThis.KeyboardEvent) {
@@ -1505,7 +1420,6 @@ export default function Home() {
       }
 
       setIsNotificationsOpen(false);
-      setIsProfileOpen(false);
     }
 
     document.addEventListener("pointerdown", handlePointerDown);
@@ -1515,7 +1429,7 @@ export default function Home() {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isNotificationsOpen, isProfileOpen]);
+  }, [isNotificationsOpen]);
 
   useEffect(() => {
     if (!priorityMenuTaskId && !durationMenuTaskId && !dueDateMenuTaskId) {
@@ -1612,60 +1526,6 @@ export default function Home() {
     setNewTaskDeadline("");
     setNewTaskPriority("normal");
     newTaskInputRef.current?.focus();
-  }
-
-  async function handleSignOut() {
-    const result = await signOut();
-    if (!result.ok) {
-      setAuthActionMessage(result.message);
-      return;
-    }
-
-    setRemoteSyncReady(false);
-    setIsHydrated(false);
-    setPendingRemoteDeletes([]);
-    setTasks([]);
-    setAuthActionMessage("");
-    setIsProfileOpen(false);
-    router.replace(getAppPath("/login"));
-  }
-
-  function handleOpenProfile() {
-    setIsNotificationsOpen(false);
-    setIsProfileOpen(false);
-    setIsProfileEditorOpen(true);
-  }
-
-  function handleOpenSettings() {
-    setSettingsDraft(settings);
-    setIsNotificationsOpen(false);
-    setIsProfileOpen(false);
-    setIsSettingsOpen(true);
-  }
-
-  function restoreProfileFocus() {
-    window.requestAnimationFrame(() => profileButtonRef.current?.focus());
-  }
-
-  function handleCancelSettings() {
-    setSettingsDraft(settings);
-    setIsSettingsOpen(false);
-    restoreProfileFocus();
-  }
-
-  function handleSaveSettings(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const nextSettings = normalizeNightOwlSettings(settingsDraft);
-
-    setSettings(nextSettings);
-    setSettingsDraft(nextSettings);
-    try {
-      window.localStorage.setItem(settingsStorageKey, JSON.stringify(nextSettings));
-    } catch {
-      // The setting remains active for this session if browser storage is unavailable.
-    }
-    setIsSettingsOpen(false);
-    restoreProfileFocus();
   }
 
   function resetNewTaskDraft() {
@@ -2048,16 +1908,6 @@ export default function Home() {
   const taskTitlesById = new Map(tasks.map((task) => [task.id, task.title]));
   const editingTask = editingId ? tasks.find((task) => task.id === editingId) ?? null : null;
   const headerDateTime = formatHeaderDateTime(currentDateTime, logicalToday);
-  const profileName =
-    typeof authUser?.user_metadata?.full_name === "string"
-      ? authUser.user_metadata.full_name
-      : authUser?.email?.split("@")[0] ?? "HeavyUser";
-  const profileInitials = profileName
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
   const profileWorkspace =
     syncStatus === "synced"
       ? "Cloud synced"
@@ -2090,7 +1940,6 @@ export default function Home() {
             type="button"
             onClick={() => {
               setIsNotificationsOpen(false);
-              setIsProfileOpen(false);
             }}
           >
             <Image
@@ -2122,7 +1971,6 @@ export default function Home() {
                 type="button"
                 onClick={() => {
                   setIsNotificationsOpen((current) => !current);
-                  setIsProfileOpen(false);
                 }}
                 title="Notifications"
               >
@@ -2137,65 +1985,16 @@ export default function Home() {
               ) : null}
             </div>
 
-            <div className="hu-popover-anchor">
-              <button
-                aria-expanded={isProfileOpen}
-                aria-haspopup="menu"
-                className="hu-profile-button"
-                ref={profileButtonRef}
-                type="button"
-                onClick={() => {
-                  setIsProfileOpen((current) => !current);
-                  setIsNotificationsOpen(false);
-                }}
-              >
-                <span className="hu-avatar">
-                  {avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={avatarUrl} alt="" />
-                  ) : (
-                    <span aria-hidden="true">{profileInitials}</span>
-                  )}
-                </span>
-                <span className="hu-profile-copy">
-                  <span className="hu-profile-name">{profileName}</span>
-                  <span className="hu-profile-workspace">{profileWorkspace}</span>
-                </span>
-                <ChevronDown aria-hidden="true" size={14} />
-              </button>
-              {isProfileOpen ? (
-                <div className="hu-popover hu-profile-popover" role="menu" aria-label="Profile menu">
-                  <div className="hu-popover-profile" role="presentation">
-                    <span className="hu-profile-portrait">
-                      {avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={avatarUrl} alt="" />
-                      ) : (
-                        <span aria-hidden="true">{profileInitials}</span>
-                      )}
-                    </span>
-                    <div className="hu-popover-profile-copy">
-                      <strong>{profileName}</strong>
-                      <span>{authUser?.email ?? profileWorkspace}</span>
-                    </div>
-                  </div>
-                  <div className="hu-popover-divider" role="presentation" />
-                  <button className="hu-menu-item" role="menuitem" type="button" onClick={handleOpenProfile}>
-                    <Pencil aria-hidden="true" size={14} />
-                    <span>Edit profile</span>
-                  </button>
-                  <button className="hu-menu-item" role="menuitem" type="button" onClick={handleOpenSettings}>
-                    <Settings2 aria-hidden="true" size={14} />
-                    <span>Settings</span>
-                  </button>
-                  <div className="hu-popover-divider" role="presentation" />
-                  <button className="hu-auth-action" type="button" onClick={() => void handleSignOut()}>
-                    Sign out
-                  </button>
-                  {authActionMessage ? <span className="hu-auth-message" role="alert">{authActionMessage}</span> : null}
-                </div>
-              ) : null}
-            </div>
+            <ProfileMenu
+              workspaceLabel={profileWorkspace}
+              onSignedOut={() => {
+                setRemoteSyncReady(false);
+                setIsHydrated(false);
+                setPendingRemoteDeletes([]);
+                setTaskMigrationMessage("");
+                setTasks([]);
+              }}
+            />
           </div>
         </header>
 
@@ -2809,99 +2608,6 @@ export default function Home() {
           </div>
         </div>
 
-        {isSettingsOpen ? (
-          <div
-            className="hu-modal-backdrop"
-            role="presentation"
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) {
-                handleCancelSettings();
-              }
-            }}
-          >
-            <form
-              aria-labelledby="settings-title"
-              className="hu-settings-dialog"
-              role="dialog"
-              aria-modal="true"
-              onSubmit={handleSaveSettings}
-            >
-              <button
-                aria-label="Close settings"
-                className="hu-task-dialog-close hu-icon-button"
-                type="button"
-                onClick={handleCancelSettings}
-              >
-                <X aria-hidden="true" />
-              </button>
-
-              <div className="hu-settings-dialog-body">
-                <div className="hu-settings-intro">
-                  <span className="hu-settings-mark" aria-hidden="true">
-                    <Settings2 size={17} />
-                  </span>
-                  <div>
-                    <span className="hu-field-label">Settings</span>
-                    <h2 id="settings-title">Daily rhythm</h2>
-                    <p>Make HeavyUser follow the way your day actually runs.</p>
-                  </div>
-                </div>
-
-                <label className="hu-settings-toggle-row">
-                  <span className="hu-settings-toggle-copy">
-                    <strong>Night owl mode</strong>
-                    <small>Keep the previous day open past midnight.</small>
-                  </span>
-                  <input
-                    aria-describedby="settings-day-start-help"
-                    checked={settingsDraft.nightOwlMode}
-                    className="hu-settings-switch"
-                    ref={settingsToggleRef}
-                    type="checkbox"
-                    onChange={(event) =>
-                      setSettingsDraft((current) => ({
-                        ...current,
-                        nightOwlMode: event.target.checked,
-                      }))
-                    }
-                  />
-                </label>
-
-                <label className="hu-settings-time-field">
-                  <span className="hu-field-label">New day starts at</span>
-                  <input
-                    aria-describedby="settings-day-start-help"
-                    className="hu-edit-input"
-                    disabled={!settingsDraft.nightOwlMode}
-                    onChange={(event) =>
-                      setSettingsDraft((current) => ({
-                        ...current,
-                        dayStartTime: event.target.value,
-                      }))
-                    }
-                    type="time"
-                    value={settingsDraft.dayStartTime}
-                  />
-                  <small id="settings-day-start-help">
-                    {settingsDraft.nightOwlMode
-                      ? `Your task day continues until ${formatTimeValue(settingsDraft.dayStartTime)}.`
-                      : "Turn on Night owl mode to change this time."}
-                  </small>
-                </label>
-              </div>
-
-              <div className="hu-task-dialog-actions">
-                <button className="hu-form-button is-primary" type="submit">
-                  Save changes
-                </button>
-                <button className="hu-form-button" type="button" onClick={handleCancelSettings}>
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        ) : null}
-
         {editingTask ? (
           <div
             className="hu-modal-backdrop"
@@ -3007,7 +2713,6 @@ export default function Home() {
           </div>
         ) : null}
 
-        <ProfileDialog key={`${authUser.id}-${isProfileEditorOpen ? "open" : "closed"}`} open={isProfileEditorOpen} onClose={() => setIsProfileEditorOpen(false)} />
       </div>
     </main>
   );

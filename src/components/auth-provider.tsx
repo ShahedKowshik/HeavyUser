@@ -9,6 +9,15 @@ import {
   type ProfileDraft,
   updateUserProfile,
 } from "@/lib/supabase/profile";
+import {
+  clearLegacySettings,
+  DEFAULT_USER_SETTINGS,
+  getUserSettings,
+  normalizeUserSettings,
+  readLegacySettings,
+  type UserSettings,
+  updateUserSettings,
+} from "@/lib/supabase/settings";
 
 export type AuthStatus = "loading" | "signed_out" | "signed_in";
 export type AuthResult = { ok: true } | { ok: false; message: string };
@@ -17,9 +26,11 @@ type AuthContextValue = {
   status: AuthStatus;
   user: User | null;
   avatarUrl: string | null;
+  settings: UserSettings;
   sendMagicLink: (email: string) => Promise<AuthResult>;
   signOut: () => Promise<AuthResult>;
   updateProfile: (draft: ProfileDraft) => Promise<AuthResult>;
+  updateSettings: (settings: UserSettings) => Promise<AuthResult>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -52,6 +63,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
   const [status, setStatus] = useState<AuthStatus>(client ? "loading" : "signed_out");
   const [user, setUser] = useState<User | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [settings, setSettings] = useState<UserSettings>({ ...DEFAULT_USER_SETTINGS });
 
   const applyUser = useCallback(
     (nextUser: User | null) => {
@@ -60,9 +72,13 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
 
       if (!client || !nextUser) {
         setAvatarUrl(null);
+        if (!nextUser) {
+          setSettings({ ...DEFAULT_USER_SETTINGS });
+        }
         return;
       }
 
+      setSettings(getUserSettings(nextUser) ?? readLegacySettings() ?? { ...DEFAULT_USER_SETTINGS });
       void getSignedAvatarUrl(client, nextUser).then(setAvatarUrl);
     },
     [client],
@@ -93,6 +109,41 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
       subscription.unsubscribe();
     };
   }, [applyUser, client]);
+
+  useEffect(() => {
+    if (!client || !user || status !== "signed_in") {
+      return;
+    }
+
+    let isCancelled = false;
+    const remoteSettings = getUserSettings(user);
+
+    if (remoteSettings) {
+      return () => {
+        isCancelled = true;
+      };
+    }
+
+    const legacySettings = readLegacySettings();
+    if (!legacySettings) {
+      return () => {
+        isCancelled = true;
+      };
+    }
+
+    void updateUserSettings(client, user, legacySettings).then((result) => {
+      if (isCancelled || !result.user) {
+        return;
+      }
+
+      clearLegacySettings();
+      applyUser(result.user);
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [applyUser, client, status, user]);
 
   const sendMagicLink = useCallback(
     async (email: string): Promise<AuthResult> => {
@@ -143,9 +194,27 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
     [applyUser, client, user],
   );
 
+  const updateSettings = useCallback(
+    async (nextSettings: UserSettings): Promise<AuthResult> => {
+      if (!client || !user) {
+        return { ok: false, message: "Your session has ended. Sign in again." };
+      }
+
+      const result = await updateUserSettings(client, user, nextSettings);
+      if (!result.user) {
+        return { ok: false, message: result.errorMessage ?? "Your settings could not be saved." };
+      }
+
+      setSettings(normalizeUserSettings(nextSettings));
+      applyUser(result.user);
+      return { ok: true };
+    },
+    [applyUser, client, user],
+  );
+
   const value = useMemo(
-    () => ({ status, user, avatarUrl, sendMagicLink, signOut, updateProfile }),
-    [avatarUrl, sendMagicLink, signOut, status, updateProfile, user],
+    () => ({ status, user, avatarUrl, settings, sendMagicLink, signOut, updateProfile, updateSettings }),
+    [avatarUrl, sendMagicLink, settings, signOut, status, updateProfile, updateSettings, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,6 +1,6 @@
 # HeavyUser agent guide
 
-HeavyUser is a focused personal productivity workspace. The current product surface is intentionally small: a slim Inbox/settings rail, a compact authenticated account bar, synced tasks on the left, and a single-day vertical calendar on the right.
+HeavyUser is a focused personal productivity workspace. The current product surface is intentionally small: a compact authenticated account bar, synced tasks on the left, a single-day vertical calendar on the right, and a dedicated account/settings page.
 
 ## Repository location
 
@@ -17,13 +17,13 @@ HeavyUser is a focused personal productivity workspace. The current product surf
 
 ## Non-goals
 
-Do not add additional navigation destinations, dashboards, password authentication, OAuth providers, MFA, collaboration, calendar editing, drag-to-calendar behavior, date navigation, integrations, or extra product areas without a new request. The existing rail is limited to Inbox and Settings. Authentication, task sync, and private avatar storage are part of the current phase.
+Do not add additional navigation destinations, dashboards, password authentication, OAuth providers, MFA, collaboration, calendar editing, drag-to-calendar behavior, date navigation, integrations, or extra product areas without a new request. The profile menu is limited to account access, Settings, and sign out. Authentication, task sync, private avatar storage, and account-synced settings are part of the current phase.
 
 ## Important files
 
 - `src/app/page.tsx` — first screen, task interactions, user-scoped cache, and deterministic mock data.
 - `src/app/login/` and `src/app/auth/` — passwordless account entry and magic-link confirmation.
-- `src/components/auth-provider.tsx` — browser session and profile state.
+- `src/components/auth-provider.tsx` — browser session, profile state, and account-synced settings.
 - `src/app/globals.css` — HeavyUser visual system and responsive layout.
 - `src/app/layout.tsx` — metadata and font setup.
 - `design.md` — design authority for this phase.

@@ -26,6 +26,7 @@ The interface is deliberately small: a task queue on the left, a single-day plan
 - Sign in with a passwordless email link and keep tasks synced to Supabase.
 - Import existing local tasks once when a new account has no cloud tasks yet.
 - Edit the account display name and private profile portrait.
+- Open a dedicated Settings page to edit account details and save the daily rhythm across signed-in devices.
 - Use the responsive layout on desktop and mobile, with keyboard-accessible controls and visible focus states.
 
 ## Product principles
@@ -85,7 +86,8 @@ pnpm build
 src/app/page.tsx       Product surface, task interactions, persistence, and planner data
 src/app/login/         Passwordless account entry screen
 src/app/auth/          Magic-link confirmation route
-src/components/        Auth provider and profile editor
+src/components/        Auth provider, profile menu, and shared UI
+src/app/settings/      Account and daily rhythm settings page
 src/app/globals.css    Design tokens, layout, responsive rules, and calendar geometry
 src/app/layout.tsx     App metadata and typography setup
 design.md              Product thesis and visual constraints
