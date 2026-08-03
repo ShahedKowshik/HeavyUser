@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { CalendarDays, Check, ExternalLink, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { getAppPath } from "@/lib/supabase/config";
@@ -46,6 +46,33 @@ type EventDraft = {
   title: string;
   description: string;
   location: string;
+  start: string;
+  end: string;
+};
+
+type EventGestureMode = "move" | "resize-start" | "resize-end";
+
+type EventGesture = {
+  event: LiveEvent;
+  mode: EventGestureMode;
+  pointerId: number;
+  originClientY: number;
+  originPointerMinutes: number;
+  originStart: number;
+  originEnd: number;
+  stage: HTMLElement;
+  timelineStart: number;
+  timelineHours: number;
+  timeZone: string;
+};
+
+type DragPreview = {
+  eventId: string;
+  start: string;
+  end: string;
+};
+
+type PendingEventRange = {
   start: string;
   end: string;
 };
@@ -114,6 +141,42 @@ function toDateTimeInput(value: string | null) {
   return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16);
 }
 
+function getDraftDurationMinutes(start: string, end: string) {
+  const startTime = new Date(start).getTime();
+  const endTime = new Date(end).getTime();
+  if (Number.isNaN(startTime) || Number.isNaN(endTime) || endTime <= startTime) {
+    return null;
+  }
+
+  return Math.round((endTime - startTime) / 60_000);
+}
+
+function addMinutesToDateTimeInput(value: string, minutes: number) {
+  const startTime = new Date(value);
+  if (Number.isNaN(startTime.getTime())) {
+    return "";
+  }
+
+  return toDateTimeInput(new Date(startTime.getTime() + minutes * 60_000).toISOString());
+}
+
+function snapMinutes(value: number) {
+  return Math.round(value / 15) * 15;
+}
+
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(Math.max(value, minimum), maximum);
+}
+
+function getMinutesAtPointer(clientY: number, stage: HTMLElement, timelineStart: number, timelineHours: number) {
+  const bounds = stage.getBoundingClientRect();
+  if (bounds.height <= 0) {
+    return timelineStart * 60;
+  }
+
+  return timelineStart * 60 + ((clientY - bounds.top) / bounds.height) * timelineHours * 60;
+}
+
 function fromDateTimeInput(value: string) {
   return new Date(value).toISOString();
 }
@@ -138,7 +201,19 @@ export function GoogleCalendarPanel({
   const [draft, setDraft] = useState<EventDraft>(defaultDraft(date));
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const didInitialLoad = useRef(false);
+  const syncInFlight = useRef(false);
+  const queuedSync = useRef(false);
+  const [eventGesture, setEventGesture] = useState<EventGesture | null>(null);
+  const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
+  const eventGestureRef = useRef<EventGesture | null>(null);
+  const gestureMoved = useRef(false);
+  const suppressEventClick = useRef(false);
+  const dragWriteChain = useRef(Promise.resolve());
+  const pendingEventRanges = useRef(new Map<string, PendingEventRange>());
+  const pendingEventRangeTimers = useRef(new Map<string, number>());
 
+  const isConnected = Boolean(connection?.calendarId);
   const timeZone = connection?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const currentTime = getDateParts(new Date(), timeZone).minutes / 60;
   const currentTimeLabel = new Intl.DateTimeFormat(undefined, {
@@ -161,6 +236,33 @@ export function GoogleCalendarPanel({
     });
   }, [date, events, timeZone]);
 
+  function mergePendingEventRanges(nextEvents: LiveEvent[]) {
+    return nextEvents.map((event) => {
+      const pending = pendingEventRanges.current.get(event.id);
+      if (!pending) {
+        return event;
+      }
+
+      const matchesGoogle = event.start !== null && event.end !== null
+        && new Date(event.start).getTime() === new Date(pending.start).getTime()
+        && new Date(event.end).getTime() === new Date(pending.end).getTime();
+      if (matchesGoogle) {
+        pendingEventRanges.current.delete(event.id);
+        const timer = pendingEventRangeTimers.current.get(event.id);
+        if (timer !== undefined) {
+          window.clearTimeout(timer);
+          pendingEventRangeTimers.current.delete(event.id);
+        }
+        return event;
+      }
+
+      // Google can briefly return the previous value while its change is
+      // propagating. Keep the successful local move visible until Google
+      // confirms the same range instead of flashing the event backward.
+      return { ...event, start: pending.start, end: pending.end };
+    });
+  }
+
   async function loadCalendars() {
     setError("");
     const response = await fetch(getAppPath("/api/google/calendar/calendars"), { cache: "no-store" });
@@ -173,6 +275,12 @@ export function GoogleCalendarPanel({
   }
 
   async function loadConnectionAndEvents(showSpinner = true) {
+    if (syncInFlight.current) {
+      queuedSync.current = true;
+      return;
+    }
+
+    syncInFlight.current = true;
     if (showSpinner) {
       setIsLoading(true);
     }
@@ -200,26 +308,59 @@ export function GoogleCalendarPanel({
         throw new Error(eventsBody?.error ?? "Calendar events could not be loaded.");
       }
       setConnection(eventsBody?.connection ?? nextConnection);
-      setEvents(eventsBody?.events ?? []);
+      setEvents(mergePendingEventRanges(eventsBody?.events ?? []));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Calendar could not be loaded.");
     } finally {
+      syncInFlight.current = false;
       setIsLoading(false);
       setIsRefreshing(false);
+      if (queuedSync.current) {
+        queuedSync.current = false;
+        void loadConnectionAndEvents(false);
+      }
     }
   }
 
   useEffect(() => {
+    if (didInitialLoad.current) {
+      return;
+    }
+    didInitialLoad.current = true;
+
     // The async loader owns its state transitions after the network response.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadConnectionAndEvents();
     if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("google_calendar") === "select") {
-      void loadCalendars().catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Calendars could not be loaded."));
       window.history.replaceState({}, "", window.location.pathname);
     }
     // The loader intentionally runs once when the planner mounts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!isConnected) {
+      return;
+    }
+
+    const syncWhenVisible = () => {
+      if (document.visibilityState !== "visible" || editingEvent || isCreating || isSaving || eventGesture) {
+        return;
+      }
+
+      void loadConnectionAndEvents(false);
+    };
+    const interval = window.setInterval(syncWhenVisible, 30_000);
+    window.addEventListener("focus", syncWhenVisible);
+    document.addEventListener("visibilitychange", syncWhenVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", syncWhenVisible);
+      document.removeEventListener("visibilitychange", syncWhenVisible);
+    };
+    // The sync callback intentionally uses the latest modal state while the connection is active.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingEvent, eventGesture, isConnected, isCreating, isSaving]);
 
   function beginCreate() {
     setError("");
@@ -332,11 +473,216 @@ export function GoogleCalendarPanel({
   }
 
   async function refresh() {
+    if (syncInFlight.current) {
+      return;
+    }
+
     setIsRefreshing(true);
     await loadConnectionAndEvents(false);
   }
 
-  const isConnected = Boolean(connection?.calendarId);
+  function getGestureRange(gesture: EventGesture, clientY: number) {
+    const pointerMinutes = snapMinutes(getMinutesAtPointer(clientY, gesture.stage, gesture.timelineStart, gesture.timelineHours));
+    let deltaMinutes = pointerMinutes - gesture.originPointerMinutes;
+    const minimumDuration = 15 * 60_000;
+    let start = gesture.originStart;
+    let end = gesture.originEnd;
+
+    if (gesture.mode === "move") {
+      const durationMinutes = (gesture.originEnd - gesture.originStart) / 60_000;
+      const originLocalStart = getDateParts(new Date(gesture.originStart), gesture.timeZone).minutes;
+      deltaMinutes = clamp(snapMinutes(deltaMinutes), -originLocalStart, 24 * 60 - durationMinutes - originLocalStart);
+      start += deltaMinutes * 60_000;
+      end += deltaMinutes * 60_000;
+    } else if (gesture.mode === "resize-start") {
+      start = clamp(gesture.originStart + snapMinutes(deltaMinutes) * 60_000, gesture.originStart - 24 * 60 * 60_000, gesture.originEnd - minimumDuration);
+    } else {
+      end = clamp(gesture.originEnd + snapMinutes(deltaMinutes) * 60_000, gesture.originStart + minimumDuration, gesture.originEnd + 24 * 60 * 60_000);
+    }
+
+    return { start: new Date(start).toISOString(), end: new Date(end).toISOString() };
+  }
+
+  function startEventGesture(event: ReactPointerEvent<HTMLElement>, eventItem: LiveEvent, mode: EventGestureMode) {
+    if (eventItem.allDay || !eventItem.start || !eventItem.end) {
+      return;
+    }
+
+    const stage = event.currentTarget.closest(".hu-calendar-stage");
+    if (!(stage instanceof HTMLElement)) {
+      return;
+    }
+
+    if (mode !== "move") {
+      event.preventDefault();
+      suppressEventClick.current = true;
+    }
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Some browsers do not allow capture on a nested resize handle.
+    }
+    gestureMoved.current = false;
+    const gesture = {
+      event: eventItem,
+      mode,
+      pointerId: event.pointerId,
+      originClientY: event.clientY,
+      originPointerMinutes: snapMinutes(getMinutesAtPointer(event.clientY, stage, timelineStart, timelineHours)),
+      originStart: new Date(eventItem.start).getTime(),
+      originEnd: new Date(eventItem.end).getTime(),
+      stage,
+      timelineStart,
+      timelineHours,
+      timeZone,
+    } satisfies EventGesture;
+    eventGestureRef.current = gesture;
+    setEventGesture(gesture);
+    setDragPreview({ eventId: eventItem.id, start: eventItem.start, end: eventItem.end });
+  }
+
+  async function performDraggedEventSave(eventItem: LiveEvent, start: string, end: string) {
+    setIsSaving(true);
+    setError("");
+    try {
+      const response = await fetch(getAppPath("/api/google/calendar/events"), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventKey: eventItem.id,
+          source: "timeline",
+          etag: eventItem.etag,
+          title: eventItem.title,
+          description: eventItem.description ?? "",
+          location: eventItem.location ?? "",
+          start,
+          end,
+        }),
+      });
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) {
+        throw new Error(body?.error ?? "The event could not be moved.");
+      }
+      // The timeline already reflects the new range optimistically. Release the
+      // interaction lock as soon as Google accepts the write; the read sync can
+      // finish in the background without preventing another drag.
+      setIsSaving(false);
+      void loadConnectionAndEvents(false);
+    } catch (moveError) {
+      const pending = pendingEventRanges.current.get(eventItem.id);
+      if (pending?.start === start && pending.end === end) {
+        pendingEventRanges.current.delete(eventItem.id);
+        const timer = pendingEventRangeTimers.current.get(eventItem.id);
+        if (timer !== undefined) {
+          window.clearTimeout(timer);
+          pendingEventRangeTimers.current.delete(eventItem.id);
+        }
+      }
+      setError(moveError instanceof Error ? moveError.message : "The event could not be moved.");
+      void loadConnectionAndEvents(false);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function saveDraggedEvent(eventItem: LiveEvent, start: string, end: string) {
+    // Keep direct-manipulation writes in order. This prevents two quick drags
+    // from racing Google Calendar's If-Match check while keeping the UI free.
+    const operation = dragWriteChain.current.then(() => performDraggedEventSave(eventItem, start, end));
+    dragWriteChain.current = operation.catch(() => undefined);
+    return operation;
+  }
+
+  function handleEventClick(eventItem: LiveEvent) {
+    if (suppressEventClick.current) {
+      suppressEventClick.current = false;
+      return;
+    }
+
+    beginEdit(eventItem);
+  }
+
+  useEffect(() => {
+    const updateGesture = (event: PointerEvent) => {
+      const gesture = eventGestureRef.current;
+      if (!gesture || event.pointerId !== gesture.pointerId) {
+        return;
+      }
+
+      const moved = Math.abs(event.clientY - gesture.originClientY) > 4;
+      if (moved) {
+        gestureMoved.current = true;
+        suppressEventClick.current = true;
+        event.preventDefault();
+      }
+      setDragPreview({ eventId: gesture.event.id, ...getGestureRange(gesture, event.clientY) });
+    };
+
+    const finishGesture = (event: PointerEvent, cancelled = false) => {
+      const gesture = eventGestureRef.current;
+      if (!gesture || event.pointerId !== gesture.pointerId) {
+        return;
+      }
+
+      const finalRange = getGestureRange(gesture, event.clientY);
+      const didMove = gestureMoved.current || finalRange.start !== gesture.event.start || finalRange.end !== gesture.event.end;
+      const shouldSuppressClick = cancelled || didMove || gesture.mode !== "move";
+      if (shouldSuppressClick) {
+        suppressEventClick.current = true;
+      }
+      eventGestureRef.current = null;
+      setEventGesture(null);
+
+      if (!cancelled && didMove) {
+        // Commit the visual move immediately so a second drag starts from the
+        // new range even while the first Google write is still finishing.
+        const previousTimer = pendingEventRangeTimers.current.get(gesture.event.id);
+        if (previousTimer !== undefined) {
+          window.clearTimeout(previousTimer);
+        }
+        pendingEventRanges.current.set(gesture.event.id, {
+          start: finalRange.start,
+          end: finalRange.end,
+        });
+        const timer = window.setTimeout(() => {
+          const pending = pendingEventRanges.current.get(gesture.event.id);
+          if (pending?.start === finalRange.start && pending.end === finalRange.end) {
+            pendingEventRanges.current.delete(gesture.event.id);
+            pendingEventRangeTimers.current.delete(gesture.event.id);
+          }
+        }, 60_000);
+        pendingEventRangeTimers.current.set(gesture.event.id, timer);
+        setEvents((currentEvents) => currentEvents.map((currentEvent) => (
+          currentEvent.id === gesture.event.id
+            ? { ...currentEvent, start: finalRange.start, end: finalRange.end }
+            : currentEvent
+        )));
+        setDragPreview(null);
+        void saveDraggedEvent(gesture.event, finalRange.start, finalRange.end);
+      } else {
+        setDragPreview(null);
+      }
+
+      window.setTimeout(() => {
+        suppressEventClick.current = false;
+      }, 0);
+    };
+    const cancelGesture = (event: PointerEvent) => finishGesture(event, true);
+
+    window.addEventListener("pointermove", updateGesture, { passive: false });
+    window.addEventListener("pointerup", finishGesture);
+    window.addEventListener("pointercancel", cancelGesture);
+
+    return () => {
+      window.removeEventListener("pointermove", updateGesture);
+      window.removeEventListener("pointerup", finishGesture);
+      window.removeEventListener("pointercancel", cancelGesture);
+      eventGestureRef.current = null;
+    };
+    // These listeners stay mounted for the calendar lifetime so a fast pointer move cannot be missed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const allDayEvents = visibleLiveEvents.filter((event) => event.allDay);
   const timedEvents = visibleLiveEvents.filter((event) => !event.allDay);
 
@@ -412,24 +758,45 @@ export function GoogleCalendarPanel({
             </span>
 
             {timedEvents.map((event) => {
-              const range = getEventRange(event, date, timeZone);
+              const renderedEvent = dragPreview?.eventId === event.id
+                ? { ...event, start: dragPreview.start, end: dragPreview.end }
+                : event;
+              const range = getEventRange(renderedEvent, date, timeZone);
               if (!range) return null;
               const start = range.start / 60;
               const end = range.end / 60;
               return (
                 <button
-                  className={`hu-event hu-event-button ${event.hasAttendees ? "is-guest-event" : ""}`}
+                  className={`hu-event hu-event-button ${event.hasAttendees ? "is-guest-event" : ""} ${eventGesture?.event.id === event.id ? "is-gesture-active" : ""}`}
                   key={event.id}
                   role="listitem"
                   style={{
                     top: `${Math.max(((start - timelineStart) / timelineHours) * 100, 0)}%`,
                     height: `${Math.min(((end - start) / timelineHours) * 100, 100)}%`,
                   }}
+                  title="Drag to move. Drag the top or bottom edge to change the time."
                   type="button"
-                  onClick={() => beginEdit(event)}
+                  onPointerDown={(pointerEvent) => startEventGesture(pointerEvent, event, "move")}
+                  onClick={() => handleEventClick(event)}
                 >
+                  <span
+                    aria-hidden="true"
+                    className="hu-event-resize-handle hu-event-resize-handle-start"
+                    onPointerDown={(pointerEvent) => {
+                      pointerEvent.stopPropagation();
+                      startEventGesture(pointerEvent, event, "resize-start");
+                    }}
+                  />
                   <span className="hu-event-title">{event.title}</span>
-                  <span className="hu-event-meta">{formatEventTime(event, timeZone)}</span>
+                  <span className="hu-event-meta">{formatEventTime(renderedEvent, timeZone)}</span>
+                  <span
+                    aria-hidden="true"
+                    className="hu-event-resize-handle hu-event-resize-handle-end"
+                    onPointerDown={(pointerEvent) => {
+                      pointerEvent.stopPropagation();
+                      startEventGesture(pointerEvent, event, "resize-end");
+                    }}
+                  />
                 </button>
               );
             })}
@@ -467,19 +834,25 @@ export function GoogleCalendarPanel({
             </button>
             <span className="hu-calendar-kicker">Google Calendar</span>
             <h2 id="google-event-dialog-title">{isCreating ? "Add event" : "Event details"}</h2>
-            {editingEvent?.hasAttendees ? <div className="hu-calendar-readonly-note">This event has guests, so HeavyUser keeps it read-only.</div> : null}
+            {editingEvent?.hasAttendees ? <div className="hu-calendar-readonly-note">This meeting has guests. Google may notify them when you save a change.</div> : null}
             {editingEvent?.allDay ? <div className="hu-calendar-readonly-note">All-day event editing will be available in a later release.</div> : null}
-            <label>Title<input disabled={Boolean(editingEvent?.hasAttendees || editingEvent?.allDay)} required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} /></label>
+            <label>Title<input disabled={Boolean(editingEvent?.allDay)} required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} /></label>
             <div className="hu-calendar-event-grid">
-              <label>Start<input disabled={Boolean(editingEvent?.hasAttendees || editingEvent?.allDay)} required type="datetime-local" value={draft.start} onChange={(event) => setDraft((current) => ({ ...current, start: event.target.value }))} /></label>
-              <label>End<input disabled={Boolean(editingEvent?.hasAttendees || editingEvent?.allDay)} required type="datetime-local" value={draft.end} onChange={(event) => setDraft((current) => ({ ...current, end: event.target.value }))} /></label>
+              <label>Start<input disabled={Boolean(editingEvent?.allDay)} required type="datetime-local" value={draft.start} onChange={(event) => setDraft((current) => ({ ...current, start: event.target.value }))} /></label>
+              <label>End<input disabled={Boolean(editingEvent?.allDay)} required type="datetime-local" value={draft.end} onChange={(event) => setDraft((current) => ({ ...current, end: event.target.value }))} /></label>
             </div>
-            <label>Location<input disabled={Boolean(editingEvent?.hasAttendees || editingEvent?.allDay)} value={draft.location} onChange={(event) => setDraft((current) => ({ ...current, location: event.target.value }))} /></label>
-            <label>Notes<textarea disabled={Boolean(editingEvent?.hasAttendees || editingEvent?.allDay)} rows={3} value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} /></label>
+            <label>Duration (minutes)<input disabled={Boolean(editingEvent?.allDay)} min="5" max="1440" step="5" type="number" value={getDraftDurationMinutes(draft.start, draft.end) ?? ""} onChange={(event) => {
+              const minutes = Number(event.target.value);
+              if (Number.isFinite(minutes) && minutes > 0) {
+                setDraft((current) => ({ ...current, end: addMinutesToDateTimeInput(current.start, minutes) }));
+              }
+            }} /></label>
+            <label>Location<input disabled={Boolean(editingEvent?.allDay)} value={draft.location} onChange={(event) => setDraft((current) => ({ ...current, location: event.target.value }))} /></label>
+            <label>Notes<textarea disabled={Boolean(editingEvent?.allDay)} rows={3} value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} /></label>
             <div className="hu-calendar-dialog-actions">
               {editingEvent?.htmlLink ? <a className="hu-calendar-open-link" href={editingEvent.htmlLink} rel="noreferrer" target="_blank"><ExternalLink aria-hidden="true" size={13} />Open in Google</a> : <span />}
               {!editingEvent?.hasAttendees && !editingEvent?.allDay && editingEvent ? <button className="hu-calendar-delete-button" disabled={isSaving} type="button" onClick={() => void handleDelete()}><Trash2 aria-hidden="true" size={13} />Delete</button> : null}
-              {editingEvent?.hasAttendees || editingEvent?.allDay ? <button className="hu-calendar-add-button" type="button" onClick={() => { setIsCreating(false); setEditingEvent(null); }}>Close</button> : <button className="hu-calendar-add-button" disabled={isSaving} type="submit"><Pencil aria-hidden="true" size={13} />{isSaving ? "Saving…" : "Save event"}</button>}
+              {editingEvent?.allDay ? <button className="hu-calendar-add-button" type="button" onClick={() => { setIsCreating(false); setEditingEvent(null); }}>Close</button> : <button className="hu-calendar-add-button" disabled={isSaving} type="submit"><Pencil aria-hidden="true" size={13} />{isSaving ? "Saving…" : "Save event"}</button>}
             </div>
           </form>
         </div>

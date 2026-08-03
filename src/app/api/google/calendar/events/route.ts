@@ -126,6 +126,7 @@ export async function PATCH(request: Request) {
 
   const body = (await request.json().catch(() => null)) as {
     eventKey?: unknown;
+    source?: unknown;
     etag?: unknown;
     title?: unknown;
     description?: unknown;
@@ -133,6 +134,7 @@ export async function PATCH(request: Request) {
     start?: unknown;
     end?: unknown;
   } | null;
+  const isTimelineMove = body?.source === "timeline";
   const eventKey = typeof body?.eventKey === "string" ? body.eventKey : "";
   if (!eventKey) {
     return NextResponse.json({ error: "The event could not be identified." }, { status: 400 });
@@ -150,10 +152,7 @@ export async function PATCH(request: Request) {
   if (!localEvent) {
     return NextResponse.json({ error: "That event is no longer available. Refresh the planner." }, { status: 404 });
   }
-  if (localEvent.has_attendees) {
-    return NextResponse.json({ error: "Events with guests are read-only in this private MVP." }, { status: 403 });
-  }
-  if (typeof body?.etag === "string" && localEvent.etag && body.etag !== localEvent.etag) {
+  if (!isTimelineMove && typeof body?.etag === "string" && localEvent.etag && body.etag !== localEvent.etag) {
     return NextResponse.json({ conflict: true, error: "This event changed in Google Calendar. Refresh before editing it." }, { status: 409 });
   }
 
@@ -164,10 +163,10 @@ export async function PATCH(request: Request) {
       calendarId: result.connection.selected_calendar_id!,
       eventId: localEvent.provider_event_id,
     });
-    if (latest.status === "cancelled" || (latest.attendees?.length ?? 0) > 0) {
+    if (latest.status === "cancelled") {
       return NextResponse.json({ conflict: true, error: "This event changed in Google Calendar. Refresh before editing it." }, { status: 409 });
     }
-    if (localEvent.etag && latest.etag && localEvent.etag !== latest.etag) {
+    if (!isTimelineMove && localEvent.etag && latest.etag && localEvent.etag !== latest.etag) {
       return NextResponse.json({ conflict: true, error: "This event changed in Google Calendar. Refresh before editing it." }, { status: 409 });
     }
 
@@ -185,9 +184,12 @@ export async function PATCH(request: Request) {
       calendarId: result.connection.selected_calendar_id!,
       eventId: localEvent.provider_event_id,
       etag: latest.etag ?? localEvent.etag,
+      sendUpdates: localEvent.has_attendees ? "all" : "none",
       resource,
     });
-    await syncGoogleCalendar(result.context.client, result.connection, request);
+    // The client performs one serialized read sync after the write. Keeping
+    // sync-token advancement out of this request prevents a drag write and a
+    // nearby modal edit from running competing Google syncs at the same time.
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof GoogleApiError && error.status === 412) {

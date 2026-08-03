@@ -218,6 +218,7 @@ export async function patchGoogleEvent(input: {
   calendarId: string;
   eventId: string;
   etag?: string | null;
+  sendUpdates?: "all" | "none";
   resource: Record<string, unknown>;
 }) {
   const headers = new Headers();
@@ -226,7 +227,7 @@ export async function patchGoogleEvent(input: {
   }
 
   return googleRequest<GoogleEvent>(
-    `/calendars/${encodeURIComponent(input.calendarId)}/events/${encodeURIComponent(input.eventId)}?sendUpdates=none`,
+    `/calendars/${encodeURIComponent(input.calendarId)}/events/${encodeURIComponent(input.eventId)}?sendUpdates=${input.sendUpdates ?? "none"}`,
     input.accessToken,
     { method: "PATCH", headers, body: JSON.stringify(input.resource) },
   );

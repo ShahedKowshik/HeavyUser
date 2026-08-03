@@ -12,6 +12,8 @@ import {
   setGoogleConnectionError,
 } from "@/lib/google/server";
 
+const EVENT_KEY_DELETE_BATCH_SIZE = 100;
+
 function getDateTime(value: { dateTime?: string; date?: string } | undefined) {
   if (!value) {
     return null;
@@ -68,12 +70,15 @@ function mapGoogleEvent(userId: string, event: GoogleEvent) {
 
 async function applyEvents(client: GoogleDbClient, userId: string, events: GoogleEvent[]) {
   const activeEvents = events.filter((event) => event.status !== "cancelled");
-  const cancelledKeys = events.filter((event) => event.status === "cancelled").map(getGoogleEventKey);
+  const cancelledKeys = [...new Set(events.filter((event) => event.status === "cancelled").map(getGoogleEventKey))];
 
   if (cancelledKeys.length > 0) {
-    const { error } = await client.from("google_calendar_events").delete().in("event_key", cancelledKeys).eq("user_id", userId);
-    if (error) {
-      throw error;
+    for (let index = 0; index < cancelledKeys.length; index += EVENT_KEY_DELETE_BATCH_SIZE) {
+      const batch = cancelledKeys.slice(index, index + EVENT_KEY_DELETE_BATCH_SIZE);
+      const { error } = await client.from("google_calendar_events").delete().in("event_key", batch).eq("user_id", userId);
+      if (error) {
+        throw new Error(`Google Calendar event cleanup failed: ${error.message}`);
+      }
     }
   }
 
@@ -86,7 +91,7 @@ async function applyEvents(client: GoogleDbClient, userId: string, events: Googl
     { onConflict: "event_key" },
   );
   if (error) {
-    throw error;
+    throw new Error(`Google Calendar event sync failed: ${error.message}`);
   }
 }
 
