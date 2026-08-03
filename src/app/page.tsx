@@ -2370,6 +2370,7 @@ export default function Home() {
               tasks={tasks}
               scheduleBlocks={scheduleBlocks}
               schedulerError={schedulerError}
+              onTaskDurationChange={handleDurationChange}
             />
           </div>
         </div>

@@ -389,6 +389,35 @@ input:focus-visible {
   letter-spacing: 0.04em;
 }
 
+.hu-popover-profile-id-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 3px;
+}
+
+.hu-profile-copy-button {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: var(--hu-radius);
+  padding: 0;
+  background: transparent;
+  color: var(--muted-text);
+  cursor: pointer;
+}
+
+.hu-profile-copy-button:hover,
+.hu-profile-copy-button:focus-visible,
+.hu-profile-copy-button.is-copied {
+  background: var(--primary-soft);
+  color: var(--primary);
+  outline: none;
+}
+
 .hu-popover strong {
   color: var(--foreground);
   font-size: 12px;
@@ -3066,50 +3095,48 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 .hu-calendar-day {
+  position: relative;
   display: block;
 }
 
 .hu-calendar-day-heading {
+  position: absolute;
+  z-index: 3;
+  top: 7px;
+  right: 0;
+  left: 58px;
   display: flex;
-  height: 42px;
-  min-height: 42px;
+  min-height: 18px;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 5px 0 5px 58px;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface-subtle);
+  padding: 0 8px;
+  pointer-events: none;
 }
 
 .hu-calendar-day-heading-copy {
   display: flex;
   min-width: 0;
   align-items: baseline;
-  gap: 7px;
+  gap: 6px;
   overflow: hidden;
+  padding: 2px 5px;
+  background: color-mix(in oklch, var(--surface) 92%, transparent);
   white-space: nowrap;
 }
 
 .hu-calendar-day-heading-copy strong {
   overflow: hidden;
   color: var(--foreground);
-  font-size: 11px;
+  font-size: 10px;
   text-overflow: ellipsis;
 }
 
 .hu-calendar-day-heading-copy > span:last-child {
   overflow: hidden;
   color: var(--muted-soft);
-  font-size: 9px;
-  text-overflow: ellipsis;
-}
-
-.hu-calendar-day-kicker {
-  color: var(--primary);
   font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  text-overflow: ellipsis;
 }
 
 .hu-calendar-day-all-day {
@@ -3118,6 +3145,7 @@ input[type="number"]::-webkit-outer-spin-button {
   align-items: center;
   gap: 4px;
   overflow: hidden;
+  pointer-events: auto;
   color: var(--muted-soft);
   font-size: 8px;
   font-weight: 750;
@@ -3238,6 +3266,10 @@ input[type="number"]::-webkit-outer-spin-button {
   user-select: none;
 }
 
+.hu-event.is-compact {
+  padding: 5px 8px;
+}
+
 .hu-event.is-task-block {
   border-color: var(--primary-line);
   border-left-color: var(--primary);
@@ -3302,23 +3334,8 @@ input[type="number"]::-webkit-outer-spin-button {
 .hu-event-heading {
   display: flex;
   min-width: 0;
-  align-items: center;
+  align-items: flex-start;
   gap: 5px;
-}
-
-.hu-event-heading.is-compact {
-  align-items: baseline;
-  gap: 5px;
-}
-
-.hu-event-heading.is-compact .hu-event-meta {
-  flex: 0 0 auto;
-  margin-top: 0;
-  margin-left: auto;
-}
-
-.hu-event-title.is-hidden {
-  display: none;
 }
 
 .hu-event-meeting {

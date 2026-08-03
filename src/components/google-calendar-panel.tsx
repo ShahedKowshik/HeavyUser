@@ -101,6 +101,7 @@ type GoogleCalendarPanelProps = {
   tasks: ReadonlyArray<Task>;
   scheduleBlocks: Readonly<Record<string, ReadonlyArray<ScheduleBlockSnapshot>>>;
   schedulerError?: string;
+  onTaskDurationChange?: (taskId: string, duration: number) => void;
 };
 
 const TIMELINE_HOURS = 24;
@@ -295,6 +296,7 @@ export function GoogleCalendarPanel({
   tasks,
   scheduleBlocks,
   schedulerError = "",
+  onTaskDurationChange,
 }: GoogleCalendarPanelProps) {
   const timelineHours = TIMELINE_HOURS;
   const [connection, setConnection] = useState<CalendarConnection | null>(null);
@@ -1021,7 +1023,7 @@ export function GoogleCalendarPanel({
     setDragPreview({ eventId: eventItem.id, start: eventItem.start, end: eventItem.end });
   }
 
-  async function performDraggedEventSave(eventItem: LiveEvent, start: string, end: string) {
+  async function performDraggedEventSave(eventItem: LiveEvent, start: string, end: string, mode: EventGestureMode) {
     setIsSaving(true);
     setError("");
     try {
@@ -1042,6 +1044,12 @@ export function GoogleCalendarPanel({
       const body = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) {
         throw new Error(body?.error ?? "The event could not be moved.");
+      }
+      if (mode !== "move" && eventItem.isTaskBlock && eventItem.taskId) {
+        const duration = Math.round((new Date(end).getTime() - new Date(start).getTime()) / MINUTE_MS);
+        if (Number.isFinite(duration) && duration >= MIN_EVENT_DURATION_MINUTES) {
+          onTaskDurationChange?.(eventItem.taskId, duration);
+        }
       }
       // The timeline already reflects the new range optimistically. Release the
       // interaction lock as soon as Google accepts the write; the read sync can
@@ -1066,10 +1074,10 @@ export function GoogleCalendarPanel({
     }
   }
 
-  function saveDraggedEvent(eventItem: LiveEvent, start: string, end: string) {
+  function saveDraggedEvent(eventItem: LiveEvent, start: string, end: string, mode: EventGestureMode) {
     // Keep direct-manipulation writes in order. This prevents two quick drags
     // from racing Google Calendar's If-Match check while keeping the UI free.
-    const operation = dragWriteChain.current.then(() => performDraggedEventSave(eventItem, start, end));
+    const operation = dragWriteChain.current.then(() => performDraggedEventSave(eventItem, start, end, mode));
     dragWriteChain.current = operation.catch(() => undefined);
     return operation;
   }
@@ -1138,7 +1146,7 @@ export function GoogleCalendarPanel({
             : currentEvent
         )));
         setDragPreview(null);
-        void saveDraggedEvent(gesture.event, finalRange.start, finalRange.end);
+        void saveDraggedEvent(gesture.event, finalRange.start, finalRange.end, gesture.mode);
       } else {
         setDragPreview(null);
       }
@@ -1274,11 +1282,13 @@ export function GoogleCalendarPanel({
 
               return (
                 <section className="hu-calendar-day" data-date={day.date} key={day.date}>
-                  <div className="hu-calendar-day-heading">
+                  <div
+                    aria-label={`Planner day ${formatDateLabel(day.date)}`}
+                    className="hu-calendar-day-heading"
+                  >
                     <div className="hu-calendar-day-heading-copy">
-                      <span className="hu-calendar-day-kicker">Planner day</span>
                       <strong>{formatDateLabel(day.date)}</strong>
-                      <span>{settings.nightOwlMode ? `Night Owl · ${formatStartTime(settings.dayStartTime)} start` : "Midnight start"}</span>
+                      {settings.nightOwlMode ? <span>starts {formatStartTime(settings.dayStartTime)}</span> : null}
                     </div>
                     {day.allDayEvents.length > 0 ? (
                       <div className="hu-calendar-day-all-day" aria-label={`All-day events for ${day.date}`}>
@@ -1323,13 +1333,14 @@ export function GoogleCalendarPanel({
                         const visibleMinutes = range.end - range.start;
                         const eventHeight = (visibleMinutes / 60) * timelineHourHeight;
                         const eventIsCompact = eventHeight < 72;
-                        const eventHidesTitle = eventHeight < 30;
+                        const eventHidesMeta = eventHeight < 38;
+                        const eventHidesTitle = eventHeight < 24;
                         const eventIsTiny = eventHeight < 18;
                         const eventTimeLabel = formatEventTime(renderedEvent, timeZone);
                         return (
                           <button
                             aria-label={`${event.title}. ${eventTimeLabel}`}
-                            className={`hu-event hu-event-button ${event.hasAttendees ? "is-guest-event" : ""} ${event.isTaskBlock ? "is-task-block" : ""} ${event.isPlannerSynthetic ? "is-planner-synthetic" : ""} ${eventIsTiny ? "is-tiny" : ""} ${eventGesture?.event.id === event.id ? "is-gesture-active" : ""}`}
+                            className={`hu-event hu-event-button ${event.hasAttendees ? "is-guest-event" : ""} ${event.isTaskBlock ? "is-task-block" : ""} ${event.isPlannerSynthetic ? "is-planner-synthetic" : ""} ${eventIsCompact ? "is-compact" : ""} ${eventIsTiny ? "is-tiny" : ""} ${eventGesture?.event.id === event.id ? "is-gesture-active" : ""}`}
                             key={event.id}
                             role="listitem"
                             style={{
@@ -1351,16 +1362,15 @@ export function GoogleCalendarPanel({
                                 }}
                               />
                             ) : null}
-                            <span className={`hu-event-heading ${eventIsCompact ? "is-compact" : ""}`}>
-                              <span className={`hu-event-title ${eventHidesTitle ? "is-hidden" : ""}`}>{event.title}</span>
+                            <span className="hu-event-heading">
+                              {!eventHidesTitle ? <span className="hu-event-title">{event.title}</span> : null}
                               {event.meetingUrl ? (
                                 <span aria-label="Video meeting available" className="hu-event-meeting" title="Video meeting available">
                                   <Video aria-hidden="true" size={12} />
                                 </span>
                               ) : null}
-                              {eventIsCompact ? <span className="hu-event-meta">{eventTimeLabel}</span> : null}
                             </span>
-                            {!eventIsCompact ? <span className="hu-event-meta">{eventTimeLabel}</span> : null}
+                            {!eventHidesMeta ? <span className="hu-event-meta">{eventTimeLabel}</span> : null}
                             {!event.isPlannerSynthetic ? (
                               <span
                                 aria-hidden="true"

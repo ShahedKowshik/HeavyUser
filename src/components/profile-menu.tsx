@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Settings2 } from "lucide-react";
+import { Check, ChevronDown, Copy, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
 import { getProfileName, getPublicUserId } from "@/lib/supabase/profile";
@@ -12,7 +12,15 @@ export function ProfileMenu({ onSignedOut }: { onSignedOut?: () => void }) {
   const { user, avatarUrl, signOut } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState("");
+  const [isUserIdCopied, setIsUserIdCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const copyResetTimerRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (copyResetTimerRef.current !== null) {
+      window.clearTimeout(copyResetTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
@@ -72,6 +80,39 @@ export function ProfileMenu({ onSignedOut }: { onSignedOut?: () => void }) {
     router.push(getAppPath("/settings"));
   }
 
+  async function handleCopyUserId() {
+    setMessage("");
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(publicUserId);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = publicUserId;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.opacity = "0";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        fallbackInput.remove();
+        if (!copied) {
+          throw new Error("Copy command failed.");
+        }
+      }
+
+      setIsUserIdCopied(true);
+      if (copyResetTimerRef.current !== null) {
+        window.clearTimeout(copyResetTimerRef.current);
+      }
+      copyResetTimerRef.current = window.setTimeout(() => {
+        setIsUserIdCopied(false);
+        copyResetTimerRef.current = null;
+      }, 1600);
+    } catch {
+      setMessage("Could not copy the user ID.");
+    }
+  }
+
   return (
     <div ref={menuRef} className="hu-popover-anchor">
       <button
@@ -115,7 +156,21 @@ export function ProfileMenu({ onSignedOut }: { onSignedOut?: () => void }) {
             <div className="hu-popover-profile-copy">
               <strong>{profileName}</strong>
               <span>{user.email ?? profileName}</span>
-              <small className="hu-popover-profile-id">User ID {publicUserId}</small>
+              <div className="hu-popover-profile-id-row">
+                <small className="hu-popover-profile-id">User ID {publicUserId}</small>
+                <button
+                  aria-label={isUserIdCopied ? "User ID copied" : "Copy user ID"}
+                  className={`hu-profile-copy-button ${isUserIdCopied ? "is-copied" : ""}`}
+                  title={isUserIdCopied ? "Copied" : "Copy user ID"}
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void handleCopyUserId();
+                  }}
+                >
+                  {isUserIdCopied ? <Check aria-hidden="true" size={11} /> : <Copy aria-hidden="true" size={11} />}
+                </button>
+              </div>
             </div>
           </div>
           <div className="hu-popover-divider" role="presentation" />
