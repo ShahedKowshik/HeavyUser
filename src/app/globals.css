@@ -983,6 +983,14 @@ input:focus-visible {
   flex-shrink: 0;
 }
 
+.hu-task-tab.is-icon-only {
+  width: 30px;
+  justify-content: center;
+  gap: 0;
+  padding-right: 0;
+  padding-left: 0;
+}
+
 .hu-task-tab:hover,
 .hu-task-tab:focus-visible {
   border-color: var(--primary-line);
@@ -3076,6 +3084,43 @@ input[type="number"]::-webkit-outer-spin-button {
   line-height: 1.4;
 }
 
+.hu-calendar-now-button {
+  position: relative;
+  display: inline-flex;
+  min-width: 58px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 8px;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.hu-calendar-now-button::before {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--primary);
+  content: "";
+}
+
+.hu-calendar-now-button.is-current {
+  border-color: var(--primary-line);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.hu-calendar-now-button.is-away {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.hu-calendar-now-button.is-away::before {
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in oklch, currentColor 20%, transparent);
+}
+
 .hu-calendar-empty {
   display: grid;
   justify-items: start;
@@ -3391,6 +3436,14 @@ input[type="number"]::-webkit-outer-spin-button {
   color: var(--muted-soft);
   font-size: 8px;
   text-overflow: ellipsis;
+}
+
+.hu-calendar-day-start {
+  padding: 2px 5px;
+  border: 1px solid var(--primary-line);
+  background: var(--primary-soft);
+  color: var(--primary) !important;
+  font-weight: 750;
 }
 
 .hu-calendar-day-all-day {
@@ -3732,6 +3785,7 @@ input[type="number"]::-webkit-outer-spin-button {
 
   .hu-workspace {
     grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
     height: auto;
     min-height: auto;
     overflow: visible;
@@ -3863,7 +3917,7 @@ input[type="number"]::-webkit-outer-spin-button {
   }
 
   .hu-pane-toolbar {
-    height: 62px;
+    height: auto;
     min-height: 62px;
     padding: 13px 14px;
   }
@@ -3977,11 +4031,20 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 .hu-task-space-label {
-  display: block;
-  margin-top: 2px;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 16ch;
+  flex: 0 1 auto;
+  align-items: center;
+  margin-left: 8px;
   overflow: hidden;
+  padding: 2px 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--hu-radius);
+  background: var(--surface-subtle);
   color: var(--muted-text);
   font-size: 9px;
+  font-weight: 650;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4228,5 +4291,790 @@ input[type="number"]::-webkit-outer-spin-button {
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* Settings control-center redesign: orient first, edit second, save last. */
+.hu-settings-main {
+  padding: 30px 24px 58px;
+}
+
+.hu-settings-content {
+  width: min(100%, 1120px);
+}
+
+.hu-settings-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(440px, 1.2fr);
+  gap: 24px;
+  align-items: stretch;
+  margin: 24px 0;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--primary);
+  background: var(--surface);
+}
+
+.hu-settings-page-intro {
+  align-content: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.hu-settings-page-intro h1 {
+  font-size: 30px;
+  letter-spacing: -0.05em;
+}
+
+.hu-settings-page-intro p {
+  max-width: 42ch;
+  font-size: 12px;
+}
+
+.hu-settings-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-width: 0;
+  border-left: 1px solid var(--line);
+}
+
+.hu-settings-summary-item {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  gap: 5px;
+  padding: 4px 14px;
+  border-left: 1px solid var(--line);
+}
+
+.hu-settings-summary-item:first-child {
+  border-left: 0;
+}
+
+.hu-settings-summary-label,
+.hu-settings-sidebar-kicker {
+  color: var(--muted-soft);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hu-settings-summary-item strong {
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hu-settings-summary-item small {
+  overflow: hidden;
+  color: var(--muted-text);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hu-settings-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.hu-settings-sidebar {
+  position: sticky;
+  top: 86px;
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface-subtle);
+}
+
+.hu-settings-sidebar-heading {
+  display: grid;
+  gap: 5px;
+  padding: 2px 2px 4px;
+}
+
+.hu-settings-sidebar-heading strong {
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+}
+
+.hu-settings-nav {
+  display: grid;
+  gap: 3px;
+}
+
+.hu-settings-nav-link {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 14px;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 7px;
+  border: 1px solid transparent;
+  color: var(--muted-text);
+  text-decoration: none;
+}
+
+.hu-settings-nav-link > svg:first-child {
+  color: var(--primary);
+}
+
+.hu-settings-nav-link > svg:last-child {
+  color: var(--muted-soft);
+}
+
+.hu-settings-nav-link span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.hu-settings-nav-link strong {
+  color: var(--foreground);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.hu-settings-nav-link small {
+  overflow: hidden;
+  color: var(--muted-text);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hu-settings-nav-link:hover,
+.hu-settings-nav-link:focus-visible {
+  border-color: var(--primary-line);
+  background: var(--primary-soft);
+  outline: none;
+}
+
+.hu-settings-sidebar-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 11px 2px 0;
+  border-top: 1px solid var(--line);
+  color: var(--muted-text);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.hu-settings-sidebar-note svg {
+  flex: 0 0 auto;
+  color: var(--primary);
+}
+
+.hu-settings-section-stack {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+}
+
+.hu-settings-anchor {
+  min-width: 0;
+  scroll-margin-top: 86px;
+}
+
+.hu-settings-section-stack > .hu-settings-section,
+.hu-settings-anchor > .hu-settings-section {
+  margin-top: 0;
+}
+
+.hu-settings-section {
+  gap: 18px;
+  padding: 22px;
+  background: var(--surface);
+}
+
+.hu-settings-section-heading {
+  gap: 12px;
+}
+
+.hu-settings-section-heading h2 {
+  margin-top: 2px;
+  font-size: 17px;
+}
+
+.hu-settings-section-heading p {
+  max-width: 54ch;
+}
+
+.hu-profile-settings-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.hu-profile-settings-form .hu-profile-editor-avatar,
+.hu-profile-settings-form .hu-settings-message,
+.hu-profile-settings-form .hu-settings-actions {
+  grid-column: 1 / -1;
+}
+
+.hu-rhythm-settings-form {
+  grid-template-columns: minmax(0, 1fr) 180px;
+  align-items: start;
+}
+
+.hu-rhythm-settings-form .hu-settings-message,
+.hu-rhythm-settings-form .hu-settings-actions {
+  grid-column: 1 / -1;
+}
+
+.hu-rhythm-settings-form .hu-settings-time-field {
+  width: 100%;
+}
+
+.hu-task-composer {
+  grid-template-columns: 1fr;
+  gap: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--primary-line);
+  background: var(--surface-subtle);
+}
+
+.hu-composer-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.hu-composer-heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.hu-composer-kicker,
+.hu-composer-details-label {
+  color: var(--primary);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hu-composer-heading strong {
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.hu-composer-hint {
+  color: var(--muted-text);
+  font-size: 10px;
+  text-align: right;
+}
+
+.hu-composer-main-field {
+  gap: 6px;
+  padding: 13px 14px 8px;
+}
+
+.hu-composer-main-field .hu-task-input {
+  height: 44px;
+  border-color: var(--primary-line);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.hu-composer-details {
+  display: grid;
+  gap: 8px;
+  padding: 5px 14px 13px;
+}
+
+.hu-task-options {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.hu-task-options .hu-task-input {
+  height: 34px;
+}
+
+.hu-composer-actions {
+  align-items: center;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--line);
+}
+
+.hu-composer-submit-hint {
+  margin-right: auto;
+  color: var(--muted-text);
+  font-size: 10px;
+}
+
+.hu-composer-submit-hint kbd {
+  display: inline-block;
+  min-width: 20px;
+  padding: 2px 4px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 9px;
+  font-weight: 750;
+  text-align: center;
+}
+
+@media (max-width: 1080px) {
+  .hu-settings-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(380px, 1.1fr);
+    gap: 16px;
+  }
+
+  .hu-task-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 899px) {
+  .hu-settings-main {
+    padding: 24px 16px 44px;
+  }
+
+  .hu-settings-hero {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 18px;
+  }
+
+  .hu-settings-summary {
+    border-top: 1px solid var(--line);
+    border-left: 0;
+    padding-top: 14px;
+  }
+
+  .hu-settings-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .hu-settings-sidebar {
+    position: static;
+  }
+
+  .hu-settings-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hu-profile-settings-form,
+  .hu-rhythm-settings-form {
+    grid-template-columns: 1fr;
+  }
+
+  .hu-profile-settings-form .hu-profile-editor-avatar,
+  .hu-profile-settings-form .hu-settings-message,
+  .hu-profile-settings-form .hu-settings-actions,
+  .hu-rhythm-settings-form .hu-settings-message,
+  .hu-rhythm-settings-form .hu-settings-actions {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .hu-settings-main {
+    padding: 20px 12px 34px;
+  }
+
+  .hu-settings-hero {
+    margin-top: 18px;
+    padding: 15px;
+  }
+
+  .hu-settings-page-intro h1 {
+    font-size: 26px;
+  }
+
+  .hu-settings-summary {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding-top: 8px;
+  }
+
+  .hu-settings-summary-item,
+  .hu-settings-summary-item:first-child {
+    border-top: 1px solid var(--line);
+    border-left: 0;
+    padding: 10px 0 0;
+  }
+
+  .hu-settings-summary-item:first-child {
+    border-top: 0;
+  }
+
+  .hu-settings-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .hu-settings-section {
+    gap: 15px;
+    padding: 15px;
+  }
+
+  .hu-composer-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .hu-composer-hint {
+    text-align: left;
+  }
+
+  .hu-task-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Settings polish: anchor each heading on its title, then give Spaces a clear edit flow. */
+.hu-settings-section-heading .hu-settings-mark {
+  margin-top: 16px;
+}
+
+.hu-space-card {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--surface-subtle);
+}
+
+.hu-space-card.is-archived {
+  opacity: 0.88;
+}
+
+.hu-space-card-header {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.hu-space-card-identity {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.hu-space-card-identity > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.hu-space-card-kicker {
+  color: var(--muted-soft);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hu-space-card-identity h3 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 780;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hu-space-card-identity p {
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted-text);
+  font-size: 10px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hu-space-card-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.hu-space-color {
+  width: 9px;
+  height: 9px;
+  margin-top: 19px;
+  flex-basis: 9px;
+}
+
+.hu-space-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding-top: 0;
+  color: var(--muted-text);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.hu-space-status.is-active {
+  color: var(--primary);
+}
+
+.hu-space-status.is-disconnected {
+  color: var(--priority-high);
+}
+
+.hu-space-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.hu-space-archive-button {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted-text);
+}
+
+.hu-space-archive-button:hover,
+.hu-space-archive-button:focus-visible {
+  border-color: var(--primary-line);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.hu-space-archive-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.hu-space-archive-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.hu-space-card-body {
+  display: grid;
+  gap: 0;
+}
+
+.hu-space-rename-panel {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.65fr) minmax(0, 1.35fr);
+  gap: 18px;
+  align-items: end;
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.hu-space-rename-panel > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.hu-space-rename-panel p,
+.hu-space-subspaces-heading p,
+.hu-space-calendar-picker-heading p {
+  margin: 0;
+  color: var(--muted-text);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.hu-space-name-control {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.hu-space-name-control .hu-task-input {
+  min-width: 0;
+  height: 38px;
+  flex: 1;
+}
+
+.hu-space-name-control .hu-form-button {
+  flex: 0 0 auto;
+}
+
+.hu-space-subspaces-panel {
+  display: grid;
+  gap: 13px;
+  padding: 16px;
+}
+
+.hu-space-subspaces-heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hu-space-subspaces-heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.hu-space-count {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border: 1px solid var(--line-strong);
+  color: var(--muted-text);
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.hu-space-subspace-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hu-space-subspace {
+  max-width: 100%;
+  padding: 5px 8px;
+  border-color: var(--primary-line);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.hu-space-empty-subspaces {
+  margin: 0;
+  padding: 10px;
+  border: 1px dashed var(--line-strong);
+  color: var(--muted-text);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.hu-space-add-subspace {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.hu-space-add-subspace .hu-task-input {
+  min-width: 0;
+  height: 36px;
+  flex: 1;
+}
+
+.hu-space-add-subspace .hu-form-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.hu-space-calendar-picker {
+  gap: 10px;
+  margin-top: 2px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  background: var(--surface-subtle);
+}
+
+.hu-space-calendar-picker-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 3px;
+}
+
+.hu-space-calendar-picker-heading > div {
+  display: grid;
+  gap: 4px;
+}
+
+.hu-space-calendar-picker-heading > svg {
+  flex: 0 0 auto;
+  color: var(--primary);
+}
+
+.hu-calendar-option-action {
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  align-items: center;
+  gap: 4px;
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .hu-space-rename-panel {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .hu-space-name-control,
+  .hu-space-add-subspace {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .hu-space-name-control .hu-form-button,
+  .hu-space-add-subspace .hu-form-button {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .hu-space-card-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .hu-space-card-header-actions {
+    justify-content: space-between;
+  }
+
+  .hu-space-subspaces-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .hu-space-count {
+    width: fit-content;
   }
 }

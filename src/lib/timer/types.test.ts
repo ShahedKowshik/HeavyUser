@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatElapsedSeconds, getRemainingMinutes, getSessionElapsedSeconds, getSessionWorkedMinutes } from "@/lib/timer/types";
+import { formatElapsedSeconds, getRemainingMinutes, getSessionElapsedSeconds, getSessionWorkedMinutes, getTimerBlockDurationMinutes } from "@/lib/timer/types";
 
 describe("work session calculations", () => {
   it("keeps exact seconds while the timer is running", () => {
@@ -21,5 +21,10 @@ describe("work session calculations", () => {
 
   it("formats long sessions without losing midnight-safe elapsed time", () => {
     expect(formatElapsedSeconds(24 * 60 * 60 + 5)).toBe("24:00:05");
+  });
+
+  it("keeps the original duration when a missed block is restarted", () => {
+    expect(getTimerBlockDurationMinutes("2026-08-05T09:00:00.000Z", "2026-08-05T10:30:00.000Z")).toBe(90);
+    expect(getTimerBlockDurationMinutes("2026-08-05T10:30:00.000Z", "2026-08-05T09:00:00.000Z")).toBe(0);
   });
 });

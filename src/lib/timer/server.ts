@@ -26,6 +26,7 @@ import type { Database, Json } from "@/lib/supabase/database.types";
 import { getUserSettings } from "@/lib/supabase/settings";
 import { loadSpaces } from "@/lib/spaces/server";
 import { loadActiveSessionRow, loadTimerSnapshot } from "@/lib/timer/data";
+import { getTimerBlockDurationMinutes } from "@/lib/timer/types";
 import type { TaskWorkSession } from "@/lib/timer/types";
 
 type TimerClient = SupabaseClient<Database>;
@@ -39,6 +40,7 @@ type AddTimeResult = { taskId: string; duration: number; warning: string | null;
 const SHORT_SESSION_SECONDS = 60;
 const MAX_STOP_CLOCK_SKEW_MS = 5_000;
 const MIN_TIMER_CLOCK_SKEW_MS = 30_000;
+const MAX_MANUAL_WORK_MS = 24 * 60 * 60 * 1000;
 
 export class TimerOperationError extends Error {
   readonly code: string;
@@ -62,10 +64,6 @@ export class TimerBusyError extends TimerOperationError {
 
 function nowIso(timestamp = Date.now()) {
   return new Date(timestamp).toISOString();
-}
-
-function minuteDifference(start: string, end: string) {
-  return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60_000));
 }
 
 function secondsDifference(start: string, end: string) {
@@ -174,7 +172,7 @@ async function loadTargetSpace(client: TimerClient, userId: string, task: TaskRo
   if (!space || space.status !== "active") {
     throw new TimerOperationError("space_required", "Choose an active Space before starting the timer.", 400);
   }
-  return space;
+  return { space, spaces };
 }
 
 async function loadPreferences(client: TimerClient, userId: string, connection: GoogleConnection) {
@@ -207,10 +205,16 @@ async function loadCachedEvents(client: TimerClient, userId: string, calendarId?
   return (data ?? []) as CalendarEventRow[];
 }
 
-function getBusyEvents(events: ReadonlyArray<CalendarEventRow>, now: string, ignored?: { calendarId?: string; providerEventId?: string }) {
+function getBusyEvents(
+  events: ReadonlyArray<CalendarEventRow>,
+  now: string,
+  ignored?: { calendarId?: string; providerEventId?: string },
+  timezonesByCalendarId: ReadonlyMap<string, string> = new Map(),
+) {
   const nowTime = new Date(now).getTime();
   return events.filter((event) => {
     if (event.calendar_id === ignored?.calendarId && event.provider_event_id === ignored?.providerEventId) return false;
+    const timeZone = event.time_zone ?? timezonesByCalendarId.get(event.calendar_id) ?? "UTC";
     const interval = getCalendarBusyInterval({
       status: event.status,
       transparency: event.transparency,
@@ -218,8 +222,8 @@ function getBusyEvents(events: ReadonlyArray<CalendarEventRow>, now: string, ign
       endAt: event.end_at,
       startDate: event.start_date,
       endDate: event.end_date,
-      timeZone: event.time_zone,
-    }, event.time_zone ?? "UTC");
+      timeZone,
+    }, timeZone);
     if (!interval) return false;
     return new Date(interval.start).getTime() <= nowTime && new Date(interval.end).getTime() > nowTime;
   });
@@ -592,7 +596,7 @@ async function stopSessionInsideLock(input: {
 
   let warning: string | null = null;
   let activeAccessToken: string | null = null;
-  const uncommittedExtraEvents: Array<{ id: string; eventKey: string }> = [];
+  const extraChunks: Array<{ id: string; eventKey: string; blockId: string }> = [];
   if (input.session.provider_event_id && input.session.calendar_id && connection) {
     try {
       const accessToken = await getUsableGoogleAccessToken(input.client, connection);
@@ -710,7 +714,7 @@ async function stopSessionInsideLock(input: {
                 timezone: space?.timeZone ?? connection.selected_calendar_timezone ?? "UTC",
               }),
             });
-            uncommittedExtraEvents.push({ id: extraEvent.id, eventKey: getGoogleEventKey(extraEvent) });
+            extraChunks.push({ id: extraEvent.id, eventKey: getGoogleEventKey(extraEvent), blockId: extraBlockId });
             await upsertGoogleCalendarEvent(input.client, input.userId, extraEvent, { calendarId: input.session.calendar_id, spaceId: input.session.space_id });
             await upsertBlock(input.client, input.userId, {
               id: extraBlockId,
@@ -729,7 +733,6 @@ async function stopSessionInsideLock(input: {
               etag: extraEvent.etag ?? null,
               last_error: "Actual overrun block.",
             });
-            uncommittedExtraEvents.pop();
             chunkStart = chunkEnd;
             chunkIndex += 1;
           }
@@ -741,25 +744,33 @@ async function stopSessionInsideLock(input: {
         });
       }
     } catch (error) {
-      if (activeAccessToken && uncommittedExtraEvents.length > 0) {
-        for (const extraEvent of uncommittedExtraEvents) {
+      for (const extraChunk of extraChunks) {
+        if (activeAccessToken) {
           try {
             await deleteOwnedEvent({
               client: input.client,
               userId: input.userId,
               calendarId: input.session.calendar_id,
-              providerEventId: extraEvent.id,
-              providerEventKey: extraEvent.eventKey,
+              providerEventId: extraChunk.id,
+              providerEventKey: extraChunk.eventKey,
               accessToken: activeAccessToken,
             });
           } catch (cleanupError) {
             await input.client.from("task_schedule_cleanup").insert({
               user_id: input.userId,
               calendar_id: input.session.calendar_id,
-              provider_event_id: extraEvent.id,
+              provider_event_id: extraChunk.id,
               last_error: googleErrorMessage(cleanupError),
             });
           }
+        }
+        try {
+          await deleteBlock(input.client, input.userId, extraChunk.blockId);
+        } catch (cleanupError) {
+          await updateBlock(input.client, input.userId, extraChunk.blockId, {
+            state: "cancelled",
+            last_error: googleErrorMessage(cleanupError),
+          }).catch(() => undefined);
         }
       }
       warning = warning ?? googleErrorMessage(error);
@@ -855,7 +866,7 @@ export async function startTimer(input: {
     if (!connection?.selected_calendar_id) {
       throw new TimerOperationError("calendar_required", "Connect and choose a writable Google Calendar before starting.", 400);
     }
-    const space = await loadTargetSpace(client, input.userId, task);
+    const { space, spaces } = await loadTargetSpace(client, input.userId, task);
     const activeSession = await loadActiveSessionRow(client, input.userId);
     if (activeSession) {
       if (activeSession.task_id === task.id) {
@@ -867,10 +878,17 @@ export async function startTimer(input: {
     const blocks = await loadBlocks(client, input.userId, task.id);
     const currentBlock = getCurrentOrNextBlock(blocks, space.calendarId, startedAt) ?? getSelectedMissedBlock(blocks, task.id, input.missedBlockId);
     const currentBlockIsMissed = currentBlock?.state === "missed";
-    const events = await loadCachedEvents(client, input.userId);
-    const busyEvents = getBusyEvents(events, nowIso(startedAt), currentBlock && !currentBlockIsMissed
-      ? { calendarId: currentBlock.calendar_id, providerEventId: currentBlock.provider_event_id ?? undefined }
-      : undefined);
+    const activeCalendarIds = new Set(spaces.filter((candidate) => candidate.status === "active").map((candidate) => candidate.calendarId));
+    const events = (await loadCachedEvents(client, input.userId)).filter((event) => activeCalendarIds.has(event.calendar_id));
+    const timezonesByCalendarId = new Map(spaces.map((candidate) => [candidate.calendarId, candidate.timeZone]));
+    const busyEvents = getBusyEvents(
+      events,
+      nowIso(startedAt),
+      currentBlock && !currentBlockIsMissed
+        ? { calendarId: currentBlock.calendar_id, providerEventId: currentBlock.provider_event_id ?? undefined }
+        : undefined,
+      timezonesByCalendarId,
+    );
     if (busyEvents.length > 0 && input.choice !== "overlap") {
       if (input.choice === "next_free") {
         return { scheduledOnly: true, taskId: task.id, sessionId: null, warning: "The task was left stopped and scheduled for the next free time." };
@@ -892,7 +910,11 @@ export async function startTimer(input: {
     const sessionId = randomUUID();
     const remainingMinutes = Math.max(1, task.duration);
     const defaultBlockMinutes = Math.max(5, Math.min(remainingMinutes, task.max_block_minutes ?? 90));
-    const existingDuration = currentBlock ? Math.max(1, minuteDifference(nowIso(Math.max(startedAt, new Date(currentBlock.start_at).getTime())), currentBlock.end_at)) : defaultBlockMinutes;
+    const existingDuration = currentBlock
+      ? currentBlockIsMissed
+        ? Math.max(1, getTimerBlockDurationMinutes(currentBlock.start_at, currentBlock.end_at))
+        : Math.max(1, getTimerBlockDurationMinutes(nowIso(Math.max(startedAt, new Date(currentBlock.start_at).getTime())), currentBlock.end_at))
+      : defaultBlockMinutes;
     const endAt = new Date(startedAt + Math.max(1, existingDuration) * 60_000).toISOString();
     const blockId = currentBlock?.id ?? timerBlockId(input.userId, sessionId);
     let eventResult: Awaited<ReturnType<typeof createOrPatchEvent>> | null = null;
@@ -1147,7 +1169,7 @@ export async function logWork(input: { userId: string; taskId: string; startedAt
   const stopped = new Date(input.stoppedAt).getTime();
   if (!Number.isFinite(started) || !Number.isFinite(stopped) || stopped <= started) throw new TimerOperationError("invalid_range", "The end time must be after the start time.", 400);
   if (stopped > Date.now() + MAX_STOP_CLOCK_SKEW_MS) throw new TimerOperationError("invalid_time", "Logged work cannot end in the future.", 400);
-  if (stopped - started > 24 * 60 * 60 * 1000) throw new TimerOperationError("invalid_range", "Log no more than 24 hours at once.", 400);
+  if (stopped - started > MAX_MANUAL_WORK_MS) throw new TimerOperationError("invalid_range", "Log no more than 24 hours at once.", 400);
   const operationKey = normalizeOperationKey(input.requestKey);
   const result = await withTimerLock(input.userId, async (client) => {
     const replay = await loadOperationReceipt(client, input.userId, "log_work", operationKey);
@@ -1309,7 +1331,8 @@ export async function correctSession(input: { userId: string; sessionId: string;
   const stopped = new Date(input.stoppedAt).getTime();
   if (!Number.isFinite(started) || !Number.isFinite(stopped) || stopped <= started) throw new TimerOperationError("invalid_range", "The end time must be after the start time.", 400);
   if (stopped > Date.now() + MAX_STOP_CLOCK_SKEW_MS) throw new TimerOperationError("invalid_time", "A correction cannot end in the future.", 400);
-  if (!input.reason.trim() || input.reason.length > 500) throw new TimerOperationError("reason_required", "Add a short reason for this correction.", 400);
+  if (!input.reason.trim() || input.reason.trim().length > 500) throw new TimerOperationError("reason_required", "Add a short reason for this correction.", 400);
+  if (stopped - started > MAX_MANUAL_WORK_MS) throw new TimerOperationError("invalid_range", "Corrections cannot cover more than 24 hours.", 400);
   const result = await withTimerLock(input.userId, async (client) => {
     const { data: session, error } = await client.from("task_work_sessions").select("*").eq("user_id", input.userId).eq("id", input.sessionId).maybeSingle();
     if (error) throw error;
@@ -1323,7 +1346,11 @@ export async function correctSession(input: { userId: string; sessionId: string;
     let warning: string | null = null;
     if (session.provider_event_id && session.calendar_id) {
       const connection = await loadGoogleConnection(client, input.userId);
-      if (connection) {
+      const sessionSpace = session.space_id
+        ? (await loadSpaces(client, input.userId)).find((space) => space.id === session.space_id)
+        : null;
+      const canSyncCalendar = !session.space_id || sessionSpace?.status === "active";
+      if (connection && canSyncCalendar) {
         try {
           const accessToken = await getUsableGoogleAccessToken(client, connection);
           const latest = await getGoogleEvent({ accessToken, calendarId: session.calendar_id, eventId: session.provider_event_id });
@@ -1331,7 +1358,8 @@ export async function correctSession(input: { userId: string; sessionId: string;
             await deleteOwnedEvent({ client, userId: input.userId, calendarId: session.calendar_id, providerEventId: session.provider_event_id, providerEventKey: session.provider_event_key, accessToken });
             if (session.block_id) await updateBlock(client, input.userId, session.block_id, { state: "cancelled", start_at: nextStart, end_at: nextStop, planned_start_at: nextStart, planned_end_at: nextStop, last_error: null });
           } else {
-            const event = await patchGoogleEvent({ accessToken, calendarId: session.calendar_id, eventId: session.provider_event_id, etag: latest.etag, resource: { start: { dateTime: nextStart, timeZone: connection.selected_calendar_timezone ?? "UTC" }, end: { dateTime: nextStop, timeZone: connection.selected_calendar_timezone ?? "UTC" } } });
+            const timeZone = sessionSpace?.timeZone ?? connection.selected_calendar_timezone ?? "UTC";
+            const event = await patchGoogleEvent({ accessToken, calendarId: session.calendar_id, eventId: session.provider_event_id, etag: latest.etag, resource: { start: { dateTime: nextStart, timeZone }, end: { dateTime: nextStop, timeZone } } });
             await upsertGoogleCalendarEvent(client, input.userId, event, { calendarId: session.calendar_id, spaceId: session.space_id });
             if (session.block_id) await updateBlock(client, input.userId, session.block_id, { state: "locked", start_at: nextStart, end_at: nextStop, planned_start_at: nextStart, planned_end_at: nextStop, etag: event.etag ?? latest.etag ?? null });
           }
@@ -1346,7 +1374,9 @@ export async function correctSession(input: { userId: string; sessionId: string;
           calendarId: session.calendar_id,
           providerEventId: session.provider_event_id,
           operation: correctedSeconds < SHORT_SESSION_SECONDS ? "delete" : "patch",
-          error: "Google Calendar is disconnected; the correction is waiting for reconnect.",
+          error: canSyncCalendar
+            ? "Google Calendar is disconnected; the correction is waiting for reconnect."
+            : "This Calendar Space is disconnected; the correction is waiting for that Space to be reconnected.",
         });
       }
     }

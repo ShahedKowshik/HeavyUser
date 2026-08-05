@@ -89,3 +89,8 @@ export function formatElapsedSeconds(seconds: number) {
 export function getRemainingMinutes(estimatedMinutes: number | null, workedMinutes: number) {
   return estimatedMinutes === null ? null : Math.max(0, estimatedMinutes - workedMinutes);
 }
+
+export function getTimerBlockDurationMinutes(startAt: string, endAt: string) {
+  const duration = (new Date(endAt).getTime() - new Date(startAt).getTime()) / 60_000;
+  return Number.isFinite(duration) ? Math.max(0, Math.round(duration)) : 0;
+}

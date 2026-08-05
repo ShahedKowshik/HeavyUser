@@ -2,7 +2,7 @@
 
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useState } from "react";
-import { ArrowLeft, CalendarClock, ImagePlus, Settings2, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarClock, ChevronRight, ImagePlus, MoonStar, Settings2, SlidersHorizontal, Trash2, UserRound } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -23,6 +23,13 @@ const schedulerWeekdays = [
   { key: "5", label: "Friday" },
   { key: "6", label: "Saturday" },
   { key: "0", label: "Sunday" },
+] as const;
+
+const settingsNavigation = [
+  { href: "#account", label: "Profile", detail: "Name and avatar", icon: UserRound },
+  { href: "#rhythm", label: "Daily rhythm", detail: "When your day starts", icon: MoonStar },
+  { href: "#scheduling", label: "Task scheduling", detail: "Where work can fit", icon: CalendarClock },
+  { href: "#spaces", label: "Spaces", detail: "Calendars and labels", icon: Settings2 },
 ] as const;
 
 function formatTimeValue(value: string) {
@@ -284,13 +291,59 @@ function SettingsContent() {
             Back to workspace
           </Link>
 
-          <div className="hu-settings-page-intro">
-            <span className="hu-field-label">Workspace settings</span>
-            <h1>Settings</h1>
-            <p>Keep HeavyUser in step with the way you work.</p>
+          <div className="hu-settings-hero">
+            <div className="hu-settings-page-intro">
+              <span className="hu-field-label">Workspace control center</span>
+              <h1>Settings</h1>
+              <p>Set up the way HeavyUser sees your day, then get back to the work.</p>
+            </div>
+            <div className="hu-settings-summary" aria-label="Current setup">
+              <div className="hu-settings-summary-item">
+                <span className="hu-settings-summary-label">Profile</span>
+                <strong>{profileName}</strong>
+                <small>{user.email ?? "Account email"}</small>
+              </div>
+              <div className="hu-settings-summary-item">
+                <span className="hu-settings-summary-label">Task day</span>
+                <strong>{settingsDraft.nightOwlMode ? formatTimeValue(settingsDraft.dayStartTime) : "12:00 AM"}</strong>
+                <small>{settingsDraft.nightOwlMode ? "Night Owl mode" : "Calendar day"}</small>
+              </div>
+              <div className="hu-settings-summary-item">
+                <span className="hu-settings-summary-label">Task planning</span>
+                <strong>{isLoadingScheduler ? "Checking…" : "Automatic"}</strong>
+                <small>For eligible tasks</small>
+              </div>
+            </div>
           </div>
 
-          <SpacesSettings />
+          <div className="hu-settings-layout">
+            <aside className="hu-settings-sidebar" aria-label="Settings sections">
+              <div className="hu-settings-sidebar-heading">
+                <span className="hu-settings-sidebar-kicker">Settings</span>
+                <strong>Shape your workday</strong>
+              </div>
+              <nav className="hu-settings-nav" aria-label="Settings sections">
+                {settingsNavigation.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <a className="hu-settings-nav-link" href={item.href} key={item.href}>
+                      <Icon aria-hidden="true" size={15} />
+                      <span>
+                        <strong>{item.label}</strong>
+                        <small>{item.detail}</small>
+                      </span>
+                      <ChevronRight aria-hidden="true" size={14} />
+                    </a>
+                  );
+                })}
+              </nav>
+              <p className="hu-settings-sidebar-note">
+                <SlidersHorizontal aria-hidden="true" size={13} />
+                Changes save to your account.
+              </p>
+            </aside>
+
+            <div className="hu-settings-section-stack">
 
           <section id="account" className="hu-settings-section" aria-labelledby="account-title">
             <div className="hu-settings-section-heading">
@@ -304,7 +357,7 @@ function SettingsContent() {
               </div>
             </div>
 
-            <form className="hu-settings-form" onSubmit={handleSaveProfile}>
+            <form className="hu-settings-form hu-profile-settings-form" onSubmit={handleSaveProfile}>
               <div className="hu-profile-editor-avatar">
                 <span className="hu-profile-editor-image">
                   {imageSource ? (
@@ -372,7 +425,7 @@ function SettingsContent() {
             </form>
           </section>
 
-          <section className="hu-settings-section" aria-labelledby="rhythm-title">
+          <section id="rhythm" className="hu-settings-section" aria-labelledby="rhythm-title">
             <div className="hu-settings-section-heading">
               <span className="hu-settings-mark" aria-hidden="true">
                 <Settings2 size={17} />
@@ -384,7 +437,7 @@ function SettingsContent() {
               </div>
             </div>
 
-            <form className="hu-settings-form" onSubmit={handleSaveSettings}>
+            <form className="hu-settings-form hu-rhythm-settings-form" onSubmit={handleSaveSettings}>
               <label className="hu-settings-toggle-row" htmlFor="night-owl-mode">
                 <span className="hu-settings-toggle-copy">
                   <strong>Night owl mode</strong>
@@ -442,7 +495,7 @@ function SettingsContent() {
             </form>
           </section>
 
-          <section className="hu-settings-section" aria-labelledby="scheduling-title">
+          <section id="scheduling" className="hu-settings-section" aria-labelledby="scheduling-title">
             <div className="hu-settings-section-heading">
               <span className="hu-settings-mark" aria-hidden="true">
                 <CalendarClock size={17} />
@@ -455,7 +508,7 @@ function SettingsContent() {
             </div>
 
             {isLoadingScheduler ? <p className="hu-settings-message">Loading scheduling settings…</p> : (
-              <form className="hu-settings-form" onSubmit={handleSaveScheduler}>
+              <form className="hu-settings-form hu-scheduler-settings-form" onSubmit={handleSaveScheduler}>
                 <p className="hu-settings-inline-note">Automatic scheduling is always on for eligible tasks. These settings control where HeavyUser can place the time.</p>
 
                 <div className="hu-scheduler-settings-grid">
@@ -579,6 +632,12 @@ function SettingsContent() {
               </form>
             )}
           </section>
+
+          <div id="spaces" className="hu-settings-anchor">
+            <SpacesSettings />
+          </div>
+            </div>
+          </div>
         </div>
       </div>
     </main>

@@ -435,8 +435,12 @@ export async function syncAllGoogleCalendars(
   request?: Request,
   options: { skipSchedulerQueue?: boolean } = {},
 ) {
-  const spaces = await loadSpaces(client, connection.user_id);
+  const allSpaces = await loadSpaces(client, connection.user_id);
+  const spaces = allSpaces.filter((space) => space.status === "active");
   if (spaces.length === 0) {
+    if (allSpaces.length > 0) {
+      return { calendars: 0, eventCount: 0, fullSync: false, errors: [] as ReadonlyArray<string> };
+    }
     if (!connection.selected_calendar_id) return { calendars: 0, eventCount: 0, fullSync: false, errors: [] as ReadonlyArray<string> };
     const result = await syncGoogleCalendar(client, connection, request, options);
     return { calendars: 1, eventCount: result.eventCount, fullSync: result.fullSync, errors: [] as ReadonlyArray<string> };
@@ -455,9 +459,19 @@ export async function syncAllGoogleCalendars(
       eventCount += result.eventCount;
       fullSync = fullSync || result.fullSync;
     } catch (error) {
-      // One removed or temporarily unavailable Google calendar must not stop
-      // the other Spaces from refreshing. The scheduler checks this list and
-      // refuses to make new plans until every busy-time source is current.
+      // A removed calendar belongs to the old Google account. Keep its Space
+      // for history, but make it non-schedulable so it cannot block another
+      // active Space after reconnecting.
+      if (error instanceof GoogleApiError && [401, 403, 404, 410].includes(error.status)) {
+        const { error: disconnectError } = await client.from("spaces").update({
+          status: "disconnected",
+          archived_at: null,
+          updated_at: new Date().toISOString(),
+        }).eq("user_id", connection.user_id).eq("id", space.id).eq("status", "active");
+        if (disconnectError) {
+          errors.push(`${space.name}: ${disconnectError.message}`);
+        }
+      }
       errors.push(`${space.name}: ${error instanceof Error ? error.message : "Calendar sync failed."}`);
     }
   }

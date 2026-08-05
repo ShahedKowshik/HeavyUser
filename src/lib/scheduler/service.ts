@@ -381,6 +381,7 @@ async function pauseActiveSessionsForExternalChanges(
   events: ReadonlyArray<CalendarEventRow>,
   accessToken: string,
   now: number,
+  calendarIds?: ReadonlySet<string>,
 ) {
   const sessions = await loadWorkSessionRows(client, userId);
   const { data: taskRows, error: taskRowsError } = await client.from("tasks").select("id,status").eq("user_id", userId);
@@ -393,6 +394,7 @@ async function pauseActiveSessionsForExternalChanges(
 
   for (const session of running) {
     if (!session.provider_event_id || !session.calendar_id) continue;
+    if (calendarIds && !calendarIds.has(session.calendar_id)) continue;
     if (completedTaskIds.has(session.task_id)) {
       const started = new Date(session.started_at).getTime();
       const stopAt = Math.max(now, Number.isFinite(started) ? started + 1000 : now);
@@ -697,7 +699,7 @@ async function removeBlockEvent(client: SchedulerAdminClient, connection: Google
   await updateBlock(client, block.user_id, block.id, { state: "cancelled", sync_version: block.sync_version + 1, last_error: null });
 }
 
-async function processTaskCleanup(client: SchedulerAdminClient, userId: string, accessToken: string) {
+async function processTaskCleanup(client: SchedulerAdminClient, userId: string, accessToken: string, calendarIds?: ReadonlySet<string>) {
   const { data, error } = await client
     .from("task_schedule_cleanup")
     .select("*")
@@ -710,7 +712,7 @@ async function processTaskCleanup(client: SchedulerAdminClient, userId: string, 
   }
 
   let failures = 0;
-  for (const cleanup of data ?? []) {
+  for (const cleanup of (data ?? []).filter((candidate) => !calendarIds || calendarIds.has(candidate.calendar_id))) {
     try {
       await safeDeleteGoogleEvent({
         accessToken,
@@ -734,11 +736,17 @@ async function processTaskCleanup(client: SchedulerAdminClient, userId: string, 
       }
     }
   }
-  const { count: pendingCount, error: pendingError } = await client
+  let pendingQuery = client
     .from("task_schedule_cleanup")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .is("processed_at", null);
+  if (calendarIds) {
+    const ids = [...calendarIds];
+    if (ids.length === 0) return { failures, pendingCount: 0 };
+    pendingQuery = pendingQuery.in("calendar_id", ids);
+  }
+  const { count: pendingCount, error: pendingError } = await pendingQuery;
   if (pendingError) {
     throw pendingError;
   }
@@ -1083,9 +1091,10 @@ async function runSchedulerForUserWithClient(
   await refreshSchedulerLock(client, userId, lockToken);
   const connection = await loadGoogleConnection(client, userId);
   const spaces = connection ? await loadSpaces(client, userId) : [];
-  if (!connection || spaces.length === 0) {
+  const activeSpaces = spaces.filter((space) => space.status === "active");
+  if (!connection || activeSpaces.length === 0) {
     await pauseSchedulerForUser(userId);
-    return { userId, created: 0, moved: 0, deleted: 0, locked: 0, warnings: [!connection ? "Connect a Google Calendar to schedule tasks." : "Add a Google Calendar Space to schedule tasks."] } satisfies SchedulerSummary;
+    return { userId, created: 0, moved: 0, deleted: 0, locked: 0, warnings: [!connection ? "Connect a Google Calendar to schedule tasks." : "Restore a Google Calendar Space to schedule tasks."] } satisfies SchedulerSummary;
   }
 
   const syncClient = client as GoogleDbClient;
@@ -1093,6 +1102,7 @@ async function runSchedulerForUserWithClient(
   if (initialSync.errors.length > 0) {
     throw new Error(`Some Spaces could not be refreshed: ${initialSync.errors.join(" ")}`);
   }
+  const activeCalendarIds = new Set(activeSpaces.map((space) => space.calendarId));
   const now = Date.now();
   const accessToken = await getUsableGoogleAccessToken(client, connection);
   const repairResult = await processTimerCalendarRepairs({
@@ -1101,19 +1111,28 @@ async function runSchedulerForUserWithClient(
     accessToken,
     connection,
     now,
+    calendarIds: activeCalendarIds,
   });
   // Clean up provider deletions before loading the global plan. Blocks in
   // every Space remain valid; adding a calendar must never cancel another
   // Space's work.
-  const cleanupResult = await processTaskCleanup(client, userId, accessToken);
+  const cleanupResult = await processTaskCleanup(client, userId, accessToken, activeCalendarIds);
   if (cleanupResult.failures > 0 || cleanupResult.pendingCount > 0) {
     const pendingWarning = cleanupResult.pendingCount > 0
       ? ` ${cleanupResult.pendingCount} calendar cleanup item${cleanupResult.pendingCount === 1 ? " is" : "s are"} still waiting.`
       : "";
     throw new Error(`Scheduling is paused until previous calendar changes are cleaned up.${pendingWarning}`);
   }
-  const fallbackTimezone = spaces[0]?.timeZone ?? connection.selected_calendar_timezone ?? "UTC";
-  let data = await loadSchedulerData(client, userId, connection, fallbackTimezone);
+  const fallbackTimezone = activeSpaces[0]?.timeZone ?? connection.selected_calendar_timezone ?? "UTC";
+  const loadScopedSchedulerData = async () => {
+    const next = await loadSchedulerData(client, userId, connection, fallbackTimezone);
+    return {
+      ...next,
+      blocks: next.blocks.filter((block) => activeCalendarIds.has(block.calendar_id)),
+      events: next.events.filter((event) => activeCalendarIds.has(event.calendar_id)),
+    };
+  };
+  let data = await loadScopedSchedulerData();
   const activeSessionWarnings = await pauseActiveSessionsForExternalChanges(
     client,
     userId,
@@ -1121,9 +1140,10 @@ async function runSchedulerForUserWithClient(
     data.events,
     accessToken,
     now,
+    activeCalendarIds,
   );
   if (activeSessionWarnings.length > 0) {
-    data = await loadSchedulerData(client, userId, connection, fallbackTimezone);
+    data = await loadScopedSchedulerData();
   }
   const reconciliation = await reconcileManagedEvents(
     client,
@@ -1138,11 +1158,11 @@ async function runSchedulerForUserWithClient(
     throw new Error(`Scheduling is paused until duplicate or missing HeavyUser calendar events are repaired. ${reconciliation.warnings.join(" ")}`);
   }
   if (reconciliation.deleted > 0) {
-    data = await loadSchedulerData(client, userId, connection, fallbackTimezone);
+    data = await loadScopedSchedulerData();
   }
   const missedBlocks = await markPastBlocksMissed(client, userId, data.blocks, data.events, accessToken, now);
   if (missedBlocks.length > 0) {
-    data = await loadSchedulerData(client, userId, connection, fallbackTimezone);
+    data = await loadScopedSchedulerData();
   }
   const blocks = data.blocks;
   const locked = await markExternalChanges(client, blocks, data.events, now, accessToken);
@@ -1150,13 +1170,14 @@ async function runSchedulerForUserWithClient(
     // A priority change is an explicit request to rebuild future work. It may
     // move blocks that were previously locked, but never touches past blocks.
     await unlockFutureBlocksForPriorityReplan(client, userId, now);
-    data = await loadSchedulerData(client, userId, connection, fallbackTimezone);
+    data = await loadScopedSchedulerData();
   }
   const refreshedBlocksResult = await client.from("task_schedule_blocks").select("*").eq("user_id", userId);
   if (refreshedBlocksResult.error) throw refreshedBlocksResult.error;
-  const refreshedBlocks = refreshedBlocksResult.data ?? [];
+  const refreshedBlocks = (refreshedBlocksResult.data ?? []).filter((block) => activeCalendarIds.has(block.calendar_id));
   const refreshedEventsResult = await client.from("google_calendar_events").select("*").eq("user_id", userId);
   if (refreshedEventsResult.error) throw refreshedEventsResult.error;
+  const refreshedEvents = (refreshedEventsResult.data ?? []).filter((event) => activeCalendarIds.has(event.calendar_id));
   const workSessions = await loadWorkSessionRows(client, userId);
   const workedSecondsByTask = new Map<string, number>();
   const workedMinutesByTask = new Map<string, number>();
@@ -1184,7 +1205,7 @@ async function runSchedulerForUserWithClient(
   const blockProviderIds = new Set(refreshedBlocks
     .filter((block) => Boolean(block.provider_event_id))
     .map((block) => `${block.calendar_id}:${block.provider_event_id}`));
-  const busyIntervals = getBusyIntervalsFromCalendarEvents((refreshedEventsResult.data ?? [])
+  const busyIntervals = getBusyIntervalsFromCalendarEvents(refreshedEvents
     .filter((event) => !isManagedEvent(event as CalendarEventRow, blockProviderIds))
     .map((event) => ({
       status: event.status,
@@ -1211,7 +1232,7 @@ async function runSchedulerForUserWithClient(
     return { ...block, end_at: activeEnd, planned_end_at: activeEnd };
   });
   const activeSessionIntervals = workSessions
-    .filter((session) => session.state === "running" && session.calendar_id)
+    .filter((session) => session.state === "running" && session.calendar_id && activeCalendarIds.has(session.calendar_id))
     .map((session) => ({
       start: session.started_at,
       end: new Date(Math.max(new Date(session.started_at).getTime() + 1000, now)).toISOString(),
@@ -1275,7 +1296,7 @@ async function runSchedulerForUserWithClient(
         task,
         plan: taskPlan,
         blocks: planningBlocksWithActiveTime,
-        events: (refreshedEventsResult.data ?? []) as CalendarEventRow[],
+        events: refreshedEvents as CalendarEventRow[],
         preferences: data.preferences,
         calendarId: spacesById.get(task.spaceId!)!.calendarId,
         spaceId: task.spaceId!,

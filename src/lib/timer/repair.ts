@@ -322,6 +322,7 @@ export async function processTimerCalendarRepairs(input: {
   accessToken: string;
   connection: GoogleConnection;
   now?: number;
+  calendarIds?: ReadonlySet<string>;
 }) {
   const now = input.now ?? Date.now();
   const { data: repairs, error: repairsError } = await input.client
@@ -367,7 +368,7 @@ export async function processTimerCalendarRepairs(input: {
   let repaired = 0;
   let failures = 0;
 
-  for (const repair of repairs as RepairRow[]) {
+  for (const repair of (repairs as RepairRow[]).filter((candidate) => !input.calendarIds || input.calendarIds.has(candidate.calendar_id))) {
     const session = repair.session_id ? sessionsById.get(repair.session_id) ?? null : null;
     const block = repair.block_id ? blocksById.get(repair.block_id) ?? null : session?.block_id ? blocksById.get(session.block_id) ?? null : null;
     const taskId = session?.task_id ?? block?.task_id;

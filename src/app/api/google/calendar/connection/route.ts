@@ -65,6 +65,15 @@ export async function DELETE(request: Request) {
     }
   }
 
+  const { error: spacesError } = await context.admin.from("spaces").update({
+    status: "disconnected",
+    archived_at: null,
+    updated_at: new Date().toISOString(),
+  }).eq("user_id", context.user.id).eq("status", "active");
+  if (spacesError) {
+    return NextResponse.json({ error: googleErrorMessage(spacesError) }, { status: 500 });
+  }
+
   const results = await Promise.all([
     context.admin.from("google_calendar_events").delete().eq("user_id", context.user.id),
     context.admin.from("google_calendar_event_deletions").delete().eq("user_id", context.user.id),

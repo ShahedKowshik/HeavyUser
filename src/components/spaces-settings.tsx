@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Archive, Check, Plus, RotateCcw } from "lucide-react";
+import { Archive, CalendarPlus, Check, Plus, RotateCcw } from "lucide-react";
 import { getAppPath } from "@/lib/supabase/config";
 import type { Space } from "@/lib/spaces";
 
@@ -87,6 +87,8 @@ export function SpacesSettings() {
     } finally { setSavingId(""); }
   }
 
+  const availableCalendars = calendars.filter((calendar) => !spaces.some((space) => space.calendarId === calendar.id));
+
   return (
     <section className="hu-settings-section" aria-labelledby="spaces-title">
       <div className="hu-settings-section-heading">
@@ -101,45 +103,94 @@ export function SpacesSettings() {
       {isLoading ? <p className="hu-settings-message">Loading Spaces…</p> : null}
       {!isLoading && spaces.length === 0 ? <p className="hu-settings-message">Add your first writable Google Calendar below.</p> : null}
       <div className="hu-space-list">
-        {spaces.map((space) => (
-          <article className={`hu-space-card ${space.status === "archived" ? "is-archived" : ""}`} key={space.id}>
-            <div className="hu-space-card-heading">
-              <span className="hu-space-color" aria-hidden="true" />
-              <div>
-                <label className="hu-field-label" htmlFor={`space-name-${space.id}`}>Space name</label>
-                <input id={`space-name-${space.id}`} className="hu-task-input" value={draftNames[space.id] ?? space.name} disabled={space.status === "archived"} onChange={(event) => setDraftNames((current) => ({ ...current, [space.id]: event.target.value }))} />
-                <small>{space.calendarName} · {space.timeZone}</small>
-              </div>
-              <span className="hu-space-status">{space.status === "active" ? "Active" : "Archived"}</span>
-            </div>
-            <div className="hu-space-subspaces">
-              <span className="hu-field-label">Sub-spaces</span>
-              {space.subSpaces.filter((subSpace) => subSpace.status === "active").map((subSpace) => <span className="hu-space-subspace" key={subSpace.id}>{subSpace.name}</span>)}
-              {space.status === "active" ? (
-                <div className="hu-space-add-subspace">
-                  <input aria-label={`New Sub-space in ${space.name}`} className="hu-task-input" placeholder="New Sub-space" value={newSubSpace[space.id] ?? ""} onChange={(event) => setNewSubSpace((current) => ({ ...current, [space.id]: event.target.value }))} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void addSubSpace(space.id); } }} />
-                  <button className="hu-form-button" disabled={savingId === `sub:${space.id}`} type="button" onClick={() => void addSubSpace(space.id)}><Plus aria-hidden="true" size={13} />Add</button>
+        {spaces.map((space) => {
+          const activeSubSpaces = space.subSpaces.filter((subSpace) => subSpace.status === "active");
+          const draftName = draftNames[space.id] ?? space.name;
+          const statusLabel = space.status === "active" ? "Active" : space.status === "disconnected" ? "Reconnect needed" : "Archived";
+
+          return (
+            <article className={`hu-space-card ${space.status !== "active" ? "is-archived" : ""}`} key={space.id}>
+              <div className="hu-space-card-header">
+                <div className="hu-space-card-identity">
+                  <span className="hu-space-color" aria-hidden="true" />
+                  <div>
+                    <span className="hu-space-card-kicker">Calendar Space</span>
+                    <h3>{draftName}</h3>
+                    <p>{space.calendarName} <span aria-hidden="true">·</span> {space.timeZone}</p>
+                  </div>
                 </div>
-              ) : null}
-            </div>
-            <div className="hu-settings-actions">
-              <button className="hu-form-button" disabled={savingId === space.id} type="button" onClick={() => void updateSpace(space)}><Check aria-hidden="true" size={13} />Save name</button>
-              <button className="hu-form-button" disabled={savingId === space.id} type="button" onClick={() => void updateSpace(space, space.status === "active" ? "archived" : "active")}>
-                {space.status === "active" ? <><Archive aria-hidden="true" size={13} />Archive</> : <><RotateCcw aria-hidden="true" size={13} />Restore</>}
-              </button>
-            </div>
-          </article>
-        ))}
+                <div className="hu-space-card-header-actions">
+                  <span className={`hu-space-status is-${space.status}`}>
+                    <span className="hu-space-status-dot" aria-hidden="true" />
+                    {statusLabel}
+                  </span>
+                  <button
+                    aria-label={space.status === "active" ? `Archive ${draftName}` : `Restore ${draftName}`}
+                    className="hu-space-archive-button"
+                    disabled={savingId === space.id}
+                    title={space.status === "active" ? "Archive Space" : "Restore Space"}
+                    type="button"
+                    onClick={() => void updateSpace(space, space.status === "active" ? "archived" : "active")}
+                  >
+                    {space.status === "active" ? <Archive aria-hidden="true" size={14} /> : <RotateCcw aria-hidden="true" size={14} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="hu-space-card-body">
+                <div className="hu-space-rename-panel">
+                  <div>
+                    <label className="hu-field-label" htmlFor={`space-name-${space.id}`}>Space name</label>
+                    <p>Give this calendar a name you will recognize in task lists.</p>
+                  </div>
+                  <div className="hu-space-name-control">
+                    <input id={`space-name-${space.id}`} className="hu-task-input" value={draftName} disabled={space.status === "archived"} onChange={(event) => setDraftNames((current) => ({ ...current, [space.id]: event.target.value }))} />
+                    <button className="hu-form-button is-primary" disabled={savingId === space.id || space.status === "archived"} type="button" onClick={() => void updateSpace(space)}><Check aria-hidden="true" size={13} />Save</button>
+                  </div>
+                </div>
+
+                <div className="hu-space-subspaces-panel" aria-labelledby={`space-subspaces-${space.id}`}>
+                  <div className="hu-space-subspaces-heading">
+                    <div>
+                      <span className="hu-field-label" id={`space-subspaces-${space.id}`}>Sub-spaces</span>
+                      <p>Use smaller labels to keep work inside this calendar organized.</p>
+                    </div>
+                    <span className="hu-space-count">{activeSubSpaces.length} {activeSubSpaces.length === 1 ? "label" : "labels"}</span>
+                  </div>
+
+                  {activeSubSpaces.length > 0 ? (
+                    <div className="hu-space-subspace-list">
+                      {activeSubSpaces.map((subSpace) => <span className="hu-space-subspace" key={subSpace.id}>{subSpace.name}</span>)}
+                    </div>
+                  ) : <p className="hu-space-empty-subspaces">No sub-spaces yet. Add one when a label will help you find a task faster.</p>}
+
+                  {space.status === "active" ? (
+                    <div className="hu-space-add-subspace">
+                      <input aria-label={`New Sub-space in ${draftName}`} className="hu-task-input" placeholder="Add a sub-space, like a project or domain" value={newSubSpace[space.id] ?? ""} onChange={(event) => setNewSubSpace((current) => ({ ...current, [space.id]: event.target.value }))} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void addSubSpace(space.id); } }} />
+                      <button className="hu-form-button" disabled={savingId === `sub:${space.id}`} type="button" onClick={() => void addSubSpace(space.id)}><Plus aria-hidden="true" size={13} />Add sub-space</button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </div>
 
-      {calendars.length > 0 ? (
+      {availableCalendars.length > 0 ? (
         <div className="hu-space-calendar-picker">
-          <span className="hu-field-label">Add a Google Calendar</span>
-          {calendars.filter((calendar) => !spaces.some((space) => space.calendarId === calendar.id)).map((calendar) => (
+          <div className="hu-space-calendar-picker-heading">
+            <div>
+              <span className="hu-field-label">Connect another calendar</span>
+              <p>Every connected Google Calendar becomes a Space you can use for tasks.</p>
+            </div>
+            <CalendarPlus aria-hidden="true" size={17} />
+          </div>
+          {availableCalendars.map((calendar) => (
             <button className="hu-calendar-option" disabled={savingId === calendar.id} key={calendar.id} type="button" onClick={() => void addCalendar(calendar.id)}>
               <span className="hu-calendar-option-color" style={{ background: calendar.backgroundColor ?? "var(--primary)" }} aria-hidden="true" />
               <span><strong>{calendar.name}</strong><small>{calendar.primary ? "Primary calendar" : calendar.timeZone ?? "Google Calendar"}</small></span>
-              <Plus aria-hidden="true" size={14} />
+              <span className="hu-calendar-option-action"><Plus aria-hidden="true" size={14} />Add</span>
             </button>
           ))}
         </div>

@@ -26,7 +26,7 @@ function mapSpace(row: SpaceRow, subSpaces: ReadonlyArray<SubSpace> = []): Space
     calendarId: row.calendar_id,
     calendarName: row.calendar_name,
     timeZone: row.time_zone,
-    status: row.status === "archived" ? "archived" : "active",
+    status: row.status === "archived" ? "archived" : row.status === "disconnected" ? "disconnected" : "active",
     position: row.position,
     archivedAt: row.archived_at,
     subSpaces: subSpaces.filter((subSpace) => subSpace.spaceId === row.id).sort((a, b) => a.position - b.position),
@@ -65,6 +65,7 @@ async function assignLegacyTasksToFirstSpace(client: SpacesClient, userId: strin
     .from("spaces")
     .select("id")
     .eq("user_id", userId)
+    .eq("status", "active")
     .order("position", { ascending: true })
     .order("created_at", { ascending: true })
     .order("id", { ascending: true })
@@ -93,6 +94,14 @@ export async function ensureSpaceForCalendar(input: {
   const existing = await input.client.from("spaces").select("*").eq("user_id", input.userId).eq("calendar_id", calendarId).maybeSingle();
   if (existing.error) throw existing.error;
   if (existing.data) {
+    if (existing.data.status !== "active") {
+      const { error: restoreError } = await input.client.from("spaces").update({
+        status: "active",
+        archived_at: null,
+        updated_at: new Date().toISOString(),
+      }).eq("user_id", input.userId).eq("id", existing.data.id);
+      if (restoreError) throw restoreError;
+    }
     // A retry after a partial first-save must still adopt legacy tasks. Use
     // the oldest Space instead of a row count so a second calendar can never
     // strand tasks that were waiting for the first save to finish.

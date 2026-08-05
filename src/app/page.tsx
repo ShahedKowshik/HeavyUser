@@ -23,6 +23,7 @@ import {
   Flag,
   Flame,
   ListTodo,
+  List,
   History,
   Play,
   Pencil,
@@ -46,7 +47,7 @@ import type { ScheduleBlockSnapshot, TaskScheduleStatus } from "@/lib/scheduler/
 import type { UserSettings } from "@/lib/supabase/settings";
 import type { Space } from "@/lib/spaces";
 import { formatElapsedSeconds, type ActiveTimerSnapshot, type MissedBlockSnapshot, type TaskWorkSession, type TaskWorkSummary, type TimerAlert } from "@/lib/timer/types";
-type TaskBucket = "backlog" | "today" | "upcoming";
+type TaskBucket = "all" | "backlog" | "today" | "upcoming";
 type InlineEditField = "title";
 
 const publicAssetPath = publicBasePath;
@@ -83,6 +84,7 @@ const durationPresets = [
 ] as const;
 
 const taskBucketOptions = [
+  { value: "all", label: "All tasks", icon: List },
   { value: "today", label: "Today", icon: CalendarRange },
   { value: "upcoming", label: "Upcoming", icon: ListTodo },
   { value: "backlog", label: "Backlog", icon: Archive },
@@ -352,6 +354,10 @@ function getTaskBucket(task: Task, today = calendarDate): TaskBucket {
   }
 
   return "backlog";
+}
+
+function matchesTaskBucket(task: Task, bucket: TaskBucket, today = calendarDate) {
+  return bucket === "all" || getTaskBucket(task, today) === bucket;
 }
 
 type UpcomingGroupId = "tomorrow" | "this-week" | "this-month" | "this-quarter" | "this-year" | "far-away";
@@ -1961,7 +1967,7 @@ export default function Home() {
     setTasks((currentTasks) => {
       const bucketTasks = currentTasks.filter(
         (task) =>
-          getTaskBucket(task, getAppToday()) === activeBucket &&
+          matchesTaskBucket(task, activeBucket, getAppToday()) &&
           (showCompletedTasks || task.status !== "done"),
       );
       const visibleTasks = isCustomOrder ? [...bucketTasks] : sortTasks(bucketTasks);
@@ -2036,7 +2042,7 @@ export default function Home() {
     setTasks((currentTasks) => {
       const bucketTasks = currentTasks.filter(
         (task) =>
-          getTaskBucket(task, getAppToday()) === activeBucket &&
+          matchesTaskBucket(task, activeBucket, getAppToday()) &&
           (showCompletedTasks || task.status !== "done"),
       );
       const visibleTasks = isCustomOrder ? [...bucketTasks] : sortTasks(bucketTasks);
@@ -2060,6 +2066,11 @@ export default function Home() {
   const logicalToday = getAppToday();
   const taskCounts = taskBucketOptions.reduce<Record<TaskBucket, number>>(
     (counts, option) => {
+      if (option.value === "all") {
+        counts.all = tasks.filter((task) => task.status !== "done").length;
+        return counts;
+      }
+
       counts[option.value] = tasks.filter(
         (task) =>
           getTaskBucket(task, logicalToday) === option.value &&
@@ -2067,11 +2078,11 @@ export default function Home() {
       ).length;
       return counts;
     },
-    { backlog: 0, today: 0, upcoming: 0 },
+    { all: 0, backlog: 0, today: 0, upcoming: 0 },
   );
   const activeBucketTasks = tasks.filter(
     (task) =>
-      getTaskBucket(task, logicalToday) === activeBucket &&
+      matchesTaskBucket(task, activeBucket, logicalToday) &&
       (showCompletedTasks || task.status !== "done"),
   );
   const visibleTasks = isCustomOrder ? activeBucketTasks : sortTasks(activeBucketTasks);
@@ -2210,10 +2221,11 @@ export default function Home() {
                       <button
                         aria-controls="task-list-panel"
                         aria-selected={activeBucket === option.value}
-                        className={`hu-task-tab ${activeBucket === option.value ? "is-active" : ""}`}
+                        className={`hu-task-tab ${activeBucket === option.value ? "is-active" : ""} ${option.value === "all" ? "is-icon-only" : ""}`}
                         id={`task-tab-${option.value}`}
                         key={option.value}
                         role="tab"
+                        title={option.label}
                         type="button"
                         onClick={() => {
                           setActiveBucket(option.value);
@@ -2221,8 +2233,8 @@ export default function Home() {
                         }}
                       >
                         <option.icon aria-hidden="true" size={13} />
-                        <span>{option.label}</span>
-                        <span className="hu-task-tab-count">{taskCounts[option.value]}</span>
+                        {option.value === "all" ? <span className="sr-only">{option.label}</span> : <span>{option.label}</span>}
+                        {option.value !== "all" ? <span className="hu-task-tab-count">{taskCounts[option.value]}</span> : null}
                       </button>
                     ))}
                   </div>
@@ -2259,9 +2271,17 @@ export default function Home() {
 
               {isAdding ? (
                 <form aria-label="Add task" className="hu-task-composer" onSubmit={handleAddTask}>
+                  <div className="hu-composer-heading">
+                    <div>
+                      <span className="hu-composer-kicker">Capture</span>
+                      <strong>Start with the next action</strong>
+                    </div>
+                    <span className="hu-composer-hint">Add details only when they help you place the work.</span>
+                  </div>
+
                   <div className="hu-composer-main-field">
                     <label className="hu-field-label" htmlFor="new-task-title">
-                      Task
+                      Task title
                     </label>
                     <input
                       autoFocus
@@ -2279,7 +2299,9 @@ export default function Home() {
                     />
                   </div>
 
-                  <div className="hu-task-options" id="new-task-options">
+                  <div className="hu-composer-details">
+                    <span className="hu-composer-details-label">Details</span>
+                    <div className="hu-task-options" id="new-task-options">
                     <label className="hu-field">
                       <span className="hu-field-label">Duration</span>
                       <span className="hu-duration-input-wrap">
@@ -2361,10 +2383,12 @@ export default function Home() {
                         ))}
                       </select>
                     </label>
+                    </div>
                   </div>
                   {spaceError ? <p className="hu-form-error" role="alert">{spaceError}</p> : null}
-                  <div className="hu-form-actions">
+                  <div className="hu-form-actions hu-composer-actions">
                     {taskComposerError ? <p className="hu-form-error" role="alert">{taskComposerError}</p> : null}
+                    <span className="hu-composer-submit-hint"><kbd>Enter</kbd> to add · <kbd>Esc</kbd> to close</span>
                     <button className="hu-form-button is-primary" type="submit">
                       Add task
                     </button>
@@ -2972,7 +2996,7 @@ export default function Home() {
                     >
                       <option value="">Choose a Space</option>
                       {spaces.map((space) => (
-                        <option disabled={space.status !== "active"} key={space.id} value={space.id}>{space.name}{space.status === "archived" ? " (Archived)" : ""}</option>
+                        <option disabled={space.status !== "active"} key={space.id} value={space.id}>{space.name}{space.status === "archived" ? " (Archived)" : space.status === "disconnected" ? " (Reconnect Google Calendar)" : ""}</option>
                       ))}
                     </select>
                   </label>

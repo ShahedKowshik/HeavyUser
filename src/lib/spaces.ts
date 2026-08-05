@@ -1,4 +1,4 @@
-export type SpaceStatus = "active" | "archived";
+export type SpaceStatus = "active" | "archived" | "disconnected";
 
 export type Space = {
   id: string;

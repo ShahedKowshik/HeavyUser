@@ -4,6 +4,7 @@ import { encryptSecret } from "@/lib/google/crypto";
 import { getGoogleConfig, getGoogleRedirectUri } from "@/lib/google/config";
 import { getAuthenticatedGoogleContext } from "@/lib/google/server";
 import { getAppPath, getAppRedirectOrigin } from "@/lib/supabase/config";
+import { stopTimerForCalendarDisconnect } from "@/lib/timer/server";
 
 function redirectWithError(request: Request, reason: string) {
   const origin = getAppRedirectOrigin(request);
@@ -66,6 +67,21 @@ export async function GET(request: Request) {
 
     if (!refreshToken) {
       return redirectWithError(request, "missing_refresh_token");
+    }
+
+    // A reconnect can replace the account without going through the explicit
+    // disconnect button. Stop any live timer while the old token is still the
+    // connection used by the timer write, so it cannot later be stopped using
+    // the new account's token.
+    await stopTimerForCalendarDisconnect(context.user.id);
+
+    const { error: spacesError } = await context.admin.from("spaces").update({
+      status: "disconnected",
+      archived_at: null,
+      updated_at: new Date().toISOString(),
+    }).eq("user_id", context.user.id).eq("status", "active");
+    if (spacesError) {
+      throw spacesError;
     }
 
     const { error } = await context.admin.from("google_calendar_connections").upsert({

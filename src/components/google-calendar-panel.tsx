@@ -132,7 +132,7 @@ type GoogleCalendarPanelProps = {
 const TIMELINE_HOURS = 24;
 const TIMELINE_HOUR_HEIGHT = 56;
 const DAY_MARKER_HEIGHT = 42;
-const PLANNER_DAYS = 7;
+const PLANNER_DAYS = 3;
 const SCROLL_RETURN_THRESHOLD = 48;
 const CURRENT_TIME_BEFORE_MINUTES = 60;
 const CURRENT_TIME_AFTER_MINUTES = 7 * 60;
@@ -367,7 +367,7 @@ export function GoogleCalendarPanel({
     return () => window.clearInterval(interval);
   }, []);
 
-  // A disconnected Google account may still have archived Space records. The
+  // A disconnected Google account may still have archived or disconnected Space records. The
   // toolbar must follow the actual connection, not the saved Space list.
   const isConnected = Boolean(connection?.calendarId);
   const effectiveSpaceFilter = selectedSpaceFilter !== "all" && spaces.some((space) => space.id === selectedSpaceFilter)
@@ -394,7 +394,6 @@ export function GoogleCalendarPanel({
   });
   const currentDayStartTimestamp = getTimestampForLocalDateTime(date, dayStartMinutes, timeZone);
   const currentDayTimeOffset = getCurrentTimeOffset(nowTimestamp, currentDayStartTimestamp, timelineHourHeight);
-  const showJumpToNow = selectedDate !== date || isTimelineAwayFromNow;
   const selectedDateIndex = Math.max(0, plannerDates.indexOf(selectedDate));
   const taskById = new Map(tasks.map((task) => [task.id, task]));
   const preferredScheduleBlockIds = new Set(
@@ -1339,12 +1338,16 @@ export function GoogleCalendarPanel({
             <ChevronRight aria-hidden="true" size={15} />
           </button>
         </div>
-        {showJumpToNow ? (
-          <button aria-label="Jump to current time" className="hu-calendar-now-button" type="button" onClick={jumpToNow}>
-            <Clock3 aria-hidden="true" size={13} />
-            Now
-          </button>
-        ) : null}
+        <button
+          aria-label={isTimelineAwayFromNow ? "Jump to current time" : "Center current time"}
+          className={`hu-calendar-now-button ${isTimelineAwayFromNow ? "is-away" : "is-current"}`}
+          title={isTimelineAwayFromNow ? "Jump back to the current time" : "You are viewing the current time"}
+          type="button"
+          onClick={jumpToNow}
+        >
+          <Clock3 aria-hidden="true" size={13} />
+          Now
+        </button>
       </div>
 
       {error || schedulerError ? <div className="hu-calendar-alert" role="alert">{error || schedulerError}</div> : null}
@@ -1373,7 +1376,7 @@ export function GoogleCalendarPanel({
             onTouchStart={handleTimelineTouchStart}
             onScroll={(event) => handleTimelineScroll(event.currentTarget)}
           >
-            {plannerTimelineDays.map((day) => {
+            {plannerTimelineDays.map((day, dayIndex) => {
               const midnightTimestamp = getTimestampForLocalDateTime(addCalendarDays(day.date, 1), 0, timeZone);
               const midnightPosition = getTimelineMarkerPosition(midnightTimestamp, day.timelineStartTimestamp, day.timelineEndTimestamp);
               const isCurrentDay = day.date === date;
@@ -1382,12 +1385,12 @@ export function GoogleCalendarPanel({
               return (
                 <section className="hu-calendar-day" data-date={day.date} key={day.date}>
                   <div
-                    aria-label={`Planner day ${formatDateLabel(day.date)}`}
+                    aria-label={`Planner day ${formatDateLabel(day.date)}${settings.nightOwlMode ? `, starts ${formatStartTime(settings.dayStartTime)}` : ""}`}
                     className="hu-calendar-day-heading"
                   >
                     <div className="hu-calendar-day-heading-copy">
                       <strong>{formatDateLabel(day.date)}</strong>
-                      {settings.nightOwlMode ? <span>starts {formatStartTime(settings.dayStartTime)}</span> : null}
+                      {settings.nightOwlMode ? <span className="hu-calendar-day-start">starts {formatStartTime(settings.dayStartTime)}</span> : null}
                     </div>
                     {day.allDayEvents.length > 0 ? (
                       <div className="hu-calendar-day-all-day" aria-label={`All-day events for ${day.date}`}>
@@ -1402,20 +1405,24 @@ export function GoogleCalendarPanel({
                   </div>
                   <div className="hu-calendar-day-grid">
                     <div className="hu-time-labels" aria-hidden="true" style={{ "--hu-visible-hours": timelineHours, "--hu-hour-height": `${timelineHourHeight}px` } as CSSProperties}>
-                      {timeLabels.map((label, index) => (
-                        <span className="hu-time-label" key={`${day.date}-${label}-${index}`} style={{ top: `${(index / timelineHours) * 100}%` }}>
-                          {label}
-                        </span>
-                      ))}
+                      {timeLabels.map((label, index) => {
+                        if (dayIndex > 0 && index === 0) {
+                          return null;
+                        }
+
+                        return (
+                          <span className="hu-time-label" key={`${day.date}-${label}-${index}`} style={{ top: `${(index / timelineHours) * 100}%` }}>
+                            {label}
+                          </span>
+                        );
+                      })}
                     </div>
                     <div className="hu-calendar-stage" role="list" aria-label={`Planner for ${day.date}`} style={{ "--hu-visible-hours": timelineHours, "--hu-hour-height": `${timelineHourHeight}px` } as CSSProperties}>
                       <span className={`hu-timeline-marker hu-timeline-marker-midnight ${midnightPosition === 0 ? "is-at-start" : ""}`} style={{ top: `${midnightPosition}%` }}>
                         <span>12 AM</span>
                       </span>
                       {settings.nightOwlMode ? (
-                        <span className="hu-timeline-marker hu-timeline-marker-night-owl is-at-start" style={{ top: "0%" }}>
-                          <span>{formatStartTime(settings.dayStartTime)} · day starts</span>
-                        </span>
+                        <span aria-hidden="true" className="hu-timeline-marker hu-timeline-marker-night-owl is-at-start" style={{ top: "0%" }} />
                       ) : null}
                       {isCurrentDay && nowTimestamp >= day.timelineStartTimestamp && nowTimestamp <= day.timelineEndTimestamp ? (
                         <span className="hu-now-line" style={{ top: `${getTimelineMarkerPosition(nowTimestamp, day.timelineStartTimestamp, day.timelineEndTimestamp)}%` }}>
