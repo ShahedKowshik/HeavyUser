@@ -4,6 +4,7 @@ import {
   DragEvent,
   FormEvent,
   KeyboardEvent as ReactKeyboardEvent,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -22,8 +23,12 @@ import {
   Flag,
   Flame,
   ListTodo,
+  History,
+  Play,
   Pencil,
   Plus,
+  PlusCircle,
+  Square,
   TriangleAlert,
   Trash2,
   X,
@@ -39,6 +44,8 @@ import { loadRemoteTasks, persistRemoteTasks } from "@/lib/supabase/tasks";
 import type { CalendarTransparency, CalendarVisibility, Priority, Task, TaskScheduleState } from "@/lib/tasks";
 import type { ScheduleBlockSnapshot, TaskScheduleStatus } from "@/lib/scheduler/types";
 import type { UserSettings } from "@/lib/supabase/settings";
+import type { Space } from "@/lib/spaces";
+import { formatElapsedSeconds, type ActiveTimerSnapshot, type MissedBlockSnapshot, type TaskWorkSession, type TaskWorkSummary, type TimerAlert } from "@/lib/timer/types";
 type TaskBucket = "backlog" | "today" | "upcoming";
 type InlineEditField = "title";
 
@@ -132,6 +139,8 @@ function isTask(value: unknown): value is Task {
     ((typeof candidate.duration === "number" && Number.isFinite(candidate.duration) && candidate.duration > 0 && candidate.duration <= MAX_TASK_DURATION_MINUTES) || candidate.duration === null) &&
     (typeof candidate.startDate === "string" || candidate.startDate === null) &&
     (typeof candidate.deadline === "string" || candidate.deadline === null) &&
+    (typeof candidate.spaceId === "string" || candidate.spaceId === null) &&
+    (typeof candidate.subSpaceId === "string" || candidate.subSpaceId === null) &&
     isPriority(candidate.priority) &&
     (candidate.status === "open" || candidate.status === "focus" || candidate.status === "done")
   );
@@ -149,7 +158,8 @@ function normalizeStoredTask(value: unknown): Task | null {
     const maxCandidate = typeof value.maxBlockMinutes === "number" && Number.isFinite(value.maxBlockMinutes) && value.maxBlockMinutes >= 5 ? Math.round(value.maxBlockMinutes) : null;
     return {
       ...value,
-      autoSchedule: value.autoSchedule !== false,
+      subSpaceId: value.spaceId ? value.subSpaceId : null,
+      autoSchedule: true,
       minBlockMinutes,
       maxBlockMinutes: maxCandidate !== null && minBlockMinutes !== null && maxCandidate < minBlockMinutes ? null : maxCandidate,
       calendarVisibility,
@@ -198,15 +208,18 @@ function normalizeStoredTask(value: unknown): Task | null {
     ? Math.round(candidate.maxBlockMinutes)
     : null;
 
+  const spaceId = typeof (candidate as { spaceId?: unknown }).spaceId === "string" ? (candidate as { spaceId: string }).spaceId : null;
   return {
     id: candidate.id,
     title: candidate.title,
     duration,
     startDate: typeof candidate.startDate === "string" && candidate.startDate ? candidate.startDate : null,
     deadline: typeof candidate.deadline === "string" && candidate.deadline ? candidate.deadline : null,
+    spaceId,
+    subSpaceId: spaceId && typeof (candidate as { subSpaceId?: unknown }).subSpaceId === "string" ? (candidate as { subSpaceId: string }).subSpaceId : null,
     priority: isPriority(candidate.priority) ? candidate.priority : "normal",
     status: candidate.status,
-    autoSchedule: candidate.autoSchedule !== false,
+    autoSchedule: true,
     minBlockMinutes,
     maxBlockMinutes: maxCandidate !== null && minBlockMinutes !== null && maxCandidate < minBlockMinutes ? null : maxCandidate,
     calendarVisibility: candidate.calendarVisibility === "default" || candidate.calendarVisibility === "public" || candidate.calendarVisibility === "private"
@@ -216,6 +229,26 @@ function normalizeStoredTask(value: unknown): Task | null {
       ? candidate.calendarTransparency
       : null,
   };
+}
+
+function mapTasksToSpaces(tasks: ReadonlyArray<Task>, spaces: ReadonlyArray<Space>) {
+  const activeSpace = spaces.find((space) => space.status === "active");
+  return tasks.map((task) => {
+    const savedSpace = spaces.find((space) => space.id === task.spaceId);
+    const hasSavedSpace = spaces.some((space) => space.id === task.spaceId);
+    const targetSpace = savedSpace ?? (!task.spaceId || !hasSavedSpace ? activeSpace : null);
+    if (!targetSpace) {
+      return task.subSpaceId === null ? task : { ...task, subSpaceId: null };
+    }
+    const savedSubSpace = targetSpace.subSpaces.find((subSpace) => (
+      subSpace.id === task.subSpaceId
+      && (subSpace.status === "active" || (task.status === "done" && subSpace.status === "archived"))
+    ));
+    const nextSubSpaceId = savedSubSpace?.id ?? null;
+    return task.spaceId === targetSpace.id && task.subSpaceId === nextSubSpaceId
+      ? task
+      : { ...task, spaceId: targetSpace.id, subSpaceId: nextSubSpaceId };
+  });
 }
 
 function getDurationParts(duration: number | null) {
@@ -268,9 +301,6 @@ function getScheduleLabel(task: Task, status: TaskScheduleStatus | undefined) {
   }
   if (task.duration === null) {
     return "Needs duration";
-  }
-  if (!task.autoSchedule) {
-    return "Paused";
   }
   return status ? scheduleStateLabels[status.state] : "Scheduling";
 }
@@ -691,6 +721,8 @@ function areTasksEquivalent(firstTask: Task, secondTask: Task) {
     && firstTask.duration === secondTask.duration
     && firstTask.startDate === secondTask.startDate
     && firstTask.deadline === secondTask.deadline
+    && firstTask.spaceId === secondTask.spaceId
+    && firstTask.subSpaceId === secondTask.subSpaceId
     && firstTask.priority === secondTask.priority
     && firstTask.status === secondTask.status
     && firstTask.autoSchedule === secondTask.autoSchedule
@@ -816,6 +848,8 @@ export default function Home() {
   const [newTaskStartDate, setNewTaskStartDate] = useState("");
   const [newTaskDeadline, setNewTaskDeadline] = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState<Priority>("normal");
+  const [newTaskSpaceId, setNewTaskSpaceId] = useState("");
+  const [newTaskSubSpaceId, setNewTaskSubSpaceId] = useState("");
   const [taskComposerError, setTaskComposerError] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
@@ -823,15 +857,25 @@ export default function Home() {
   const [editingStartDate, setEditingStartDate] = useState("");
   const [editingDeadline, setEditingDeadline] = useState("");
   const [editingPriority, setEditingPriority] = useState<Priority>("normal");
+  const [editingSpaceId, setEditingSpaceId] = useState("");
+  const [editingSubSpaceId, setEditingSubSpaceId] = useState("");
   const [editingError, setEditingError] = useState("");
-  const [editingAutoSchedule, setEditingAutoSchedule] = useState(true);
   const [editingMinBlockMinutes, setEditingMinBlockMinutes] = useState("");
   const [editingMaxBlockMinutes, setEditingMaxBlockMinutes] = useState("");
   const [editingCalendarVisibility, setEditingCalendarVisibility] = useState<CalendarVisibility | null>(null);
   const [editingCalendarTransparency, setEditingCalendarTransparency] = useState<CalendarTransparency | null>(null);
   const [scheduleStatuses, setScheduleStatuses] = useState<Record<string, TaskScheduleStatus>>({});
   const [scheduleBlocks, setScheduleBlocks] = useState<Record<string, ReadonlyArray<ScheduleBlockSnapshot>>>({});
+  const [activeTimer, setActiveTimer] = useState<ActiveTimerSnapshot | null>(null);
+  const [timerElapsedSeconds, setTimerElapsedSeconds] = useState(0);
+  const [taskWorkSummaries, setTaskWorkSummaries] = useState<Readonly<Record<string, TaskWorkSummary>>>({});
+  const [missedBlocks, setMissedBlocks] = useState<ReadonlyArray<MissedBlockSnapshot>>([]);
+  const [timerAlerts, setTimerAlerts] = useState<ReadonlyArray<TimerAlert>>([]);
+  const [timerRequestTaskId, setTimerRequestTaskId] = useState<string | null>(null);
+  const [timerNotice, setTimerNotice] = useState("");
   const [schedulerError, setSchedulerError] = useState("");
+  const [spaces, setSpaces] = useState<ReadonlyArray<Space>>([]);
+  const [spaceError, setSpaceError] = useState("");
   const [inlineEdit, setInlineEdit] = useState<{
     taskId: string;
     field: InlineEditField;
@@ -854,6 +898,30 @@ export default function Home() {
   const schedulerRunTimerRef = useRef<number | null>(null);
   const schedulerRunInFlightRef = useRef(false);
   const schedulerRunQueuedRef = useRef(false);
+  const spacesUpdateVersionRef = useRef(0);
+  const spacesRef = useRef<ReadonlyArray<Space>>([]);
+  const authUserId = authUser?.id ?? "";
+
+  const applySpaces = useCallback((rawSpaces: ReadonlyArray<Space>) => {
+    spacesUpdateVersionRef.current += 1;
+    const nextSpaces = rawSpaces.filter((space) => space && typeof space.id === "string");
+    spacesRef.current = nextSpaces;
+    setSpaces(nextSpaces);
+    setSpaceError("");
+
+    const activeSpace = nextSpaces.find((space) => space.status === "active");
+    const storageKey = `heavyuser:last-space:${authUserId}`;
+    let rememberedSpaceId = "";
+    try { rememberedSpaceId = window.localStorage.getItem(storageKey) ?? ""; } catch { /* cloud remains authoritative */ }
+    const nextDefaultSpaceId = nextSpaces.some((space) => space.id === rememberedSpaceId && space.status === "active")
+      ? rememberedSpaceId
+      : activeSpace?.id ?? "";
+    setNewTaskSpaceId((current) => current && nextSpaces.some((space) => space.id === current && space.status === "active") ? current : nextDefaultSpaceId);
+    setTasks((current) => {
+      const nextTasks = mapTasksToSpaces(current, nextSpaces);
+      return nextTasks.every((task, index) => task === current[index]) ? current : nextTasks;
+    });
+  }, [authUserId]);
 
   useEffect(() => () => {
     if (schedulerRunTimerRef.current !== null) {
@@ -934,7 +1002,7 @@ export default function Home() {
         return;
       }
 
-      const localTasks = readUserTasks(authUser.id);
+      const localTasks = mapTasksToSpaces(readUserTasks(authUser.id), spacesRef.current);
       setTasks([]);
       tasksRef.current = [];
       setRemoteSyncReady(false);
@@ -944,6 +1012,12 @@ export default function Home() {
       setEditingId(null);
       setScheduleStatuses({});
       setScheduleBlocks({});
+      setActiveTimer(null);
+      setTimerElapsedSeconds(0);
+      setTaskWorkSummaries({});
+      setMissedBlocks([]);
+      setTimerAlerts([]);
+      setTimerNotice("");
       setSchedulerError("");
 
       if (isCancelled) {
@@ -968,12 +1042,13 @@ export default function Home() {
         }
 
         const merged = mergeRemoteTasks(localTasks, tasksRef.current, remoteTasks);
-        tasksRef.current = merged.tasks;
-        setTasks(merged.tasks);
-        if (merged.tasks.length === 0 && remoteTasks.length === 0) {
+        const normalizedTasks = mapTasksToSpaces(merged.tasks, spacesRef.current);
+        tasksRef.current = normalizedTasks;
+        setTasks(normalizedTasks);
+        if (normalizedTasks.length === 0 && remoteTasks.length === 0) {
           clearUserTasks(authUser.id);
         } else {
-          writeUserTasks(authUser.id, merged.tasks);
+          writeUserTasks(authUser.id, normalizedTasks);
         }
 
         if (merged.deletedTaskIds.length > 0) {
@@ -992,6 +1067,25 @@ export default function Home() {
       isCancelled = true;
     };
   }, [authStatus, authUser, supabaseClient]);
+
+  useEffect(() => {
+    if (!authUser || authStatus !== "signed_in") {
+      return;
+    }
+    let isCancelled = false;
+    const requestVersion = spacesUpdateVersionRef.current;
+    void fetch(getAppPath("/api/spaces"), { cache: "no-store" })
+      .then(async (response) => {
+        const body = (await response.json().catch(() => null)) as { spaces?: ReadonlyArray<Space>; error?: string } | null;
+        if (!response.ok) throw new Error(body?.error ?? "Spaces could not be loaded.");
+        if (isCancelled || requestVersion !== spacesUpdateVersionRef.current) return;
+        applySpaces(body?.spaces ?? []);
+      })
+      .catch((error: unknown) => {
+        if (!isCancelled) setSpaceError(error instanceof Error ? error.message : "Spaces could not be loaded.");
+      });
+    return () => { isCancelled = true; };
+  }, [applySpaces, authStatus, authUser]);
 
   useEffect(() => {
     if (isHydrated && authUser) {
@@ -1023,7 +1117,21 @@ export default function Home() {
         });
         requestSchedulerRun();
       })
-      .catch(() => undefined);
+      .catch(async (error: unknown) => {
+        if (isCancelled) return;
+        setTimerNotice(error instanceof Error && error.message.includes("running timer")
+          ? "Stop the timer on the other device before deleting this task."
+          : "The task could not be deleted. Your saved tasks were restored.");
+        try {
+          const remoteTasks = await loadRemoteTasks(supabaseClient, authUser);
+          if (!isCancelled) {
+            setTasks(ensureSingleFocus(mapTasksToSpaces(remoteTasks, spacesRef.current)));
+            setPendingRemoteDeletes((currentIds) => currentIds.filter((taskId) => !deletedTaskIds.includes(taskId)));
+          }
+        } catch {
+          // The next authenticated refresh will reconcile the account again.
+        }
+      });
     }, 250);
 
     return () => {
@@ -1131,27 +1239,48 @@ export default function Home() {
 
   async function loadScheduleSnapshot() {
     try {
-      const response = await fetch(getAppPath("/api/scheduler/status"), { cache: "no-store" });
-      if (!response.ok) {
+      const [response, timerResponse] = await Promise.all([
+        fetch(getAppPath("/api/scheduler/status"), { cache: "no-store" }),
+        fetch(getAppPath("/api/timer/status"), { cache: "no-store" }),
+      ]);
+
+      if (response.ok) {
+        const body = (await response.json().catch(() => null)) as {
+          statuses?: ReadonlyArray<TaskScheduleStatus>;
+          blocks?: ReadonlyArray<ScheduleBlockSnapshot>;
+        } | null;
+        const nextStatuses: Record<string, TaskScheduleStatus> = {};
+        for (const status of body?.statuses ?? []) {
+          nextStatuses[status.taskId] = status;
+        }
+        const nextBlocks: Record<string, Array<ScheduleBlockSnapshot>> = {};
+        for (const block of body?.blocks ?? []) {
+          (nextBlocks[block.taskId] ??= []).push(block);
+        }
+        setScheduleStatuses(nextStatuses);
+        setScheduleBlocks(nextBlocks);
+        setSchedulerError("");
+      } else {
         const body = (await response.json().catch(() => null)) as { error?: string } | null;
         setSchedulerError(body?.error ?? "Scheduling status could not be loaded.");
-        return;
       }
 
-      const body = (await response.json().catch(() => null)) as {
-        statuses?: ReadonlyArray<TaskScheduleStatus>;
-        blocks?: ReadonlyArray<ScheduleBlockSnapshot>;
-      } | null;
-      const nextStatuses: Record<string, TaskScheduleStatus> = {};
-      for (const status of body?.statuses ?? []) {
-        nextStatuses[status.taskId] = status;
+      if (timerResponse.ok) {
+        const timerBody = (await timerResponse.json().catch(() => null)) as {
+          activeSession?: ActiveTimerSnapshot | null;
+          sessionsByTask?: Readonly<Record<string, TaskWorkSummary>>;
+          missedBlocks?: ReadonlyArray<MissedBlockSnapshot>;
+          alerts?: ReadonlyArray<TimerAlert>;
+        } | null;
+        setActiveTimer(timerBody?.activeSession ?? null);
+        setTimerElapsedSeconds(timerBody?.activeSession?.elapsedSeconds ?? 0);
+        setTaskWorkSummaries(timerBody?.sessionsByTask ?? {});
+        setMissedBlocks(timerBody?.missedBlocks ?? []);
+        setTimerAlerts(timerBody?.alerts ?? []);
+      } else if (response.ok) {
+        const timerBody = (await timerResponse.json().catch(() => null)) as { error?: string } | null;
+        setSchedulerError(timerBody?.error ?? "Timer history could not be loaded. Try refreshing.");
       }
-      const nextBlocks: Record<string, Array<ScheduleBlockSnapshot>> = {};
-      for (const block of body?.blocks ?? []) {
-        (nextBlocks[block.taskId] ??= []).push(block);
-      }
-      setScheduleStatuses(nextStatuses);
-      setScheduleBlocks(nextBlocks);
     } catch {
       setSchedulerError("Scheduling status could not be loaded. We will try again.");
     }
@@ -1166,6 +1295,36 @@ export default function Home() {
     window.addEventListener("heavyuser:schedule-refresh", refreshScheduleSnapshot);
     return () => window.removeEventListener("heavyuser:schedule-refresh", refreshScheduleSnapshot);
   }, []);
+
+  useEffect(() => {
+    if (!activeTimer) {
+      return;
+    }
+
+    const updateElapsed = () => {
+      const serverTimestamp = new Date(activeTimer.serverNow).getTime();
+      const serverDrift = Number.isFinite(serverTimestamp) ? Math.max(0, Math.floor((Date.now() - serverTimestamp) / 1000)) : 0;
+      setTimerElapsedSeconds(activeTimer.elapsedSeconds + serverDrift);
+    };
+    updateElapsed();
+    const intervalId = window.setInterval(updateElapsed, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [activeTimer]);
+
+  useEffect(() => {
+    if (!authUser || authStatus !== "signed_in") return;
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadScheduleSnapshot();
+    }, 15_000);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") void loadScheduleSnapshot();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [authStatus, authUser]);
 
   function requestSchedulerRun(delayMs = 400) {
     if (schedulerRunInFlightRef.current) {
@@ -1214,6 +1373,206 @@ export default function Home() {
     }, delayMs);
   }
 
+  async function handleStartTimer(taskId: string, options: { choice?: "overlap" | "next_free"; reopen?: boolean; missedBlockId?: string } = {}) {
+    if (timerRequestTaskId) return;
+    setTimerRequestTaskId(taskId);
+    setTimerNotice("");
+    const startedAt = new Date().toISOString();
+    try {
+      const response = await fetch(getAppPath("/api/timer/start"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId, startedAt, ...options }),
+      });
+      const body = (await response.json().catch(() => null)) as { code?: string; error?: string; warning?: string } | null;
+      if (!response.ok && body?.code === "busy_now" && !options.choice) {
+        const overlap = window.confirm("Now is busy in Google Calendar. Press OK to start anyway and keep the overlap, or Cancel to schedule the task for the next free time.");
+        setTimerRequestTaskId(null);
+        await handleStartTimer(taskId, { ...options, choice: overlap ? "overlap" : "next_free" });
+        return;
+      }
+      if (!response.ok && body?.code === "task_done" && !options.reopen) {
+        const reopen = window.confirm("This task is complete. Reopen it and start the timer?");
+        if (reopen) {
+          setTimerRequestTaskId(null);
+          await handleStartTimer(taskId, { ...options, reopen: true });
+        }
+        return;
+      }
+      if (!response.ok) {
+        throw new Error(body?.error ?? "The timer could not start.");
+      }
+      if (options.reopen) {
+        setTasks((currentTasks) => currentTasks.map((task) => task.id === taskId ? { ...task, status: "focus" } : task.status === "focus" ? { ...task, status: "open" } : task));
+      }
+      setTimerNotice(body?.warning ?? "Timer started.");
+      await loadScheduleSnapshot();
+      window.dispatchEvent(new Event("heavyuser:calendar-refresh"));
+    } catch (error) {
+      setTimerNotice(error instanceof Error ? error.message : "The timer could not start.");
+    } finally {
+      setTimerRequestTaskId(null);
+    }
+  }
+
+  async function handleStopTimer(options: { complete?: boolean } = {}) {
+    if (!activeTimer || timerRequestTaskId) return false;
+    const taskId = activeTimer.session.taskId;
+    setTimerRequestTaskId(taskId);
+    setTimerNotice("");
+
+    const sendStop = async (action?: "finish" | "keep_long" | "split") => {
+      const response = await fetch(getAppPath("/api/timer/stop"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stoppedAt: new Date().toISOString(), action, complete: options.complete === true }),
+      });
+      const body = (await response.json().catch(() => null)) as { code?: string; error?: string; warning?: string; schedulerWarning?: string | null } | null;
+      return { response, body };
+    };
+
+    try {
+      let result = await sendStop(options.complete ? "finish" : undefined);
+      if (!result.response.ok && result.body?.code === "estimate_reached" && !options.complete) {
+        const finish = window.confirm("You reached the estimate. Press OK to stop and leave the task open, or Cancel to keep working.");
+        if (!finish) return false;
+        result = await sendStop("finish");
+      }
+      if (!result.response.ok && result.body?.code === "overrun_review") {
+        const keepLong = window.confirm("This session is longer than one calendar block. Press OK to keep one long calendar block, or Cancel to split it into blocks.");
+        result = await sendStop(keepLong ? "keep_long" : "split");
+      }
+      if (!result.response.ok) {
+        throw new Error(result.body?.error ?? "The timer could not stop.");
+      }
+      if (options.complete) {
+        setTasks((currentTasks) => {
+          const nextOpenTask = currentTasks.find((task) => task.id !== taskId && task.status !== "done")?.id ?? null;
+          return currentTasks.map((task) => {
+            if (task.id === taskId) return { ...task, status: "done" };
+            if (task.status === "focus") return { ...task, status: task.id === nextOpenTask ? "focus" : "open" };
+            return task.id === nextOpenTask ? { ...task, status: "focus" } : task;
+          });
+        });
+      }
+      setTimerNotice(result.body?.warning ?? result.body?.schedulerWarning ?? "Work saved.");
+      await loadScheduleSnapshot();
+      window.dispatchEvent(new Event("heavyuser:calendar-refresh"));
+      return true;
+    } catch (error) {
+      setTimerNotice(error instanceof Error ? error.message : "The timer could not stop.");
+      return false;
+    } finally {
+      setTimerRequestTaskId(null);
+    }
+  }
+
+  async function handleLogWork(taskId: string, range?: { startedAt: string; stoppedAt: string; blockId?: string }) {
+    if (timerRequestTaskId) return;
+    const task = tasks.find((candidate) => candidate.id === taskId);
+    if (!task) return;
+    const minutesText = range ? null : window.prompt(`How many minutes did you work on “${task.title}”?`, "30");
+    if (minutesText === null && !range) return;
+    const minutes = range
+      ? Math.round((new Date(range.stoppedAt).getTime() - new Date(range.startedAt).getTime()) / 60_000)
+      : Math.round(Number(minutesText));
+    if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 1440) {
+      setTimerNotice("Enter a number from 1 to 1440 minutes.");
+      return;
+    }
+    const stoppedAt = range?.stoppedAt ?? new Date().toISOString();
+    const startedAt = range?.startedAt ?? new Date(new Date(stoppedAt).getTime() - minutes * 60_000).toISOString();
+    const requestKey = crypto.randomUUID();
+    setTimerRequestTaskId(taskId);
+    try {
+      const response = await fetch(getAppPath("/api/timer/log-work"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId, startedAt, stoppedAt, requestKey, missedBlockId: range?.blockId }),
+      });
+      const body = (await response.json().catch(() => null)) as { error?: string; warning?: string } | null;
+      if (!response.ok) throw new Error(body?.error ?? "Work could not be logged.");
+      setTimerNotice(body?.warning ?? "Work logged.");
+      await loadScheduleSnapshot();
+      window.dispatchEvent(new Event("heavyuser:calendar-refresh"));
+    } catch (error) {
+      setTimerNotice(error instanceof Error ? error.message : "Work could not be logged.");
+    } finally {
+      setTimerRequestTaskId(null);
+    }
+  }
+
+  async function handleAddTime() {
+    if (!activeTimer || timerRequestTaskId) return;
+    const minutesText = window.prompt("Add how many minutes to this task?", "30");
+    if (minutesText === null) return;
+    const minutes = Math.round(Number(minutesText));
+    if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 1440) {
+      setTimerNotice("Enter a number from 1 to 1440 minutes.");
+      return;
+    }
+    setTimerRequestTaskId(activeTimer.session.taskId);
+    try {
+      const response = await fetch(getAppPath("/api/timer/add-time"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ minutes, requestKey: crypto.randomUUID() }),
+      });
+      const body = (await response.json().catch(() => null)) as { error?: string; warning?: string; schedulerWarning?: string | null } | null;
+      if (!response.ok) throw new Error(body?.error ?? "Time could not be added.");
+      setTimerNotice(body?.warning ?? body?.schedulerWarning ?? "More time added.");
+      await loadScheduleSnapshot();
+      window.dispatchEvent(new Event("heavyuser:calendar-refresh"));
+    } catch (error) {
+      setTimerNotice(error instanceof Error ? error.message : "Time could not be added.");
+    } finally {
+      setTimerRequestTaskId(null);
+    }
+  }
+
+  async function handleCorrectSession(session: TaskWorkSession) {
+    if (timerRequestTaskId) return;
+    const minutesText = window.prompt("Correct this session to how many minutes?", String(Math.max(1, Math.round(session.workedSeconds / 60))));
+    if (minutesText === null) return;
+    const minutes = Math.round(Number(minutesText));
+    if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 1440) {
+      setTimerNotice("Enter a number from 1 to 1440 minutes.");
+      return;
+    }
+    const reason = window.prompt("Why are you correcting this session?", "Corrected work time");
+    if (!reason) return;
+    const started = new Date(session.startedAt).getTime();
+    setTimerRequestTaskId(session.taskId);
+    try {
+      const response = await fetch(getAppPath(`/api/timer/sessions/${encodeURIComponent(session.id)}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startedAt: session.startedAt, stoppedAt: new Date(started + minutes * 60_000).toISOString(), reason }),
+      });
+      const body = (await response.json().catch(() => null)) as { error?: string; warning?: string } | null;
+      if (!response.ok) throw new Error(body?.error ?? "The session could not be corrected.");
+      setTimerNotice(body?.warning ?? "Session corrected and recorded.");
+      await loadScheduleSnapshot();
+      window.dispatchEvent(new Event("heavyuser:calendar-refresh"));
+    } catch (error) {
+      setTimerNotice(error instanceof Error ? error.message : "The session could not be corrected.");
+    } finally {
+      setTimerRequestTaskId(null);
+    }
+  }
+
+  async function handleRescheduleMissed(blockId: string) {
+    try {
+      const response = await fetch(getAppPath(`/api/timer/missed/${encodeURIComponent(blockId)}`), { method: "POST" });
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(body?.error ?? "The missed time could not be rescheduled.");
+      await loadScheduleSnapshot();
+      window.dispatchEvent(new Event("heavyuser:calendar-refresh"));
+    } catch (error) {
+      setTimerNotice(error instanceof Error ? error.message : "The missed time will be rescheduled on the next repair pass.");
+    }
+  }
+
   function handleAddTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const title = newTaskTitle.trim();
@@ -1230,11 +1589,19 @@ export default function Home() {
       setTaskComposerError("The start date must be on or before the due date.");
       return;
     }
+    const selectedSpace = spaces.find((space) => space.id === newTaskSpaceId && space.status === "active");
+    if (!selectedSpace) {
+      setTaskComposerError(spaces.length === 0 ? "Add a Google Calendar in Settings before adding a task." : "Choose a Space for this task.");
+      return;
+    }
+    const selectedSubSpace = selectedSpace.subSpaces.find((subSpace) => subSpace.id === newTaskSubSpaceId && subSpace.status === "active");
     setTaskComposerError("");
 
     const newTask: Task = {
       id: `task-${Date.now()}`,
       title,
+      spaceId: selectedSpace.id,
+      subSpaceId: selectedSubSpace?.id ?? null,
       duration: parseDuration(newTaskDuration),
       startDate: newTaskStartDate || null,
       deadline: newTaskDeadline || null,
@@ -1258,6 +1625,8 @@ export default function Home() {
     setNewTaskStartDate("");
     setNewTaskDeadline("");
     setNewTaskPriority("normal");
+    setNewTaskSubSpaceId("");
+    try { window.localStorage.setItem(`heavyuser:last-space:${authUser?.id ?? ""}`, selectedSpace.id); } catch { /* best effort */ }
     setTaskComposerError("");
     newTaskInputRef.current?.focus();
   }
@@ -1268,6 +1637,7 @@ export default function Home() {
     setNewTaskStartDate("");
     setNewTaskDeadline("");
     setNewTaskPriority("normal");
+    setNewTaskSubSpaceId("");
     setTaskComposerError("");
   }
 
@@ -1276,15 +1646,20 @@ export default function Home() {
     setIsAdding(false);
   }
 
-  function handleToggleTask(taskId: string) {
+  async function handleToggleTask(taskId: string) {
+    const toggledTask = tasks.find((task) => task.id === taskId);
+    if (toggledTask && toggledTask.status !== "done" && activeTimer?.session.taskId === taskId) {
+      await handleStopTimer({ complete: true });
+      return;
+    }
     setTasks((currentTasks) => {
-      const toggledTask = currentTasks.find((task) => task.id === taskId);
-      if (!toggledTask) {
+      const currentTask = currentTasks.find((task) => task.id === taskId);
+      if (!currentTask) {
         return currentTasks;
       }
 
       const nextFocusId =
-        toggledTask.status === "focus"
+        currentTask.status === "focus"
           ? currentTasks.find((task) => task.id !== taskId && task.status !== "done")?.id ?? null
           : currentTasks.find((task) => task.status === "focus")?.id ?? null;
 
@@ -1300,7 +1675,7 @@ export default function Home() {
         return task.id === nextFocusId ? { ...task, status: "focus" } : task;
       });
 
-      if (toggledTask.status !== "done") {
+      if (currentTask.status !== "done") {
         const completedTask = updatedTasks.find((task) => task.id === taskId);
         const remainingTasks = updatedTasks.filter((task) => task.id !== taskId);
         return completedTask ? [...remainingTasks, completedTask] : updatedTasks;
@@ -1316,8 +1691,9 @@ export default function Home() {
     setEditingStartDate(task.startDate ?? "");
     setEditingDeadline(task.deadline ?? "");
     setEditingPriority(task.priority);
+    setEditingSpaceId(task.spaceId ?? spaces.find((space) => space.status === "active")?.id ?? "");
+    setEditingSubSpaceId(task.subSpaceId ?? "");
     setEditingError("");
-    setEditingAutoSchedule(task.autoSchedule);
     setEditingMinBlockMinutes(task.minBlockMinutes === null ? "" : String(task.minBlockMinutes));
     setEditingMaxBlockMinutes(task.maxBlockMinutes === null ? "" : String(task.maxBlockMinutes));
     setEditingCalendarVisibility(task.calendarVisibility);
@@ -1450,8 +1826,9 @@ export default function Home() {
     setEditingStartDate("");
     setEditingDeadline("");
     setEditingPriority("normal");
+    setEditingSpaceId("");
+    setEditingSubSpaceId("");
     setEditingError("");
-    setEditingAutoSchedule(true);
     setEditingMinBlockMinutes("");
     setEditingMaxBlockMinutes("");
     setEditingCalendarVisibility(null);
@@ -1487,6 +1864,22 @@ export default function Home() {
       return;
     }
 
+    const currentTask = tasks.find((task) => task.id === taskId);
+    const selectedSpace = spaces.find((space) => space.id === editingSpaceId);
+    const canKeepArchivedSpace = Boolean(
+      currentTask?.status === "done"
+      && currentTask.spaceId === selectedSpace?.id
+      && selectedSpace?.status === "archived",
+    );
+    if (!selectedSpace || (selectedSpace.status !== "active" && !canKeepArchivedSpace)) {
+      setEditingError("Choose an active Space for this task.");
+      return;
+    }
+    const selectedSubSpace = selectedSpace.subSpaces.find((subSpace) => (
+      subSpace.id === editingSubSpaceId
+      && (subSpace.status === "active" || (canKeepArchivedSpace && subSpace.id === currentTask?.subSpaceId))
+    ));
+
     setEditingError("");
 
     setTasks((currentTasks) =>
@@ -1495,11 +1888,13 @@ export default function Home() {
           ? {
               ...task,
               title,
+              spaceId: selectedSpace.id,
+              subSpaceId: selectedSubSpace?.id ?? null,
               duration: parseDuration(editingDuration),
               startDate: editingStartDate || null,
               deadline: editingDeadline || null,
               priority: editingPriority,
-              autoSchedule: editingAutoSchedule,
+              autoSchedule: true,
               minBlockMinutes,
               maxBlockMinutes,
               calendarVisibility: editingCalendarVisibility,
@@ -1508,10 +1903,15 @@ export default function Home() {
           : task,
       ),
     );
+    try { window.localStorage.setItem(`heavyuser:last-space:${authUser?.id ?? ""}`, selectedSpace.id); } catch { /* best effort */ }
     handleCancelEditing();
   }
 
-  function handleDeleteTask(taskId: string) {
+  async function handleDeleteTask(taskId: string) {
+    if (activeTimer?.session.taskId === taskId) {
+      const stopped = await handleStopTimer();
+      if (!stopped) return;
+    }
     if (supabaseClient && authUser) {
       setPendingRemoteDeletes((currentIds) =>
         currentIds.includes(taskId) ? currentIds : [...currentIds, taskId],
@@ -1683,6 +2083,8 @@ export default function Home() {
   const editingTask = editingId ? tasks.find((task) => task.id === editingId) ?? null : null;
   const editingScheduleStatus = editingTask ? scheduleStatuses[editingTask.id] : undefined;
   const editingScheduleBlocks = editingTask ? scheduleBlocks[editingTask.id] ?? [] : [];
+  const editingWorkSummary = editingTask ? taskWorkSummaries[editingTask.id] : undefined;
+  const editingMissedBlocks = editingTask ? missedBlocks.filter((block) => block.taskId === editingTask.id) : [];
   const editingScheduleLabel = editingTask ? getScheduleLabel(editingTask, editingScheduleStatus) : null;
   const headerDateTime = formatHeaderDateTime(currentDateTime, logicalToday);
   if (authStatus === "loading" || (authStatus === "signed_in" && !isHydrated)) {
@@ -1760,12 +2162,40 @@ export default function Home() {
                 setPendingRemoteDeletes([]);
                 setScheduleStatuses({});
                 setScheduleBlocks({});
+                setActiveTimer(null);
+                setTimerElapsedSeconds(0);
+                setTaskWorkSummaries({});
+                setMissedBlocks([]);
+                setTimerAlerts([]);
                 setSchedulerError("");
                 setTasks([]);
               }}
             />
           </div>
         </header>
+
+        {activeTimer ? (
+          <div className="hu-active-timer-bar" aria-live="polite">
+            <div className="hu-active-timer-copy">
+              <span className="hu-active-timer-pulse" aria-hidden="true" />
+              <span className="hu-active-timer-label">Working now</span>
+              <strong>{tasks.find((task) => task.id === activeTimer.session.taskId)?.title ?? "Task"}</strong>
+              <time dateTime={activeTimer.session.startedAt}>{formatElapsedSeconds(timerElapsedSeconds)}</time>
+            </div>
+            <div className="hu-active-timer-actions">
+              <button className="hu-timer-secondary-button" type="button" onClick={handleAddTime}>
+                <PlusCircle aria-hidden="true" size={14} />
+                Add time
+              </button>
+              <button className="hu-timer-stop-button" type="button" onClick={() => void handleStopTimer()}>
+                <Square aria-hidden="true" size={13} fill="currentColor" />
+                Stop
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {timerNotice ? <p className="hu-timer-notice" role="status">{timerNotice}</p> : null}
+        {timerAlerts[0] ? <p className="hu-timer-notice is-warning" role="alert">{timerAlerts[0].message} Review the task history before starting again.</p> : null}
 
         <div className="hu-content">
           <div className="hu-workspace">
@@ -1901,7 +2331,38 @@ export default function Home() {
                         ))}
                       </select>
                     </label>
+                    <label className="hu-field">
+                      <span className="hu-field-label">Space <span aria-hidden="true">*</span></span>
+                      <select
+                        aria-label="Task Space"
+                        className="hu-task-input"
+                        required
+                        value={newTaskSpaceId}
+                        onChange={(event) => { setNewTaskSpaceId(event.target.value); setNewTaskSubSpaceId(""); }}
+                      >
+                        <option value="">{spaces.length === 0 ? "Add a calendar first" : "Choose a Space"}</option>
+                        {spaces.filter((space) => space.status === "active").map((space) => (
+                          <option key={space.id} value={space.id}>{space.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="hu-field">
+                      <span className="hu-field-label">Sub-space</span>
+                      <select
+                        aria-label="Task Sub-space"
+                        className="hu-task-input"
+                        disabled={!newTaskSpaceId}
+                        value={newTaskSubSpaceId}
+                        onChange={(event) => setNewTaskSubSpaceId(event.target.value)}
+                      >
+                        <option value="">Space only</option>
+                        {(spaces.find((space) => space.id === newTaskSpaceId)?.subSpaces ?? []).filter((subSpace) => subSpace.status === "active").map((subSpace) => (
+                          <option key={subSpace.id} value={subSpace.id}>{subSpace.name}</option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
+                  {spaceError ? <p className="hu-form-error" role="alert">{spaceError}</p> : null}
                   <div className="hu-form-actions">
                     {taskComposerError ? <p className="hu-form-error" role="alert">{taskComposerError}</p> : null}
                     <button className="hu-form-button is-primary" type="submit">
@@ -2010,6 +2471,10 @@ export default function Home() {
                             const isDurationMenuOpen = durationMenuTaskId === task.id;
                             const isDueDateMenuOpen = dueDateMenuTaskId === task.id;
                             const hasTaskPopover = isPriorityMenuOpen || isDurationMenuOpen || isDueDateMenuOpen;
+                            const taskSpace = spaces.find((space) => space.id === task.spaceId);
+                            const taskSubSpace = taskSpace?.subSpaces.find((subSpace) => subSpace.id === task.subSpaceId);
+                            const isActiveTask = activeTimer?.session.taskId === task.id;
+                            const workSummary = taskWorkSummaries[task.id];
 
                             return (
                               <article
@@ -2123,6 +2588,14 @@ export default function Home() {
                                       title="Edit title"
                                     >
                                       <span className="hu-task-title">{task.title}</span>
+                                      <span className="hu-task-space-label" title={taskSpace ? `Space: ${taskSpace.name}` : "Space not assigned"}>
+                                        {taskSubSpace?.name ?? taskSpace?.name ?? "No Space"}
+                                      </span>
+                                      {workSummary && workSummary.workedMinutes > 0 ? (
+                                        <span className="hu-task-work-label">
+                                          {workSummary.workedMinutes}m worked{workSummary.remainingMinutes === null ? "" : ` · ${workSummary.remainingMinutes}m left`}
+                                        </span>
+                                      ) : null}
                                       {isOverdue ? (
                                         <CircleAlert
                                           aria-hidden="true"
@@ -2137,6 +2610,22 @@ export default function Home() {
 
                                 <div className="hu-task-controls">
                                   <button
+                                    aria-label={isActiveTask ? `Stop timer for ${task.title}` : `Start timer for ${task.title}`}
+                                    className={`hu-icon-button hu-task-timer-button ${isActiveTask ? "is-running" : ""}`}
+                                    disabled={Boolean(timerRequestTaskId)}
+                                    type="button"
+                                    onClick={() => {
+                                      if (isActiveTask) {
+                                        void handleStopTimer();
+                                      } else {
+                                        void handleStartTimer(task.id);
+                                      }
+                                    }}
+                                    title={isActiveTask ? "Stop timer" : "Start timer"}
+                                  >
+                                    {isActiveTask ? <Square aria-hidden="true" fill="currentColor" size={13} /> : <Play aria-hidden="true" size={14} />}
+                                  </button>
+                                  <button
                                     aria-label={`Edit ${task.title}`}
                                     className="hu-icon-button"
                                     type="button"
@@ -2149,7 +2638,7 @@ export default function Home() {
                                     aria-label={`Delete ${task.title}`}
                                     className="hu-icon-button is-danger"
                                     type="button"
-                                    onClick={() => handleDeleteTask(task.id)}
+                                    onClick={() => void handleDeleteTask(task.id)}
                                     title="Delete task"
                                   >
                                     <Trash2 aria-hidden="true" />
@@ -2368,9 +2857,12 @@ export default function Home() {
               date={logicalToday}
               settings={settings}
               tasks={tasks}
+              spaces={spaces}
               scheduleBlocks={scheduleBlocks}
+              activeBlockId={activeTimer?.session.blockId ?? null}
               schedulerError={schedulerError}
               onTaskDurationChange={handleDurationChange}
+              onSpacesChange={applySpaces}
             />
           </div>
         </div>
@@ -2468,24 +2960,45 @@ export default function Home() {
                     />
                   </label>
                 </div>
+                <div className="hu-dialog-field-grid is-space-fields">
+                  <label className="hu-edit-field">
+                    <span className="hu-field-label">Space <span aria-hidden="true">*</span></span>
+                    <select
+                      aria-label="Task Space"
+                      className="hu-edit-input"
+                      required
+                      value={editingSpaceId}
+                      onChange={(event) => { setEditingSpaceId(event.target.value); setEditingSubSpaceId(""); }}
+                    >
+                      <option value="">Choose a Space</option>
+                      {spaces.map((space) => (
+                        <option disabled={space.status !== "active"} key={space.id} value={space.id}>{space.name}{space.status === "archived" ? " (Archived)" : ""}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="hu-edit-field">
+                    <span className="hu-field-label">Sub-space</span>
+                    <select
+                      aria-label="Task Sub-space"
+                      className="hu-edit-input"
+                      disabled={!editingSpaceId}
+                      value={editingSubSpaceId}
+                      onChange={(event) => setEditingSubSpaceId(event.target.value)}
+                    >
+                      <option value="">Space only</option>
+                      {(spaces.find((space) => space.id === editingSpaceId)?.subSpaces ?? []).filter((subSpace) => subSpace.status === "active" || subSpace.id === editingSubSpaceId).map((subSpace) => (
+                        <option key={subSpace.id} value={subSpace.id}>{subSpace.name}{subSpace.status === "archived" ? " (Archived)" : ""}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
                 <div className="hu-dialog-scheduling">
                   <div className="hu-dialog-scheduling-heading">
                     <div>
                       <span className="hu-field-label">Calendar scheduling</span>
                       <p>HeavyUser places flexible work blocks around your Google Calendar.</p>
                     </div>
-                    <label className="hu-settings-toggle-row hu-task-scheduling-toggle">
-                      <span className="hu-settings-toggle-copy">
-                        <strong>Schedule automatically</strong>
-                      </span>
-                      <input
-                        aria-label="Schedule this task automatically"
-                        checked={editingAutoSchedule}
-                        className="hu-settings-switch"
-                        type="checkbox"
-                        onChange={(event) => setEditingAutoSchedule(event.target.checked)}
-                      />
-                    </label>
+                    <span className="hu-task-scheduling-always-on">Always on</span>
                   </div>
                   <div className="hu-dialog-field-grid is-scheduling">
                     <label className="hu-edit-field">
@@ -2586,12 +3099,61 @@ export default function Home() {
                       <p className="hu-task-schedule-empty">
                         {editingTask.duration === null
                           ? "Add a duration to let HeavyUser find the next available time."
-                          : editingTask.autoSchedule
-                            ? "No calendar block yet. Save changes and HeavyUser will find the next available working time."
-                            : "Automatic scheduling is paused for this task."}
+                          : "No calendar block yet. Save changes and HeavyUser will find the next available working time."}
                       </p>
                     )}
                     {editingScheduleStatus?.warning ? <p className="hu-task-schedule-warning"><CircleAlert aria-hidden="true" size={13} />{editingScheduleStatus.warning}</p> : null}
+                    <div className="hu-work-history-panel">
+                      <div className="hu-task-schedule-heading">
+                        <div>
+                          <span className="hu-field-label">Work history</span>
+                          <p>Actual work is separate from planned calendar time.</p>
+                        </div>
+                        <button className="hu-inline-history-action" type="button" onClick={() => void handleLogWork(editingTask.id)}>
+                          <PlusCircle aria-hidden="true" size={13} />
+                          Log work
+                        </button>
+                      </div>
+                      {editingWorkSummary ? (
+                        <p className="hu-work-history-total">
+                          <strong>{editingWorkSummary.workedMinutes}m worked</strong>
+                          {editingWorkSummary.remainingMinutes === null ? " · No estimate" : ` · ${editingWorkSummary.remainingMinutes}m remaining`}
+                        </p>
+                      ) : <p className="hu-task-schedule-empty">No work recorded yet.</p>}
+                      {editingWorkSummary?.sessions.length ? (
+                        <div className="hu-work-session-list">
+                          {editingWorkSummary.sessions.slice(0, 6).map((session) => (
+                            <div className="hu-work-session-item" key={session.id}>
+                              <History aria-hidden="true" size={13} />
+                              <span>{session.source === "manual" ? "Logged" : session.state === "paused" ? "Paused" : "Timer"}</span>
+                              <time dateTime={session.startedAt}>{new Date(session.startedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time>
+                              <span>{Math.max(1, Math.floor(session.workedSeconds / 60))}m</span>
+                              {session.state !== "running" ? <button className="hu-session-correct-button" type="button" onClick={() => void handleCorrectSession(session)}>Correct</button> : null}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    {editingMissedBlocks.length > 0 ? (
+                      <div className="hu-missed-block-panel">
+                        <div className="hu-task-schedule-heading">
+                          <div>
+                            <span className="hu-field-label">Missed calendar time</span>
+                            <p>This time was not counted as work and is ready to schedule again.</p>
+                          </div>
+                        </div>
+                        {editingMissedBlocks.slice(0, 4).map((block) => (
+                          <div className="hu-missed-block-item" key={block.id}>
+                            <span>{block.minutes}m missed</span>
+                            <div>
+                              <button type="button" onClick={() => void handleStartTimer(editingTask.id, { missedBlockId: block.id })}>Start</button>
+                              <button type="button" onClick={() => void handleLogWork(editingTask.id, { startedAt: block.start, stoppedAt: block.end, blockId: block.id })}>Log work</button>
+                              <button type="button" onClick={() => void handleRescheduleMissed(block.id)}>Reschedule</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>

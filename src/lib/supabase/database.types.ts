@@ -51,9 +51,88 @@ export type Database = {
         };
         Relationships: [];
       };
+      spaces: {
+        Row: {
+          id: string;
+          user_id: string;
+          calendar_id: string;
+          name: string;
+          calendar_name: string;
+          time_zone: string;
+          status: string;
+          position: number;
+          archived_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          calendar_id: string;
+          name: string;
+          calendar_name: string;
+          time_zone?: string;
+          status?: string;
+          position?: number;
+          archived_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          calendar_id?: string;
+          name?: string;
+          calendar_name?: string;
+          time_zone?: string;
+          status?: string;
+          position?: number;
+          archived_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      sub_spaces: {
+        Row: {
+          id: string;
+          user_id: string;
+          space_id: string;
+          name: string;
+          status: string;
+          position: number;
+          archived_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          space_id: string;
+          name: string;
+          status?: string;
+          position?: number;
+          archived_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          space_id?: string;
+          name?: string;
+          status?: string;
+          position?: number;
+          archived_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       google_calendar_sync_states: {
         Row: {
           user_id: string;
+          calendar_id: string;
           sync_token: string | null;
           channel_id: string | null;
           resource_id: string | null;
@@ -65,6 +144,7 @@ export type Database = {
         };
         Insert: {
           user_id: string;
+          calendar_id?: string;
           sync_token?: string | null;
           channel_id?: string | null;
           resource_id?: string | null;
@@ -76,6 +156,7 @@ export type Database = {
         };
         Update: {
           user_id?: string;
+          calendar_id?: string;
           sync_token?: string | null;
           channel_id?: string | null;
           resource_id?: string | null;
@@ -90,18 +171,21 @@ export type Database = {
       google_calendar_event_deletions: {
         Row: {
           user_id: string;
+          calendar_id: string;
           event_key: string;
           provider_event_id: string;
           deleted_at: string;
         };
         Insert: {
           user_id: string;
+          calendar_id?: string;
           event_key: string;
           provider_event_id: string;
           deleted_at?: string;
         };
         Update: {
           user_id?: string;
+          calendar_id?: string;
           event_key?: string;
           provider_event_id?: string;
           deleted_at?: string;
@@ -112,6 +196,8 @@ export type Database = {
         Row: {
           event_key: string;
           user_id: string;
+          calendar_id: string;
+          space_id: string | null;
           provider_event_id: string;
           recurring_event_id: string | null;
           original_start_time: string | null;
@@ -139,6 +225,8 @@ export type Database = {
         Insert: {
           event_key: string;
           user_id: string;
+          calendar_id: string;
+          space_id?: string | null;
           provider_event_id: string;
           recurring_event_id?: string | null;
           original_start_time?: string | null;
@@ -166,6 +254,8 @@ export type Database = {
         Update: {
           event_key?: string;
           user_id?: string;
+          calendar_id?: string;
+          space_id?: string | null;
           provider_event_id?: string;
           recurring_event_id?: string | null;
           original_start_time?: string | null;
@@ -197,6 +287,8 @@ export type Database = {
           id: string;
           user_id: string;
           title: string;
+          space_id: string | null;
+          sub_space_id: string | null;
           duration: number | null;
           start_date: string | null;
           deadline: string | null;
@@ -215,6 +307,8 @@ export type Database = {
           id: string;
           user_id: string;
           title: string;
+          space_id?: string | null;
+          sub_space_id?: string | null;
           duration?: number | null;
           start_date?: string | null;
           deadline?: string | null;
@@ -233,6 +327,8 @@ export type Database = {
           id?: string;
           user_id?: string;
           title?: string;
+          space_id?: string | null;
+          sub_space_id?: string | null;
           duration?: number | null;
           start_date?: string | null;
           deadline?: string | null;
@@ -290,6 +386,8 @@ export type Database = {
           id: string;
           user_id: string;
           task_id: string;
+          space_id: string | null;
+          work_session_id: string | null;
           calendar_id: string;
           provider_event_id: string | null;
           provider_event_key: string | null;
@@ -308,6 +406,8 @@ export type Database = {
           id: string;
           user_id: string;
           task_id: string;
+          space_id?: string | null;
+          work_session_id?: string | null;
           calendar_id: string;
           provider_event_id?: string | null;
           provider_event_key?: string | null;
@@ -326,6 +426,8 @@ export type Database = {
           id?: string;
           user_id?: string;
           task_id?: string;
+          space_id?: string | null;
+          work_session_id?: string | null;
           calendar_id?: string;
           provider_event_id?: string | null;
           provider_event_key?: string | null;
@@ -349,6 +451,10 @@ export type Database = {
           state: string;
           scheduled_minutes: number;
           missing_minutes: number;
+          worked_minutes: number;
+          remaining_minutes: number;
+          active_session_id: string | null;
+          missed_minutes: number;
           warning: string | null;
           updated_at: string;
         };
@@ -358,6 +464,10 @@ export type Database = {
           state: string;
           scheduled_minutes?: number;
           missing_minutes?: number;
+          worked_minutes?: number;
+          remaining_minutes?: number;
+          active_session_id?: string | null;
+          missed_minutes?: number;
           warning?: string | null;
           updated_at?: string;
         };
@@ -367,8 +477,225 @@ export type Database = {
           state?: string;
           scheduled_minutes?: number;
           missing_minutes?: number;
+          worked_minutes?: number;
+          remaining_minutes?: number;
+          active_session_id?: string | null;
+          missed_minutes?: number;
           warning?: string | null;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      task_work_sessions: {
+        Row: {
+          id: string;
+          user_id: string;
+          task_id: string;
+          space_id: string | null;
+          calendar_id: string | null;
+          block_id: string | null;
+          provider_event_id: string | null;
+          provider_event_key: string | null;
+          source: string;
+          state: string;
+          started_at: string;
+          stopped_at: string | null;
+          original_started_at: string;
+          original_stopped_at: string | null;
+          planned_start_at: string | null;
+          planned_end_at: string | null;
+          worked_seconds: number;
+          estimated_minutes_at_start: number | null;
+          calendar_sync_state: string;
+          repair_needed: boolean;
+          warning: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          task_id: string;
+          space_id?: string | null;
+          calendar_id?: string | null;
+          block_id?: string | null;
+          provider_event_id?: string | null;
+          provider_event_key?: string | null;
+          source?: string;
+          state?: string;
+          started_at: string;
+          stopped_at?: string | null;
+          original_started_at: string;
+          original_stopped_at?: string | null;
+          planned_start_at?: string | null;
+          planned_end_at?: string | null;
+          worked_seconds?: number;
+          estimated_minutes_at_start?: number | null;
+          calendar_sync_state?: string;
+          repair_needed?: boolean;
+          warning?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          task_id?: string;
+          space_id?: string | null;
+          calendar_id?: string | null;
+          block_id?: string | null;
+          provider_event_id?: string | null;
+          provider_event_key?: string | null;
+          source?: string;
+          state?: string;
+          started_at?: string;
+          stopped_at?: string | null;
+          original_started_at?: string;
+          original_stopped_at?: string | null;
+          planned_start_at?: string | null;
+          planned_end_at?: string | null;
+          worked_seconds?: number;
+          estimated_minutes_at_start?: number | null;
+          calendar_sync_state?: string;
+          repair_needed?: boolean;
+          warning?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      task_active_session_owners: {
+        Row: {
+          user_id: string;
+          session_id: string;
+          task_id: string;
+          claimed_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          session_id: string;
+          task_id: string;
+          claimed_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          session_id?: string;
+          task_id?: string;
+          claimed_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      task_work_session_revisions: {
+        Row: {
+          id: string;
+          user_id: string;
+          session_id: string;
+          old_started_at: string;
+          old_stopped_at: string | null;
+          new_started_at: string;
+          new_stopped_at: string | null;
+          reason: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          session_id: string;
+          old_started_at: string;
+          old_stopped_at?: string | null;
+          new_started_at: string;
+          new_stopped_at?: string | null;
+          reason: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          session_id?: string;
+          old_started_at?: string;
+          old_stopped_at?: string | null;
+          new_started_at?: string;
+          new_stopped_at?: string | null;
+          reason?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      task_calendar_repairs: {
+        Row: {
+          id: number;
+          user_id: string;
+          session_id: string | null;
+          block_id: string | null;
+          calendar_id: string;
+          provider_event_id: string | null;
+          operation: string;
+          status: string;
+          attempts: number;
+          next_attempt_at: string;
+          last_error: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: number;
+          user_id: string;
+          session_id?: string | null;
+          block_id?: string | null;
+          calendar_id: string;
+          provider_event_id?: string | null;
+          operation: string;
+          status?: string;
+          attempts?: number;
+          next_attempt_at?: string;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: number;
+          user_id?: string;
+          session_id?: string | null;
+          block_id?: string | null;
+          calendar_id?: string;
+          provider_event_id?: string | null;
+          operation?: string;
+          status?: string;
+          attempts?: number;
+          next_attempt_at?: string;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      task_timer_operation_receipts: {
+        Row: {
+          id: number;
+          user_id: string;
+          operation_key: string;
+          operation: string;
+          response: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          user_id: string;
+          operation_key: string;
+          operation: string;
+          response: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          user_id?: string;
+          operation_key?: string;
+          operation?: string;
+          response?: Json;
+          created_at?: string;
         };
         Relationships: [];
       };

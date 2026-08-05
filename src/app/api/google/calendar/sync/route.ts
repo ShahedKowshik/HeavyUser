@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { googleErrorMessage, loadGoogleConnection, publicGoogleConnection, requireAuthenticatedGoogleContext } from "@/lib/google/server";
-import { syncGoogleCalendar } from "@/lib/google/sync";
+import { syncAllGoogleCalendars } from "@/lib/google/sync";
 import { rejectCrossOriginMutation } from "@/lib/security/http";
 
 export const maxDuration = 60;
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const sync = await syncGoogleCalendar(context.admin, connection, request);
+    const sync = await syncAllGoogleCalendars(context.admin, connection, request);
     return NextResponse.json({ connection: publicGoogleConnection(connection), sync });
   } catch (error) {
     return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });

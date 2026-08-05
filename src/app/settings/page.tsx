@@ -13,6 +13,7 @@ import { avatarConstraints, getProfileName, type ProfileDraft } from "@/lib/supa
 import type { UserSettings } from "@/lib/supabase/settings";
 import { DEFAULT_SCHEDULER_PREFERENCES, type SchedulerPreferences, type WorkWindow } from "@/lib/scheduler/types";
 import { hasWorkingWindow, normalizeSchedulerPreferences } from "@/lib/scheduler/preferences";
+import { SpacesSettings } from "@/components/spaces-settings";
 
 const schedulerWeekdays = [
   { key: "1", label: "Monday" },
@@ -189,9 +190,9 @@ function SettingsContent() {
       setIsSavingScheduler(false);
       return;
     }
-    if (schedulerDraft.enabled && !hasWorkingWindow(schedulerDraft)) {
+    if (!hasWorkingWindow(schedulerDraft)) {
       setSchedulerMessageType("error");
-      setSchedulerMessage("Add at least one working window or turn off automatic scheduling.");
+      setSchedulerMessage("Add at least one working window so HeavyUser knows when to place task time.");
       setIsSavingScheduler(false);
       return;
     }
@@ -212,7 +213,7 @@ function SettingsContent() {
         setSchedulerMessage(`Saved, but scheduling needs attention: ${body.schedulerError}`);
       } else {
         setSchedulerMessageType("success");
-        setSchedulerMessage(schedulerDraft.enabled ? "Saved. Eligible tasks were rescheduled." : "Saved. Automatic scheduling is paused.");
+        setSchedulerMessage("Saved. Eligible tasks were rescheduled.");
       }
     } catch (error) {
       setSchedulerMessageType("error");
@@ -288,6 +289,8 @@ function SettingsContent() {
             <h1>Settings</h1>
             <p>Keep HeavyUser in step with the way you work.</p>
           </div>
+
+          <SpacesSettings />
 
           <section id="account" className="hu-settings-section" aria-labelledby="account-title">
             <div className="hu-settings-section-heading">
@@ -453,19 +456,7 @@ function SettingsContent() {
 
             {isLoadingScheduler ? <p className="hu-settings-message">Loading scheduling settings…</p> : (
               <form className="hu-settings-form" onSubmit={handleSaveScheduler}>
-                <label className="hu-settings-toggle-row" htmlFor="automatic-task-scheduling">
-                  <span className="hu-settings-toggle-copy">
-                    <strong>Schedule tasks automatically</strong>
-                    <small>Eligible tasks are added to Google Calendar as soon as they have a duration.</small>
-                  </span>
-                  <input
-                    id="automatic-task-scheduling"
-                    checked={schedulerDraft.enabled}
-                    className="hu-settings-switch"
-                    type="checkbox"
-                    onChange={(event) => setSchedulerDraft((current) => ({ ...current, enabled: event.target.checked }))}
-                  />
-                </label>
+                <p className="hu-settings-inline-note">Automatic scheduling is always on for eligible tasks. These settings control where HeavyUser can place the time.</p>
 
                 <div className="hu-scheduler-settings-grid">
                   <label className="hu-field">

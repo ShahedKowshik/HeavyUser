@@ -10,12 +10,14 @@ function mapTask(row: Database["public"]["Tables"]["tasks"]["Row"]): Task {
   return {
     id: row.id,
     title: row.title,
+    spaceId: row.space_id,
+    subSpaceId: row.sub_space_id,
     duration: row.duration,
     startDate: row.start_date,
     deadline: row.deadline,
     priority: row.priority === "urgent" || row.priority === "high" || row.priority === "low" ? row.priority : "normal",
     status: row.status === "focus" || row.status === "done" ? row.status : "open",
-    autoSchedule: row.auto_schedule !== false,
+    autoSchedule: true,
     minBlockMinutes: row.min_block_minutes,
     maxBlockMinutes: row.max_block_minutes,
     calendarVisibility: isCalendarVisibility(row.calendar_visibility) ? row.calendar_visibility : null,
@@ -34,7 +36,7 @@ function isCalendarTransparency(value: string | null): value is CalendarTranspar
 export async function loadRemoteTasks(client: TasksClient, user: User) {
   const { data, error } = await client
     .from("tasks")
-    .select("id,user_id,title,duration,start_date,deadline,priority,status,auto_schedule,min_block_minutes,max_block_minutes,calendar_visibility,calendar_transparency,position,created_at,updated_at")
+    .select("id,user_id,title,space_id,sub_space_id,duration,start_date,deadline,priority,status,auto_schedule,min_block_minutes,max_block_minutes,calendar_visibility,calendar_transparency,position,created_at,updated_at")
     .eq("user_id", user.id)
     .order("position", { ascending: true })
     .order("created_at", { ascending: true });
@@ -72,12 +74,14 @@ export async function persistRemoteTasks(
     id: task.id,
     user_id: user.id,
     title: task.title,
+    space_id: task.spaceId,
+    sub_space_id: task.subSpaceId,
     duration: task.duration,
     start_date: task.startDate,
     deadline: task.deadline,
     priority: task.priority,
     status: task.status,
-    auto_schedule: task.autoSchedule,
+    auto_schedule: true,
     min_block_minutes: task.minBlockMinutes,
     max_block_minutes: task.maxBlockMinutes,
     calendar_visibility: task.calendarVisibility,

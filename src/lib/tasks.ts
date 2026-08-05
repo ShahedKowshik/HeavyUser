@@ -16,6 +16,8 @@ export type TaskScheduleState =
 export type Task = {
   id: string;
   title: string;
+  spaceId: string | null;
+  subSpaceId: string | null;
   duration: number | null;
   startDate: string | null;
   deadline: string | null;

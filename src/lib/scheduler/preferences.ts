@@ -95,7 +95,9 @@ export function normalizeSchedulerPreferences(
     : DEFAULT_SCHEDULER_PREFERENCES.defaultCalendarTransparency;
 
   return {
-    enabled: candidate.enabled === true,
+    // Scheduling is a product rule now. Keep reading the legacy column so old
+    // rows and old tabs remain compatible, but never allow it to turn off.
+    enabled: true,
     timezone: isTimezone(candidate.timezone)
       ? candidate.timezone
       : (isTimezone(timezoneFallback) ? timezoneFallback : DEFAULT_SCHEDULER_PREFERENCES.timezone),
@@ -118,7 +120,7 @@ export function hasWorkingWindow(preferences: SchedulerPreferences) {
 export function preferencesToRow(preferences: SchedulerPreferences, userId: string) {
   return {
     user_id: userId,
-    enabled: preferences.enabled,
+    enabled: true,
     timezone: preferences.timezone,
     work_windows: preferences.workWindows,
     default_min_block_minutes: preferences.defaultMinBlockMinutes,

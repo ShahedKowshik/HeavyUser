@@ -168,7 +168,7 @@ function taskOrder(first: SchedulerTask, second: SchedulerTask) {
 }
 
 function getTaskBlocks(taskId: string, blocks: ReadonlyArray<ScheduledBlock>) {
-  return blocks.filter((block) => block.taskId === taskId && block.state !== "replaced" && block.state !== "cancelled");
+  return blocks.filter((block) => block.taskId === taskId && block.state !== "replaced" && block.state !== "cancelled" && block.state !== "missed");
 }
 
 function getMinutes(start: string, end: string) {
@@ -259,9 +259,14 @@ export function planSchedule(input: {
   busyIntervals: ReadonlyArray<BusyInterval>;
   preferences?: SchedulerPreferences;
   now?: number;
+  workedMinutesByTask?: ReadonlyMap<string, number>;
+  activeBlockIds?: ReadonlySet<string>;
 }): SchedulePlan {
   const preferences = input.preferences ?? DEFAULT_SCHEDULER_PREFERENCES;
   const now = input.now ?? Date.now();
+  const hasActualWork = input.workedMinutesByTask !== undefined;
+  const workedMinutesByTask = input.workedMinutesByTask ?? new Map<string, number>();
+  const activeBlockIds = input.activeBlockIds ?? new Set<string>();
   const intervals: BusyInterval[] = [...input.busyIntervals];
   const plans: TaskPlan[] = [];
 
@@ -270,7 +275,7 @@ export function planSchedule(input: {
   // protected time—even when the protected block belongs to a later task in
   // the priority order.
   for (const block of input.existingBlocks) {
-    if (block.state === "locked" || new Date(block.start).getTime() < now) {
+    if (block.state === "locked" || activeBlockIds.has(block.id) || (!hasActualWork && new Date(block.start).getTime() < now)) {
       intervals.push({ start: block.start, end: block.end, source: "locked" });
     }
   }
@@ -280,14 +285,19 @@ export function planSchedule(input: {
       busyIntervals: intervals,
       tasks: input.tasks.map((task) => {
         const taskBlocks = getTaskBlocks(task.id, input.existingBlocks);
-        const fixedBlocks = taskBlocks.filter((block) => block.state === "locked" || new Date(block.start).getTime() < now);
-        const fixedMinutes = fixedBlocks.reduce((total, block) => total + getMinutes(block.start, block.end), 0);
+        const fixedBlocks = taskBlocks.filter((block) => block.state === "locked" || activeBlockIds.has(block.id) || (!hasActualWork && new Date(block.start).getTime() < now));
+        const workedMinutes = workedMinutesByTask.get(task.id) ?? 0;
+        const fixedMinutes = hasActualWork
+          ? workedMinutes + fixedBlocks
+            .filter((block) => !activeBlockIds.has(block.id) && new Date(block.end).getTime() > now)
+            .reduce((total, block) => total + getMinutes(block.start, block.end), 0)
+          : fixedBlocks.reduce((total, block) => total + getMinutes(block.start, block.end), 0);
         return {
           taskId: task.id,
           state: task.duration === null ? "needs_duration" : "paused",
           fixedMinutes,
           scheduledMinutes: fixedMinutes,
-          missingMinutes: 0,
+          missingMinutes: task.duration === null ? 0 : Math.max(0, task.duration - fixedMinutes),
           warning: null,
           blocks: fixedBlocks.map((block) => ({
             taskId: task.id,
@@ -307,8 +317,13 @@ export function planSchedule(input: {
       busyIntervals: intervals,
       tasks: input.tasks.map((task) => {
         const taskBlocks = getTaskBlocks(task.id, input.existingBlocks);
-        const fixedBlocks = taskBlocks.filter((block) => block.state === "locked" || new Date(block.end).getTime() <= now);
-        const fixedMinutes = fixedBlocks.reduce((total, block) => total + getMinutes(block.start, block.end), 0);
+        const fixedBlocks = taskBlocks.filter((block) => block.state === "locked" || activeBlockIds.has(block.id) || (!hasActualWork && new Date(block.end).getTime() <= now));
+        const workedMinutes = workedMinutesByTask.get(task.id) ?? 0;
+        const fixedMinutes = hasActualWork
+          ? workedMinutes + fixedBlocks
+            .filter((block) => !activeBlockIds.has(block.id) && new Date(block.end).getTime() > now)
+            .reduce((total, block) => total + getMinutes(block.start, block.end), 0)
+          : fixedBlocks.reduce((total, block) => total + getMinutes(block.start, block.end), 0);
         const hasFutureFixedBlock = fixedBlocks.some((block) => new Date(block.end).getTime() > now);
         const missingMinutes = task.duration === null ? 0 : Math.max(0, task.duration - fixedMinutes);
         const warning = task.duration !== null && task.autoSchedule && task.status !== "done" && missingMinutes > 0
@@ -337,8 +352,14 @@ export function planSchedule(input: {
   const orderedTasks = [...input.tasks].sort(taskOrder);
   for (const task of orderedTasks) {
     const taskBlocks = getTaskBlocks(task.id, input.existingBlocks);
-    const fixedBlocks = taskBlocks.filter((block) => block.state === "locked" || new Date(block.start).getTime() < now);
-    const fixedMinutes = fixedBlocks.reduce((total, block) => total + getMinutes(block.start, block.end), 0);
+    const fixedBlocks = taskBlocks.filter((block) => block.state === "locked" || activeBlockIds.has(block.id) || (!hasActualWork && new Date(block.start).getTime() < now));
+    const workedMinutes = workedMinutesByTask.get(task.id) ?? 0;
+    const fixedBlockMinutes = hasActualWork
+      ? fixedBlocks
+        .filter((block) => !activeBlockIds.has(block.id) && new Date(block.end).getTime() > now)
+        .reduce((total, block) => total + getMinutes(block.start, block.end), 0)
+      : fixedBlocks.reduce((total, block) => total + getMinutes(block.start, block.end), 0);
+    const fixedMinutes = hasActualWork ? workedMinutes + fixedBlockMinutes : fixedBlockMinutes;
     const hasFutureFixedBlock = fixedBlocks.some((block) => new Date(block.end).getTime() > now);
     const hasLockedConflict = fixedBlocks.some((block) =>
       block.state === "locked" && new Date(block.end).getTime() > now && input.busyIntervals.some((interval) =>
@@ -374,10 +395,12 @@ export function planSchedule(input: {
     const remaining = Math.max(0, task.duration - fixedMinutes);
     const minimum = Math.max(5, task.minBlockMinutes ?? preferences.defaultMinBlockMinutes);
     const maximum = Math.max(minimum, task.maxBlockMinutes ?? preferences.defaultMaxBlockMinutes);
-    const blocks: Array<{ taskId: string; start: string; end: string }> = currentBlocks.map((block) => ({
+    const blocks: Array<{ taskId: string; start: string; end: string; id?: string; state?: "flexible" | "locked" | "replaced" | "cancelled" | "missed" }> = currentBlocks.map((block) => ({
       taskId: task.id,
       start: block.start,
       end: block.end,
+      id: block.id,
+      state: block.state,
     }));
     let remainingMinutes = remaining;
     let cursor = getEarliestTimestamp(now);

@@ -4,6 +4,7 @@ import type {
   Priority,
   TaskScheduleState,
 } from "@/lib/tasks";
+import type { ActiveTimerSnapshot, MissedBlockSnapshot, TaskWorkSummary, TimerAlert } from "@/lib/timer/types";
 
 export type WorkWindow = {
   start: string;
@@ -28,6 +29,8 @@ export type SchedulerPreferences = {
 export type SchedulerTask = {
   id: string;
   title: string;
+  spaceId?: string | null;
+  subSpaceId?: string | null;
   duration: number | null;
   startDate: string | null;
   deadline: string | null;
@@ -45,11 +48,12 @@ export type ScheduledBlock = {
   id: string;
   taskId: string;
   calendarId: string;
+  spaceId?: string | null;
   start: string;
   end: string;
   plannedStart: string;
   plannedEnd: string;
-  state: "flexible" | "locked" | "replaced" | "cancelled";
+  state: "flexible" | "locked" | "replaced" | "cancelled" | "missed";
   providerEventId: string | null;
   etag: string | null;
   syncVersion: number;
@@ -66,7 +70,7 @@ export type PlannedBlock = {
   start: string;
   end: string;
   id?: string;
-  state?: "flexible" | "locked" | "replaced" | "cancelled";
+  state?: "flexible" | "locked" | "replaced" | "cancelled" | "missed";
 };
 
 export type TaskPlan = {
@@ -84,6 +88,10 @@ export type TaskScheduleStatus = {
   state: TaskScheduleState;
   scheduledMinutes: number;
   missingMinutes: number;
+  workedMinutes: number;
+  remainingMinutes: number;
+  missedMinutes: number;
+  activeSessionId: string | null;
   warning: string | null;
   updatedAt: string;
 };
@@ -92,17 +100,22 @@ export type ScheduleBlockSnapshot = {
   id: string;
   taskId: string;
   calendarId: string;
+  spaceId?: string | null;
   providerEventId: string | null;
   start: string;
   end: string;
   plannedStart: string;
   plannedEnd: string;
-  state: "flexible" | "locked" | "replaced" | "cancelled";
+  state: "flexible" | "locked" | "replaced" | "cancelled" | "missed";
 };
 
 export type TaskScheduleSnapshot = {
   statuses: ReadonlyArray<TaskScheduleStatus>;
   blocks: ReadonlyArray<ScheduleBlockSnapshot>;
+  activeSession?: ActiveTimerSnapshot | null;
+  sessionsByTask?: Readonly<Record<string, TaskWorkSummary>>;
+  missedBlocks?: ReadonlyArray<MissedBlockSnapshot>;
+  alerts?: ReadonlyArray<TimerAlert>;
 };
 
 export type SchedulePlan = {
@@ -121,7 +134,7 @@ export const DEFAULT_WORK_WINDOWS: WorkWindows = {
 };
 
 export const DEFAULT_SCHEDULER_PREFERENCES: SchedulerPreferences = {
-  enabled: false,
+  enabled: true,
   timezone: "UTC",
   workWindows: DEFAULT_WORK_WINDOWS,
   nightOwlMode: false,

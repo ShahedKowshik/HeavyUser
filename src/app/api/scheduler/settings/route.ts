@@ -58,8 +58,8 @@ export async function PUT(request: Request) {
     connection?.selected_calendar_timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
     daySettings,
   );
-  if (preferences.enabled && !hasWorkingWindow(preferences)) {
-    return NextResponse.json({ error: "Add at least one working window or turn off automatic scheduling." }, { status: 400 });
+  if (!hasWorkingWindow(preferences)) {
+    return NextResponse.json({ error: "Add at least one working window so HeavyUser knows when to place task time." }, { status: 400 });
   }
   const { data, error } = await context.admin
     .from("task_scheduling_preferences")

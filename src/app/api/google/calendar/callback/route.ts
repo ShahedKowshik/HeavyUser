@@ -68,15 +68,6 @@ export async function GET(request: Request) {
       return redirectWithError(request, "missing_refresh_token");
     }
 
-    const cleanupResults = await Promise.all([
-      context.admin.from("google_calendar_events").delete().eq("user_id", context.user.id),
-      context.admin.from("google_calendar_sync_states").delete().eq("user_id", context.user.id),
-    ]);
-    const cleanupError = cleanupResults.find((result) => result.error)?.error;
-    if (cleanupError) {
-      throw cleanupError;
-    }
-
     const { error } = await context.admin.from("google_calendar_connections").upsert({
       user_id: context.user.id,
       google_account_email: null,

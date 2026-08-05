@@ -5,14 +5,15 @@ import type { Database } from "@/lib/supabase/database.types";
 
 type SchedulerDbClient = SupabaseClient<Database>;
 
-export async function queueSchedulerJob(client: SchedulerDbClient, userId: string, reason = "change") {
+export async function queueSchedulerJob(client: SchedulerDbClient, userId: string, reason = "change", runAfter?: string) {
   const now = new Date().toISOString();
+  const scheduledAt = runAfter ?? now;
   const { error } = await client.from("scheduler_queue").upsert(
     {
       user_id: userId,
       reason,
       requested_at: now,
-      run_after: now,
+      run_after: scheduledAt,
       attempts: 0,
       locked_at: null,
       last_error: null,

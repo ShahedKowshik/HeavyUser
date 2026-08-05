@@ -8,6 +8,7 @@ import {
   requireAuthenticatedGoogleContext,
 } from "@/lib/google/server";
 import { syncGoogleCalendar } from "@/lib/google/sync";
+import { ensureSpaceForCalendar, loadSpaces } from "@/lib/spaces/server";
 import { runSchedulerForUserWithRetry } from "@/lib/scheduler/service";
 import { rejectCrossOriginMutation, rejectOversizedBody } from "@/lib/security/http";
 
@@ -41,15 +42,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "That calendar is not writable or is no longer available." }, { status: 403 });
     }
 
-    const cleanupResults = await Promise.all([
-      context.admin.from("google_calendar_events").delete().eq("user_id", context.user.id),
-      context.admin.from("google_calendar_sync_states").delete().eq("user_id", context.user.id),
-    ]);
-    const cleanupFailure = cleanupResults.find((result) => result.error);
-    if (cleanupFailure?.error) {
-      throw cleanupFailure.error;
-    }
-
+    const space = await ensureSpaceForCalendar({
+      client: context.admin,
+      userId: context.user.id,
+      calendarId: selected.id,
+      calendarName: selected.summary ?? selected.id,
+      timeZone: selected.timeZone ?? "UTC",
+    });
+    if (!space) throw new Error("The Space could not be created.");
     const { error } = await context.admin.from("google_calendar_connections").update({
       selected_calendar_id: selected.id,
       selected_calendar_name: selected.summary ?? selected.id,
@@ -67,9 +67,9 @@ export async function POST(request: Request) {
       throw new Error("The calendar connection could not be saved.");
     }
 
-    const sync = await syncGoogleCalendar(context.admin, updatedConnection, request);
+    const sync = await syncGoogleCalendar(context.admin, updatedConnection, request, { spaceId: space.id });
     const scheduler = await runSchedulerForUserWithRetry(context.user.id, request);
-    return NextResponse.json({ connection: publicGoogleConnection(updatedConnection), sync, scheduler });
+    return NextResponse.json({ connection: publicGoogleConnection(updatedConnection), space, spaces: await loadSpaces(context.admin, context.user.id), sync, scheduler });
   } catch (error) {
     return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });
   }

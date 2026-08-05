@@ -15,8 +15,14 @@ import {
 } from "@/lib/google/server";
 import { queueSchedulerJob } from "@/lib/scheduler/queue";
 import { hashSecret } from "@/lib/security/http";
+import { loadSpaces } from "@/lib/spaces/server";
 
 const EVENT_KEY_DELETE_BATCH_SIZE = 100;
+
+type EventScope = {
+  calendarId: string;
+  spaceId?: string | null;
+};
 
 function getDateTime(value: { dateTime?: string; date?: string } | undefined) {
   if (!value) {
@@ -78,7 +84,7 @@ export function getGoogleEventKey(event: GoogleEvent) {
   return `${event.id}::${originalStart}`;
 }
 
-export function mapGoogleEvent(userId: string, event: GoogleEvent) {
+export function mapGoogleEvent(userId: string, event: GoogleEvent, scope: EventScope = { calendarId: "" }) {
   const startDateTime = getDateTime(event.start);
   const endDateTime = getDateTime(event.end);
   const startDate = getDate(event.start);
@@ -89,6 +95,8 @@ export function mapGoogleEvent(userId: string, event: GoogleEvent) {
   return {
     event_key: getGoogleEventKey(event),
     user_id: userId,
+    calendar_id: scope.calendarId,
+    space_id: scope.spaceId ?? null,
     provider_event_id: event.id,
     recurring_event_id: event.recurringEventId ?? null,
     original_start_time: event.originalStartTime?.dateTime ?? null,
@@ -120,23 +128,25 @@ export async function recordGoogleEventDeletion(
   userId: string,
   eventKey: string,
   providerEventId: string,
+  calendarId = "",
 ) {
   const { error } = await client.from("google_calendar_event_deletions").upsert({
     user_id: userId,
+    calendar_id: calendarId,
     event_key: eventKey,
     provider_event_id: providerEventId,
     deleted_at: new Date().toISOString(),
-  }, { onConflict: "user_id,event_key" });
+  }, { onConflict: "user_id,calendar_id,event_key" });
   if (error) {
     throw new Error(`Google Calendar deletion record failed: ${error.message}`);
   }
 }
 
-export async function upsertGoogleCalendarEvent(client: GoogleDbClient, userId: string, event: GoogleEvent) {
-  const row = mapGoogleEvent(userId, event);
+export async function upsertGoogleCalendarEvent(client: GoogleDbClient, userId: string, event: GoogleEvent, scope: EventScope = { calendarId: "" }) {
+  const row = mapGoogleEvent(userId, event, scope);
   const { error } = await client
     .from("google_calendar_events")
-    .upsert(row, { onConflict: "user_id,event_key" });
+    .upsert(row, { onConflict: "user_id,calendar_id,event_key" });
   if (error) {
     throw new Error(`Google Calendar event cache update failed: ${error.message}`);
   }
@@ -147,28 +157,45 @@ export async function upsertGoogleCalendarEvent(client: GoogleDbClient, userId: 
     .from("google_calendar_event_deletions")
     .delete()
     .eq("user_id", userId)
+    .eq("calendar_id", scope.calendarId)
     .eq("event_key", row.event_key);
   if (deletionCleanupError) {
     throw new Error(`Google Calendar deletion record cleanup failed: ${deletionCleanupError.message}`);
   }
+  const { error: providerDeletionCleanupError } = await client
+    .from("google_calendar_event_deletions")
+    .delete()
+    .eq("user_id", userId)
+    .eq("calendar_id", scope.calendarId)
+    .eq("provider_event_id", row.provider_event_id);
+  if (providerDeletionCleanupError) {
+    throw new Error(`Google Calendar provider deletion record cleanup failed: ${providerDeletionCleanupError.message}`);
+  }
   return row;
 }
 
-async function applyEvents(client: GoogleDbClient, userId: string, events: GoogleEvent[]) {
+async function applyEvents(client: GoogleDbClient, userId: string, events: GoogleEvent[], scope: EventScope) {
   const { data: deletionRows, error: deletionLoadError } = await client
     .from("google_calendar_event_deletions")
-    .select("event_key,provider_event_id")
-    .eq("user_id", userId);
+    .select("event_key,provider_event_id,deleted_at")
+    .eq("user_id", userId)
+    .eq("calendar_id", scope.calendarId);
   if (deletionLoadError) {
     throw new Error(`Google Calendar deletion records could not be loaded: ${deletionLoadError.message}`);
   }
 
-  const deletedEventKeys = new Set((deletionRows ?? []).map((row) => row.event_key));
-  const deletedProviderEventIds = new Set((deletionRows ?? []).map((row) => row.provider_event_id));
+  const deletedByEventKey = new Map((deletionRows ?? []).map((row) => [row.event_key, row]));
+  const deletedByProviderEventId = new Map((deletionRows ?? []).map((row) => [row.provider_event_id, row]));
+  const isRecreatedAfterDeletion = (event: GoogleEvent) => {
+    const tombstone = deletedByEventKey.get(getGoogleEventKey(event)) ?? deletedByProviderEventId.get(event.id);
+    if (!tombstone) return true;
+    const eventUpdatedAt = event.updated ? new Date(event.updated).getTime() : Number.NaN;
+    const deletedAt = new Date(tombstone.deleted_at).getTime();
+    return Number.isFinite(eventUpdatedAt) && Number.isFinite(deletedAt) && eventUpdatedAt > deletedAt;
+  };
   const activeEvents = events.filter((event) => (
     event.status !== "cancelled"
-    && !deletedEventKeys.has(getGoogleEventKey(event))
-    && !deletedProviderEventIds.has(event.id)
+    && isRecreatedAfterDeletion(event)
   ));
   const cancelledEvents = events.filter((event) => event.status === "cancelled");
   const cancelledKeys = [...new Set(cancelledEvents.map(getGoogleEventKey))];
@@ -177,7 +204,7 @@ async function applyEvents(client: GoogleDbClient, userId: string, events: Googl
   if (cancelledKeys.length > 0) {
     for (let index = 0; index < cancelledKeys.length; index += EVENT_KEY_DELETE_BATCH_SIZE) {
       const batch = cancelledKeys.slice(index, index + EVENT_KEY_DELETE_BATCH_SIZE);
-      const { error } = await client.from("google_calendar_events").delete().in("event_key", batch).eq("user_id", userId);
+      const { error } = await client.from("google_calendar_events").delete().in("event_key", batch).eq("user_id", userId).eq("calendar_id", scope.calendarId);
       if (error) {
         throw new Error(`Google Calendar event cleanup failed: ${error.message}`);
       }
@@ -187,6 +214,7 @@ async function applyEvents(client: GoogleDbClient, userId: string, events: Googl
       .from("google_calendar_event_deletions")
       .delete()
       .eq("user_id", userId)
+      .eq("calendar_id", scope.calendarId)
       .in("event_key", cancelledKeys);
     if (deletionCleanupError) {
       throw new Error(`Google Calendar deletion record cleanup failed: ${deletionCleanupError.message}`);
@@ -197,6 +225,7 @@ async function applyEvents(client: GoogleDbClient, userId: string, events: Googl
         .from("google_calendar_event_deletions")
         .delete()
         .eq("user_id", userId)
+        .eq("calendar_id", scope.calendarId)
         .in("provider_event_id", cancelledProviderEventIds);
       if (providerDeletionCleanupError) {
         throw new Error(`Google Calendar provider deletion record cleanup failed: ${providerDeletionCleanupError.message}`);
@@ -209,15 +238,40 @@ async function applyEvents(client: GoogleDbClient, userId: string, events: Googl
   }
 
   const { error } = await client.from("google_calendar_events").upsert(
-    activeEvents.map((event) => mapGoogleEvent(userId, event)),
-    { onConflict: "user_id,event_key" },
+    activeEvents.map((event) => mapGoogleEvent(userId, event, scope)),
+    { onConflict: "user_id,calendar_id,event_key" },
   );
   if (error) {
     throw new Error(`Google Calendar event sync failed: ${error.message}`);
   }
+
+  const activeEventKeys = activeEvents.map(getGoogleEventKey);
+  const activeProviderEventIds = [...new Set(activeEvents.map((event) => event.id))];
+  if (activeEventKeys.length > 0) {
+    const { error: eventTombstoneCleanupError } = await client
+      .from("google_calendar_event_deletions")
+      .delete()
+      .eq("user_id", userId)
+      .eq("calendar_id", scope.calendarId)
+      .in("event_key", activeEventKeys);
+    if (eventTombstoneCleanupError) {
+      throw new Error(`Google Calendar deletion record cleanup failed: ${eventTombstoneCleanupError.message}`);
+    }
+  }
+  if (activeProviderEventIds.length > 0) {
+    const { error: providerTombstoneCleanupError } = await client
+      .from("google_calendar_event_deletions")
+      .delete()
+      .eq("user_id", userId)
+      .eq("calendar_id", scope.calendarId)
+      .in("provider_event_id", activeProviderEventIds);
+    if (providerTombstoneCleanupError) {
+      throw new Error(`Google Calendar provider deletion record cleanup failed: ${providerTombstoneCleanupError.message}`);
+    }
+  }
 }
 
-async function performEventSync(client: GoogleDbClient, connection: GoogleConnection, syncToken: string | null) {
+async function performEventSync(client: GoogleDbClient, connection: GoogleConnection, scope: EventScope, syncToken: string | null) {
   const accessToken = await getUsableGoogleAccessToken(client, connection);
   const events: GoogleEvent[] = [];
   let pageToken: string | undefined;
@@ -226,7 +280,7 @@ async function performEventSync(client: GoogleDbClient, connection: GoogleConnec
   do {
     const result = await listGoogleEvents({
       accessToken,
-      calendarId: connection.selected_calendar_id!,
+      calendarId: scope.calendarId,
       syncToken,
       pageToken,
     });
@@ -242,12 +296,12 @@ async function performEventSync(client: GoogleDbClient, connection: GoogleConnec
   return { events, nextSyncToken, accessToken };
 }
 
-async function ensureWatch(client: GoogleDbClient, connection: GoogleConnection, request: Request | undefined, accessToken: string) {
+async function ensureWatch(client: GoogleDbClient, connection: GoogleConnection, scope: EventScope, request: Request | undefined, accessToken: string) {
   if (!request) {
     return;
   }
 
-  const state = await loadGoogleSyncState(client, connection.user_id);
+  const state = await loadGoogleSyncState(client, connection.user_id, scope.calendarId);
   const expiration = state?.channel_expiration ? new Date(state.channel_expiration).getTime() : 0;
   if (state?.channel_id && state.channel_token_hash && expiration > Date.now() + 24 * 60 * 60 * 1000) {
     return;
@@ -257,7 +311,7 @@ async function ensureWatch(client: GoogleDbClient, connection: GoogleConnection,
   const channelToken = randomUUID();
   const channel = await watchGoogleEvents({
     accessToken,
-    calendarId: connection.selected_calendar_id!,
+    calendarId: scope.calendarId,
     channelId: randomUUID(),
     channelToken,
     address: getGoogleWebhookUri(),
@@ -265,6 +319,7 @@ async function ensureWatch(client: GoogleDbClient, connection: GoogleConnection,
 
   const { error } = await client.from("google_calendar_sync_states").upsert({
     user_id: connection.user_id,
+    calendar_id: scope.calendarId,
     sync_token: state?.sync_token ?? null,
     channel_id: channel.id,
     resource_id: channel.resourceId,
@@ -273,7 +328,7 @@ async function ensureWatch(client: GoogleDbClient, connection: GoogleConnection,
     last_synced_at: state?.last_synced_at ?? null,
     last_error: null,
     updated_at: new Date().toISOString(),
-  }, { onConflict: "user_id" });
+  }, { onConflict: "user_id,calendar_id" });
   if (error) {
     throw error;
   }
@@ -283,38 +338,45 @@ export async function syncGoogleCalendar(
   client: GoogleDbClient,
   connection: GoogleConnection,
   request?: Request,
-  options: { skipSchedulerQueue?: boolean } = {},
+  options: { skipSchedulerQueue?: boolean; calendarId?: string; spaceId?: string | null } = {},
 ) {
-  if (!connection.selected_calendar_id) {
+  const calendarId = options.calendarId ?? connection.selected_calendar_id;
+  if (!calendarId) {
     throw new Error("Choose a Google Calendar before syncing.");
   }
 
-  const state = await loadGoogleSyncState(client, connection.user_id);
+  const scope: EventScope = { calendarId, spaceId: options.spaceId ?? null };
+  const state = await loadGoogleSyncState(client, connection.user_id, calendarId);
   let fullSync = !state?.sync_token;
   let result: { events: GoogleEvent[]; nextSyncToken: string; accessToken: string };
 
   try {
     if (fullSync) {
-      const { error } = await client.from("google_calendar_events").delete().eq("user_id", connection.user_id);
+      const { error } = await client.from("google_calendar_events").delete().eq("user_id", connection.user_id).eq("calendar_id", calendarId);
       if (error) throw error;
+      const { error: tombstoneError } = await client.from("google_calendar_event_deletions").delete().eq("user_id", connection.user_id).eq("calendar_id", calendarId);
+      if (tombstoneError) throw tombstoneError;
     }
 
     try {
-      result = await performEventSync(client, connection, state?.sync_token ?? null);
+      result = await performEventSync(client, connection, scope, state?.sync_token ?? null);
     } catch (error) {
       if (!(error instanceof GoogleApiError) || error.status !== 410 || fullSync) {
         throw error;
       }
 
       fullSync = true;
-      const { error: cleanupError } = await client.from("google_calendar_events").delete().eq("user_id", connection.user_id);
+      const { error: cleanupError } = await client.from("google_calendar_events").delete().eq("user_id", connection.user_id).eq("calendar_id", calendarId);
       if (cleanupError) throw cleanupError;
-      result = await performEventSync(client, connection, null);
+      const { error: tombstoneError } = await client.from("google_calendar_event_deletions").delete().eq("user_id", connection.user_id).eq("calendar_id", calendarId);
+      if (tombstoneError) throw tombstoneError;
+      result = await performEventSync(client, connection, scope, null);
     }
 
-    await applyEvents(client, connection.user_id, result.events);
+    await applyEvents(client, connection.user_id, result.events, scope);
     const { error: syncStateError } = await client.from("google_calendar_sync_states").upsert({
       user_id: connection.user_id,
+      calendar_id: calendarId,
       sync_token: result.nextSyncToken,
       channel_id: state?.channel_id ?? null,
       resource_id: state?.resource_id ?? null,
@@ -323,20 +385,20 @@ export async function syncGoogleCalendar(
       last_synced_at: new Date().toISOString(),
       last_error: null,
       updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id" });
+    }, { onConflict: "user_id,calendar_id" });
     if (syncStateError) {
       throw syncStateError;
     }
 
     try {
-      await ensureWatch(client, connection, request, result.accessToken);
+      await ensureWatch(client, connection, scope, request, result.accessToken);
     } catch (watchError) {
       // Localhost and private preview URLs cannot receive Google webhooks. The
       // app-load incremental sync remains available as a safe fallback.
       const { error: watchStateError } = await client.from("google_calendar_sync_states").update({
         last_error: watchError instanceof Error ? watchError.message : "Webhook setup failed.",
         updated_at: new Date().toISOString(),
-      }).eq("user_id", connection.user_id);
+      }).eq("user_id", connection.user_id).eq("calendar_id", calendarId);
       if (watchStateError) {
         throw watchStateError;
       }
@@ -365,4 +427,39 @@ export async function syncGoogleCalendar(
     await setGoogleConnectionError(client, connection.user_id, error instanceof Error ? error.message : "Calendar sync failed.");
     throw error;
   }
+}
+
+export async function syncAllGoogleCalendars(
+  client: GoogleDbClient,
+  connection: GoogleConnection,
+  request?: Request,
+  options: { skipSchedulerQueue?: boolean } = {},
+) {
+  const spaces = await loadSpaces(client, connection.user_id);
+  if (spaces.length === 0) {
+    if (!connection.selected_calendar_id) return { calendars: 0, eventCount: 0, fullSync: false, errors: [] as ReadonlyArray<string> };
+    const result = await syncGoogleCalendar(client, connection, request, options);
+    return { calendars: 1, eventCount: result.eventCount, fullSync: result.fullSync, errors: [] as ReadonlyArray<string> };
+  }
+
+  let eventCount = 0;
+  let fullSync = false;
+  const errors: string[] = [];
+  for (const space of spaces) {
+    try {
+      const result = await syncGoogleCalendar(client, connection, request, {
+        ...options,
+        calendarId: space.calendarId,
+        spaceId: space.id,
+      });
+      eventCount += result.eventCount;
+      fullSync = fullSync || result.fullSync;
+    } catch (error) {
+      // One removed or temporarily unavailable Google calendar must not stop
+      // the other Spaces from refreshing. The scheduler checks this list and
+      // refuses to make new plans until every busy-time source is current.
+      errors.push(`${space.name}: ${error instanceof Error ? error.message : "Calendar sync failed."}`);
+    }
+  }
+  return { calendars: spaces.length, eventCount, fullSync, errors };
 }

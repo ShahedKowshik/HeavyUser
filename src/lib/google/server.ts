@@ -47,12 +47,19 @@ export async function loadGoogleConnection(client: GoogleDbClient, userId: strin
   return data;
 }
 
-export async function loadGoogleSyncState(client: GoogleDbClient, userId: string) {
-  const { data, error } = await client
+export async function loadGoogleSyncState(client: GoogleDbClient, userId: string, calendarId?: string | null) {
+  let query = client
     .from("google_calendar_sync_states")
     .select("*")
-    .eq("user_id", userId)
-    .maybeSingle();
+    .eq("user_id", userId);
+  if (calendarId !== undefined) {
+    query = query.eq("calendar_id", calendarId ?? "");
+  } else {
+    // Older callers asked for one sync state because there used to be only
+    // one calendar. Keep that call safe now that a user may have many rows.
+    query = query.order("updated_at", { ascending: false }).limit(1);
+  }
+  const { data, error } = await query.maybeSingle();
 
   if (error) {
     throw error;

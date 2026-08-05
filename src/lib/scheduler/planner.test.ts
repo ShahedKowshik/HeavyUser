@@ -85,6 +85,47 @@ describe("planSchedule", () => {
     expect(result.tasks[0].blocks[0].start).toBe("2026-08-03T10:00:00.000Z");
   });
 
+  it("uses busy time from one Space when scheduling a task in another Space", () => {
+    const result = planSchedule({
+      tasks: [task({ id: "space-b-task", spaceId: "space-b", duration: 60, deadline: "2026-08-03" })],
+      existingBlocks: [],
+      busyIntervals: [{ start: "2026-08-03T09:00:00.000Z", end: "2026-08-03T10:00:00.000Z", source: "calendar" }],
+      preferences,
+      now: Date.parse("2026-08-03T08:00:00Z"),
+    });
+
+    expect(result.tasks[0].blocks[0].start).toBe("2026-08-03T10:00:00.000Z");
+  });
+
+  it("treats a saved block from an unavailable Space as occupied time", () => {
+    const result = planSchedule({
+      tasks: [task({ id: "space-b-task", spaceId: "space-b", duration: 60, deadline: "2026-08-03" })],
+      existingBlocks: [],
+      busyIntervals: [{ start: "2026-08-03T09:00:00.000Z", end: "2026-08-03T10:00:00.000Z", source: "locked" }],
+      preferences,
+      now: Date.parse("2026-08-03T08:00:00Z"),
+    });
+
+    expect(result.tasks[0].blocks[0].start).toBe("2026-08-03T10:00:00.000Z");
+  });
+
+  it("never overlaps HeavyUser blocks from different Spaces", () => {
+    const result = planSchedule({
+      tasks: [
+        task({ id: "space-a-task", spaceId: "space-a", duration: 60, priority: "urgent" }),
+        task({ id: "space-b-task", spaceId: "space-b", duration: 60, priority: "normal" }),
+      ],
+      existingBlocks: [],
+      busyIntervals: [],
+      preferences,
+      now: Date.parse("2026-08-03T08:00:00Z"),
+    });
+
+    const blocks = result.tasks.flatMap((item) => item.blocks);
+    expect(blocks).toHaveLength(2);
+    expect(new Date(blocks[0].end).getTime()).toBeLessThanOrEqual(new Date(blocks[1].start).getTime());
+  });
+
   it.each([5, 15])("keeps a %s-minute task block exact", (duration) => {
     const result = planSchedule({
       tasks: [task({ duration })],
@@ -215,6 +256,36 @@ describe("planSchedule", () => {
       "2026-08-03T13:00:00.000Z",
       "2026-08-03T09:00:00.000Z",
     ]);
+  });
+
+  it("reserves the live timer through its current end before planning more work", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 120 })],
+      existingBlocks: [{
+        id: "active-1",
+        taskId: "task-1",
+        calendarId: "primary",
+        start: "2026-08-03T09:00:00.000Z",
+        end: "2026-08-03T10:30:00.000Z",
+        plannedStart: "2026-08-03T09:00:00.000Z",
+        plannedEnd: "2026-08-03T10:30:00.000Z",
+        state: "locked",
+        providerEventId: "active-event",
+        etag: "active-etag",
+        syncVersion: 1,
+      }],
+      busyIntervals: [],
+      preferences,
+      now: Date.parse("2026-08-03T10:00:00.000Z"),
+      workedMinutesByTask: new Map([["task-1", 30]]),
+      activeBlockIds: new Set(["active-1"]),
+    });
+
+    expect(result.tasks[0].blocks.some((block) => block.start === "2026-08-03T10:00:00.000Z")).toBe(false);
+    expect(result.tasks[0].blocks
+      .filter((block) => block.id !== "active-1")
+      .every((block) => new Date(block.start).getTime() >= Date.parse("2026-08-03T10:30:00.000Z")))
+      .toBe(true);
   });
 
   it("keeps saved locked and past blocks visible when automatic scheduling is paused", () => {
@@ -375,6 +446,87 @@ describe("planSchedule", () => {
     });
 
     expect(result.tasks[0].state).toBe("awaiting_completion");
+  });
+
+  it("does not count a past block as work when actual sessions are supplied", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 60 })],
+      existingBlocks: [{
+        id: "missed-1",
+        taskId: "task-1",
+        calendarId: "primary",
+        start: "2026-08-03T07:00:00.000Z",
+        end: "2026-08-03T08:00:00.000Z",
+        plannedStart: "2026-08-03T07:00:00.000Z",
+        plannedEnd: "2026-08-03T08:00:00.000Z",
+        state: "missed",
+        providerEventId: null,
+        etag: null,
+        syncVersion: 2,
+      }],
+      busyIntervals: [],
+      preferences,
+      workedMinutesByTask: new Map([["task-1", 0]]),
+      now: Date.parse("2026-08-03T08:30:00Z"),
+    });
+
+    expect(result.tasks[0].missingMinutes).toBe(0);
+    expect(result.tasks[0].blocks[0].start).toBe("2026-08-03T09:00:00.000Z");
+  });
+
+  it("protects the active timer block while planning the remaining estimate", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 120 })],
+      existingBlocks: [{
+        id: "active-1",
+        taskId: "task-1",
+        calendarId: "primary",
+        start: "2026-08-03T08:00:00.000Z",
+        end: "2026-08-03T09:00:00.000Z",
+        plannedStart: "2026-08-03T08:00:00.000Z",
+        plannedEnd: "2026-08-03T09:00:00.000Z",
+        state: "locked",
+        providerEventId: "active-event",
+        etag: "etag-1",
+        syncVersion: 1,
+      }],
+      busyIntervals: [],
+      preferences,
+      activeBlockIds: new Set(["active-1"]),
+      workedMinutesByTask: new Map([["task-1", 20]]),
+      now: Date.parse("2026-08-03T08:30:00Z"),
+    });
+
+    expect(result.tasks[0].blocks.some((block) => block.id === "active-1")).toBe(true);
+    expect(result.tasks[0].missingMinutes).toBe(0);
+  });
+
+  it("counts a stopped work session once instead of counting its calendar block again", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 60 })],
+      existingBlocks: [{
+        id: "worked-1",
+        taskId: "task-1",
+        calendarId: "primary",
+        start: "2026-08-03T07:00:00.000Z",
+        end: "2026-08-03T07:30:00.000Z",
+        plannedStart: "2026-08-03T07:00:00.000Z",
+        plannedEnd: "2026-08-03T07:30:00.000Z",
+        state: "locked",
+        providerEventId: "worked-event",
+        etag: "etag-1",
+        syncVersion: 1,
+      }],
+      busyIntervals: [],
+      preferences,
+      workedMinutesByTask: new Map([["task-1", 30]]),
+      now: Date.parse("2026-08-03T08:30:00Z"),
+    });
+
+    expect(result.tasks[0].fixedMinutes).toBe(30);
+    expect(result.tasks[0].scheduledMinutes).toBe(60);
+    expect(result.tasks[0].blocks).toHaveLength(2);
+    expect(result.tasks[0].blocks[1].start).toBe("2026-08-04T09:00:00.000Z");
   });
 
   it("uses the local timezone across a daylight-saving change", () => {

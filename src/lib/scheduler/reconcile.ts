@@ -1,6 +1,7 @@
 type ReconcileEvent = {
   eventKey: string;
   providerEventId: string;
+  calendarId?: string | null;
   startAt: string | null;
   endAt: string | null;
   status: string;
@@ -11,6 +12,7 @@ type ReconcileEvent = {
 type ReconcileBlock = {
   id: string;
   taskId: string;
+  calendarId?: string | null;
   startAt: string;
   endAt: string;
   state: string;
@@ -27,6 +29,10 @@ export type ManagedEventCleanup = {
   eventKeys: ReadonlySet<string>;
   blockIds: ReadonlySet<string>;
 };
+
+export function getManagedEventCleanupKey(eventKey: string, calendarId?: string | null) {
+  return calendarId ? `${calendarId}:${eventKey}` : eventKey;
+}
 
 function getTimestamp(value: string | null) {
   if (!value) {
@@ -79,14 +85,16 @@ export function selectManagedEventCleanup(
   events: ReadonlyArray<ReconcileEvent>,
   tasks: ReadonlySet<string>,
   blocks: ReadonlyArray<ReconcileBlock>,
+  now = Date.now(),
 ): ManagedEventCleanup {
   const activeBlocks = blocks.filter(isActiveBlock);
   const activeBlockIds = new Set(activeBlocks.map((block) => block.id));
+  const activeBlocksById = new Map(activeBlocks.map((block) => [block.id, block]));
   const activeBlockRanges = new Set(activeBlocks.map((block) => getManagedEventRangeKey(block.taskId, block.startAt, block.endAt)).filter((key): key is string => key !== null));
   const blocksByProviderId = new Map(
     blocks
       .filter((block): block is ReconcileBlock & { providerEventId: string } => typeof block.providerEventId === "string" && block.providerEventId.length > 0)
-      .map((block) => [block.providerEventId, block]),
+      .map((block) => [`${block.calendarId ?? ""}:${block.providerEventId}`, block]),
   );
   const eventKeys = new Set<string>();
   const blockIds = new Set<string>();
@@ -101,7 +109,7 @@ export function selectManagedEventCleanup(
     // Older HeavyUser events may not have private properties in the local
     // cache. A provider id already stored on a schedule block is equally
     // strong ownership evidence and lets cleanup repair those rows too.
-    const providerBlock = blocksByProviderId.get(event.providerEventId);
+    const providerBlock = blocksByProviderId.get(`${event.calendarId ?? ""}:${event.providerEventId}`);
     if (!properties.isManaged && !providerBlock) {
       continue;
     }
@@ -120,7 +128,7 @@ export function selectManagedEventCleanup(
   const groups = new Map<string, typeof candidates>();
   for (const candidate of candidates) {
     if (!candidate.taskId || !candidate.rangeKey) {
-      eventKeys.add(candidate.eventKey);
+      eventKeys.add(getManagedEventCleanupKey(candidate.eventKey, candidate.calendarId));
       if (candidate.blockId && activeBlockIds.has(candidate.blockId)) {
         blockIds.add(candidate.blockId);
       }
@@ -135,12 +143,23 @@ export function selectManagedEventCleanup(
   for (const group of groups.values()) {
     const linkedGroup = group.filter((candidate) => candidate.linked);
     const keep = linkedGroup.length > 0
-      ? [...linkedGroup].sort((first, second) => first.eventKey.localeCompare(second.eventKey))[0]
+      ? [...linkedGroup].sort((first, second) => {
+        const firstBlock = first.blockId ? activeBlocksById.get(first.blockId) : undefined;
+        const secondBlock = second.blockId ? activeBlocksById.get(second.blockId) : undefined;
+        const preservationScore = (block: ReconcileBlock | undefined) => {
+          if (!block) return 0;
+          if (block.state === "locked") return 3;
+          const end = getTimestamp(block.endAt);
+          return end !== null && end <= now ? 2 : 1;
+        };
+        const scoreDelta = preservationScore(secondBlock) - preservationScore(firstBlock);
+        return scoreDelta !== 0 ? scoreDelta : first.eventKey.localeCompare(second.eventKey);
+      })[0]
       : null;
 
     for (const candidate of group) {
       if (!keep || candidate !== keep) {
-        eventKeys.add(candidate.eventKey);
+        eventKeys.add(getManagedEventCleanupKey(candidate.eventKey, candidate.calendarId));
         if (candidate.blockId && activeBlockIds.has(candidate.blockId)) {
           blockIds.add(candidate.blockId);
         }

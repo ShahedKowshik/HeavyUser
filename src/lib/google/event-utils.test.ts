@@ -29,6 +29,12 @@ describe("planner event identity", () => {
     expect(dedupePlannerEvents([first, second])).toHaveLength(2);
   });
 
+  it("does not merge matching provider ids from different calendars", () => {
+    const first = event({ id: "event-a", providerEventId: "same-id", calendarId: "space-a" });
+    const second = event({ id: "event-b", providerEventId: "same-id", calendarId: "space-b" });
+    expect(dedupePlannerEvents([first, second])).toHaveLength(2);
+  });
+
   it("prefers a provider-backed event over a synthetic fallback", () => {
     const providerEvent = event({
       id: "provider-event",

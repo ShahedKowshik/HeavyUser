@@ -140,8 +140,6 @@ input:focus-visible {
 
 .hu-brand-logo {
   display: block;
-  height: auto;
-  width: 155px;
 }
 
 .hu-main {
@@ -250,6 +248,118 @@ input:focus-visible {
   border-color: var(--line);
   background: var(--surface-subtle);
   color: var(--foreground);
+}
+
+.hu-active-timer-bar {
+  position: sticky;
+  z-index: 4;
+  top: 68px;
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 18px;
+  border-bottom: 1px solid var(--primary-line);
+  background: color-mix(in oklch, var(--primary-soft) 82%, var(--surface));
+  color: var(--foreground);
+}
+
+.hu-active-timer-copy,
+.hu-active-timer-actions,
+.hu-timer-secondary-button,
+.hu-timer-stop-button {
+  display: inline-flex;
+  align-items: center;
+}
+
+.hu-active-timer-copy {
+  min-width: 0;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.hu-active-timer-copy strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hu-active-timer-copy time {
+  color: var(--primary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.hu-active-timer-label {
+  color: var(--primary);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hu-active-timer-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary) 14%, transparent);
+}
+
+.hu-active-timer-actions {
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.hu-timer-secondary-button,
+.hu-timer-stop-button {
+  min-height: 29px;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid var(--primary-line);
+  border-radius: var(--hu-radius);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.hu-timer-secondary-button {
+  background: var(--surface);
+  color: var(--primary);
+}
+
+.hu-timer-stop-button {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.hu-timer-secondary-button:hover,
+.hu-timer-secondary-button:focus-visible {
+  background: var(--primary-soft);
+}
+
+.hu-timer-stop-button:hover,
+.hu-timer-stop-button:focus-visible {
+  background: color-mix(in oklch, var(--primary) 84%, var(--foreground));
+}
+
+.hu-timer-notice {
+  margin: 0;
+  padding: 6px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-subtle);
+  color: var(--muted-text);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.hu-timer-notice.is-warning {
+  background: color-mix(in oklch, var(--priority-high) 10%, var(--surface));
+  color: var(--warning-foreground, var(--foreground));
 }
 
 .hu-notification-dot {
@@ -1954,6 +2064,16 @@ input[type="number"]::-webkit-outer-spin-button {
   gap: 16px;
 }
 
+.hu-settings-inline-note {
+  margin: 0;
+  padding: 8px 9px;
+  border-left: 3px solid var(--primary-line);
+  background: var(--primary-soft);
+  color: var(--muted-text);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
 .hu-settings-actions {
   display: flex;
   justify-content: flex-end;
@@ -2347,6 +2467,108 @@ input[type="number"]::-webkit-outer-spin-button {
   margin-top: 1px;
 }
 
+.hu-task-scheduling-always-on {
+  padding: 5px 7px;
+  border: 1px solid var(--primary-line);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.hu-work-history-panel,
+.hu-missed-block-panel {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.hu-work-history-total {
+  margin: 0;
+  color: var(--muted-text);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hu-work-history-total strong {
+  color: var(--primary);
+}
+
+.hu-inline-history-action,
+.hu-session-correct-button,
+.hu-missed-block-item button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 25px;
+  padding: 0 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--hu-radius);
+  background: var(--surface);
+  color: var(--muted-text);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.hu-inline-history-action:hover,
+.hu-session-correct-button:hover,
+.hu-missed-block-item button:hover {
+  border-color: var(--primary-line);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.hu-work-session-list,
+.hu-missed-block-panel {
+  display: grid;
+  gap: 4px;
+}
+
+.hu-work-session-item,
+.hu-missed-block-item {
+  display: flex;
+  min-height: 29px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 7px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted-text);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hu-work-session-item > span:nth-of-type(2) {
+  margin-left: auto;
+  color: var(--foreground);
+}
+
+.hu-work-session-item svg {
+  color: var(--primary);
+}
+
+.hu-session-correct-button {
+  min-height: 22px;
+  margin-left: 2px;
+  padding: 0 5px;
+}
+
+.hu-missed-block-item {
+  justify-content: space-between;
+  color: var(--destructive);
+}
+
+.hu-missed-block-item > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
 .hu-dialog-title-field {
   grid-column: 1 / -1;
 }
@@ -2369,6 +2591,13 @@ input[type="number"]::-webkit-outer-spin-button {
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.hu-task-work-label {
+  color: var(--primary);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
 }
 
 .hu-overdue-indicator {
@@ -2481,6 +2710,24 @@ input[type="number"]::-webkit-outer-spin-button {
   opacity: 0;
   pointer-events: none;
   transition: opacity 160ms ease;
+}
+
+.hu-task-timer-button {
+  color: var(--primary);
+}
+
+.hu-task-timer-button.is-running {
+  border-color: var(--primary-line);
+  background: var(--primary-soft);
+  color: var(--primary);
+  opacity: 1;
+}
+
+.hu-task-timer-button:hover:not(:disabled),
+.hu-task-timer-button:focus-visible {
+  border-color: var(--primary-line);
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .hu-task-row:hover .hu-task-controls,
@@ -2889,6 +3136,13 @@ input[type="number"]::-webkit-outer-spin-button {
   font-weight: 700;
 }
 
+.hu-all-day-event.is-cross-space-busy {
+  border-style: dashed;
+  border-color: var(--line-strong);
+  background: var(--surface-subtle);
+  color: var(--muted-text);
+}
+
 .hu-event-button {
   width: calc(100% - 10px);
   text-align: left;
@@ -3277,6 +3531,12 @@ input[type="number"]::-webkit-outer-spin-button {
   color: var(--foreground);
 }
 
+.hu-event.is-cross-space-busy {
+  border-style: dashed;
+  border-left-color: var(--line-strong);
+  background: var(--surface-subtle);
+}
+
 .hu-event.is-gesture-active {
   z-index: 4;
   cursor: grabbing;
@@ -3574,6 +3834,24 @@ input[type="number"]::-webkit-outer-spin-button {
     gap: 3px;
   }
 
+  .hu-active-timer-bar {
+    top: 68px;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 7px;
+    padding: 8px 12px;
+  }
+
+  .hu-active-timer-actions {
+    width: 100%;
+  }
+
+  .hu-timer-secondary-button,
+  .hu-timer-stop-button {
+    flex: 1;
+    justify-content: center;
+  }
+
   .hu-profile-button {
     width: auto;
     min-width: 0;
@@ -3655,6 +3933,7 @@ input[type="number"]::-webkit-outer-spin-button {
 
   .hu-calendar-actions {
     width: 100%;
+    flex-wrap: wrap;
     justify-content: flex-start;
   }
 
@@ -3694,6 +3973,209 @@ input[type="number"]::-webkit-outer-spin-button {
   *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+.hu-task-space-label {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--muted-text);
+  font-size: 9px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hu-calendar-space-filter {
+  display: inline-flex;
+  min-width: 0;
+}
+
+.hu-calendar-space-filter select {
+  min-width: 118px;
+  max-width: 176px;
+  min-height: 29px;
+  padding: 0 24px 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--hu-radius);
+  background: var(--surface);
+  color: var(--muted-text);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.hu-calendar-space-filter select:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.hu-event-space-label {
+  display: inline-block;
+  max-width: 16ch;
+  overflow: hidden;
+  color: var(--primary);
+  font-size: 9px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hu-space-list {
+  display: grid;
+  gap: 10px;
+}
+
+.hu-space-card {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface-subtle);
+}
+
+.hu-space-card.is-archived {
+  opacity: 0.76;
+}
+
+.hu-space-card-heading {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 9px;
+}
+
+.hu-space-color,
+.hu-calendar-option-color {
+  display: block;
+  width: 8px;
+  height: 8px;
+  margin-top: 7px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.hu-space-card-heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.hu-space-card-heading small,
+.hu-calendar-option small {
+  overflow: hidden;
+  color: var(--muted-text);
+  font-size: 10px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hu-space-status {
+  padding-top: 3px;
+  color: var(--muted-text);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.hu-space-subspaces {
+  display: grid;
+  gap: 7px;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+}
+
+.hu-space-subspace {
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 3px 7px;
+  border: 1px solid var(--primary-line);
+  color: var(--primary);
+  font-size: 10px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hu-space-add-subspace {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.hu-space-add-subspace .hu-task-input {
+  min-width: 0;
+  flex: 1;
+}
+
+.hu-space-calendar-picker {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.hu-space-calendar-picker > .hu-field-label {
+  margin-bottom: 1px;
+}
+
+.hu-calendar-option {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-subtle);
+  color: var(--foreground);
+  text-align: left;
+}
+
+.hu-calendar-option:hover {
+  border-color: var(--primary-line);
+  background: var(--primary-soft);
+}
+
+.hu-calendar-option:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.hu-calendar-option > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
+.hu-calendar-option strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .hu-space-add-subspace {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .hu-space-add-subspace .hu-form-button {
+    justify-content: center;
+  }
+
+  .hu-calendar-space-filter {
+    width: 100%;
+  }
+
+  .hu-calendar-space-filter select {
+    width: 100%;
+    max-width: none;
   }
 }
 

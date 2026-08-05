@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { loadGoogleConnection, getSupabaseAdminClient } from "@/lib/google/server";
 import { syncGoogleCalendar } from "@/lib/google/sync";
 import { matchesSecret } from "@/lib/security/http";
+import { loadSpaces } from "@/lib/spaces/server";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +30,11 @@ export async function POST(request: Request) {
   }
 
   const connection = await loadGoogleConnection(admin, state.user_id);
-  if (connection?.selected_calendar_id) {
+  if (connection?.selected_calendar_id && state.calendar_id) {
     try {
-      await syncGoogleCalendar(admin, connection, request);
+      const spaces = await loadSpaces(admin, state.user_id);
+      const space = spaces.find((candidate) => candidate.calendarId === state.calendar_id);
+      await syncGoogleCalendar(admin, connection, request, { calendarId: state.calendar_id, spaceId: space?.id ?? null });
     } catch {
       // Google will retry failed webhooks. The next app-load sync remains a fallback.
     }

@@ -1,6 +1,7 @@
 export type PlannerEventIdentity = {
   id: string;
   providerEventId: string;
+  calendarId?: string | null;
   isTaskBlock: boolean;
   taskId: string | null;
   scheduleBlockId: string | null;
@@ -27,7 +28,7 @@ export function getPlannerEventKey(event: PlannerEventIdentity) {
     }
   }
 
-  return event.providerEventId ? `provider:${event.providerEventId}` : `event:${event.id}`;
+  return event.providerEventId ? `provider:${event.calendarId ?? ""}:${event.providerEventId}` : `event:${event.id}`;
 }
 
 function eventPreference(event: PlannerEventIdentity, preferredScheduleBlockIds: ReadonlySet<string>) {
