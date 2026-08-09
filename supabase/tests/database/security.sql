@@ -1,6 +1,84 @@
 begin;
 
-select plan(30);
+select plan(37);
+
+select ok(
+  (select relrowsecurity from pg_class where oid = 'public.tasks'::regclass),
+  'Task table has RLS enabled'
+);
+
+select is(
+  (
+    select count(*)
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'tasks'
+      and roles = array['authenticated']::name[]
+  ),
+  4::bigint,
+  'Tasks have four signed-in ownership policies'
+);
+
+select ok(
+  not has_table_privilege('anon', 'public.tasks', 'SELECT')
+    and not has_table_privilege('anon', 'public.tasks', 'INSERT')
+    and not has_table_privilege('anon', 'public.tasks', 'UPDATE')
+    and not has_table_privilege('anon', 'public.tasks', 'DELETE')
+    and not has_table_privilege('anon', 'public.tasks', 'TRUNCATE')
+    and not has_table_privilege('anon', 'public.tasks', 'REFERENCES')
+    and not has_table_privilege('anon', 'public.tasks', 'TRIGGER'),
+  'Signed-out users have no task table privileges'
+);
+
+select ok(
+  has_table_privilege('authenticated', 'public.tasks', 'SELECT')
+    and has_table_privilege('authenticated', 'public.tasks', 'INSERT')
+    and has_table_privilege('authenticated', 'public.tasks', 'UPDATE')
+    and has_table_privilege('authenticated', 'public.tasks', 'DELETE'),
+  'Signed-in users retain task CRUD privileges'
+);
+
+select ok(
+  not has_table_privilege('authenticated', 'public.tasks', 'TRUNCATE')
+    and not has_table_privilege('authenticated', 'public.tasks', 'REFERENCES')
+    and not has_table_privilege('authenticated', 'public.tasks', 'TRIGGER'),
+  'Signed-in task access excludes elevated table privileges'
+);
+
+select ok(
+  coalesce(
+    (
+      select not has_function_privilege('anon', p.oid, 'EXECUTE')
+        and not has_function_privilege('authenticated', p.oid, 'EXECUTE')
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname = 'rls_auto_enable'
+    ),
+    true
+  ),
+  'RLS event-trigger helper is not exposed through the Data API'
+);
+
+select is(
+  (
+    select count(*)
+    from pg_indexes
+    where schemaname = 'public'
+      and indexname in (
+        'google_calendar_events_space_idx',
+        'task_active_session_owners_task_idx',
+        'task_calendar_repairs_block_idx',
+        'task_calendar_repairs_session_idx',
+        'task_schedule_blocks_space_idx',
+        'task_work_session_revisions_session_fk_idx',
+        'task_work_sessions_block_idx',
+        'task_work_sessions_space_idx',
+        'tasks_space_subspace_idx'
+      )
+  ),
+  9::bigint,
+  'Application foreign keys have covering indexes'
+);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.google_calendar_connections'::regclass),
