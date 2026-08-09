@@ -46,8 +46,8 @@ jobs:
         run: pnpm audit
       - name: Production dependency audit
         run: pnpm audit --prod
-      - name: Keep browser failure evidence
-        if: failure()
+      - name: Keep Chrome QA evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: heavyuser-chrome-qa

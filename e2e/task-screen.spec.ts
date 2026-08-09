@@ -17,9 +17,9 @@ test.describe("task capture, views, editing, and keyboard safety", () => {
     await installBrowserMocks(page, {
       tasks: [
         makeTask({ id: "task-focus", title: "Focus task", status: "focus", priority: "normal" }),
-        makeTask({ id: "task-overdue", title: "Overdue task", status: "open", priority: "high", deadline: "2026-07-31" }),
+        makeTask({ id: "task-overdue", title: "Overdue task", status: "open", priority: "high", startDate: null, deadline: "2026-07-31" }),
         makeTask({ id: "task-upcoming", title: "Upcoming task", status: "open", priority: "low", startDate: "2026-08-03", deadline: "2026-08-10" }),
-        makeTask({ id: "task-done", title: "Completed task", status: "done", priority: "low", deadline: "2026-07-30" }),
+        makeTask({ id: "task-done", title: "Completed task", status: "done", priority: "low", startDate: null, deadline: "2026-07-30" }),
       ],
     });
     await openTaskWorkspace(page);

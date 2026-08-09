@@ -21,7 +21,7 @@ export default defineConfig({
     video: "off",
   },
   webServer: {
-    command: "NEXT_PUBLIC_HEAVYUSER_E2E=1 ./node_modules/.bin/next dev --webpack -p 3100",
+    command: "NEXT_PUBLIC_HEAVYUSER_E2E=1 NEXT_PUBLIC_SUPABASE_URL=https://e2e.supabase.co NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=e2e-publishable-key ./node_modules/.bin/next dev --webpack -p 3100",
     url: "http://localhost:3100",
     reuseExistingServer: false,
     timeout: 120_000,

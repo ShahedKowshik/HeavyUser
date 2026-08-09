@@ -497,7 +497,7 @@ export async function installBrowserMocks(page: Page, options: BrowserMockOption
 export async function openTaskWorkspace(page: Page) {
   await page.goto("/");
   await expect(page.locator("main.hu-shell")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Tasks" })).toBeAttached();
+  await expect(page.getByRole("heading", { name: "Tasks", exact: true })).toBeAttached();
 }
 
 export function getTaskRow(page: Page, title: string) {
