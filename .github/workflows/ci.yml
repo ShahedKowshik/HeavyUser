@@ -38,10 +38,23 @@ jobs:
         run: pnpm test
       - name: Build
         run: pnpm build
+      - name: Install Google Chrome for browser QA
+        run: pnpm exec playwright install --with-deps chrome
+      - name: Run Chrome journeys
+        run: pnpm test:e2e
       - name: Dependency audit
         run: pnpm audit
       - name: Production dependency audit
         run: pnpm audit --prod
+      - name: Keep browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: heavyuser-chrome-qa
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
 
   database:
     name: Database checks

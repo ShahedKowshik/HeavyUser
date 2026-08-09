@@ -1,5 +1,6 @@
 const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3";
 const GOOGLE_TOKEN_API = "https://oauth2.googleapis.com/token";
+const GOOGLE_REQUEST_TIMEOUT_MS = 15_000;
 
 export type GoogleApiErrorShape = {
   error?: {
@@ -115,6 +116,19 @@ async function parseResponse<T>(response: Response) {
   return body as T;
 }
 
+async function fetchGoogle(input: string, init: RequestInit = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(new Error("Google Calendar request timed out.")), GOOGLE_REQUEST_TIMEOUT_MS);
+  const abortFromCaller = () => controller.abort(init.signal?.reason);
+  init.signal?.addEventListener("abort", abortFromCaller, { once: true });
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+    init.signal?.removeEventListener("abort", abortFromCaller);
+  }
+}
+
 async function googleRequest<T>(path: string, accessToken: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${accessToken}`);
@@ -123,7 +137,7 @@ async function googleRequest<T>(path: string, accessToken: string, init: Request
     headers.set("Content-Type", "application/json");
   }
 
-  return parseResponse<T>(await fetch(`${GOOGLE_CALENDAR_API}${path}`, { ...init, headers, cache: "no-store" }));
+  return parseResponse<T>(await fetchGoogle(`${GOOGLE_CALENDAR_API}${path}`, { ...init, headers, cache: "no-store" }));
 }
 
 export async function exchangeGoogleCode(input: {
@@ -142,7 +156,7 @@ export async function exchangeGoogleCode(input: {
     code_verifier: input.codeVerifier,
   });
   return parseResponse<GoogleTokenResponse>(
-    await fetch(GOOGLE_TOKEN_API, {
+    await fetchGoogle(GOOGLE_TOKEN_API, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
@@ -163,7 +177,7 @@ export async function refreshGoogleAccessToken(input: {
     grant_type: "refresh_token",
   });
   return parseResponse<GoogleTokenResponse>(
-    await fetch(GOOGLE_TOKEN_API, {
+    await fetchGoogle(GOOGLE_TOKEN_API, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,

@@ -11,7 +11,7 @@ import { useAuth } from "@/components/auth-provider";
 import { getAppPath, publicBasePath } from "@/lib/supabase/config";
 import { avatarConstraints, getProfileName, type ProfileDraft } from "@/lib/supabase/profile";
 import type { UserSettings } from "@/lib/supabase/settings";
-import { DEFAULT_SCHEDULER_PREFERENCES, type SchedulerPreferences, type WorkWindow } from "@/lib/scheduler/types";
+import { DEFAULT_SCHEDULER_PREFERENCES, MAX_SCHEDULER_BLOCK_MINUTES, type SchedulerPreferences, type WorkWindow } from "@/lib/scheduler/types";
 import { hasWorkingWindow, normalizeSchedulerPreferences } from "@/lib/scheduler/preferences";
 import { SpacesSettings } from "@/components/spaces-settings";
 
@@ -83,6 +83,8 @@ function SettingsContent() {
   const [isSavingScheduler, setIsSavingScheduler] = useState(false);
   const [schedulerMessage, setSchedulerMessage] = useState("");
   const [schedulerMessageType, setSchedulerMessageType] = useState<"error" | "success">("success");
+  const [schedulerLoadFailed, setSchedulerLoadFailed] = useState(false);
+  const [schedulerLoadVersion, setSchedulerLoadVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,12 +96,14 @@ function SettingsContent() {
         const body = (await response.json()) as { settings?: unknown };
         if (!cancelled) {
           setSchedulerDraft(normalizeSchedulerPreferences(body.settings, Intl.DateTimeFormat().resolvedOptions().timeZone));
+          setSchedulerMessage("");
         }
       })
       .catch((error: unknown) => {
         if (!cancelled) {
           setSchedulerMessageType("error");
           setSchedulerMessage(error instanceof Error ? error.message : "Scheduling settings could not be loaded.");
+          setSchedulerLoadFailed(true);
         }
       })
       .finally(() => {
@@ -110,7 +114,7 @@ function SettingsContent() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [schedulerLoadVersion]);
 
   if (!user) {
     return null;
@@ -191,6 +195,15 @@ function SettingsContent() {
     event.preventDefault();
     setIsSavingScheduler(true);
     setSchedulerMessage("");
+    if (schedulerDraft.defaultMinBlockMinutes < 5
+      || schedulerDraft.defaultMaxBlockMinutes < 5
+      || schedulerDraft.defaultMinBlockMinutes > MAX_SCHEDULER_BLOCK_MINUTES
+      || schedulerDraft.defaultMaxBlockMinutes > MAX_SCHEDULER_BLOCK_MINUTES) {
+      setSchedulerMessageType("error");
+      setSchedulerMessage(`Block limits must be between 5 and ${MAX_SCHEDULER_BLOCK_MINUTES.toLocaleString()} minutes.`);
+      setIsSavingScheduler(false);
+      return;
+    }
     if (schedulerDraft.defaultMinBlockMinutes > schedulerDraft.defaultMaxBlockMinutes) {
       setSchedulerMessageType("error");
       setSchedulerMessage("The minimum block must be shorter than the maximum block.");
@@ -529,6 +542,7 @@ function SettingsContent() {
                         aria-label="Default minimum block in minutes"
                         className="hu-edit-input hu-duration-input"
                         min="5"
+                        max={MAX_SCHEDULER_BLOCK_MINUTES}
                         step="5"
                         type="number"
                         value={schedulerDraft.defaultMinBlockMinutes}
@@ -544,6 +558,7 @@ function SettingsContent() {
                         aria-label="Default maximum block in minutes"
                         className="hu-edit-input hu-duration-input"
                         min="5"
+                        max={MAX_SCHEDULER_BLOCK_MINUTES}
                         step="5"
                         type="number"
                         value={schedulerDraft.defaultMaxBlockMinutes}
@@ -625,7 +640,16 @@ function SettingsContent() {
                   })}
                 </div>
 
-                {schedulerMessage ? <p className={`hu-settings-message is-${schedulerMessageType}`} role={schedulerMessageType === "error" ? "alert" : "status"}>{schedulerMessage}</p> : null}
+                {schedulerMessage ? (
+                  <div className={`hu-settings-message is-${schedulerMessageType}`} role={schedulerMessageType === "error" ? "alert" : "status"}>
+                    <span>{schedulerMessage}</span>
+                    {schedulerLoadFailed ? <button type="button" onClick={() => {
+                      setIsLoadingScheduler(true);
+                      setSchedulerLoadFailed(false);
+                      setSchedulerLoadVersion((version) => version + 1);
+                    }}>Try again</button> : null}
+                  </div>
+                ) : null}
                 <div className="hu-settings-actions">
                   <button className="hu-form-button is-primary" disabled={isSavingScheduler} type="submit">{isSavingScheduler ? "Saving…" : "Save scheduling"}</button>
                 </div>

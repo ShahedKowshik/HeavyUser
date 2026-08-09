@@ -25,6 +25,7 @@ import { runSchedulerForUserWithRetry, SchedulerBusyError } from "@/lib/schedule
 import type { Database, Json } from "@/lib/supabase/database.types";
 import { getUserSettings } from "@/lib/supabase/settings";
 import { loadSpaces } from "@/lib/spaces/server";
+import { releaseLockBestEffort } from "@/lib/reliability/locks";
 import { loadActiveSessionRow, loadTimerSnapshot } from "@/lib/timer/data";
 import { getTimerBlockDurationMinutes } from "@/lib/timer/types";
 import type { TaskWorkSession } from "@/lib/timer/types";
@@ -155,7 +156,7 @@ async function withTimerLock<T>(userId: string, operation: (client: TimerClient)
   try {
     return await operation(client);
   } finally {
-    await releaseTimerLock(client, userId, lockToken);
+    await releaseLockBestEffort(() => releaseTimerLock(client, userId, lockToken));
   }
 }
 
@@ -876,7 +877,11 @@ export async function startTimer(input: {
     }
 
     const blocks = await loadBlocks(client, input.userId, task.id);
-    const currentBlock = getCurrentOrNextBlock(blocks, space.calendarId, startedAt) ?? getSelectedMissedBlock(blocks, task.id, input.missedBlockId);
+    const selectedMissedBlock = getSelectedMissedBlock(blocks, task.id, input.missedBlockId);
+    if (input.missedBlockId && !selectedMissedBlock) {
+      throw new TimerOperationError("missed_block_not_found", "That missed block was already handled on another device. Refresh the task.", 409);
+    }
+    const currentBlock = selectedMissedBlock ?? getCurrentOrNextBlock(blocks, space.calendarId, startedAt);
     const currentBlockIsMissed = currentBlock?.state === "missed";
     const activeCalendarIds = new Set(spaces.filter((candidate) => candidate.status === "active").map((candidate) => candidate.calendarId));
     const events = (await loadCachedEvents(client, input.userId)).filter((event) => activeCalendarIds.has(event.calendar_id));
@@ -1022,13 +1027,38 @@ export async function startTimer(input: {
 export async function stopTimer(input: {
   userId: string;
   request?: Request;
+  sessionId?: string;
   stoppedAt?: string;
   action?: "finish" | "keep_long" | "split";
   complete?: boolean;
 }) {
   const result = await withTimerLock(input.userId, async (client) => {
     const activeSession = await loadActiveSessionRow(client, input.userId);
-    if (!activeSession) throw new TimerOperationError("no_active_timer", "There is no active timer.", 409);
+    if (!activeSession || (input.sessionId && activeSession.id !== input.sessionId)) {
+      if (input.sessionId) {
+        const { data: requestedSession, error } = await client
+          .from("task_work_sessions")
+          .select("*")
+          .eq("user_id", input.userId)
+          .eq("id", input.sessionId)
+          .maybeSingle();
+        if (error) throw error;
+        if (requestedSession?.state === "stopped") {
+          return {
+            session: requestedSession,
+            workedSeconds: requestedSession.worked_seconds,
+            workedMinutes: Math.floor(requestedSession.worked_seconds / 60),
+            warning: requestedSession.warning,
+            completed: false,
+            replayed: true,
+          };
+        }
+      }
+      if (activeSession) {
+        throw new TimerOperationError("timer_changed", "A different timer is now running. Refresh before stopping it.", 409);
+      }
+      throw new TimerOperationError("no_active_timer", "There is no active timer.", 409);
+    }
     const stopAt = normalizeRequestedTimestamp(input.stoppedAt, Date.now());
     return stopSessionInsideLock({ client, userId: input.userId, session: activeSession, stopAt, action: input.action, complete: input.complete, request: input.request });
   });
@@ -1340,8 +1370,25 @@ export async function correctSession(input: { userId: string; sessionId: string;
     if (session.state === "running") throw new TimerOperationError("active_session", "Stop the active timer before correcting it.", 409);
     const nextStart = nowIso(started);
     const nextStop = nowIso(stopped);
-    const { error: revisionError } = await client.from("task_work_session_revisions").insert({ user_id: input.userId, session_id: session.id, old_started_at: session.started_at, old_stopped_at: session.stopped_at, new_started_at: nextStart, new_stopped_at: nextStop, reason: input.reason.trim() });
-    if (revisionError) throw revisionError;
+    if (session.started_at === nextStart && session.stopped_at === nextStop) {
+      return { session, warning: session.warning, replayed: true };
+    }
+    const normalizedReason = input.reason.trim();
+    const { data: existingRevision, error: revisionReadError } = await client
+      .from("task_work_session_revisions")
+      .select("id")
+      .eq("user_id", input.userId)
+      .eq("session_id", session.id)
+      .eq("new_started_at", nextStart)
+      .eq("new_stopped_at", nextStop)
+      .eq("reason", normalizedReason)
+      .limit(1)
+      .maybeSingle();
+    if (revisionReadError) throw revisionReadError;
+    if (!existingRevision) {
+      const { error: revisionError } = await client.from("task_work_session_revisions").insert({ user_id: input.userId, session_id: session.id, old_started_at: session.started_at, old_stopped_at: session.stopped_at, new_started_at: nextStart, new_stopped_at: nextStop, reason: normalizedReason });
+      if (revisionError) throw revisionError;
+    }
     const correctedSeconds = Math.round((stopped - started) / 1000);
     let warning: string | null = null;
     if (session.provider_event_id && session.calendar_id) {
@@ -1393,6 +1440,83 @@ export async function correctSession(input: { userId: string; sessionId: string;
     });
     await clearActiveOwner(client, input.userId, session.id).catch(() => undefined);
     return { session: updated, warning };
+  });
+  return { ...result, schedulerWarning: await runReplan(input.userId, input.request) };
+}
+
+export async function deleteSession(input: { userId: string; sessionId: string; request?: Request }) {
+  const result = await withTimerLock(input.userId, async (client) => {
+    const { data: session, error } = await client
+      .from("task_work_sessions")
+      .select("*")
+      .eq("user_id", input.userId)
+      .eq("id", input.sessionId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!session) throw new TimerOperationError("session_not_found", "That work session could not be found.", 404);
+    if (session.state === "running") throw new TimerOperationError("active_session", "Stop the active timer before deleting it.", 409);
+    if (session.state === "cancelled") return { session, warning: null };
+
+    let warning: string | null = null;
+    if (session.provider_event_id && session.calendar_id) {
+      const connection = await loadGoogleConnection(client, input.userId);
+      const sessionSpace = session.space_id
+        ? (await loadSpaces(client, input.userId)).find((space) => space.id === session.space_id)
+        : null;
+      const canSyncCalendar = !session.space_id || sessionSpace?.status === "active";
+      if (connection && canSyncCalendar) {
+        try {
+          const accessToken = await getUsableGoogleAccessToken(client, connection);
+          await deleteOwnedEvent({
+            client,
+            userId: input.userId,
+            calendarId: session.calendar_id,
+            providerEventId: session.provider_event_id,
+            providerEventKey: session.provider_event_key,
+            accessToken,
+          });
+        } catch (error) {
+          warning = await saveRepair(client, {
+            userId: input.userId,
+            sessionId: session.id,
+            blockId: session.block_id,
+            calendarId: session.calendar_id,
+            providerEventId: session.provider_event_id,
+            operation: "delete",
+            error,
+          });
+        }
+      } else {
+        warning = await saveRepair(client, {
+          userId: input.userId,
+          sessionId: session.id,
+          blockId: session.block_id,
+          calendarId: session.calendar_id,
+          providerEventId: session.provider_event_id,
+          operation: "delete",
+          error: canSyncCalendar
+            ? "Google Calendar is disconnected; this work entry will be removed when it is reconnected."
+            : "This Calendar Space is disconnected; this work entry will be removed when that Space is reconnected.",
+        });
+      }
+    }
+
+    if (session.block_id) {
+      await updateBlock(client, input.userId, session.block_id, {
+        state: "cancelled",
+        last_error: warning,
+      });
+    }
+    const cancelled = await updateSession(client, input.userId, session.id, {
+      state: "cancelled",
+      stopped_at: session.stopped_at ?? nowIso(),
+      worked_seconds: 0,
+      calendar_sync_state: warning ? "pending" : "history_only",
+      repair_needed: Boolean(warning),
+      warning,
+    });
+    await clearActiveOwner(client, input.userId, session.id).catch(() => undefined);
+    return { session: cancelled, warning };
   });
   return { ...result, schedulerWarning: await runReplan(input.userId, input.request) };
 }

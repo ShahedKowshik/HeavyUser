@@ -5,12 +5,15 @@ import { FormEvent, useEffect, useState } from "react";
 import { ArrowRight, MailCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
-import { publicBasePath } from "@/lib/supabase/config";
+import { getSafeSameOriginPath } from "@/lib/security/redirect";
+import { getAppPath, publicBasePath } from "@/lib/supabase/config";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 
 function getAuthErrorMessage(error: string | null) {
-  return error === "expired_link"
-    ? "That sign-in link has expired. Request a new one."
+  return error === "invalid_or_expired_link"
+    ? "That sign-in link is invalid, expired, or already used. Request a new one."
+    : error === "expired_link"
+      ? "That sign-in link has expired. Request a new one."
     : error
       ? "That sign-in link could not be used. Request a new one."
       : "";
@@ -24,9 +27,17 @@ export default function LoginPage() {
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
 
+  function getNextPath() {
+    return getSafeSameOriginPath(
+      new URLSearchParams(window.location.search).get("next"),
+      window.location.href,
+      getAppPath("/"),
+    );
+  }
+
   useEffect(() => {
     if (status === "signed_in") {
-      router.replace("/");
+      router.replace(getNextPath());
     }
 
     const timeoutId = window.setTimeout(() => {
@@ -45,7 +56,7 @@ export default function LoginPage() {
     setMessage("");
 
     try {
-      const result = await sendMagicLink(email);
+      const result = await sendMagicLink(email, getNextPath());
 
       if (!result.ok) {
         setMessage(result.message);

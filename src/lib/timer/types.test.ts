@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatElapsedSeconds, getRemainingMinutes, getSessionElapsedSeconds, getSessionWorkedMinutes, getTimerBlockDurationMinutes } from "@/lib/timer/types";
+import { formatElapsedSeconds, getRemainingMinutes, getSessionElapsedSeconds, getSessionWorkedMinutes, getTimerBlockDurationMinutes, parseWorkMinutes } from "@/lib/timer/types";
 
 describe("work session calculations", () => {
   it("keeps exact seconds while the timer is running", () => {
@@ -17,6 +17,14 @@ describe("work session calculations", () => {
     expect(getRemainingMinutes(60, 20)).toBe(40);
     expect(getRemainingMinutes(null, 20)).toBeNull();
     expect(getRemainingMinutes(60, 80)).toBe(0);
+  });
+
+  it("accepts only usable manual work durations", () => {
+    expect(parseWorkMinutes("30")).toBe(30);
+    expect(parseWorkMinutes("30.5")).toBe(31);
+    expect(parseWorkMinutes("0")).toBeNull();
+    expect(parseWorkMinutes("1441")).toBeNull();
+    expect(parseWorkMinutes("not a number")).toBeNull();
   });
 
   it("formats long sessions without losing midnight-safe elapsed time", () => {

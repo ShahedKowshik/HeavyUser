@@ -10,6 +10,47 @@ export type PlannerEventIdentity = {
   isPlannerSynthetic?: boolean;
 };
 
+export function isValidCalendarDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
+}
+
+export function isValidTimedEventRange(start: unknown, end: unknown, maximumMinutes = 24 * 60, minimumMinutes = 5) {
+  if (typeof start !== "string" || typeof end !== "string") return false;
+  const startTime = new Date(start).getTime();
+  const endTime = new Date(end).getTime();
+  return Number.isFinite(startTime)
+    && Number.isFinite(endTime)
+    && endTime - startTime >= minimumMinutes * 60_000
+    && endTime - startTime <= maximumMinutes * 60_000;
+}
+
+export function hasEventEditConflict({
+  requestedEtag,
+  localEtag,
+  providerEtag,
+}: {
+  requestedEtag: string | null | undefined;
+  localEtag: string | null;
+  providerEtag?: string | null;
+}) {
+  if (localEtag && requestedEtag !== localEtag) {
+    return true;
+  }
+
+  return providerEtag !== undefined
+    && Boolean(localEtag && providerEtag && localEtag !== providerEtag);
+}
+
+export function getStaleCalendarEventKeys(
+  cachedEventKeys: ReadonlyArray<string>,
+  retainedProviderEventKeys: ReadonlySet<string>,
+) {
+  return cachedEventKeys.filter((eventKey) => !retainedProviderEventKeys.has(eventKey));
+}
+
 function timestamp(value: string | null) {
   if (!value) {
     return null;

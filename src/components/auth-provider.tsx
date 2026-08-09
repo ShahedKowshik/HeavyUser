@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import { getSafeSameOriginPath } from "@/lib/security/redirect";
 import { getAppPath, getAppUrl } from "@/lib/supabase/config";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
@@ -27,13 +28,30 @@ type AuthContextValue = {
   user: User | null;
   avatarUrl: string | null;
   settings: UserSettings;
-  sendMagicLink: (email: string) => Promise<AuthResult>;
+  sendMagicLink: (email: string, nextPath?: string) => Promise<AuthResult>;
   signOut: () => Promise<AuthResult>;
   updateProfile: (draft: ProfileDraft) => Promise<AuthResult>;
   updateSettings: (settings: UserSettings) => Promise<AuthResult>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+const isE2EAuthEnabled = process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_HEAVYUSER_E2E === "1";
+const e2eUser = {
+  id: "e2e-user-00000000",
+  aud: "authenticated",
+  role: "authenticated",
+  email: "e2e@heavyuser.test",
+  email_confirmed_at: "2026-08-01T00:00:00.000Z",
+  phone: "",
+  confirmed_at: "2026-08-01T00:00:00.000Z",
+  last_sign_in_at: "2026-08-01T00:00:00.000Z",
+  app_metadata: { provider: "email", providers: ["email"] },
+  user_metadata: { full_name: "E2E Tester" },
+  identities: [],
+  created_at: "2026-08-01T00:00:00.000Z",
+  updated_at: "2026-08-01T00:00:00.000Z",
+} as User;
 
 function getMagicLinkErrorMessage(error: { code?: string; message?: string; status?: number } | null) {
   const code = error?.code?.toLowerCase() ?? "";
@@ -60,8 +78,8 @@ function getMagicLinkErrorMessage(error: { code?: string; message?: string; stat
 
 export function AuthProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const client = useMemo(() => getSupabaseBrowserClient(), []);
-  const [status, setStatus] = useState<AuthStatus>(client ? "loading" : "signed_out");
-  const [user, setUser] = useState<User | null>(null);
+  const [status, setStatus] = useState<AuthStatus>(isE2EAuthEnabled ? "signed_in" : client ? "loading" : "signed_out");
+  const [user, setUser] = useState<User | null>(isE2EAuthEnabled ? e2eUser : null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [settings, setSettings] = useState<UserSettings>({ ...DEFAULT_USER_SETTINGS });
 
@@ -85,6 +103,10 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
   );
 
   useEffect(() => {
+    if (isE2EAuthEnabled) {
+      return;
+    }
+
     if (!client) {
       return;
     }
@@ -217,7 +239,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
   }, [applyUser, client, status, user]);
 
   const sendMagicLink = useCallback(
-    async (email: string): Promise<AuthResult> => {
+    async (email: string, nextPath?: string): Promise<AuthResult> => {
       if (!client) {
         return { ok: false, message: "Authentication is not configured for this deployment." };
       }
@@ -227,10 +249,14 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
         return { ok: false, message: "Enter your email address." };
       }
 
+      const callbackUrl = new URL(getAppUrl("/auth/confirm"), window.location.origin);
+      const safeNextPath = getSafeSameOriginPath(nextPath ?? null, callbackUrl.href, getAppPath("/"));
+      callbackUrl.searchParams.set("next", safeNextPath);
+
       const { error } = await client.auth.signInWithOtp({
         email: normalizedEmail,
         options: {
-          emailRedirectTo: getAppUrl("/auth/confirm"),
+          emailRedirectTo: callbackUrl.href,
         },
       });
 
@@ -267,6 +293,10 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
 
   const updateSettings = useCallback(
     async (nextSettings: UserSettings): Promise<AuthResult> => {
+      if (isE2EAuthEnabled) {
+        setSettings(normalizeUserSettings(nextSettings));
+        return { ok: true };
+      }
       if (!client || !user) {
         return { ok: false, message: "Your session has ended. Sign in again." };
       }
@@ -276,15 +306,20 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
         return { ok: false, message: result.errorMessage ?? "Your settings could not be saved." };
       }
 
-      setSettings(normalizeUserSettings(nextSettings));
+      const normalizedSettings = normalizeUserSettings(nextSettings);
+      const schedulerSettingsChanged = normalizedSettings.nightOwlMode !== settings.nightOwlMode
+        || normalizedSettings.dayStartTime !== settings.dayStartTime;
+      setSettings(normalizedSettings);
       applyUser(result.user);
       // Night Owl changes the boundary used by All day scheduling. Re-run the
       // planner after the account setting is saved so existing flexible blocks
       // follow the new logical day immediately.
-      void fetch(getAppPath("/api/scheduler/run"), { method: "POST" }).catch(() => undefined);
+      if (schedulerSettingsChanged) {
+        void fetch(getAppPath("/api/scheduler/run"), { method: "POST" }).catch(() => undefined);
+      }
       return { ok: true };
     },
-    [applyUser, client, user],
+    [applyUser, client, settings, user],
   );
 
   const value = useMemo(

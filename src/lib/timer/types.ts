@@ -90,6 +90,11 @@ export function getRemainingMinutes(estimatedMinutes: number | null, workedMinut
   return estimatedMinutes === null ? null : Math.max(0, estimatedMinutes - workedMinutes);
 }
 
+export function parseWorkMinutes(value: string) {
+  const minutes = Math.round(Number(value));
+  return Number.isFinite(minutes) && minutes > 0 && minutes <= 1440 ? minutes : null;
+}
+
 export function getTimerBlockDurationMinutes(startAt: string, endAt: string) {
   const duration = (new Date(endAt).getTime() - new Date(startAt).getTime()) / 60_000;
   return Number.isFinite(duration) ? Math.max(0, Math.round(duration)) : 0;

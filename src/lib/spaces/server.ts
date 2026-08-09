@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
-import type { Space, SubSpace } from "@/lib/spaces";
+import { getRefreshedCalendarMetadata, type Space, type SubSpace } from "@/lib/spaces";
 
 type SpacesClient = SupabaseClient<Database>;
 type SpaceRow = Database["public"]["Tables"]["spaces"]["Row"];
@@ -94,14 +94,20 @@ export async function ensureSpaceForCalendar(input: {
   const existing = await input.client.from("spaces").select("*").eq("user_id", input.userId).eq("calendar_id", calendarId).maybeSingle();
   if (existing.error) throw existing.error;
   if (existing.data) {
-    if (existing.data.status !== "active") {
-      const { error: restoreError } = await input.client.from("spaces").update({
-        status: "active",
-        archived_at: null,
-        updated_at: new Date().toISOString(),
-      }).eq("user_id", input.userId).eq("id", existing.data.id);
-      if (restoreError) throw restoreError;
-    }
+    const metadata = getRefreshedCalendarMetadata({
+      name: existing.data.name,
+      calendarName: existing.data.calendar_name,
+      calendarId,
+    }, { name: input.calendarName, timeZone: input.timeZone });
+    const { error: restoreError } = await input.client.from("spaces").update({
+      status: "active",
+      archived_at: null,
+      name: metadata.name,
+      calendar_name: metadata.calendarName,
+      time_zone: metadata.timeZone,
+      updated_at: new Date().toISOString(),
+    }).eq("user_id", input.userId).eq("id", existing.data.id);
+    if (restoreError) throw restoreError;
     // A retry after a partial first-save must still adopt legacy tasks. Use
     // the oldest Space instead of a row count so a second calendar can never
     // strand tasks that were waiting for the first save to finish.

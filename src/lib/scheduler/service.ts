@@ -23,6 +23,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import { normalizeUserSettings } from "@/lib/supabase/settings";
 import type { CalendarTransparency, CalendarVisibility } from "@/lib/tasks";
 import { loadSpaces } from "@/lib/spaces/server";
+import { releaseLockBestEffort } from "@/lib/reliability/locks";
 import { normalizeSchedulerPreferences } from "@/lib/scheduler/preferences";
 import { planSchedule } from "@/lib/scheduler/planner";
 import { getBusyIntervalsFromCalendarEvents } from "@/lib/scheduler/availability";
@@ -700,11 +701,15 @@ async function removeBlockEvent(client: SchedulerAdminClient, connection: Google
 }
 
 async function processTaskCleanup(client: SchedulerAdminClient, userId: string, accessToken: string, calendarIds?: ReadonlySet<string>) {
-  const { data, error } = await client
+  let cleanupQuery = client
     .from("task_schedule_cleanup")
     .select("*")
     .eq("user_id", userId)
-    .is("processed_at", null)
+    .is("processed_at", null);
+  if (calendarIds) {
+    cleanupQuery = cleanupQuery.in("calendar_id", [...calendarIds]);
+  }
+  const { data, error } = await cleanupQuery
     .order("created_at", { ascending: true })
     .limit(100);
   if (error) {
@@ -712,7 +717,7 @@ async function processTaskCleanup(client: SchedulerAdminClient, userId: string, 
   }
 
   let failures = 0;
-  for (const cleanup of (data ?? []).filter((candidate) => !calendarIds || calendarIds.has(candidate.calendar_id))) {
+  for (const cleanup of data ?? []) {
     try {
       await safeDeleteGoogleEvent({
         accessToken,
@@ -1395,13 +1400,12 @@ export async function runSchedulerForUser(userId: string, request?: Request) {
     }
     throw error;
   } finally {
-    const { error: releaseError } = await client.rpc("release_scheduler_lock", {
-      p_user_id: userId,
-      p_lock_token: lockToken,
+    await releaseLockBestEffort(async () => {
+      await client.rpc("release_scheduler_lock", {
+        p_user_id: userId,
+        p_lock_token: lockToken,
+      });
     });
-    if (releaseError) {
-      throw releaseError;
-    }
   }
 }
 

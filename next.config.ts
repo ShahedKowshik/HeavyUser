@@ -4,6 +4,7 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
 const nextConfig: NextConfig = {
   basePath,
+  ...(process.env.NEXT_PUBLIC_HEAVYUSER_E2E === "1" ? { distDir: ".next-e2e" } : {}),
   poweredByHeader: false,
   images: {
     unoptimized: true,

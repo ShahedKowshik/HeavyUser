@@ -9,8 +9,9 @@ import {
 import { ensureSpaceForCalendar, loadSpaces } from "@/lib/spaces/server";
 import { queueSchedulerJob } from "@/lib/scheduler/queue";
 import { syncAllGoogleCalendars } from "@/lib/google/sync";
-import { rejectCrossOriginMutation, rejectOversizedBody } from "@/lib/security/http";
+import { readJsonBody, rejectCrossOriginMutation } from "@/lib/security/http";
 import type { Database } from "@/lib/supabase/database.types";
+import { getRefreshedCalendarMetadata } from "@/lib/spaces";
 
 export async function GET() {
   const context = await requireAuthenticatedGoogleContext();
@@ -26,12 +27,14 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const originError = rejectCrossOriginMutation(request) ?? rejectOversizedBody(request);
+  const originError = rejectCrossOriginMutation(request);
   if (originError) return originError;
+  const parsedBody = await readJsonBody<{ calendarId?: unknown }>(request);
+  if (parsedBody.errorResponse) return parsedBody.errorResponse;
   const context = await requireAuthenticatedGoogleContext();
   if (!context) return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
 
-  const body = (await request.json().catch(() => null)) as { calendarId?: unknown } | null;
+  const body = parsedBody.data;
   const calendarId = typeof body?.calendarId === "string" ? body.calendarId.trim() : "";
   if (!calendarId || calendarId.length > 512) return NextResponse.json({ error: "Choose a Google Calendar." }, { status: 400 });
 
@@ -59,25 +62,33 @@ export async function POST(request: Request) {
     }).eq("user_id", context.user.id);
     if (connectionError) throw connectionError;
     let syncPending = false;
+    let followUpError: string | null = null;
     try {
       const sync = await syncAllGoogleCalendars(context.admin, connection, request, { skipSchedulerQueue: true });
       syncPending = sync.errors.length > 0;
     } catch {
       syncPending = true;
     }
-    await queueSchedulerJob(context.admin, context.user.id, "space_added");
-    return NextResponse.json({ space, spaces: await loadSpaces(context.admin, context.user.id), syncPending });
+    try {
+      await queueSchedulerJob(context.admin, context.user.id, "space_added");
+    } catch (error) {
+      syncPending = true;
+      followUpError = googleErrorMessage(error);
+    }
+    return NextResponse.json({ space, spaces: await loadSpaces(context.admin, context.user.id), syncPending, followUpError });
   } catch (error) {
     return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });
   }
 }
 
 export async function PATCH(request: Request) {
-  const originError = rejectCrossOriginMutation(request) ?? rejectOversizedBody(request);
+  const originError = rejectCrossOriginMutation(request);
   if (originError) return originError;
+  const parsedBody = await readJsonBody<{ spaceId?: unknown; name?: unknown; status?: unknown }>(request);
+  if (parsedBody.errorResponse) return parsedBody.errorResponse;
   const context = await requireAuthenticatedGoogleContext();
   if (!context) return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
-  const body = (await request.json().catch(() => null)) as { spaceId?: unknown; name?: unknown; status?: unknown } | null;
+  const body = parsedBody.data;
   const spaceId = typeof body?.spaceId === "string" ? body.spaceId : "";
   if (!spaceId || spaceId.length > 100) return NextResponse.json({ error: "The Space could not be identified." }, { status: 400 });
 
@@ -99,6 +110,29 @@ export async function PATCH(request: Request) {
         if ((count ?? 0) > 0) return NextResponse.json({ error: `Complete or move the ${count} open task${count === 1 ? "" : "s"} first.`, openTaskCount: count }, { status: 409 });
         update.archived_at = new Date().toISOString();
       } else {
+        if (space.status !== "active") {
+          const connection = await loadGoogleConnection(context.admin, context.user.id);
+          if (!connection) {
+            return NextResponse.json({ error: "Reconnect Google Calendar before restoring this Space." }, { status: 409 });
+          }
+          const accessToken = await getUsableGoogleAccessToken(context.admin, connection);
+          const calendars = await listGoogleCalendars(accessToken);
+          const providerCalendar = calendars.find((calendar) => calendar.id === space.calendar_id);
+          if (!providerCalendar) {
+            return NextResponse.json({ error: "That calendar is not writable from the connected Google account." }, { status: 403 });
+          }
+          const metadata = getRefreshedCalendarMetadata({
+            name: update.name ?? space.name,
+            calendarName: space.calendar_name,
+            calendarId: space.calendar_id,
+          }, {
+            name: providerCalendar.summary,
+            timeZone: providerCalendar.timeZone,
+          });
+          update.name = metadata.name;
+          update.calendar_name = metadata.calendarName;
+          update.time_zone = metadata.timeZone;
+        }
         update.archived_at = null;
       }
       update.status = body.status;

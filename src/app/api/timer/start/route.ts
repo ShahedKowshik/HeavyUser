@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { googleErrorMessage, requireAuthenticatedGoogleContext } from "@/lib/google/server";
-import { rejectCrossOriginMutation, rejectOversizedBody } from "@/lib/security/http";
+import { readJsonBody, rejectCrossOriginMutation } from "@/lib/security/http";
 import { startTimer, TimerOperationError } from "@/lib/timer/server";
 
 export async function POST(request: Request) {
-  const originError = rejectCrossOriginMutation(request) ?? rejectOversizedBody(request);
+  const originError = rejectCrossOriginMutation(request);
   if (originError) return originError;
+  const parsedBody = await readJsonBody<Record<string, unknown>>(request);
+  if (parsedBody.errorResponse) return parsedBody.errorResponse;
   const context = await requireAuthenticatedGoogleContext();
   if (!context) return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const body = parsedBody.data;
   const taskId = typeof body?.taskId === "string" ? body.taskId.trim() : "";
   if (!taskId || taskId.length > 240) return NextResponse.json({ error: "Choose a task first." }, { status: 400 });
 

@@ -1,6 +1,6 @@
 begin;
 
-select plan(29);
+select plan(30);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.google_calendar_connections'::regclass),
@@ -149,6 +149,15 @@ select ok(
       and conname = 'task_work_sessions_task_fk'
   ),
   'Work history is retained when its task is deleted'
+);
+select ok(
+  exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.task_work_sessions'::regclass
+      and conname = 'task_work_sessions_block_fk'
+      and pg_get_constraintdef(oid) like '%SET NULL (block_id)%'
+  ),
+  'Deleting a schedule block clears only the work-history block link'
 );
 select ok(
   exists (

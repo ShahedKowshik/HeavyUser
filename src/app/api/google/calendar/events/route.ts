@@ -17,7 +17,8 @@ import {
 import { recordGoogleEventDeletion, syncGoogleCalendar, upsertGoogleCalendarEvent } from "@/lib/google/sync";
 import { runSchedulerForUserWithRetry } from "@/lib/scheduler/service";
 import { getCalendarBusyInterval } from "@/lib/scheduler/availability";
-import { rejectCrossOriginMutation, rejectOversizedBody } from "@/lib/security/http";
+import { hasEventEditConflict, isValidCalendarDate, isValidTimedEventRange } from "@/lib/google/event-utils";
+import { readJsonBody, rejectCrossOriginMutation } from "@/lib/security/http";
 import { loadSpaces } from "@/lib/spaces/server";
 
 function toEventResponse(row: Record<string, unknown>, managedBlock?: { id: string; task_id: string }, space?: { name: string; subSpaceName?: string | null }) {
@@ -259,21 +260,63 @@ async function pauseActiveTimerForBlock(userId: string, blockId: string, warning
   return true;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const result = await getSelectedCalendarContext();
   if ("response" in result) {
     return result.response;
   }
 
   try {
-    const [eventsResult, blocksResult, tasksResult, spaces] = await Promise.all([
-      result.context.admin
+    const url = new URL(request.url);
+    const rangeStart = url.searchParams.get("start");
+    const rangeEnd = url.searchParams.get("end");
+    const startDate = url.searchParams.get("startDate");
+    const endDate = url.searchParams.get("endDate");
+    const startTime = rangeStart ? new Date(rangeStart).getTime() : Number.NaN;
+    const endTime = rangeEnd ? new Date(rangeEnd).getTime() : Number.NaN;
+    const hasRange = Number.isFinite(startTime) && Number.isFinite(endTime) && endTime > startTime
+      && endTime - startTime <= 32 * 24 * 60 * 60_000
+      && Boolean(startDate && endDate && isValidCalendarDate(startDate) && isValidCalendarDate(endDate) && startDate < endDate);
+    if ((rangeStart || rangeEnd || startDate || endDate) && !hasRange) {
+      return NextResponse.json({ error: "Choose a valid calendar range of 32 days or less." }, { status: 400 });
+    }
+
+    const loadEventRows = async () => {
+      const baseQuery = () => result.context.admin
         .from("google_calendar_events")
         .select("*")
         .eq("user_id", result.context.user.id)
-        .neq("status", "cancelled")
-        .order("start_at", { ascending: true, nullsFirst: false })
-        .order("start_date", { ascending: true, nullsFirst: false }),
+        .neq("status", "cancelled");
+      if (!hasRange) {
+        const fallback = await baseQuery()
+          .order("start_at", { ascending: true, nullsFirst: false })
+          .order("start_date", { ascending: true, nullsFirst: false })
+          .limit(5_000);
+        if (fallback.error) throw fallback.error;
+        return fallback.data ?? [];
+      }
+
+      const [timed, allDay] = await Promise.all([
+        baseQuery()
+          .not("start_at", "is", null)
+          .lt("start_at", new Date(endTime).toISOString())
+          .gt("end_at", new Date(startTime).toISOString())
+          .order("start_at", { ascending: true })
+          .limit(5_000),
+        baseQuery()
+          .eq("is_all_day", true)
+          .lt("start_date", endDate as string)
+          .gt("end_date", startDate as string)
+          .order("start_date", { ascending: true })
+          .limit(1_000),
+      ]);
+      if (timed.error) throw timed.error;
+      if (allDay.error) throw allDay.error;
+      return [...new Map([...(timed.data ?? []), ...(allDay.data ?? [])].map((row) => [`${row.calendar_id}:${row.event_key}`, row])).values()];
+    };
+
+    const [eventRows, blocksResult, tasksResult, spaces] = await Promise.all([
+      loadEventRows(),
       result.context.admin
         .from("task_schedule_blocks")
         .select("id,task_id,provider_event_id,calendar_id")
@@ -283,7 +326,6 @@ export async function GET() {
       loadSpaces(result.context.admin, result.context.user.id),
     ]);
 
-    if (eventsResult.error) throw eventsResult.error;
     if (blocksResult.error) throw blocksResult.error;
     const tasksById = new Map((tasksResult.data ?? []).map((task) => [task.id, task]));
     const blocksByProviderId = new Map((blocksResult.data ?? []).map((block) => [`${block.calendar_id}:${block.provider_event_id}`, block]));
@@ -292,7 +334,7 @@ export async function GET() {
 
     return NextResponse.json({
       connection: publicGoogleConnection(result.connection),
-      events: (eventsResult.data ?? []).map((row) => {
+      events: eventRows.map((row) => {
         const managedBlock = blocksByProviderId.get(`${row.calendar_id}:${row.provider_event_id}`);
         const task = managedBlock ? tasksById.get(managedBlock.task_id) : undefined;
         const space = task?.space_id ? spacesById.get(task.space_id) : row.space_id ? spacesById.get(row.space_id) : spacesByCalendarId.get(row.calendar_id);
@@ -307,31 +349,31 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const originError = rejectCrossOriginMutation(request) ?? rejectOversizedBody(request);
+  const originError = rejectCrossOriginMutation(request);
   if (originError) {
     return originError;
   }
-
-  const result = await getSelectedCalendarContext();
-  if ("response" in result) {
-    return result.response;
-  }
-
-  const body = (await request.json().catch(() => null)) as {
+  const parsedBody = await readJsonBody<{
     title?: unknown;
     calendarId?: unknown;
     description?: unknown;
     location?: unknown;
     start?: unknown;
     end?: unknown;
-  } | null;
+  }>(request);
+  if (parsedBody.errorResponse) return parsedBody.errorResponse;
+
+  const result = await getSelectedCalendarContext();
+  if ("response" in result) {
+    return result.response;
+  }
+
+  const body = parsedBody.data;
   const title = typeof body?.title === "string" ? body.title.trim() : "";
   const start = typeof body?.start === "string" ? body.start : "";
   const end = typeof body?.end === "string" ? body.end : "";
-  const startTime = new Date(start).getTime();
-  const endTime = new Date(end).getTime();
-  if (!title || title.length > 240 || !start || !end || !Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) {
-    return NextResponse.json({ error: "Enter an event title, start time, and end time." }, { status: 400 });
+  if (!title || title.length > 240 || !isValidTimedEventRange(start, end)) {
+    return NextResponse.json({ error: "Enter an event title and a time range between 5 minutes and 24 hours." }, { status: 400 });
   }
   if ((body?.description !== undefined && !isTextWithinLimit(body.description, 10_000))
     || (body?.location !== undefined && !isTextWithinLimit(body.location, 2_000))) {
@@ -340,6 +382,9 @@ export async function POST(request: Request) {
 
   try {
     const requestedCalendarId = typeof body?.calendarId === "string" ? body.calendarId.trim() : "";
+    if (requestedCalendarId.length > 512) {
+      return NextResponse.json({ error: "That calendar identifier is too long." }, { status: 400 });
+    }
     const spaces = await loadSpaces(result.context.admin, result.context.user.id);
     const targetCalendarId = requestedCalendarId || result.connection.selected_calendar_id!;
     const targetSpace = spaces.find((space) => space.calendarId === targetCalendarId);
@@ -374,17 +419,11 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const originError = rejectCrossOriginMutation(request) ?? rejectOversizedBody(request);
+  const originError = rejectCrossOriginMutation(request);
   if (originError) {
     return originError;
   }
-
-  const result = await getSelectedCalendarContext();
-  if ("response" in result) {
-    return result.response;
-  }
-
-  const body = (await request.json().catch(() => null)) as {
+  const parsedBody = await readJsonBody<{
     eventKey?: unknown;
     calendarId?: unknown;
     source?: unknown;
@@ -394,11 +433,18 @@ export async function PATCH(request: Request) {
     location?: unknown;
     start?: unknown;
     end?: unknown;
-  } | null;
-  const isTimelineMove = body?.source === "timeline";
+  }>(request);
+  if (parsedBody.errorResponse) return parsedBody.errorResponse;
+
+  const result = await getSelectedCalendarContext();
+  if ("response" in result) {
+    return result.response;
+  }
+
+  const body = parsedBody.data;
   const eventKey = typeof body?.eventKey === "string" ? body.eventKey : "";
   const requestedCalendarId = typeof body?.calendarId === "string" ? body.calendarId : "";
-  if (!eventKey || eventKey.length > 512) {
+  if (!eventKey || eventKey.length > 512 || requestedCalendarId.length > 512) {
     return NextResponse.json({ error: "The event could not be identified." }, { status: 400 });
   }
   const hasStart = typeof body?.start === "string";
@@ -407,10 +453,8 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Provide both a start and end time." }, { status: 400 });
   }
   if (hasStart && hasEnd) {
-    const startTime = new Date(body?.start as string).getTime();
-    const endTime = new Date(body?.end as string).getTime();
-    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) {
-      return NextResponse.json({ error: "The end time must be after the start time." }, { status: 400 });
+    if (!isValidTimedEventRange(body?.start, body?.end)) {
+      return NextResponse.json({ error: "The event must be between 5 minutes and 24 hours." }, { status: 400 });
     }
   }
   if ((body?.title !== undefined && !isTextWithinLimit(body.title, 240))
@@ -432,6 +476,9 @@ export async function PATCH(request: Request) {
   if (!localEvent) {
     return NextResponse.json({ error: "That event is no longer available. Refresh the planner." }, { status: 404 });
   }
+  if (localEvent.has_attendees) {
+    return NextResponse.json({ error: "Events with guests are read-only in this private MVP." }, { status: 403 });
+  }
   const managedBlockId = await getManagedBlockId(result.context.user.id, localEvent as unknown as Record<string, unknown>);
   if (managedBlockId) {
     const { data: activeSession, error: activeSessionError } = await result.context.admin
@@ -448,7 +495,10 @@ export async function PATCH(request: Request) {
     const moveConflict = await findManagedMoveConflict(result.context.user.id, localEvent as unknown as Record<string, unknown>, body.start as string, body.end as string);
     if (moveConflict) return NextResponse.json({ conflict: true, error: moveConflict }, { status: 409 });
   }
-  if (!isTimelineMove && typeof body?.etag === "string" && localEvent.etag && body.etag !== localEvent.etag) {
+  if (hasEventEditConflict({
+    requestedEtag: typeof body?.etag === "string" ? body.etag : undefined,
+    localEtag: localEvent.etag,
+  })) {
     return NextResponse.json({ conflict: true, error: "This event changed in Google Calendar. Refresh before editing it." }, { status: 409 });
   }
 
@@ -462,7 +512,11 @@ export async function PATCH(request: Request) {
     if (latest.status === "cancelled") {
       return NextResponse.json({ conflict: true, error: "This event changed in Google Calendar. Refresh before editing it." }, { status: 409 });
     }
-    if (!isTimelineMove && localEvent.etag && latest.etag && localEvent.etag !== latest.etag) {
+    if (hasEventEditConflict({
+      requestedEtag: typeof body?.etag === "string" ? body.etag : undefined,
+      localEtag: localEvent.etag,
+      providerEtag: latest.etag,
+    })) {
       return NextResponse.json({ conflict: true, error: "This event changed in Google Calendar. Refresh before editing it." }, { status: 409 });
     }
 
@@ -471,8 +525,9 @@ export async function PATCH(request: Request) {
     if (typeof body?.description === "string") resource.description = body.description;
     if (typeof body?.location === "string") resource.location = body.location;
     if (typeof body?.start === "string" && typeof body?.end === "string") {
-      resource.start = { dateTime: new Date(body.start).toISOString(), timeZone: result.connection.selected_calendar_timezone ?? "UTC" };
-      resource.end = { dateTime: new Date(body.end).toISOString(), timeZone: result.connection.selected_calendar_timezone ?? "UTC" };
+      const eventTimeZone = localEvent.time_zone ?? result.connection.selected_calendar_timezone ?? "UTC";
+      resource.start = { dateTime: new Date(body.start).toISOString(), timeZone: eventTimeZone };
+      resource.end = { dateTime: new Date(body.end).toISOString(), timeZone: eventTimeZone };
     }
 
     const updatedEvent = await patchGoogleEvent({
@@ -480,7 +535,7 @@ export async function PATCH(request: Request) {
       calendarId: localEvent.calendar_id,
       eventId: localEvent.provider_event_id,
       etag: latest.etag ?? localEvent.etag,
-      sendUpdates: localEvent.has_attendees ? "all" : "none",
+      sendUpdates: "none",
       resource,
     });
     await lockManagedBlock(
@@ -518,7 +573,7 @@ export async function DELETE(request: Request) {
   const eventKey = searchParams.get("eventKey") ?? "";
   const scheduleBlockId = searchParams.get("scheduleBlockId") ?? "";
   const requestedCalendarId = searchParams.get("calendarId") ?? "";
-  if ((!eventKey && !scheduleBlockId) || eventKey.length > 512 || scheduleBlockId.length > 512) {
+  if ((!eventKey && !scheduleBlockId) || eventKey.length > 512 || scheduleBlockId.length > 512 || requestedCalendarId.length > 512) {
     return NextResponse.json({ error: "The event could not be identified." }, { status: 400 });
   }
   let localEvent = null;

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedGoogleContext, googleErrorMessage, loadGoogleConnection } from "@/lib/google/server";
 import { getUserSettings } from "@/lib/supabase/settings";
-import { hasWorkingWindow, normalizeSchedulerPreferences, preferencesToRow } from "@/lib/scheduler/preferences";
+import { getSchedulerBlockLimitError, hasWorkingWindow, normalizeSchedulerPreferences, preferencesToRow } from "@/lib/scheduler/preferences";
 import { runSchedulerForUserWithRetry, SchedulerBusyError } from "@/lib/scheduler/service";
-import { rejectCrossOriginMutation, rejectOversizedBody } from "@/lib/security/http";
+import { readJsonBody, rejectCrossOriginMutation } from "@/lib/security/http";
 
 async function getContext() {
   const context = await getAuthenticatedGoogleContext();
@@ -40,17 +40,23 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const originError = rejectCrossOriginMutation(request) ?? rejectOversizedBody(request);
+  const originError = rejectCrossOriginMutation(request);
   if (originError) {
     return originError;
   }
+  const parsedBody = await readJsonBody<Record<string, unknown>>(request);
+  if (parsedBody.errorResponse) return parsedBody.errorResponse;
 
   const context = await getContext();
   if (!context) {
     return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
   }
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const body = parsedBody.data;
+  const blockLimitError = getSchedulerBlockLimitError(body);
+  if (blockLimitError) {
+    return NextResponse.json({ error: blockLimitError }, { status: 400 });
+  }
   const connection = await loadGoogleConnection(context.admin, context.user.id);
   const daySettings = getUserSettings(context.user) ?? undefined;
   const preferences = normalizeSchedulerPreferences(

@@ -9,6 +9,7 @@ import type { ScheduleBlockSnapshot } from "@/lib/scheduler/types";
 import type { UserSettings } from "@/lib/supabase/settings";
 import type { Task } from "@/lib/tasks";
 import type { Space } from "@/lib/spaces";
+import { focusFirstElement, trapTabKey } from "@/lib/accessibility/focus";
 
 type CalendarConnection = {
   status: string;
@@ -360,6 +361,48 @@ export function GoogleCalendarPanel({
   const pendingLocalEvents = useRef(new Map<string, LiveEvent>());
   const pendingLocalEventTimers = useRef(new Map<string, number>());
   const pendingDeletedEvents = useRef(new Map<string, PendingDeletedEvent>());
+  const modalDialogRef = useRef<HTMLElement | null>(null);
+  const modalReturnFocusRef = useRef<HTMLElement | null>(null);
+  const isEventDialogOpen = isCreating || Boolean(editingEvent);
+
+  useEffect(() => {
+    if (!isCalendarPickerOpen && !isEventDialogOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const frameId = window.requestAnimationFrame(() => {
+      const dialog = modalDialogRef.current;
+      if (dialog && !dialog.contains(document.activeElement)) {
+        focusFirstElement(dialog);
+      }
+    });
+
+    function handleModalKeyDown(event: KeyboardEvent) {
+      const dialog = modalDialogRef.current;
+      if (event.key === "Tab" && dialog) {
+        trapTabKey(event, dialog);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setIsCalendarPickerOpen(false);
+        setIsCreating(false);
+        setEditingEvent(null);
+      }
+    }
+
+    document.addEventListener("keydown", handleModalKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleModalKeyDown);
+      const returnFocus = modalReturnFocusRef.current;
+      modalReturnFocusRef.current = null;
+      window.requestAnimationFrame(() => returnFocus?.focus());
+    };
+  }, [isCalendarPickerOpen, isEventDialogOpen]);
 
   useEffect(() => {
     const updateNow = () => setNowTimestamp(Date.now());
@@ -400,13 +443,18 @@ export function GoogleCalendarPanel({
     events.map((event) => event.scheduleBlockId).filter((blockId): blockId is string => Boolean(blockId)),
   );
   const calendarEvents = dedupePlannerEvents(
-    events.map((event) => {
-      const task = event.isTaskBlock && event.taskId ? taskById.get(event.taskId) : null;
-      const space = task?.spaceId ? spaces.find((candidate) => candidate.id === task.spaceId) : event.spaceId ? spaces.find((candidate) => candidate.id === event.spaceId) : null;
-      const subSpace = task?.subSpaceId ? space?.subSpaces.find((candidate) => candidate.id === task.subSpaceId) : event.subSpaceName ? { name: event.subSpaceName } : null;
-      const decorated = task ? { ...event, title: task.title, spaceId: task.spaceId, spaceName: space?.name ?? event.spaceName, subSpaceName: subSpace?.name ?? null } : event;
-      return decorated.scheduleBlockId === activeBlockId ? { ...decorated, isActiveTimerBlock: true } : decorated;
-    }),
+    events
+      // Task deletion is optimistic in the task workspace. Hide the provider
+      // event immediately instead of waiting for scheduler/Google reconciliation
+      // to remove the stale calendar row.
+      .filter((event) => !event.isTaskBlock || Boolean(event.taskId && taskById.has(event.taskId)))
+      .map((event) => {
+        const task = event.isTaskBlock && event.taskId ? taskById.get(event.taskId) : null;
+        const space = task?.spaceId ? spaces.find((candidate) => candidate.id === task.spaceId) : event.spaceId ? spaces.find((candidate) => candidate.id === event.spaceId) : null;
+        const subSpace = task?.subSpaceId ? space?.subSpaces.find((candidate) => candidate.id === task.subSpaceId) : event.subSpaceName ? { name: event.subSpaceName } : null;
+        const decorated = task ? { ...event, title: task.title, spaceId: task.spaceId, spaceName: space?.name ?? event.spaceName, subSpaceName: subSpace?.name ?? null } : event;
+        return decorated.scheduleBlockId === activeBlockId ? { ...decorated, isActiveTimerBlock: true } : decorated;
+      }),
     preferredScheduleBlockIds,
   );
   const calendarScheduleBlockIds = new Set(
@@ -471,6 +519,7 @@ export function GoogleCalendarPanel({
   const isCrossSpaceBusyEvent = (event: LiveEvent) => effectiveSpaceFilter !== "all"
     && !event.isTaskBlock
     && event.spaceId !== effectiveSpaceFilter;
+  const isReadOnlyEvent = (event: LiveEvent) => event.hasAttendees || isCrossSpaceBusyEvent(event);
   const visiblePlannerEvents = effectiveSpaceFilter === "all"
     ? plannerEvents
     : plannerEvents.filter((event) => event.spaceId === effectiveSpaceFilter || isCrossSpaceBusyEvent(event));
@@ -771,6 +820,7 @@ export function GoogleCalendarPanel({
       throw new Error(body?.error ?? "Google calendars could not be loaded.");
     }
     setCalendarOptions(body?.calendars ?? []);
+    modalReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setIsCalendarPickerOpen(true);
   }
 
@@ -822,7 +872,17 @@ export function GoogleCalendarPanel({
         }
       }
 
-      const eventsResponse = await fetch(getAppPath("/api/google/calendar/events"), { cache: "no-store" });
+      const eventsRange = new URLSearchParams();
+      const eventsTimeZone = nextConnection.timeZone ?? timeZone;
+      const eventsStartDate = plannerDates[0] ?? date;
+      const eventsEndDate = addCalendarDays(eventsStartDate, PLANNER_DAYS);
+      const eventsStart = getTimestampForLocalDateTime(eventsStartDate, dayStartMinutes, eventsTimeZone);
+      const eventsEnd = getTimestampForLocalDateTime(eventsEndDate, dayStartMinutes, eventsTimeZone);
+      eventsRange.set("start", new Date(eventsStart).toISOString());
+      eventsRange.set("end", new Date(eventsEnd).toISOString());
+      eventsRange.set("startDate", eventsStartDate);
+      eventsRange.set("endDate", eventsEndDate);
+      const eventsResponse = await fetch(`${getAppPath("/api/google/calendar/events")}?${eventsRange.toString()}`, { cache: "no-store" });
       const eventsBody = (await eventsResponse.json().catch(() => null)) as { events?: LiveEvent[]; connection?: CalendarConnection; spaces?: ReadonlyArray<Space>; error?: string } | null;
       if (!eventsResponse.ok) {
         throw new Error(eventsBody?.error ?? "Calendar events could not be loaded.");
@@ -889,6 +949,7 @@ export function GoogleCalendarPanel({
   }, [editingEvent, eventGesture, isConnected, isCreating, isSaving]);
 
   function beginCreate() {
+    modalReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setError("");
     setIsCreating(true);
     setEditingEvent(null);
@@ -900,6 +961,7 @@ export function GoogleCalendarPanel({
       setError("Stop the active timer before moving or resizing this block.");
       return;
     }
+    modalReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setError("");
     setIsCreating(false);
     setEditingEvent(event);
@@ -921,15 +983,19 @@ export function GoogleCalendarPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ calendarId }),
       });
-      const body = (await response.json().catch(() => null)) as { error?: string; spaces?: ReadonlyArray<Space> } | null;
+      const body = (await response.json().catch(() => null)) as { error?: string; spaces?: ReadonlyArray<Space>; syncError?: string | null; schedulerError?: string | null } | null;
       if (!response.ok) {
         throw new Error(body?.error ?? "That calendar could not be selected.");
       }
       if (body?.spaces) {
         onSpacesChange?.(body.spaces);
       }
+      const followUpWarning = body?.syncError ?? body?.schedulerError;
       setIsCalendarPickerOpen(false);
       await loadConnectionAndEvents(false);
+      if (followUpWarning) {
+        setError(`Calendar selected. Background setup will retry: ${followUpWarning}`);
+      }
       window.dispatchEvent(new Event("heavyuser:schedule-refresh"));
     } catch (selectError) {
       setError(selectError instanceof Error ? selectError.message : "That calendar could not be selected.");
@@ -940,6 +1006,10 @@ export function GoogleCalendarPanel({
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (editingEvent && isReadOnlyEvent(editingEvent)) {
+      setError("This event is read-only in HeavyUser. Open it in Google Calendar to make changes.");
+      return;
+    }
     if (!draft.title.trim() || !draft.start || !draft.end) {
       setError("Enter a title, start time, and end time.");
       return;
@@ -1004,6 +1074,10 @@ export function GoogleCalendarPanel({
   }
 
   async function handleDelete() {
+    if (editingEvent && isReadOnlyEvent(editingEvent)) {
+      setError("This event is read-only in HeavyUser. Open it in Google Calendar to make changes.");
+      return;
+    }
     if (!editingEvent || !window.confirm(`${editingEvent.isTaskBlock ? "Reschedule" : "Delete"} “${editingEvent.title}” ${editingEvent.isTaskBlock ? "from this time?" : "from Google Calendar?"}`)) {
       return;
     }
@@ -1069,6 +1143,9 @@ export function GoogleCalendarPanel({
   }
 
   function startEventGesture(event: ReactPointerEvent<HTMLElement>, eventItem: LiveEvent, mode: EventGestureMode) {
+    if (isReadOnlyEvent(eventItem)) {
+      return;
+    }
     if (eventItem.isActiveTimerBlock) {
       event.preventDefault();
       setError("Stop the active timer before moving or resizing this block.");
@@ -1110,6 +1187,10 @@ export function GoogleCalendarPanel({
   }
 
   async function performDraggedEventSave(eventItem: LiveEvent, start: string, end: string, mode: EventGestureMode) {
+    if (isReadOnlyEvent(eventItem)) {
+      setError("This event is read-only in HeavyUser. Open it in Google Calendar to make changes.");
+      return;
+    }
     setIsSaving(true);
     setError("");
     try {
@@ -1417,7 +1498,7 @@ export function GoogleCalendarPanel({
                         );
                       })}
                     </div>
-                    <div className="hu-calendar-stage" role="list" aria-label={`Planner for ${day.date}`} style={{ "--hu-visible-hours": timelineHours, "--hu-hour-height": `${timelineHourHeight}px` } as CSSProperties}>
+                    <div className="hu-calendar-stage" role="group" aria-label={`Planner for ${day.date}`} style={{ "--hu-visible-hours": timelineHours, "--hu-hour-height": `${timelineHourHeight}px` } as CSSProperties}>
                       <span className={`hu-timeline-marker hu-timeline-marker-midnight ${midnightPosition === 0 ? "is-at-start" : ""}`} style={{ top: `${midnightPosition}%` }}>
                         <span>12 AM</span>
                       </span>
@@ -1444,23 +1525,23 @@ export function GoogleCalendarPanel({
                         const eventHidesTitle = eventHeight < 24;
                         const eventIsTiny = eventHeight < 18;
                         const eventTimeLabel = formatEventTime(renderedEvent, timeZone);
+                        const eventStatusLabel = event.isActiveTimerBlock ? "Working now" : event.isTaskBlock ? "Planned" : null;
                         const crossSpaceBusy = isCrossSpaceBusyEvent(event);
                         return (
                           <button
-                            aria-label={`${event.title}. ${eventTimeLabel}`}
-                            className={`hu-event hu-event-button ${event.hasAttendees ? "is-guest-event" : ""} ${event.isTaskBlock ? "is-task-block" : ""} ${event.isPlannerSynthetic ? "is-planner-synthetic" : ""} ${crossSpaceBusy ? "is-cross-space-busy" : ""} ${eventIsCompact ? "is-compact" : ""} ${eventIsTiny ? "is-tiny" : ""} ${eventGesture && getLiveEventKey(eventGesture.event) === eventKey ? "is-gesture-active" : ""}`}
+                            aria-label={`${event.title}. ${eventStatusLabel ? `${eventStatusLabel}. ` : ""}${eventTimeLabel}`}
+                            className={`hu-event hu-event-button ${event.hasAttendees ? "is-guest-event" : ""} ${event.isTaskBlock ? "is-task-block" : ""} ${event.isActiveTimerBlock ? "is-active-timer" : ""} ${event.isPlannerSynthetic ? "is-planner-synthetic" : ""} ${crossSpaceBusy ? "is-cross-space-busy" : ""} ${eventIsCompact ? "is-compact" : ""} ${eventIsTiny ? "is-tiny" : ""} ${eventGesture && getLiveEventKey(eventGesture.event) === eventKey ? "is-gesture-active" : ""}`}
                             key={eventKey}
-                            role="listitem"
                             style={{
                               top: `${(range.start / (timelineHours * 60)) * 100}%`,
                               height: `${((range.end - range.start) / (timelineHours * 60)) * 100}%`,
                             }}
-                            title={`${event.title} · ${eventTimeLabel}`}
+                            title={`${event.title} · ${eventStatusLabel ? `${eventStatusLabel} · ` : ""}${eventTimeLabel}`}
                             type="button"
-                            onPointerDown={event.isPlannerSynthetic ? undefined : (pointerEvent) => startEventGesture(pointerEvent, event, "move")}
+                            onPointerDown={event.isPlannerSynthetic || isReadOnlyEvent(event) ? undefined : (pointerEvent) => startEventGesture(pointerEvent, event, "move")}
                             onClick={event.isPlannerSynthetic ? undefined : () => handleEventClick(event)}
                           >
-                            {!event.isPlannerSynthetic ? (
+                            {!event.isPlannerSynthetic && !isReadOnlyEvent(event) ? (
                               <span
                                 aria-hidden="true"
                                 className="hu-event-resize-handle hu-event-resize-handle-start"
@@ -1479,8 +1560,14 @@ export function GoogleCalendarPanel({
                                 </span>
                               ) : null}
                             </span>
-                            {!eventHidesMeta ? <span className="hu-event-meta">{eventTimeLabel}</span> : null}
-                            {!event.isPlannerSynthetic ? (
+                            {!eventHidesMeta ? (
+                              <span className="hu-event-meta">
+                                {eventStatusLabel ? <span className={`hu-event-status ${event.isActiveTimerBlock ? "is-active" : ""}`}>{eventStatusLabel}</span> : null}
+                                {eventStatusLabel ? " · " : null}
+                                {eventTimeLabel}
+                              </span>
+                            ) : null}
+                            {!event.isPlannerSynthetic && !isReadOnlyEvent(event) ? (
                               <span
                                 aria-hidden="true"
                                 className="hu-event-resize-handle hu-event-resize-handle-end"
@@ -1504,7 +1591,7 @@ export function GoogleCalendarPanel({
 
       {isCalendarPickerOpen ? (
         <div className="hu-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsCalendarPickerOpen(false); }}>
-          <div aria-labelledby="google-calendar-picker-title" className="hu-calendar-picker" role="dialog" aria-modal="true">
+          <div aria-labelledby="google-calendar-picker-title" className="hu-calendar-picker" ref={(node) => { modalDialogRef.current = node; }} role="dialog" aria-modal="true" tabIndex={-1}>
             <button aria-label="Close calendar picker" className="hu-task-dialog-close hu-icon-button" type="button" onClick={() => setIsCalendarPickerOpen(false)}>
               <X aria-hidden="true" />
             </button>
@@ -1526,7 +1613,7 @@ export function GoogleCalendarPanel({
 
       {isCreating || editingEvent ? (
         <div className="hu-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setIsCreating(false); setEditingEvent(null); } }}>
-          <form aria-labelledby="google-event-dialog-title" className="hu-calendar-event-dialog" role="dialog" aria-modal="true" onSubmit={handleSave}>
+          <form aria-labelledby="google-event-dialog-title" className="hu-calendar-event-dialog" ref={(node) => { modalDialogRef.current = node; }} role="dialog" aria-modal="true" tabIndex={-1} onSubmit={handleSave}>
             <button aria-label="Close event editor" className="hu-task-dialog-close hu-icon-button" type="button" onClick={() => { setIsCreating(false); setEditingEvent(null); }}>
               <X aria-hidden="true" />
             </button>
@@ -1535,20 +1622,21 @@ export function GoogleCalendarPanel({
             {isCreating ? <div className="hu-calendar-readonly-note">This event will be saved to {spaces.find((space) => space.id === effectiveSpaceFilter)?.name ?? connection?.calendarName ?? "your selected calendar"}.</div> : null}
             {editingEvent?.isPlannerSynthetic ? <div className="hu-calendar-readonly-note">This scheduled block is still syncing. You can reschedule it now, but editing details will be available after it finishes syncing.</div> : null}
             {!editingEvent?.isPlannerSynthetic && editingEvent?.isTaskBlock ? <div className="hu-calendar-readonly-note">Moving or editing this task block locks it in place. Deleting it will reschedule the work.</div> : null}
-            {editingEvent?.hasAttendees ? <div className="hu-calendar-readonly-note">This meeting has guests. Google may notify them when you save a change.</div> : null}
+            {editingEvent?.hasAttendees ? <div className="hu-calendar-readonly-note">This meeting has guests, so it is read-only in HeavyUser. Open it in Google Calendar to make changes.</div> : null}
+            {editingEvent && isCrossSpaceBusyEvent(editingEvent) ? <div className="hu-calendar-readonly-note">This event belongs to another Space and is shown here only to protect the busy time.</div> : null}
             {editingEvent?.allDay ? <div className="hu-calendar-readonly-note">All-day event editing will be available in a later release.</div> : null}
-            <label>Title<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic)} required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} /></label>
+            <label>Title<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic || (editingEvent && isReadOnlyEvent(editingEvent)))} required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} /></label>
             <div className="hu-calendar-event-grid">
-              <label>Start<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic)} required type="datetime-local" value={draft.start} onChange={(event) => setDraft((current) => ({ ...current, start: event.target.value }))} /></label>
-              <label>End<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic)} required type="datetime-local" value={draft.end} onChange={(event) => setDraft((current) => ({ ...current, end: event.target.value }))} /></label>
+              <label>Start<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic || (editingEvent && isReadOnlyEvent(editingEvent)))} required type="datetime-local" value={draft.start} onChange={(event) => setDraft((current) => ({ ...current, start: event.target.value }))} /></label>
+              <label>End<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic || (editingEvent && isReadOnlyEvent(editingEvent)))} required type="datetime-local" value={draft.end} onChange={(event) => setDraft((current) => ({ ...current, end: event.target.value }))} /></label>
             </div>
-            <label>Duration (minutes)<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic)} min="5" max="1440" step="5" type="number" value={getDraftDurationMinutes(draft.start, draft.end) ?? ""} onChange={(event) => {
+            <label>Duration (minutes)<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic || (editingEvent && isReadOnlyEvent(editingEvent)))} min="5" max="1440" step="5" type="number" value={getDraftDurationMinutes(draft.start, draft.end) ?? ""} onChange={(event) => {
               const minutes = Number(event.target.value);
               if (Number.isFinite(minutes) && minutes > 0) {
                 setDraft((current) => ({ ...current, end: addMinutesToDateTimeInput(current.start, minutes) }));
               }
             }} /></label>
-            <label>Location<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic)} value={draft.location} onChange={(event) => setDraft((current) => ({ ...current, location: event.target.value }))} /></label>
+            <label>Location<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic || (editingEvent && isReadOnlyEvent(editingEvent)))} value={draft.location} onChange={(event) => setDraft((current) => ({ ...current, location: event.target.value }))} /></label>
             {editingEvent?.meetingUrl ? (
               <a className="hu-calendar-meeting-link" href={editingEvent.meetingUrl} rel="noreferrer" target="_blank">
                 <Video aria-hidden="true" size={14} />
@@ -1556,11 +1644,11 @@ export function GoogleCalendarPanel({
                 <ExternalLink aria-hidden="true" size={12} />
               </a>
             ) : null}
-            <label>Notes<textarea disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic)} rows={3} value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} /></label>
+            <label>Notes<textarea disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic || (editingEvent && isReadOnlyEvent(editingEvent)))} rows={3} value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} /></label>
             <div className="hu-calendar-dialog-actions">
               {editingEvent?.htmlLink ? <a className="hu-calendar-open-link" href={editingEvent.htmlLink} rel="noreferrer" target="_blank"><ExternalLink aria-hidden="true" size={13} />Open in Google</a> : <span />}
               {!editingEvent?.hasAttendees && !editingEvent?.allDay && editingEvent ? <button className="hu-calendar-delete-button" disabled={isSaving} type="button" onClick={() => void handleDelete()}><Trash2 aria-hidden="true" size={13} />{editingEvent.isTaskBlock ? "Reschedule" : "Delete"}</button> : null}
-              {editingEvent?.allDay || editingEvent?.isPlannerSynthetic ? <button className="hu-calendar-add-button" type="button" onClick={() => { setIsCreating(false); setEditingEvent(null); }}>Close</button> : <button className="hu-calendar-add-button" disabled={isSaving} type="submit"><Pencil aria-hidden="true" size={13} />{isSaving ? "Saving…" : "Save event"}</button>}
+              {editingEvent?.allDay || editingEvent?.isPlannerSynthetic || (editingEvent && isReadOnlyEvent(editingEvent)) ? <button className="hu-calendar-add-button" type="button" onClick={() => { setIsCreating(false); setEditingEvent(null); }}>Close</button> : <button className="hu-calendar-add-button" disabled={isSaving} type="submit"><Pencil aria-hidden="true" size={13} />{isSaving ? "Saving…" : "Save event"}</button>}
             </div>
           </form>
         </div>

@@ -8,10 +8,15 @@ import { stopTimerForCalendarDisconnect } from "@/lib/timer/server";
 
 function redirectWithError(request: Request, reason: string) {
   const origin = getAppRedirectOrigin(request);
+  let response: NextResponse;
   if (!origin) {
-    return NextResponse.json({ error: "The application origin is not configured." }, { status: 503 });
+    response = NextResponse.json({ error: "The application origin is not configured." }, { status: 503 });
+  } else {
+    response = NextResponse.redirect(new URL(`${getAppPath("/")}?google_calendar=error&reason=${encodeURIComponent(reason)}`, origin));
   }
-  return NextResponse.redirect(new URL(`${getAppPath("/")}?google_calendar=error&reason=${encodeURIComponent(reason)}`, origin));
+  response.cookies.delete("heavyuser_google_oauth_state");
+  response.cookies.delete("heavyuser_google_oauth_verifier");
+  return response;
 }
 
 export async function GET(request: Request) {
@@ -51,29 +56,28 @@ export async function GET(request: Request) {
       clientSecret: config.clientSecret,
       redirectUri: getGoogleRedirectUri(request),
     });
-    const existing = await context.admin
-      .from("google_calendar_connections")
-      .select("refresh_token_encrypted")
-      .eq("user_id", context.user.id)
-      .maybeSingle();
-
-    if (existing.error) {
-      throw existing.error;
-    }
-
-    const refreshToken = token.refresh_token
-      ? encryptSecret(token.refresh_token, config.tokenEncryptionKey)
-      : existing.data?.refresh_token_encrypted;
-
-    if (!refreshToken) {
+    // A missing refresh token must never fall back to the token from a prior
+    // Google account. That could pair a new access token with old long-lived
+    // credentials and reconnect the wrong calendar after expiry.
+    if (!token.refresh_token) {
       return redirectWithError(request, "missing_refresh_token");
     }
+    const refreshToken = encryptSecret(token.refresh_token, config.tokenEncryptionKey);
 
     // A reconnect can replace the account without going through the explicit
     // disconnect button. Stop any live timer while the old token is still the
     // connection used by the timer write, so it cannot later be stopped using
     // the new account's token.
     await stopTimerForCalendarDisconnect(context.user.id);
+
+    const { data: activeSpaces, error: activeSpacesError } = await context.admin
+      .from("spaces")
+      .select("id")
+      .eq("user_id", context.user.id)
+      .eq("status", "active");
+    if (activeSpacesError) {
+      throw activeSpacesError;
+    }
 
     const { error: spacesError } = await context.admin.from("spaces").update({
       status: "disconnected",
@@ -100,6 +104,14 @@ export async function GET(request: Request) {
     }, { onConflict: "user_id" });
 
     if (error) {
+      const activeSpaceIds = (activeSpaces ?? []).map((space) => space.id);
+      if (activeSpaceIds.length > 0) {
+        await context.admin.from("spaces").update({
+          status: "active",
+          archived_at: null,
+          updated_at: new Date().toISOString(),
+        }).eq("user_id", context.user.id).in("id", activeSpaceIds);
+      }
       throw error;
     }
 

@@ -6,11 +6,13 @@ type SettingsClient = SupabaseClient<Database>;
 export type UserSettings = {
   nightOwlMode: boolean;
   dayStartTime: string;
+  customTaskOrder: boolean;
 };
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   nightOwlMode: false,
   dayStartTime: "04:00",
+  customTaskOrder: false,
 };
 
 export const LEGACY_SETTINGS_STORAGE_KEY = "heavyuser:settings:v2";
@@ -30,6 +32,7 @@ export function normalizeUserSettings(value: unknown): UserSettings {
     dayStartTime: isTimeValue(candidate.dayStartTime)
       ? candidate.dayStartTime
       : DEFAULT_USER_SETTINGS.dayStartTime,
+    customTaskOrder: candidate.customTaskOrder === true,
   };
 }
 

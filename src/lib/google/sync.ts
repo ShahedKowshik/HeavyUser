@@ -16,6 +16,7 @@ import {
 import { queueSchedulerJob } from "@/lib/scheduler/queue";
 import { hashSecret } from "@/lib/security/http";
 import { loadSpaces } from "@/lib/spaces/server";
+import { getStaleCalendarEventKeys } from "@/lib/google/event-utils";
 
 const EVENT_KEY_DELETE_BATCH_SIZE = 100;
 
@@ -234,7 +235,7 @@ async function applyEvents(client: GoogleDbClient, userId: string, events: Googl
   }
 
   if (activeEvents.length === 0) {
-    return;
+    return new Set<string>();
   }
 
   const { error } = await client.from("google_calendar_events").upsert(
@@ -267,6 +268,40 @@ async function applyEvents(client: GoogleDbClient, userId: string, events: Googl
       .in("provider_event_id", activeProviderEventIds);
     if (providerTombstoneCleanupError) {
       throw new Error(`Google Calendar provider deletion record cleanup failed: ${providerTombstoneCleanupError.message}`);
+    }
+  }
+  return new Set(activeEventKeys);
+}
+
+async function removeEventsMissingFromFullSnapshot(
+  client: GoogleDbClient,
+  userId: string,
+  scope: EventScope,
+  retainedEventKeys: ReadonlySet<string>,
+) {
+  const { data, error } = await client
+    .from("google_calendar_events")
+    .select("event_key")
+    .eq("user_id", userId)
+    .eq("calendar_id", scope.calendarId);
+  if (error) {
+    throw new Error(`Google Calendar cache could not be checked: ${error.message}`);
+  }
+
+  const staleKeys = getStaleCalendarEventKeys(
+    (data ?? []).map((row) => row.event_key),
+    retainedEventKeys,
+  );
+  for (let index = 0; index < staleKeys.length; index += EVENT_KEY_DELETE_BATCH_SIZE) {
+    const batch = staleKeys.slice(index, index + EVENT_KEY_DELETE_BATCH_SIZE);
+    const { error: deleteError } = await client
+      .from("google_calendar_events")
+      .delete()
+      .eq("user_id", userId)
+      .eq("calendar_id", scope.calendarId)
+      .in("event_key", batch);
+    if (deleteError) {
+      throw new Error(`Google Calendar stale event cleanup failed: ${deleteError.message}`);
     }
   }
 }
@@ -351,13 +386,6 @@ export async function syncGoogleCalendar(
   let result: { events: GoogleEvent[]; nextSyncToken: string; accessToken: string };
 
   try {
-    if (fullSync) {
-      const { error } = await client.from("google_calendar_events").delete().eq("user_id", connection.user_id).eq("calendar_id", calendarId);
-      if (error) throw error;
-      const { error: tombstoneError } = await client.from("google_calendar_event_deletions").delete().eq("user_id", connection.user_id).eq("calendar_id", calendarId);
-      if (tombstoneError) throw tombstoneError;
-    }
-
     try {
       result = await performEventSync(client, connection, scope, state?.sync_token ?? null);
     } catch (error) {
@@ -366,14 +394,15 @@ export async function syncGoogleCalendar(
       }
 
       fullSync = true;
-      const { error: cleanupError } = await client.from("google_calendar_events").delete().eq("user_id", connection.user_id).eq("calendar_id", calendarId);
-      if (cleanupError) throw cleanupError;
-      const { error: tombstoneError } = await client.from("google_calendar_event_deletions").delete().eq("user_id", connection.user_id).eq("calendar_id", calendarId);
-      if (tombstoneError) throw tombstoneError;
       result = await performEventSync(client, connection, scope, null);
     }
 
-    await applyEvents(client, connection.user_id, result.events, scope);
+    const retainedEventKeys = await applyEvents(client, connection.user_id, result.events, scope);
+    if (fullSync) {
+      // Fetch and apply the complete provider snapshot before removing stale
+      // cache rows. A Google/network failure can no longer blank the planner.
+      await removeEventsMissingFromFullSnapshot(client, connection.user_id, scope, retainedEventKeys);
+    }
     const { error: syncStateError } = await client.from("google_calendar_sync_states").upsert({
       user_id: connection.user_id,
       calendar_id: calendarId,

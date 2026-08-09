@@ -179,7 +179,7 @@ async function repairCalendarEvent(input: {
   userId: string;
   accessToken: string;
   connection: GoogleConnection;
-  task: TaskRow;
+  task: TaskRow | null;
   session: SessionRow | null;
   block: BlockRow | null;
   spaceTimezone: string;
@@ -195,7 +195,6 @@ async function repairCalendarEvent(input: {
   const providerEventKey = session?.provider_event_key ?? block?.provider_event_key ?? `${providerEventId}::`;
   const start = session?.started_at ?? block?.start_at;
   const end = session?.stopped_at ?? block?.end_at;
-  if (!start || !end) throw new Error("The saved work range is missing.");
   const timezone = spaceTimezone || connection.selected_calendar_timezone || "UTC";
 
   if (repair.operation === "delete") {
@@ -218,7 +217,7 @@ async function repairCalendarEvent(input: {
     try {
       const event = await getGoogleEvent({ accessToken, calendarId, eventId: providerEventId });
       if (event.status !== "cancelled") {
-        await upsertGoogleCalendarEvent(client, userId, event, { calendarId, spaceId: session?.space_id ?? block?.space_id ?? task.space_id });
+        await upsertGoogleCalendarEvent(client, userId, event, { calendarId, spaceId: session?.space_id ?? block?.space_id ?? task?.space_id ?? null });
         if (session?.id) {
           await updateSession(client, userId, session.id, { calendar_sync_state: "synced", repair_needed: false });
         }
@@ -232,6 +231,9 @@ async function repairCalendarEvent(input: {
     }
     return;
   }
+
+  if (!task) throw new Error("The task for this Calendar repair no longer exists.");
+  if (!start || !end) throw new Error("The saved work range is missing.");
 
   const resource = makeManagedEventResource({
     task,
@@ -325,23 +327,31 @@ export async function processTimerCalendarRepairs(input: {
   calendarIds?: ReadonlySet<string>;
 }) {
   const now = input.now ?? Date.now();
-  const { data: repairs, error: repairsError } = await input.client
+  let repairsQuery = input.client
     .from("task_calendar_repairs")
     .select("*")
     .eq("user_id", input.userId)
     .in("status", ["pending", "error"])
     .lte("next_attempt_at", nowIso(now))
-    .lt("attempts", 20)
+    .lt("attempts", 20);
+  if (input.calendarIds) {
+    repairsQuery = repairsQuery.in("calendar_id", [...input.calendarIds]);
+  }
+  const { data: repairs, error: repairsError } = await repairsQuery
     .order("created_at", { ascending: true })
     .limit(50);
   if (repairsError) throw repairsError;
   if (!repairs || repairs.length === 0) {
-    const { data: pendingRows, error: pendingError } = await input.client
+    let pendingQuery = input.client
       .from("task_calendar_repairs")
       .select("id,next_attempt_at")
       .eq("user_id", input.userId)
       .in("status", ["pending", "error"])
       .lt("attempts", 20);
+    if (input.calendarIds) {
+      pendingQuery = pendingQuery.in("calendar_id", [...input.calendarIds]);
+    }
+    const { data: pendingRows, error: pendingError } = await pendingQuery;
     if (pendingError) throw pendingError;
     const nextAttemptAt = (pendingRows ?? []).map((row) => row.next_attempt_at).sort()[0];
     if (pendingRows && pendingRows.length > 0) {
@@ -368,21 +378,20 @@ export async function processTimerCalendarRepairs(input: {
   let repaired = 0;
   let failures = 0;
 
-  for (const repair of (repairs as RepairRow[]).filter((candidate) => !input.calendarIds || input.calendarIds.has(candidate.calendar_id))) {
+  for (const repair of repairs as RepairRow[]) {
     const session = repair.session_id ? sessionsById.get(repair.session_id) ?? null : null;
     const block = repair.block_id ? blocksById.get(repair.block_id) ?? null : session?.block_id ? blocksById.get(session.block_id) ?? null : null;
     const taskId = session?.task_id ?? block?.task_id;
-    const task = taskId ? tasksById.get(taskId) : null;
-    if (!task) {
-      await markRepairFailure(input.client, repair, new Error("The task for this Calendar repair no longer exists."));
-      failures += 1;
-      warnings.push(`A saved Calendar repair could not find its task.`);
-      continue;
-    }
+    const task = taskId ? tasksById.get(taskId) ?? null : null;
 
     try {
       await repairCalendarEvent({
-        repair,
+        // Once a task is deleted there is no valid scheduler block to create
+        // or patch. Finish the queued operation by removing any HeavyUser-owned
+        // provider event while preserving the work session as history.
+        repair: !task && (repair.operation === "create" || repair.operation === "patch")
+          ? { ...repair, operation: "delete" }
+          : repair,
         client: input.client,
         userId: input.userId,
         accessToken: input.accessToken,
@@ -390,23 +399,27 @@ export async function processTimerCalendarRepairs(input: {
         task,
         session,
         block,
-        spaceTimezone: spacesById.get(session?.space_id ?? block?.space_id ?? task.space_id ?? "")?.timeZone ?? "",
+        spaceTimezone: spacesById.get(session?.space_id ?? block?.space_id ?? task?.space_id ?? "")?.timeZone ?? "",
       });
       await markRepairSuccess(input.client, repair);
       repaired += 1;
     } catch (error) {
       await markRepairFailure(input.client, repair, error);
       failures += 1;
-      warnings.push(`Calendar repair for ${task.title}: ${googleErrorMessage(error)}`);
+      warnings.push(`Calendar repair for ${task?.title ?? "a deleted task"}: ${googleErrorMessage(error)}`);
     }
   }
 
-  const { data: pendingRows, error: pendingError } = await input.client
+  let pendingQuery = input.client
     .from("task_calendar_repairs")
     .select("id,next_attempt_at")
     .eq("user_id", input.userId)
     .in("status", ["pending", "error"])
     .lt("attempts", 20);
+  if (input.calendarIds) {
+    pendingQuery = pendingQuery.in("calendar_id", [...input.calendarIds]);
+  }
+  const { data: pendingRows, error: pendingError } = await pendingQuery;
   if (pendingError) throw pendingError;
 
   const nextAttemptAt = (pendingRows ?? [])

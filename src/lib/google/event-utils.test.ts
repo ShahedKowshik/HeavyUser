@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dedupePlannerEvents, getPlannerEventKey, type PlannerEventIdentity } from "@/lib/google/event-utils";
+import { dedupePlannerEvents, getPlannerEventKey, getStaleCalendarEventKeys, hasEventEditConflict, isValidCalendarDate, isValidTimedEventRange, type PlannerEventIdentity } from "@/lib/google/event-utils";
 
 function event(overrides: Partial<PlannerEventIdentity> = {}): PlannerEventIdentity {
   return {
@@ -53,5 +53,42 @@ describe("planner event identity", () => {
     });
 
     expect(dedupePlannerEvents([syntheticEvent, providerEvent], new Set(["block-1"]))).toEqual([providerEvent]);
+  });
+});
+
+describe("calendar edit conflicts", () => {
+  it("requires the editor to send the exact cached ETag", () => {
+    expect(hasEventEditConflict({ requestedEtag: undefined, localEtag: "v2" })).toBe(true);
+    expect(hasEventEditConflict({ requestedEtag: "v1", localEtag: "v2" })).toBe(true);
+    expect(hasEventEditConflict({ requestedEtag: "v2", localEtag: "v2" })).toBe(false);
+  });
+
+  it("catches a Google change after the local cache was read", () => {
+    expect(hasEventEditConflict({ requestedEtag: "v2", localEtag: "v2", providerEtag: "v3" })).toBe(true);
+    expect(hasEventEditConflict({ requestedEtag: "v2", localEtag: "v2", providerEtag: "v2" })).toBe(false);
+  });
+});
+
+describe("full calendar snapshot cleanup", () => {
+  it("removes only cached rows missing from a successfully fetched provider snapshot", () => {
+    expect(getStaleCalendarEventKeys(
+      ["kept", "deleted", "also-kept"],
+      new Set(["kept", "also-kept"]),
+    )).toEqual(["deleted"]);
+  });
+});
+
+describe("calendar request bounds", () => {
+  it("accepts real calendar dates and rejects impossible dates", () => {
+    expect(isValidCalendarDate("2028-02-29")).toBe(true);
+    expect(isValidCalendarDate("2026-02-29")).toBe(false);
+    expect(isValidCalendarDate("2026-13-01")).toBe(false);
+  });
+
+  it("accepts timed events up to 24 hours and rejects longer or reversed ranges", () => {
+    expect(isValidTimedEventRange("2026-08-01T10:00:00Z", "2026-08-02T10:00:00Z")).toBe(true);
+    expect(isValidTimedEventRange("2026-08-01T10:00:00Z", "2026-08-02T10:01:00Z")).toBe(false);
+    expect(isValidTimedEventRange("2026-08-01T10:00:00Z", "2026-08-01T10:04:00Z")).toBe(false);
+    expect(isValidTimedEventRange("2026-08-01T10:00:00Z", "2026-08-01T09:00:00Z")).toBe(false);
   });
 });

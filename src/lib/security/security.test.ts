@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { hashSecret, matchesSecret, rejectCrossOriginMutation, rejectOversizedBody } from "@/lib/security/http";
+import { hashSecret, isUuid, matchesSecret, readJsonBody, rejectCrossOriginMutation, rejectOversizedBody } from "@/lib/security/http";
 import { getSafeSameOriginPath } from "@/lib/security/redirect";
 
 describe("security helpers", () => {
+  it("accepts bounded UUIDs and rejects malformed route identifiers", () => {
+    expect(isUuid("9c85d888-b110-4cfe-9d89-37ef2f01d86a")).toBe(true);
+    expect(isUuid("session-e2e")).toBe(false);
+    expect(isUuid("a".repeat(10_000))).toBe(false);
+  });
+
   it("keeps auth-link destinations on the current origin", () => {
     const requestUrl = "https://web.heavyuser.app/auth/confirm";
 
     expect(getSafeSameOriginPath("/settings", requestUrl, "/")).toBe("/settings");
+    expect(getSafeSameOriginPath("/settings?tab=calendar#google", requestUrl, "/")).toBe("/settings?tab=calendar#google");
     expect(getSafeSameOriginPath("https://attacker.example/steal", requestUrl, "/")).toBe("/");
     expect(getSafeSameOriginPath("/\\\\attacker.example", requestUrl, "/")).toBe("/");
     expect(getSafeSameOriginPath("//attacker.example", requestUrl, "/")).toBe("/");
@@ -31,5 +38,23 @@ describe("security helpers", () => {
 
     expect(crossSite?.status).toBe(403);
     expect(oversized?.status).toBe(413);
+  });
+
+  it("stops an oversized chunked JSON body even without Content-Length", async () => {
+    const oversizedChunk = new TextEncoder().encode(`{"value":"${"x".repeat(70_000)}"}`);
+    const request = new Request("https://web.heavyuser.app/api/timer/start", {
+      method: "POST",
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(oversizedChunk);
+          controller.close();
+        },
+      }),
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+
+    const result = await readJsonBody(request);
+    expect(result.errorResponse?.status).toBe(413);
+    expect(result.data).toBeNull();
   });
 });

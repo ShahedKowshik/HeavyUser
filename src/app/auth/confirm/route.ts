@@ -25,8 +25,10 @@ export async function GET(request: Request) {
     : await client.auth.verifyOtp({ token_hash: tokenHash as string, type: type as EmailOtpType });
   const { error } = result;
   if (error) {
-    const errorCode = error.message.toLowerCase().includes("expired") ? "expired_link" : "invalid_link";
-    return NextResponse.redirect(new URL(`${getAppPath("/login")}?error=${errorCode}`, redirectOrigin));
+    // Supabase intentionally returns the same otp_expired response for an
+    // expired, malformed, or already-used email token. Keep the message
+    // truthful instead of guessing which one happened.
+    return NextResponse.redirect(new URL(`${getAppPath("/login")}?error=invalid_or_expired_link`, redirectOrigin));
   }
 
   return NextResponse.redirect(new URL(next, redirectOrigin));

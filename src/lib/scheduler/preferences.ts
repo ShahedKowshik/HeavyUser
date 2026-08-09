@@ -1,6 +1,7 @@
 import type { CalendarTransparency, CalendarVisibility } from "@/lib/tasks";
 import {
   DEFAULT_SCHEDULER_PREFERENCES,
+  MAX_SCHEDULER_BLOCK_MINUTES,
   type SchedulerPreferences,
   type WorkWindow,
   type WorkWindows,
@@ -8,6 +9,26 @@ import {
 
 const VALID_VISIBILITY: ReadonlyArray<CalendarVisibility> = ["default", "public", "private"];
 const VALID_TRANSPARENCY: ReadonlyArray<CalendarTransparency> = ["default", "opaque", "transparent"];
+
+export function getSchedulerBlockLimitError(value: unknown) {
+  const candidate = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const minValue = candidate.default_min_block_minutes ?? candidate.defaultMinBlockMinutes;
+  const maxValue = candidate.default_max_block_minutes ?? candidate.defaultMaxBlockMinutes;
+  for (const blockValue of [minValue, maxValue]) {
+    if (blockValue !== undefined && (
+      typeof blockValue !== "number"
+      || !Number.isFinite(blockValue)
+      || blockValue < 5
+      || blockValue > MAX_SCHEDULER_BLOCK_MINUTES
+    )) {
+      return `Block limits must be between 5 and ${MAX_SCHEDULER_BLOCK_MINUTES.toLocaleString()} minutes.`;
+    }
+  }
+  if (typeof minValue === "number" && typeof maxValue === "number" && minValue > maxValue) {
+    return "The minimum block must be shorter than the maximum block.";
+  }
+  return null;
+}
 
 function isTime(value: unknown, allowEndOfDay = false): value is string {
   return typeof value === "string" && (allowEndOfDay && value === "24:00" || /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value));
@@ -74,12 +95,15 @@ export function normalizeSchedulerPreferences(
   const minValue = candidate.default_min_block_minutes ?? candidate.defaultMinBlockMinutes;
   const maxCandidate = candidate.default_max_block_minutes ?? candidate.defaultMaxBlockMinutes;
   const min = typeof minValue === "number" && Number.isFinite(minValue) && minValue >= 5
-    ? Math.round(minValue)
+    ? Math.min(MAX_SCHEDULER_BLOCK_MINUTES, Math.round(minValue))
     : DEFAULT_SCHEDULER_PREFERENCES.defaultMinBlockMinutes;
   const maxValue = typeof maxCandidate === "number" && Number.isFinite(maxCandidate)
     ? Math.round(maxCandidate)
     : DEFAULT_SCHEDULER_PREFERENCES.defaultMaxBlockMinutes;
-  const max = Math.max(min, maxValue >= 5 ? maxValue : DEFAULT_SCHEDULER_PREFERENCES.defaultMaxBlockMinutes);
+  const max = Math.min(
+    MAX_SCHEDULER_BLOCK_MINUTES,
+    Math.max(min, maxValue >= 5 ? maxValue : DEFAULT_SCHEDULER_PREFERENCES.defaultMaxBlockMinutes),
+  );
   const dayStartValue = candidate.day_start_time ?? candidate.dayStartTime;
   const hasNightOwlValue = candidate.night_owl_mode !== undefined || candidate.nightOwlMode !== undefined;
   const nightOwlMode = hasNightOwlValue

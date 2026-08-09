@@ -133,6 +133,8 @@ export const DEFAULT_WORK_WINDOWS: WorkWindows = {
   "6": [],
 };
 
+export const MAX_SCHEDULER_BLOCK_MINUTES = 10_080;
+
 export const DEFAULT_SCHEDULER_PREFERENCES: SchedulerPreferences = {
   enabled: true,
   timezone: "UTC",

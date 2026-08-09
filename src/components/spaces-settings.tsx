@@ -29,7 +29,7 @@ export function SpacesSettings() {
       if (!spacesResponse.ok) throw new Error(spacesBody?.error ?? "Spaces could not be loaded.");
       setSpaces(spacesBody?.spaces ?? []);
       setCalendars(calendarsResponse.ok ? calendarsBody?.calendars ?? [] : []);
-      setError("");
+      setError(calendarsResponse.ok ? "" : calendarsBody?.error ?? "Writable Google calendars could not be loaded. Try again.");
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Spaces could not be loaded.");
     } finally {
@@ -47,10 +47,12 @@ export function SpacesSettings() {
     setError("");
     try {
       const response = await fetch(getAppPath("/api/spaces"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ calendarId }) });
-      const body = (await response.json().catch(() => null)) as { spaces?: ReadonlyArray<Space>; error?: string } | null;
+      const body = (await response.json().catch(() => null)) as { spaces?: ReadonlyArray<Space>; error?: string; syncPending?: boolean; followUpError?: string | null } | null;
       if (!response.ok) throw new Error(body?.error ?? "Calendar could not be added.");
       setSpaces(body?.spaces ?? []);
-      setMessage("Calendar added as a Space.");
+      setMessage(body?.syncPending
+        ? `Calendar added as a Space. Background setup will retry${body.followUpError ? `: ${body.followUpError}` : "."}`
+        : "Calendar added as a Space.");
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Calendar could not be added.");
     } finally { setSavingId(""); }
@@ -196,7 +198,12 @@ export function SpacesSettings() {
         </div>
       ) : null}
       {message ? <p className="hu-settings-message is-success" role="status">{message}</p> : null}
-      {error ? <p className="hu-settings-message is-error" role="alert">{error}</p> : null}
+      {error ? (
+        <div className="hu-settings-message is-error" role="alert">
+          <span>{error}</span>
+          <button type="button" onClick={() => void load()}>Try again</button>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -34,7 +34,9 @@ export async function POST(request: Request) {
     try {
       const spaces = await loadSpaces(admin, state.user_id);
       const space = spaces.find((candidate) => candidate.calendarId === state.calendar_id);
-      await syncGoogleCalendar(admin, connection, request, { calendarId: state.calendar_id, spaceId: space?.id ?? null });
+      if (space?.status === "active") {
+        await syncGoogleCalendar(admin, connection, request, { calendarId: state.calendar_id, spaceId: space.id });
+      }
     } catch {
       // Google will retry failed webhooks. The next app-load sync remains a fallback.
     }

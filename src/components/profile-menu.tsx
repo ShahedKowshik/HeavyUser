@@ -1,11 +1,29 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Copy, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
 import { getProfileName, getPublicUserId } from "@/lib/supabase/profile";
 import { getAppPath } from "@/lib/supabase/config";
+
+function handleMenuArrowNavigation(event: ReactKeyboardEvent<HTMLElement>) {
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+    return;
+  }
+  const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("[role='menuitem']"));
+  if (items.length === 0) return;
+  event.preventDefault();
+  const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+  const nextIndex = event.key === "Home"
+    ? 0
+    : event.key === "End"
+      ? items.length - 1
+      : event.key === "ArrowDown"
+        ? (currentIndex + 1 + items.length) % items.length
+        : (currentIndex - 1 + items.length) % items.length;
+  items[nextIndex].focus();
+}
 
 export function ProfileMenu({ onSignedOut }: { onSignedOut?: () => void }) {
   const router = useRouter();
@@ -14,6 +32,8 @@ export function ProfileMenu({ onSignedOut }: { onSignedOut?: () => void }) {
   const [message, setMessage] = useState("");
   const [isUserIdCopied, setIsUserIdCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuContentRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const copyResetTimerRef = useRef<number | null>(null);
 
   useEffect(() => () => {
@@ -38,13 +58,19 @@ export function ProfileMenu({ onSignedOut }: { onSignedOut?: () => void }) {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setIsOpen(false);
+        window.requestAnimationFrame(() => triggerRef.current?.focus());
       }
     }
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      menuContentRef.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus();
+    });
 
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
+      window.cancelAnimationFrame(focusFrame);
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
@@ -116,6 +142,8 @@ export function ProfileMenu({ onSignedOut }: { onSignedOut?: () => void }) {
   return (
     <div ref={menuRef} className="hu-popover-anchor">
       <button
+        ref={triggerRef}
+        aria-controls="heavyuser-profile-menu"
         aria-expanded={isOpen}
         aria-haspopup="menu"
         className="hu-profile-button"
@@ -143,7 +171,14 @@ export function ProfileMenu({ onSignedOut }: { onSignedOut?: () => void }) {
         <ChevronDown aria-hidden="true" size={14} />
       </button>
       {isOpen ? (
-        <div className="hu-popover hu-profile-popover" role="menu" aria-label="Profile menu">
+        <div
+          aria-label="Profile menu"
+          className="hu-popover hu-profile-popover"
+          id="heavyuser-profile-menu"
+          ref={menuContentRef}
+          role="menu"
+          onKeyDown={handleMenuArrowNavigation}
+        >
           <div className="hu-popover-profile" role="presentation">
             <span className="hu-profile-portrait">
               {avatarUrl ? (
@@ -161,6 +196,7 @@ export function ProfileMenu({ onSignedOut }: { onSignedOut?: () => void }) {
                 <button
                   aria-label={isUserIdCopied ? "User ID copied" : "Copy user ID"}
                   className={`hu-profile-copy-button ${isUserIdCopied ? "is-copied" : ""}`}
+                  role="menuitem"
                   title={isUserIdCopied ? "Copied" : "Copy user ID"}
                   type="button"
                   onClick={(event) => {
@@ -179,7 +215,7 @@ export function ProfileMenu({ onSignedOut }: { onSignedOut?: () => void }) {
             <span>Settings</span>
           </button>
           <div className="hu-popover-divider" role="presentation" />
-          <button className="hu-auth-action" type="button" onClick={() => void handleSignOut()}>
+          <button className="hu-auth-action" role="menuitem" type="button" onClick={() => void handleSignOut()}>
             Sign out
           </button>
           {message ? <span className="hu-auth-message" role="alert">{message}</span> : null}

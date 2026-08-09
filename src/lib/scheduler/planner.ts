@@ -175,6 +175,36 @@ function getMinutes(start: string, end: string) {
   return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / MINUTE_MS));
 }
 
+function getFixedMinutes(input: {
+  fixedBlocks: ReadonlyArray<ScheduledBlock>;
+  activeBlockIds: ReadonlySet<string>;
+  hasActualWork: boolean;
+  workedMinutes: number;
+  now: number;
+}) {
+  const { fixedBlocks, activeBlockIds, hasActualWork, workedMinutes, now } = input;
+  if (!hasActualWork) {
+    return fixedBlocks.reduce((total, block) => total + getMinutes(block.start, block.end), 0);
+  }
+
+  const activeBlocks = fixedBlocks.filter((block) => activeBlockIds.has(block.id));
+  const activePlannedMinutes = activeBlocks.reduce((total, block) => total + getMinutes(block.start, block.end), 0);
+  const activeElapsedMinutes = activeBlocks.reduce((total, block) => {
+    const start = new Date(block.start).getTime();
+    const end = Math.min(new Date(block.end).getTime(), now);
+    return total + (end > start ? Math.round((end - start) / MINUTE_MS) : 0);
+  }, 0);
+  const completedWorkedMinutes = Math.max(0, workedMinutes - activeElapsedMinutes);
+  const futureLockedMinutes = fixedBlocks
+    .filter((block) => !activeBlockIds.has(block.id) && new Date(block.end).getTime() > now)
+    .reduce((total, block) => total + getMinutes(block.start, block.end), 0);
+
+  // An active timer block already reserves its full planned duration. Remove
+  // the elapsed part from actual work before adding that block back so the
+  // planner neither double-counts the timer nor schedules a duplicate tail.
+  return completedWorkedMinutes + activePlannedMinutes + futureLockedMinutes;
+}
+
 function getEarliestTimestamp(now: number) {
   // Scanning in the target timezone avoids making incorrect fixed-offset
   // assumptions around daylight-saving changes.
@@ -287,11 +317,7 @@ export function planSchedule(input: {
         const taskBlocks = getTaskBlocks(task.id, input.existingBlocks);
         const fixedBlocks = taskBlocks.filter((block) => block.state === "locked" || activeBlockIds.has(block.id) || (!hasActualWork && new Date(block.start).getTime() < now));
         const workedMinutes = workedMinutesByTask.get(task.id) ?? 0;
-        const fixedMinutes = hasActualWork
-          ? workedMinutes + fixedBlocks
-            .filter((block) => !activeBlockIds.has(block.id) && new Date(block.end).getTime() > now)
-            .reduce((total, block) => total + getMinutes(block.start, block.end), 0)
-          : fixedBlocks.reduce((total, block) => total + getMinutes(block.start, block.end), 0);
+        const fixedMinutes = getFixedMinutes({ fixedBlocks, activeBlockIds, hasActualWork, workedMinutes, now });
         return {
           taskId: task.id,
           state: task.duration === null ? "needs_duration" : "paused",
@@ -319,11 +345,7 @@ export function planSchedule(input: {
         const taskBlocks = getTaskBlocks(task.id, input.existingBlocks);
         const fixedBlocks = taskBlocks.filter((block) => block.state === "locked" || activeBlockIds.has(block.id) || (!hasActualWork && new Date(block.end).getTime() <= now));
         const workedMinutes = workedMinutesByTask.get(task.id) ?? 0;
-        const fixedMinutes = hasActualWork
-          ? workedMinutes + fixedBlocks
-            .filter((block) => !activeBlockIds.has(block.id) && new Date(block.end).getTime() > now)
-            .reduce((total, block) => total + getMinutes(block.start, block.end), 0)
-          : fixedBlocks.reduce((total, block) => total + getMinutes(block.start, block.end), 0);
+        const fixedMinutes = getFixedMinutes({ fixedBlocks, activeBlockIds, hasActualWork, workedMinutes, now });
         const hasFutureFixedBlock = fixedBlocks.some((block) => new Date(block.end).getTime() > now);
         const missingMinutes = task.duration === null ? 0 : Math.max(0, task.duration - fixedMinutes);
         const warning = task.duration !== null && task.autoSchedule && task.status !== "done" && missingMinutes > 0
@@ -354,12 +376,7 @@ export function planSchedule(input: {
     const taskBlocks = getTaskBlocks(task.id, input.existingBlocks);
     const fixedBlocks = taskBlocks.filter((block) => block.state === "locked" || activeBlockIds.has(block.id) || (!hasActualWork && new Date(block.start).getTime() < now));
     const workedMinutes = workedMinutesByTask.get(task.id) ?? 0;
-    const fixedBlockMinutes = hasActualWork
-      ? fixedBlocks
-        .filter((block) => !activeBlockIds.has(block.id) && new Date(block.end).getTime() > now)
-        .reduce((total, block) => total + getMinutes(block.start, block.end), 0)
-      : fixedBlocks.reduce((total, block) => total + getMinutes(block.start, block.end), 0);
-    const fixedMinutes = hasActualWork ? workedMinutes + fixedBlockMinutes : fixedBlockMinutes;
+    const fixedMinutes = getFixedMinutes({ fixedBlocks, activeBlockIds, hasActualWork, workedMinutes, now });
     const hasFutureFixedBlock = fixedBlocks.some((block) => new Date(block.end).getTime() > now);
     const hasLockedConflict = fixedBlocks.some((block) =>
       block.state === "locked" && new Date(block.end).getTime() > now && input.busyIntervals.some((interval) =>
@@ -404,7 +421,15 @@ export function planSchedule(input: {
     }));
     let remainingMinutes = remaining;
     let cursor = getEarliestTimestamp(now);
-    const usedDays = new Set(currentBlocks.map((block) => localParts(new Date(block.start).getTime(), preferences.timezone).date));
+    // A block that has already ended is history, not a reason to push the
+    // remaining work into tomorrow. Keep the one-block-per-day preference for
+    // future work, but let a task continue later on the same day when that
+    // day's earlier block has already passed.
+    const usedDays = new Set(
+      currentBlocks
+        .filter((block) => new Date(block.end).getTime() > now)
+        .map((block) => localParts(new Date(block.start).getTime(), preferences.timezone).date),
+    );
     const isLate = Boolean(task.deadline && isDeadlinePassed(task.deadline, now, preferences));
     const effectiveDeadline = isLate ? null : task.deadline;
     let warning: string | null = isLate ? `Deadline ${task.deadline} has passed; this task is late.` : null;
@@ -437,42 +462,46 @@ export function planSchedule(input: {
       const candidateOrder = balancedCandidates.length > 0 ? balancedCandidates : candidates;
       let range: ReturnType<typeof findRange> = null;
       let selectedDuration = maxCandidate;
-      for (const candidate of candidateOrder) {
-        range = findRange({
-          from: cursor,
-          duration: candidate,
-          startDate: task.startDate,
-          deadline: effectiveDeadline,
-          minimum,
-          preferences,
-          intervals,
-          usedDays,
-          allowUsedDay: false,
-        });
-        if (range) {
-          selectedDuration = candidate;
-          break;
-        }
-      }
-
-      if (!range) {
-        for (const candidate of candidateOrder) {
-          range = findRange({
-            from: cursor,
-            duration: candidate,
-            startDate: task.startDate,
-            deadline: effectiveDeadline,
-            minimum,
-            preferences,
-            intervals,
-            usedDays,
-            allowUsedDay: true,
-          });
-          if (range) {
-            selectedDuration = candidate;
-            break;
+      const smallestCandidate = candidateOrder[candidateOrder.length - 1] ?? maxCandidate;
+      const earliestRange = (allowUsedDay: boolean) => findRange({
+        from: cursor,
+        duration: smallestCandidate,
+        startDate: task.startDate,
+        deadline: effectiveDeadline,
+        minimum,
+        preferences,
+        intervals,
+        usedDays,
+        allowUsedDay,
+      });
+      const earliest = earliestRange(false) ?? earliestRange(true);
+      if (earliest) {
+        const candidateFitsAtEarliestStart = (candidate: number) => {
+          const end = earliest.start + candidate * MINUTE_MS;
+          const endDate = localParts(end - 1, preferences.timezone).date;
+          return (!effectiveDeadline || endDate <= effectiveDeadline)
+            && canUseRange(earliest.start, end, preferences, intervals);
+        };
+        // Candidate durations are descending and fit is monotonic at one
+        // fixed start. Binary search avoids hundreds of full scans when a
+        // user configures a very large maximum block.
+        let low = 0;
+        let high = candidateOrder.length - 1;
+        let firstFittingIndex = high;
+        while (low <= high) {
+          const middle = Math.floor((low + high) / 2);
+          if (candidateFitsAtEarliestStart(candidateOrder[middle])) {
+            firstFittingIndex = middle;
+            high = middle - 1;
+          } else {
+            low = middle + 1;
           }
         }
+        selectedDuration = candidateOrder[firstFittingIndex] ?? smallestCandidate;
+        range = {
+          ...earliest,
+          end: earliest.start + selectedDuration * MINUTE_MS,
+        };
       }
 
       if (!range) {

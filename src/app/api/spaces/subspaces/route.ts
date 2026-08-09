@@ -2,15 +2,17 @@ import { NextResponse } from "next/server";
 import { googleErrorMessage, requireAuthenticatedGoogleContext } from "@/lib/google/server";
 import { loadSpaces } from "@/lib/spaces/server";
 import { queueSchedulerJob } from "@/lib/scheduler/queue";
-import { rejectCrossOriginMutation, rejectOversizedBody } from "@/lib/security/http";
+import { readJsonBody, rejectCrossOriginMutation } from "@/lib/security/http";
 import type { Database } from "@/lib/supabase/database.types";
 
 export async function POST(request: Request) {
-  const originError = rejectCrossOriginMutation(request) ?? rejectOversizedBody(request);
+  const originError = rejectCrossOriginMutation(request);
   if (originError) return originError;
+  const parsedBody = await readJsonBody<{ spaceId?: unknown; name?: unknown }>(request);
+  if (parsedBody.errorResponse) return parsedBody.errorResponse;
   const context = await requireAuthenticatedGoogleContext();
   if (!context) return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
-  const body = (await request.json().catch(() => null)) as { spaceId?: unknown; name?: unknown } | null;
+  const body = parsedBody.data;
   const spaceId = typeof body?.spaceId === "string" ? body.spaceId : "";
   const name = typeof body?.name === "string" ? body.name.trim() : "";
   if (!spaceId || !name || name.length > 120) return NextResponse.json({ error: "Enter a Sub-space name." }, { status: 400 });
@@ -36,11 +38,13 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const originError = rejectCrossOriginMutation(request) ?? rejectOversizedBody(request);
+  const originError = rejectCrossOriginMutation(request);
   if (originError) return originError;
+  const parsedBody = await readJsonBody<{ subSpaceId?: unknown; name?: unknown; status?: unknown }>(request);
+  if (parsedBody.errorResponse) return parsedBody.errorResponse;
   const context = await requireAuthenticatedGoogleContext();
   if (!context) return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
-  const body = (await request.json().catch(() => null)) as { subSpaceId?: unknown; name?: unknown; status?: unknown } | null;
+  const body = parsedBody.data;
   const subSpaceId = typeof body?.subSpaceId === "string" ? body.subSpaceId : "";
   if (!subSpaceId) return NextResponse.json({ error: "The Sub-space could not be identified." }, { status: 400 });
   try {

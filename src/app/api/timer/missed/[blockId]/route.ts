@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { googleErrorMessage, requireAuthenticatedGoogleContext } from "@/lib/google/server";
-import { rejectCrossOriginMutation, rejectOversizedBody } from "@/lib/security/http";
+import { rejectCrossOriginMutation } from "@/lib/security/http";
 import { rescheduleMissedBlock, TimerOperationError } from "@/lib/timer/server";
 
 export async function POST(request: Request, context: { params: Promise<{ blockId: string }> }) {
-  const originError = rejectCrossOriginMutation(request) ?? rejectOversizedBody(request);
+  const originError = rejectCrossOriginMutation(request);
   if (originError) return originError;
   const auth = await requireAuthenticatedGoogleContext();
   if (!auth) return NextResponse.json({ error: "You must be signed in." }, { status: 401 });

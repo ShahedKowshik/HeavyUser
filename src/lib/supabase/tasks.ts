@@ -6,6 +6,23 @@ import type { CalendarTransparency, CalendarVisibility, Task } from "@/lib/tasks
 
 type TasksClient = SupabaseClient<Database>;
 
+/**
+ * Browser task saves are whole-list snapshots. Serializing them prevents an
+ * older, slower request from finishing after a newer request and restoring
+ * stale data. A rejected save does not poison the queue.
+ */
+export function createTaskWriteQueue() {
+  let tail: Promise<void> = Promise.resolve();
+
+  return {
+    enqueue<T>(operation: () => Promise<T>) {
+      const result = tail.then(operation, operation);
+      tail = result.then(() => undefined, () => undefined);
+      return result;
+    },
+  };
+}
+
 function mapTask(row: Database["public"]["Tables"]["tasks"]["Row"]): Task {
   return {
     id: row.id,
@@ -33,7 +50,7 @@ function isCalendarTransparency(value: string | null): value is CalendarTranspar
   return value === "default" || value === "opaque" || value === "transparent";
 }
 
-export async function loadRemoteTasks(client: TasksClient, user: User) {
+export async function loadRemoteTasks(client: TasksClient, user: Pick<User, "id">) {
   const { data, error } = await client
     .from("tasks")
     .select("id,user_id,title,space_id,sub_space_id,duration,start_date,deadline,priority,status,auto_schedule,min_block_minutes,max_block_minutes,calendar_visibility,calendar_transparency,position,created_at,updated_at")
@@ -50,7 +67,7 @@ export async function loadRemoteTasks(client: TasksClient, user: User) {
 
 export async function persistRemoteTasks(
   client: TasksClient,
-  user: User,
+  user: Pick<User, "id">,
   tasks: ReadonlyArray<Task>,
   deletedTaskIds: ReadonlyArray<string> = [],
 ) {

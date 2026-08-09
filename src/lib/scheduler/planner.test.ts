@@ -501,7 +501,35 @@ describe("planSchedule", () => {
     expect(result.tasks[0].missingMinutes).toBe(0);
   });
 
-  it("counts a stopped work session once instead of counting its calendar block again", () => {
+  it("does not schedule a duplicate tail when the active block covers the estimate", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 60 })],
+      existingBlocks: [{
+        id: "active-1",
+        taskId: "task-1",
+        calendarId: "primary",
+        start: "2026-08-03T09:00:00.000Z",
+        end: "2026-08-03T10:00:00.000Z",
+        plannedStart: "2026-08-03T09:00:00.000Z",
+        plannedEnd: "2026-08-03T10:00:00.000Z",
+        state: "locked",
+        providerEventId: "active-event",
+        etag: "etag-1",
+        syncVersion: 1,
+      }],
+      busyIntervals: [],
+      activeBlockIds: new Set(["active-1"]),
+      workedMinutesByTask: new Map([["task-1", 1]]),
+      now: Date.parse("2026-08-03T09:01:00Z"),
+      preferences,
+    });
+
+    expect(result.tasks[0].blocks).toHaveLength(1);
+    expect(result.tasks[0].scheduledMinutes).toBe(60);
+    expect(result.tasks[0].missingMinutes).toBe(0);
+  });
+
+  it("uses remaining time later on the same day after a stopped work session", () => {
     const result = planSchedule({
       tasks: [task({ duration: 60 })],
       existingBlocks: [{
@@ -526,7 +554,7 @@ describe("planSchedule", () => {
     expect(result.tasks[0].fixedMinutes).toBe(30);
     expect(result.tasks[0].scheduledMinutes).toBe(60);
     expect(result.tasks[0].blocks).toHaveLength(2);
-    expect(result.tasks[0].blocks[1].start).toBe("2026-08-04T09:00:00.000Z");
+    expect(result.tasks[0].blocks[1].start).toBe("2026-08-03T09:00:00.000Z");
   });
 
   it("uses the local timezone across a daylight-saving change", () => {
@@ -540,5 +568,80 @@ describe("planSchedule", () => {
     });
 
     expect(result.tasks[0].blocks[0].start).toBe("2026-03-09T13:00:00.000Z");
+  });
+
+  it("keeps real elapsed minutes across the spring daylight-saving gap", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 120, deadline: "2026-03-08", maxBlockMinutes: 120 })],
+      existingBlocks: [],
+      busyIntervals: [],
+      preferences: {
+        ...preferences,
+        timezone: "America/New_York",
+        defaultMaxBlockMinutes: 120,
+        workWindows: { "0": [{ start: "01:00", end: "04:00" }], "1": [], "2": [], "3": [], "4": [], "5": [], "6": [] },
+      },
+      now: Date.parse("2026-03-08T05:30:00Z"),
+    });
+
+    expect(result.tasks[0].blocks).toEqual([{
+      taskId: "task-1",
+      start: "2026-03-08T06:00:00.000Z",
+      end: "2026-03-08T08:00:00.000Z",
+    }]);
+    expect(result.tasks[0].scheduledMinutes).toBe(120);
+  });
+
+  it("uses both repeated hours during the autumn daylight-saving change", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 240, deadline: "2026-11-01", maxBlockMinutes: 240 })],
+      existingBlocks: [],
+      busyIntervals: [],
+      preferences: {
+        ...preferences,
+        timezone: "America/New_York",
+        defaultMaxBlockMinutes: 240,
+        workWindows: { "0": [{ start: "00:00", end: "03:00" }], "1": [], "2": [], "3": [], "4": [], "5": [], "6": [] },
+      },
+      now: Date.parse("2026-11-01T03:30:00Z"),
+    });
+
+    expect(result.tasks[0].blocks[0]).toMatchObject({
+      start: "2026-11-01T04:00:00.000Z",
+      end: "2026-11-01T08:00:00.000Z",
+    });
+    expect(result.tasks[0].scheduledMinutes).toBe(240);
+  });
+
+  it("starts on the correct quarter-hour in a non-hour timezone", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 60, deadline: "2026-08-03" })],
+      existingBlocks: [],
+      busyIntervals: [],
+      preferences: { ...preferences, timezone: "Asia/Kathmandu" },
+      now: Date.parse("2026-08-03T02:00:00Z"),
+    });
+
+    expect(result.tasks[0].blocks[0]).toMatchObject({
+      start: "2026-08-03T03:15:00.000Z",
+      end: "2026-08-03T04:15:00.000Z",
+    });
+  });
+
+  it.each([
+    ["leap day", "2028-02-28T16:30:00Z", "2028-02-29", "2028-02-29T09:00:00.000Z"],
+    ["new year", "2026-12-31T16:30:00Z", "2027-01-01", "2027-01-01T09:00:00.000Z"],
+  ])("continues scheduling across %s", (_label, now, deadline, nextDayStart) => {
+    const result = planSchedule({
+      tasks: [task({ duration: 120, deadline })],
+      existingBlocks: [],
+      busyIntervals: [],
+      preferences,
+      now: Date.parse(now),
+    });
+
+    expect(result.tasks[0].blocks).toHaveLength(2);
+    expect(result.tasks[0].blocks[1].start).toBe(nextDayStart);
+    expect(result.tasks[0].missingMinutes).toBe(0);
   });
 });

@@ -1,10 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { randomBytes, randomUUID } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
+import { getSafeSameOriginPath } from "@/lib/security/redirect";
 import { getAppPath, getSupabaseConfig, publicBasePath } from "@/lib/supabase/config";
 
 function copyCookies(source: NextResponse, target: NextResponse) {
-  source.cookies.getAll().forEach(({ name, value }) => target.cookies.set(name, value));
+  source.cookies.getAll().forEach((cookie) => target.cookies.set(cookie));
   ["Cache-Control", "Content-Security-Policy", "Strict-Transport-Security", "X-Request-Id"].forEach((header) => {
     const value = source.headers.get(header);
     if (value) {
@@ -20,11 +21,13 @@ export async function proxy(request: NextRequest) {
   const routePath = publicBasePath && pathname.startsWith(publicBasePath) ? pathname.slice(publicBasePath.length) || "/" : pathname;
   const isLogin = routePath === "/login";
   const isAuthConfirm = routePath === "/auth/confirm";
+  const isApiRoute = routePath.startsWith("/api/");
   const isWebhook = routePath === "/api/google/calendar/webhook";
   const isSchedulerProcess = routePath === "/api/scheduler/process";
   const config = getSupabaseConfig();
   const nonce = randomBytes(16).toString("base64");
   const isDevelopment = process.env.NODE_ENV !== "production";
+  const isE2EAuthEnabled = isDevelopment && process.env.NEXT_PUBLIC_HEAVYUSER_E2E === "1";
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   // Next's development Fast Refresh runtime uses eval to compile its update
@@ -73,8 +76,12 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
+  if (isE2EAuthEnabled) {
+    return response;
+  }
+
   if (!config) {
-    if (isLogin || isAuthConfirm) {
+    if (isLogin || isAuthConfirm || isApiRoute) {
       return response;
     }
 
@@ -101,18 +108,25 @@ export async function proxy(request: NextRequest) {
   const isSignedIn = Boolean(data.user);
 
   if (!isSignedIn && !isLogin && !isAuthConfirm) {
+    // API handlers return their own JSON 401/403 response. Redirecting them to
+    // HTML makes browser clients fail while trying to parse the response.
+    if (isApiRoute) {
+      return response;
+    }
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = getAppPath("/login");
     loginUrl.search = "";
-    loginUrl.searchParams.set("next", routePath);
+    loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
     return copyCookies(response, NextResponse.redirect(loginUrl));
   }
 
   if (isSignedIn && isLogin) {
-    const homeUrl = request.nextUrl.clone();
-    homeUrl.pathname = getAppPath("/");
-    homeUrl.search = "";
-    return copyCookies(response, NextResponse.redirect(homeUrl));
+    const destination = getSafeSameOriginPath(
+      request.nextUrl.searchParams.get("next"),
+      request.url,
+      getAppPath("/"),
+    );
+    return copyCookies(response, NextResponse.redirect(new URL(destination, request.url)));
   }
 
   return response;

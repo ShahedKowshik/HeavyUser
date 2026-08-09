@@ -10,20 +10,22 @@ import {
 import { syncGoogleCalendar } from "@/lib/google/sync";
 import { ensureSpaceForCalendar, loadSpaces } from "@/lib/spaces/server";
 import { runSchedulerForUserWithRetry } from "@/lib/scheduler/service";
-import { rejectCrossOriginMutation, rejectOversizedBody } from "@/lib/security/http";
+import { readJsonBody, rejectCrossOriginMutation } from "@/lib/security/http";
 
 export async function POST(request: Request) {
-  const originError = rejectCrossOriginMutation(request) ?? rejectOversizedBody(request);
+  const originError = rejectCrossOriginMutation(request);
   if (originError) {
     return originError;
   }
+  const parsedBody = await readJsonBody<{ calendarId?: unknown }>(request);
+  if (parsedBody.errorResponse) return parsedBody.errorResponse;
 
   const context = await requireAuthenticatedGoogleContext();
   if (!context) {
     return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
   }
 
-  const body = (await request.json().catch(() => null)) as { calendarId?: unknown } | null;
+  const body = parsedBody.data;
   const calendarId = typeof body?.calendarId === "string" ? body.calendarId : "";
   if (!calendarId || calendarId.length > 512) {
     return NextResponse.json({ error: "Choose a calendar." }, { status: 400 });
@@ -67,9 +69,29 @@ export async function POST(request: Request) {
       throw new Error("The calendar connection could not be saved.");
     }
 
-    const sync = await syncGoogleCalendar(context.admin, updatedConnection, request, { spaceId: space.id });
-    const scheduler = await runSchedulerForUserWithRetry(context.user.id, request);
-    return NextResponse.json({ connection: publicGoogleConnection(updatedConnection), space, spaces: await loadSpaces(context.admin, context.user.id), sync, scheduler });
+    let sync: Awaited<ReturnType<typeof syncGoogleCalendar>> | null = null;
+    let syncError: string | null = null;
+    let scheduler: Awaited<ReturnType<typeof runSchedulerForUserWithRetry>> | null = null;
+    let schedulerError: string | null = null;
+    try {
+      sync = await syncGoogleCalendar(context.admin, updatedConnection, request, { spaceId: space.id });
+    } catch (error) {
+      syncError = googleErrorMessage(error);
+    }
+    try {
+      scheduler = await runSchedulerForUserWithRetry(context.user.id, request);
+    } catch (error) {
+      schedulerError = googleErrorMessage(error);
+    }
+    return NextResponse.json({
+      connection: publicGoogleConnection(updatedConnection),
+      space,
+      spaces: await loadSpaces(context.admin, context.user.id),
+      sync,
+      scheduler,
+      syncError,
+      schedulerError,
+    });
   } catch (error) {
     return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });
   }

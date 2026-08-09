@@ -41,31 +41,47 @@ import { ProfileMenu } from "@/components/profile-menu";
 import { GoogleCalendarPanel } from "@/components/google-calendar-panel";
 import { getAppPath, publicBasePath } from "@/lib/supabase/config";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { loadRemoteTasks, persistRemoteTasks } from "@/lib/supabase/tasks";
+import { createTaskWriteQueue, loadRemoteTasks, persistRemoteTasks } from "@/lib/supabase/tasks";
 import type { CalendarTransparency, CalendarVisibility, Priority, Task, TaskScheduleState } from "@/lib/tasks";
 import type { ScheduleBlockSnapshot, TaskScheduleStatus } from "@/lib/scheduler/types";
-import type { UserSettings } from "@/lib/supabase/settings";
 import type { Space } from "@/lib/spaces";
-import { formatElapsedSeconds, type ActiveTimerSnapshot, type MissedBlockSnapshot, type TaskWorkSession, type TaskWorkSummary, type TimerAlert } from "@/lib/timer/types";
-type TaskBucket = "all" | "backlog" | "today" | "upcoming";
+import { formatElapsedSeconds, parseWorkMinutes, type ActiveTimerSnapshot, type MissedBlockSnapshot, type TaskWorkSession, type TaskWorkSummary, type TimerAlert } from "@/lib/timer/types";
+import { clearPendingTimerOperation, getPendingTimerOperation } from "@/lib/timer/idempotency";
+import { focusFirstElement, trapTabKey } from "@/lib/accessibility/focus";
+import {
+  CALENDAR_DATE as calendarDate,
+  MAX_TASK_DURATION_MINUTES,
+  MAX_TASK_TITLE_LENGTH,
+  addCalendarDays,
+  areTaskListsEquivalent,
+  createTaskId,
+  formatDuration,
+  formatHeaderDateTime,
+  formatShortDate,
+  getDueDatePresets,
+  getDurationParts,
+  getLogicalDate,
+  getTaskBucket,
+  groupUpcomingTasks,
+  isDeadlineOverdue,
+  mapTasksToSpaces,
+  matchesTaskBucket,
+  mergeRemoteTasks,
+  parseDuration,
+  parseShortDate,
+  readUserTasks,
+  reconcileTaskSave,
+  replaceBucketOrder,
+  sortTasks,
+  writeUserTasks,
+  clearUserTasks,
+  type TaskBucket,
+  type UpcomingGroupId,
+  type UpcomingTaskGroup,
+} from "@/lib/task-rules";
 type InlineEditField = "title";
 
 const publicAssetPath = publicBasePath;
-const calendarDate = "2026-08-01";
-const shortMonthNames = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-] as const;
 
 const priorityOptions = [
   { value: "urgent", label: "🔥 Urgent" },
@@ -75,13 +91,39 @@ const priorityOptions = [
 ] satisfies ReadonlyArray<{ value: Priority; label: string }>;
 
 const durationPresets = [
-  { minutes: 15, label: "15m" },
-  { minutes: 30, label: "30m" },
-  { minutes: 45, label: "45m" },
-  { minutes: 60, label: "1h" },
-  { minutes: 90, label: "1h 30m" },
-  { minutes: 120, label: "2h" },
+  { minutes: 15, label: "15m", dialogLabel: "15 min" },
+  { minutes: 30, label: "30m", dialogLabel: "30 min" },
+  { minutes: 45, label: "45m", dialogLabel: "45 min" },
+  { minutes: 60, label: "1h", dialogLabel: "1 hr" },
+  { minutes: 90, label: "1h 30m", dialogLabel: "1.5 hr" },
+  { minutes: 120, label: "2h", dialogLabel: "2 hr" },
+  { minutes: 150, label: "2h 30m", dialogLabel: "2.5 hr" },
+  { minutes: 180, label: "3h", dialogLabel: "3 hr" },
+  { minutes: 240, label: "4h", dialogLabel: "4 hr" },
+  { minutes: 300, label: "5h", dialogLabel: "5 hr" },
 ] as const;
+
+function handleMenuArrowNavigation(event: ReactKeyboardEvent<HTMLElement>) {
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+    return;
+  }
+
+  const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("[role^='menuitem']:not([aria-disabled='true'])"));
+  if (items.length === 0) {
+    return;
+  }
+
+  event.preventDefault();
+  const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+  const nextIndex = event.key === "Home"
+    ? 0
+    : event.key === "End"
+      ? items.length - 1
+      : event.key === "ArrowDown"
+        ? (currentIndex + 1 + items.length) % items.length
+        : (currentIndex - 1 + items.length) % items.length;
+  items[nextIndex].focus();
+}
 
 const taskBucketOptions = [
   { value: "all", label: "All tasks", icon: List },
@@ -89,191 +131,6 @@ const taskBucketOptions = [
   { value: "upcoming", label: "Upcoming", icon: ListTodo },
   { value: "backlog", label: "Backlog", icon: Archive },
 ] as const;
-
-const priorityOrder: Record<Priority, number> = {
-  urgent: 0,
-  high: 1,
-  normal: 2,
-  low: 3,
-};
-
-// Only account-scoped browser backups are valid. The v2 namespace intentionally
-// does not read any unscoped cache written by older versions of the app.
-const userStorageKeyPrefix = "heavyuser:tasks:v2:";
-const MAX_TASK_TITLE_LENGTH = 240;
-const MAX_TASK_DURATION_MINUTES = 10080;
-
-
-function sortTasks(tasks: ReadonlyArray<Task>) {
-  return [...tasks].sort((firstTask, secondTask) => {
-    const firstDone = firstTask.status === "done" ? 1 : 0;
-    const secondDone = secondTask.status === "done" ? 1 : 0;
-
-    if (firstDone !== secondDone) {
-      return firstDone - secondDone;
-    }
-
-    const priorityDelta = priorityOrder[firstTask.priority] - priorityOrder[secondTask.priority];
-    if (priorityDelta !== 0) {
-      return priorityDelta;
-    }
-
-    const firstDeadline = firstTask.deadline ?? "9999-12-31";
-    const secondDeadline = secondTask.deadline ?? "9999-12-31";
-    return firstDeadline.localeCompare(secondDeadline);
-  });
-}
-
-function isPriority(value: unknown): value is Priority {
-  return value === "urgent" || value === "high" || value === "normal" || value === "low";
-}
-
-function isTask(value: unknown): value is Task {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const candidate = value as Partial<Task>;
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.title === "string" &&
-    candidate.title.length <= MAX_TASK_TITLE_LENGTH &&
-    ((typeof candidate.duration === "number" && Number.isFinite(candidate.duration) && candidate.duration > 0 && candidate.duration <= MAX_TASK_DURATION_MINUTES) || candidate.duration === null) &&
-    (typeof candidate.startDate === "string" || candidate.startDate === null) &&
-    (typeof candidate.deadline === "string" || candidate.deadline === null) &&
-    (typeof candidate.spaceId === "string" || candidate.spaceId === null) &&
-    (typeof candidate.subSpaceId === "string" || candidate.subSpaceId === null) &&
-    isPriority(candidate.priority) &&
-    (candidate.status === "open" || candidate.status === "focus" || candidate.status === "done")
-  );
-}
-
-function normalizeStoredTask(value: unknown): Task | null {
-  if (isTask(value)) {
-    const calendarVisibility = value.calendarVisibility === "default" || value.calendarVisibility === "public" || value.calendarVisibility === "private"
-      ? value.calendarVisibility
-      : null;
-    const calendarTransparency = value.calendarTransparency === "default" || value.calendarTransparency === "opaque" || value.calendarTransparency === "transparent"
-      ? value.calendarTransparency
-      : null;
-    const minBlockMinutes = typeof value.minBlockMinutes === "number" && Number.isFinite(value.minBlockMinutes) && value.minBlockMinutes >= 5 ? Math.round(value.minBlockMinutes) : null;
-    const maxCandidate = typeof value.maxBlockMinutes === "number" && Number.isFinite(value.maxBlockMinutes) && value.maxBlockMinutes >= 5 ? Math.round(value.maxBlockMinutes) : null;
-    return {
-      ...value,
-      subSpaceId: value.spaceId ? value.subSpaceId : null,
-      autoSchedule: true,
-      minBlockMinutes,
-      maxBlockMinutes: maxCandidate !== null && minBlockMinutes !== null && maxCandidate < minBlockMinutes ? null : maxCandidate,
-      calendarVisibility,
-      calendarTransparency,
-    };
-  }
-
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const candidate = value as {
-    id?: unknown;
-    title?: unknown;
-    duration?: unknown;
-    startDate?: unknown;
-    deadline?: unknown;
-    priority?: unknown;
-    status?: unknown;
-    autoSchedule?: unknown;
-    minBlockMinutes?: unknown;
-    maxBlockMinutes?: unknown;
-    calendarVisibility?: unknown;
-    calendarTransparency?: unknown;
-  };
-
-  if (
-    typeof candidate.id !== "string" ||
-    typeof candidate.title !== "string" ||
-    candidate.title.length > MAX_TASK_TITLE_LENGTH ||
-    (candidate.status !== "open" && candidate.status !== "focus" && candidate.status !== "done")
-  ) {
-    return null;
-  }
-
-  const duration =
-    typeof candidate.duration === "number"
-      ? candidate.duration
-      : typeof candidate.duration === "string"
-        ? parseDuration(candidate.duration)
-        : null;
-  const minBlockMinutes = typeof candidate.minBlockMinutes === "number" && Number.isFinite(candidate.minBlockMinutes) && candidate.minBlockMinutes >= 5
-    ? Math.round(candidate.minBlockMinutes)
-    : null;
-  const maxCandidate = typeof candidate.maxBlockMinutes === "number" && Number.isFinite(candidate.maxBlockMinutes) && candidate.maxBlockMinutes >= 5
-    ? Math.round(candidate.maxBlockMinutes)
-    : null;
-
-  const spaceId = typeof (candidate as { spaceId?: unknown }).spaceId === "string" ? (candidate as { spaceId: string }).spaceId : null;
-  return {
-    id: candidate.id,
-    title: candidate.title,
-    duration,
-    startDate: typeof candidate.startDate === "string" && candidate.startDate ? candidate.startDate : null,
-    deadline: typeof candidate.deadline === "string" && candidate.deadline ? candidate.deadline : null,
-    spaceId,
-    subSpaceId: spaceId && typeof (candidate as { subSpaceId?: unknown }).subSpaceId === "string" ? (candidate as { subSpaceId: string }).subSpaceId : null,
-    priority: isPriority(candidate.priority) ? candidate.priority : "normal",
-    status: candidate.status,
-    autoSchedule: true,
-    minBlockMinutes,
-    maxBlockMinutes: maxCandidate !== null && minBlockMinutes !== null && maxCandidate < minBlockMinutes ? null : maxCandidate,
-    calendarVisibility: candidate.calendarVisibility === "default" || candidate.calendarVisibility === "public" || candidate.calendarVisibility === "private"
-      ? candidate.calendarVisibility
-      : null,
-    calendarTransparency: candidate.calendarTransparency === "default" || candidate.calendarTransparency === "opaque" || candidate.calendarTransparency === "transparent"
-      ? candidate.calendarTransparency
-      : null,
-  };
-}
-
-function mapTasksToSpaces(tasks: ReadonlyArray<Task>, spaces: ReadonlyArray<Space>) {
-  const activeSpace = spaces.find((space) => space.status === "active");
-  return tasks.map((task) => {
-    const savedSpace = spaces.find((space) => space.id === task.spaceId);
-    const hasSavedSpace = spaces.some((space) => space.id === task.spaceId);
-    const targetSpace = savedSpace ?? (!task.spaceId || !hasSavedSpace ? activeSpace : null);
-    if (!targetSpace) {
-      return task.subSpaceId === null ? task : { ...task, subSpaceId: null };
-    }
-    const savedSubSpace = targetSpace.subSpaces.find((subSpace) => (
-      subSpace.id === task.subSpaceId
-      && (subSpace.status === "active" || (task.status === "done" && subSpace.status === "archived"))
-    ));
-    const nextSubSpaceId = savedSubSpace?.id ?? null;
-    return task.spaceId === targetSpace.id && task.subSpaceId === nextSubSpaceId
-      ? task
-      : { ...task, spaceId: targetSpace.id, subSpaceId: nextSubSpaceId };
-  });
-}
-
-function getDurationParts(duration: number | null) {
-  if (duration === null) {
-    return null;
-  }
-
-  const totalMinutes = Math.max(0, Math.round(duration));
-  return {
-    hours: Math.floor(totalMinutes / 60),
-    minutes: totalMinutes % 60,
-  };
-}
-
-function formatDuration(duration: number | null) {
-  const parts = getDurationParts(duration);
-  if (!parts) {
-    return "";
-  }
-
-  const hours = parts.hours > 0 ? `${String(parts.hours).padStart(2, "0")}h ` : "";
-  return `${hours}${String(parts.minutes).padStart(2, "0")}m`;
-}
 
 const priorityLabels: Record<Priority, string> = {
   urgent: "Urgent",
@@ -330,270 +187,6 @@ function PriorityIcon({ priority }: { priority: Priority }) {
 
     const iconSize = priority === "urgent" ? 17 : 15;
     return <Icon aria-hidden="true" size={iconSize} strokeWidth={2.2} />;
-}
-
-function getTaskBucket(task: Task, today = calendarDate): TaskBucket {
-  if (!task.startDate && !task.deadline) {
-    return "backlog";
-  }
-
-  // Keep overdue work in Today so it remains visible without a separate view.
-  if (task.status !== "done" && task.deadline && task.deadline < today) {
-    return "today";
-  }
-
-  const canStartToday = task.startDate ? task.startDate <= today : !task.deadline;
-  const isDueToday = task.deadline === today;
-
-  if (isDueToday || (canStartToday && (!task.deadline || task.deadline >= today))) {
-    return "today";
-  }
-
-  if ((task.startDate && task.startDate > today) || (task.deadline && task.deadline > today)) {
-    return "upcoming";
-  }
-
-  return "backlog";
-}
-
-function matchesTaskBucket(task: Task, bucket: TaskBucket, today = calendarDate) {
-  return bucket === "all" || getTaskBucket(task, today) === bucket;
-}
-
-type UpcomingGroupId = "tomorrow" | "this-week" | "this-month" | "this-quarter" | "this-year" | "far-away";
-
-type UpcomingTaskGroup = {
-  id: UpcomingGroupId | "all";
-  label: string | null;
-  helper: string;
-  dateLabel: string;
-  tasks: ReadonlyArray<Task>;
-};
-
-function toIsoDate(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function getTimeMinutes(value: string) {
-  const [hours, minutes] = value.split(":").map(Number);
-  return hours * 60 + minutes;
-}
-
-function getLogicalDate(timestamp: number, settings: UserSettings) {
-  const date = new Date(timestamp);
-  const currentMinutes = date.getHours() * 60 + date.getMinutes();
-
-  if (settings.nightOwlMode && currentMinutes < getTimeMinutes(settings.dayStartTime)) {
-    date.setDate(date.getDate() - 1);
-  }
-
-  return toIsoDate(date);
-}
-
-function addCalendarDays(value: string, days: number) {
-  const date = new Date(`${value}T12:00:00`);
-  date.setDate(date.getDate() + days);
-  return toIsoDate(date);
-}
-
-function getDueDatePresets(today = calendarDate) {
-  return [
-    { label: "Today", value: today },
-    { label: "Tomorrow", value: addCalendarDays(today, 1) },
-    { label: "Next week", value: addCalendarDays(today, 7) },
-  ] as const;
-}
-
-function getMonthEnd(value: string) {
-  const date = new Date(`${value}T12:00:00`);
-  date.setMonth(date.getMonth() + 1, 0);
-  return toIsoDate(date);
-}
-
-function getQuarterEnd(value: string) {
-  const date = new Date(`${value}T12:00:00`);
-  const quarterEndMonth = Math.floor(date.getMonth() / 3) * 3 + 2;
-  date.setMonth(quarterEndMonth + 1, 0);
-  return toIsoDate(date);
-}
-
-function getYearEnd(value: string) {
-  return `${value.slice(0, 4)}-12-31`;
-}
-
-function getDaysBetween(start: string, end: string) {
-  const startTime = new Date(`${start}T12:00:00`).getTime();
-  const endTime = new Date(`${end}T12:00:00`).getTime();
-  return Math.max(0, Math.round((endTime - startTime) / 86_400_000));
-}
-
-function getUpcomingGroupDefinitions(today = calendarDate) {
-  const tomorrow = addCalendarDays(today, 1);
-  const weekEnd = addCalendarDays(today, 7);
-  const monthEnd = getMonthEnd(today);
-  const quarterEnd = getQuarterEnd(today);
-  const yearEnd = getYearEnd(today);
-  const weekStart = addCalendarDays(today, 2);
-  const monthStart = addCalendarDays(weekEnd, 1);
-  const quarterStart = addCalendarDays(monthEnd, 1);
-  const yearStart = addCalendarDays(quarterEnd, 1);
-  const farAwayStart = addCalendarDays(yearEnd, 1);
-
-  return [
-    {
-      id: "tomorrow",
-      label: "Tomorrow",
-      helper: "1 day away",
-      start: tomorrow,
-      end: tomorrow,
-      dateLabel: formatShortDate(tomorrow),
-    },
-    {
-      id: "this-week",
-      label: "This week",
-      helper: `${getDaysBetween(today, weekEnd)} days left`,
-      start: weekStart,
-      end: weekEnd,
-      dateLabel: `${formatShortDate(weekStart)} – ${formatShortDate(weekEnd)}`,
-    },
-    {
-      id: "this-month",
-      label: "This month",
-      helper: `${getDaysBetween(today, monthEnd)} days left`,
-      start: monthStart,
-      end: monthEnd,
-      dateLabel: `${formatShortDate(monthStart)} – ${formatShortDate(monthEnd)}`,
-    },
-    {
-      id: "this-quarter",
-      label: "This quarter",
-      helper: `${getDaysBetween(today, quarterEnd)} days left`,
-      start: quarterStart,
-      end: quarterEnd,
-      dateLabel: `${formatShortDate(quarterStart)} – ${formatShortDate(quarterEnd)}`,
-    },
-    {
-      id: "this-year",
-      label: "This year",
-      helper: `${getDaysBetween(today, yearEnd)} days left`,
-      start: yearStart,
-      end: yearEnd,
-      dateLabel: `${formatShortDate(yearStart)} – ${formatShortDate(yearEnd)}`,
-    },
-    {
-      id: "far-away",
-      label: "Far away",
-      helper: "Beyond this year",
-      start: farAwayStart,
-      end: "9999-12-31",
-      dateLabel: "Beyond this year",
-    },
-  ] as const;
-}
-
-function getUpcomingGroup(task: Task, today = calendarDate): UpcomingGroupId {
-  const taskDate = task.startDate ?? task.deadline ?? "9999-12-31";
-  const definitions = getUpcomingGroupDefinitions(today);
-
-  if (taskDate === definitions[0].end) {
-    return definitions[0].id;
-  }
-
-  return definitions.find((definition) => taskDate <= definition.end)?.id ?? "far-away";
-}
-
-function groupUpcomingTasks(tasks: ReadonlyArray<Task>, today = calendarDate) {
-  const definitions = getUpcomingGroupDefinitions(today);
-  return definitions
-    .map((definition): UpcomingTaskGroup => ({
-      id: definition.id,
-      label: definition.label,
-      helper: definition.helper,
-      dateLabel: definition.dateLabel,
-      tasks: tasks.filter((task) => getUpcomingGroup(task, today) === definition.id),
-    }))
-    .filter((group) => group.tasks.length > 0);
-}
-
-function replaceBucketOrder(tasks: ReadonlyArray<Task>, orderedBucket: ReadonlyArray<Task>) {
-  const bucketIds = new Set(orderedBucket.map((task) => task.id));
-  let bucketIndex = 0;
-
-  return tasks.map((task) => {
-    if (!bucketIds.has(task.id)) {
-      return task;
-    }
-
-    const replacement = orderedBucket[bucketIndex];
-    bucketIndex += 1;
-    return replacement ?? task;
-  });
-}
-
-function formatShortDate(value: string | null) {
-  if (!value) {
-    return "";
-  }
-
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) {
-    return "";
-  }
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(year, month - 1, day);
-
-  if (
-    Number.isNaN(date.getTime()) ||
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day
-  ) {
-    return "";
-  }
-
-  return `${String(day).padStart(2, "0")} ${shortMonthNames[month - 1]} ${String(year).slice(-2)}`;
-}
-
-function formatHeaderDateTime(timestamp: number | null, logicalDate = calendarDate) {
-  if (timestamp === null) {
-    return null;
-  }
-
-  const actualDate = new Date(timestamp);
-  const contextDate = new Date(`${logicalDate}T12:00:00`);
-  return {
-    weekday: contextDate.toLocaleDateString(undefined, { weekday: "long" }),
-    date: formatShortDate(logicalDate),
-    time: actualDate.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true }),
-  };
-}
-
-function parseShortDate(value: string) {
-  const match = /^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{2}|\d{4})$/.exec(value.trim());
-  if (!match) {
-    return null;
-  }
-
-  const day = Number(match[1]);
-  const month = shortMonthNames.findIndex((name) => name.toLowerCase() === match[2].toLowerCase());
-  const rawYear = Number(match[3]);
-  const year = match[3].length === 2 ? 2000 + rawYear : rawYear;
-  const date = new Date(year, month, day);
-
-  if (
-    month < 0 ||
-    Number.isNaN(date.getTime()) ||
-    date.getFullYear() !== year ||
-    date.getMonth() !== month ||
-    date.getDate() !== day
-  ) {
-    return null;
-  }
-
-  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 type DateFieldProps = {
@@ -694,160 +287,236 @@ function DateField({ ariaLabel, className, value, onChange }: DateFieldProps) {
   );
 }
 
-function isDeadlineOverdue(deadline: string | null, status: Task["status"], today = calendarDate) {
-  return Boolean(deadline && status !== "done" && deadline < today);
-}
+type QuickDateFieldProps = DateFieldProps & {
+  fieldLabel: string;
+  today: string;
+};
 
-function parseDuration(value: string) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 && parsed <= MAX_TASK_DURATION_MINUTES ? Math.round(parsed) : null;
-}
+function QuickDateField({ ariaLabel, className, fieldLabel, today, value, onChange }: QuickDateFieldProps) {
+  const tomorrow = addCalendarDays(today, 1);
+  const isCustomDate = Boolean(value && value !== today && value !== tomorrow);
+  const [isCustomOpen, setIsCustomOpen] = useState(isCustomDate);
+  const presets = [
+    { label: "Today", value: today },
+    { label: "Tomorrow", value: tomorrow },
+  ] as const;
 
-function ensureSingleFocus(tasks: ReadonlyArray<Task>) {
-  const existingFocusIndex = tasks.findIndex((task) => task.status === "focus");
-  const nextFocusIndex =
-    existingFocusIndex >= 0 ? existingFocusIndex : tasks.findIndex((task) => task.status !== "done");
-
-  return tasks.map((task, index): Task => {
-    if (task.status === "focus" && index !== nextFocusIndex) {
-      return { ...task, status: "open" };
-    }
-
-    if (index === nextFocusIndex && task.status !== "done") {
-      return { ...task, status: "focus" };
-    }
-
-    return task;
-  });
-}
-
-function areTasksEquivalent(firstTask: Task, secondTask: Task) {
-  return firstTask.id === secondTask.id
-    && firstTask.title === secondTask.title
-    && firstTask.duration === secondTask.duration
-    && firstTask.startDate === secondTask.startDate
-    && firstTask.deadline === secondTask.deadline
-    && firstTask.spaceId === secondTask.spaceId
-    && firstTask.subSpaceId === secondTask.subSpaceId
-    && firstTask.priority === secondTask.priority
-    && firstTask.status === secondTask.status
-    && firstTask.autoSchedule === secondTask.autoSchedule
-    && firstTask.minBlockMinutes === secondTask.minBlockMinutes
-    && firstTask.maxBlockMinutes === secondTask.maxBlockMinutes
-    && firstTask.calendarVisibility === secondTask.calendarVisibility
-    && firstTask.calendarTransparency === secondTask.calendarTransparency;
-}
-
-function mergeRemoteTasks(
-  localTasks: ReadonlyArray<Task>,
-  currentTasks: ReadonlyArray<Task>,
-  remoteTasks: ReadonlyArray<Task>,
-) {
-  const localById = new Map(localTasks.map((task) => [task.id, task]));
-  const remoteById = new Map(remoteTasks.map((task) => [task.id, task]));
-  const locallyDeletedIds = new Set(
-    localTasks
-      .filter((task) => !currentTasks.some((currentTask) => currentTask.id === task.id))
-      .map((task) => task.id),
+  return (
+    <div aria-label={fieldLabel} className="hu-edit-field hu-dialog-date-field" role="group">
+      <span className="hu-field-label">{fieldLabel}</span>
+      <div className="hu-dialog-date-presets">
+        {presets.map((preset) => (
+          <button
+            aria-pressed={value === preset.value}
+            className="hu-dialog-date-preset"
+            key={preset.value}
+            type="button"
+            onClick={() => {
+              onChange(preset.value);
+              setIsCustomOpen(false);
+            }}
+          >
+            {preset.label}
+          </button>
+        ))}
+        <button
+          aria-pressed={isCustomOpen || isCustomDate}
+          className="hu-dialog-date-preset"
+          type="button"
+          onClick={() => setIsCustomOpen(true)}
+        >
+          Custom
+        </button>
+      </div>
+      {isCustomOpen || isCustomDate ? (
+        <DateField
+          ariaLabel={ariaLabel}
+          className={className}
+          value={value}
+          onChange={onChange}
+        />
+      ) : null}
+    </div>
   );
-  const locallyChangedIds = new Set(
-    currentTasks
-      .filter((task) => {
-        const localTask = localById.get(task.id);
-        return !localTask || !areTasksEquivalent(task, localTask);
-      })
-      .map((task) => task.id),
+}
+
+type PriorityPickerProps = {
+  ariaLabel: string;
+  value: Priority;
+  onChange: (value: Priority) => void;
+};
+
+function PriorityPicker({ ariaLabel, onChange, value }: PriorityPickerProps) {
+  return (
+    <div aria-label={ariaLabel} className="hu-priority-picker" role="group">
+      {priorityOptions.map((option) => (
+        <button
+          aria-pressed={value === option.value}
+          className={`hu-priority-choice is-${option.value}`}
+          key={option.value}
+          type="button"
+          onClick={() => onChange(option.value)}
+        >
+          <PriorityIcon priority={option.value} />
+          <span>{priorityLabels[option.value]}</span>
+        </button>
+      ))}
+    </div>
   );
-
-  if (locallyDeletedIds.size === 0 && locallyChangedIds.size === 0) {
-    return { tasks: ensureSingleFocus(remoteTasks), deletedTaskIds: [] };
-  }
-
-  const mergedTasks: Task[] = [];
-  const seenIds = new Set<string>();
-  for (const currentTask of currentTasks) {
-    if (locallyDeletedIds.has(currentTask.id)) {
-      continue;
-    }
-
-    const nextTask = locallyChangedIds.has(currentTask.id)
-      ? currentTask
-      : remoteById.get(currentTask.id);
-    if (nextTask) {
-      mergedTasks.push(nextTask);
-      seenIds.add(nextTask.id);
-    }
-  }
-
-  for (const remoteTask of remoteTasks) {
-    if (!seenIds.has(remoteTask.id) && !locallyDeletedIds.has(remoteTask.id)) {
-      mergedTasks.push(remoteTask);
-    }
-  }
-
-  return {
-    tasks: ensureSingleFocus(mergedTasks),
-    deletedTaskIds: [...locallyDeletedIds],
-  };
 }
 
-function getUserStorageKey(userId: string) {
-  return `${userStorageKeyPrefix}${userId}`;
-}
+type SpacePickerProps = {
+  spaces: ReadonlyArray<Space>;
+  spaceId: string;
+  subSpaceId: string;
+  onSpaceChange: (value: string) => void;
+  onSubSpaceChange: (value: string) => void;
+};
 
-function writeUserTasks(userId: string, tasks: ReadonlyArray<Task>) {
-  try {
-    window.localStorage.setItem(getUserStorageKey(userId), JSON.stringify(tasks));
-  } catch {
-    // Cloud sync remains the source of truth if browser storage is unavailable.
-  }
-}
+function SpacePicker({ onSpaceChange, onSubSpaceChange, spaceId, spaces, subSpaceId }: SpacePickerProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+  const selectedSpace = spaces.find((space) => space.id === spaceId);
+  const selectedSubSpace = selectedSpace?.subSpaces.find((subSpace) => subSpace.id === subSpaceId);
+  const selectableSpaces = spaces.filter((space) => space.status === "active" || space.id === spaceId);
+  const selectableSubSpaces = (selectedSpace?.subSpaces ?? []).filter((subSpace) => subSpace.status === "active" || subSpace.id === subSpaceId);
 
-function readUserTasks(userId: string) {
-  try {
-    const savedTasks = window.localStorage.getItem(getUserStorageKey(userId));
-    if (!savedTasks) {
-      return [];
+  useEffect(() => {
+    if (!isOpen) {
+      return;
     }
 
-    const parsedTasks: unknown = JSON.parse(savedTasks);
-    if (!Array.isArray(parsedTasks)) {
-      return [];
+    function handlePointerDown(event: PointerEvent) {
+      if (event.target instanceof Node && pickerRef.current?.contains(event.target)) {
+        return;
+      }
+
+      setIsOpen(false);
     }
 
-    const normalizedTasks = parsedTasks.map(normalizeStoredTask);
-    if (!normalizedTasks.every((task): task is Task => task !== null)) {
-      return [];
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
     }
 
-    return ensureSingleFocus(normalizedTasks);
-  } catch {
-    return [];
-  }
-}
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
 
-function clearUserTasks(userId: string) {
-  try {
-    window.localStorage.removeItem(getUserStorageKey(userId));
-  } catch {
-    // The cloud remains the source of truth if browser storage is unavailable.
-  }
-}
+  function handleSpaceSelect(nextSpaceId: string) {
+    const nextSpace = spaces.find((space) => space.id === nextSpaceId);
+    if (!nextSpace || nextSpace.status !== "active") {
+      return;
+    }
 
+    onSpaceChange(nextSpaceId);
+    onSubSpaceChange("");
+  }
+
+  return (
+    <div className="hu-edit-field hu-space-picker" ref={pickerRef}>
+      <span className="hu-field-label">Space &amp; sub-space <span aria-hidden="true">*</span></span>
+      <button
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        aria-label="Choose task Space and sub-space"
+        className="hu-space-picker-trigger hu-edit-input"
+        disabled={spaces.length === 0}
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <span className="hu-space-picker-value">
+          {selectedSpace?.name ?? "Choose a Space"}
+          <small>{selectedSubSpace?.name ?? "Space only"}</small>
+        </span>
+        <ChevronDown aria-hidden="true" size={14} />
+      </button>
+      {isOpen ? (
+        <div aria-label="Choose task Space and sub-space" className="hu-space-picker-menu" role="dialog">
+          <span className="hu-popover-kicker">Space</span>
+          <div className="hu-space-picker-options">
+            {selectableSpaces.length > 0 ? selectableSpaces.map((space) => {
+              const isDisabled = space.status !== "active";
+              return (
+                <label className={`hu-space-picker-option ${isDisabled ? "is-disabled" : ""}`} key={space.id}>
+                  <input
+                    checked={space.id === spaceId}
+                    disabled={isDisabled}
+                    type="checkbox"
+                    onChange={() => handleSpaceSelect(space.id)}
+                  />
+                  <span aria-hidden="true" className="hu-space-picker-check"><Check size={12} /></span>
+                  <span className="hu-space-picker-option-copy">
+                    <strong>{space.name}</strong>
+                    <small>{space.status === "archived" ? "Archived" : space.status === "disconnected" ? "Reconnect calendar" : "Space"}</small>
+                  </span>
+                </label>
+              );
+            }) : <span className="hu-space-picker-empty">Add a calendar first.</span>}
+          </div>
+          <div className="hu-popover-divider" role="presentation" />
+          <span className="hu-popover-kicker">Sub-space</span>
+          <div className="hu-space-picker-options">
+            <label className={`hu-space-picker-option ${!spaceId ? "is-disabled" : ""}`}>
+              <input
+                checked={Boolean(spaceId) && !subSpaceId}
+                disabled={!spaceId}
+                type="checkbox"
+                onChange={() => onSubSpaceChange("")}
+              />
+              <span aria-hidden="true" className="hu-space-picker-check"><Check size={12} /></span>
+              <span className="hu-space-picker-option-copy">
+                <strong>Space only</strong>
+                <small>No sub-space</small>
+              </span>
+            </label>
+            {selectableSubSpaces.map((subSpace) => {
+              const isDisabled = subSpace.status !== "active";
+              return (
+                <label className={`hu-space-picker-option ${isDisabled ? "is-disabled" : ""}`} key={subSpace.id}>
+                  <input
+                    checked={subSpace.id === subSpaceId}
+                    disabled={isDisabled}
+                    type="checkbox"
+                    onChange={() => onSubSpaceChange(subSpace.id)}
+                  />
+                  <span aria-hidden="true" className="hu-space-picker-check"><Check size={12} /></span>
+                  <span className="hu-space-picker-option-copy">
+                    <strong>{subSpace.name}</strong>
+                    <small>{subSpace.status === "archived" ? "Archived" : "Sub-space"}</small>
+                  </span>
+                </label>
+              );
+            })}
+            {spaceId && selectableSubSpaces.length === 0 ? <span className="hu-space-picker-empty">No sub-spaces yet.</span> : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export default function Home() {
   const [tasks, setTasks] = useState<ReadonlyArray<Task>>([]);
   const tasksRef = useRef<ReadonlyArray<Task>>([]);
   tasksRef.current = tasks;
   const [supabaseClient] = useState(() => getSupabaseBrowserClient());
-  const { status: authStatus, user: authUser, settings } = useAuth();
+  const { status: authStatus, user: authUser, settings, updateSettings } = useAuth();
   const [remoteSyncReady, setRemoteSyncReady] = useState(false);
   const [pendingRemoteDeletes, setPendingRemoteDeletes] = useState<ReadonlyArray<string>>([]);
+  const [taskSyncNotice, setTaskSyncNotice] = useState("");
+  const [taskSaveRetryVersion, setTaskSaveRetryVersion] = useState(0);
+  const [taskWriteQueue] = useState(createTaskWriteQueue);
   const [isCustomOrder, setIsCustomOrder] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [showCompletedTasks, setShowCompletedTasks] = useState(false);
-  const [activeBucket, setActiveBucket] = useState<TaskBucket>("today");
+  const [activeBucket, setActiveBucket] = useState<TaskBucket>("all");
   const [collapsedUpcomingGroupIds, setCollapsedUpcomingGroupIds] = useState<ReadonlyArray<UpcomingGroupId>>([]);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDuration, setNewTaskDuration] = useState("");
@@ -857,6 +526,7 @@ export default function Home() {
   const [newTaskSpaceId, setNewTaskSpaceId] = useState("");
   const [newTaskSubSpaceId, setNewTaskSubSpaceId] = useState("");
   const [taskComposerError, setTaskComposerError] = useState("");
+  const [taskActionError, setTaskActionError] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [editingDuration, setEditingDuration] = useState("");
@@ -878,7 +548,14 @@ export default function Home() {
   const [missedBlocks, setMissedBlocks] = useState<ReadonlyArray<MissedBlockSnapshot>>([]);
   const [timerAlerts, setTimerAlerts] = useState<ReadonlyArray<TimerAlert>>([]);
   const [timerRequestTaskId, setTimerRequestTaskId] = useState<string | null>(null);
+  const [loggingWorkTaskId, setLoggingWorkTaskId] = useState<string | null>(null);
+  const [loggingWorkMinutes, setLoggingWorkMinutes] = useState("30");
   const [timerNotice, setTimerNotice] = useState("");
+  const [correctingSessionId, setCorrectingSessionId] = useState<string | null>(null);
+  const [correctingMinutes, setCorrectingMinutes] = useState("");
+  const [correctionReason, setCorrectionReason] = useState("Corrected work time");
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [sessionActionError, setSessionActionError] = useState("");
   const [schedulerError, setSchedulerError] = useState("");
   const [spaces, setSpaces] = useState<ReadonlyArray<Space>>([]);
   const [spaceError, setSpaceError] = useState("");
@@ -898,14 +575,25 @@ export default function Home() {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const topbarRef = useRef<HTMLElement | null>(null);
   const newTaskInputRef = useRef<HTMLInputElement | null>(null);
+  const editingDurationInputRef = useRef<HTMLInputElement | null>(null);
+  const loggingWorkInputRef = useRef<HTMLInputElement | null>(null);
   const priorityMenuRef = useRef<HTMLDivElement | null>(null);
   const durationMenuRef = useRef<HTMLDivElement | null>(null);
   const dueDateMenuRef = useRef<HTMLDivElement | null>(null);
+  const taskDialogRef = useRef<HTMLFormElement | null>(null);
+  const editDialogReturnFocusRef = useRef<HTMLElement | null>(null);
   const schedulerRunTimerRef = useRef<number | null>(null);
   const schedulerRunInFlightRef = useRef(false);
   const schedulerRunQueuedRef = useRef(false);
+  const schedulerSnapshotPollTimerRef = useRef<number | null>(null);
+  const scheduleSnapshotRequestRef = useRef<Promise<void> | null>(null);
   const spacesUpdateVersionRef = useRef(0);
   const spacesRef = useRef<ReadonlyArray<Space>>([]);
+  const taskSaveBaselineRef = useRef<ReadonlyArray<Task>>([]);
+  const taskSyncAccountRef = useRef("");
+  const customOrderSaveInFlightRef = useRef(false);
+  const customTaskOrderRef = useRef(settings.customTaskOrder);
+  customTaskOrderRef.current = settings.customTaskOrder;
   const authUserId = authUser?.id ?? "";
 
   const applySpaces = useCallback((rawSpaces: ReadonlyArray<Space>) => {
@@ -932,6 +620,9 @@ export default function Home() {
   useEffect(() => () => {
     if (schedulerRunTimerRef.current !== null) {
       window.clearTimeout(schedulerRunTimerRef.current);
+    }
+    if (schedulerSnapshotPollTimerRef.current !== null) {
+      window.clearInterval(schedulerSnapshotPollTimerRef.current);
     }
   }, []);
 
@@ -1002,19 +693,24 @@ export default function Home() {
 
   useEffect(() => {
     let isCancelled = false;
+    let retryTimerId: number | null = null;
 
     const restoreTasks = async () => {
-      if (!authUser || authStatus !== "signed_in") {
+      if (!authUserId || authStatus !== "signed_in") {
         return;
       }
 
-      const localTasks = mapTasksToSpaces(readUserTasks(authUser.id), spacesRef.current);
+      const account = { id: authUserId };
+      const localTasks = mapTasksToSpaces(readUserTasks(window.localStorage, authUserId), spacesRef.current);
       setTasks([]);
       tasksRef.current = [];
       setRemoteSyncReady(false);
+      taskSaveBaselineRef.current = [];
+      taskSyncAccountRef.current = authUserId;
       setIsHydrated(false);
       setPendingRemoteDeletes([]);
-      setIsCustomOrder(false);
+      setIsCustomOrder(customTaskOrderRef.current);
+      customOrderSaveInFlightRef.current = false;
       setEditingId(null);
       setScheduleStatuses({});
       setScheduleBlocks({});
@@ -1023,7 +719,10 @@ export default function Home() {
       setTaskWorkSummaries({});
       setMissedBlocks([]);
       setTimerAlerts([]);
+      setLoggingWorkTaskId(null);
+      setLoggingWorkMinutes("30");
       setTimerNotice("");
+      setTaskSyncNotice("");
       setSchedulerError("");
 
       if (isCancelled) {
@@ -1041,41 +740,54 @@ export default function Home() {
         return;
       }
 
-      try {
-        const remoteTasks = await loadRemoteTasks(supabaseClient, authUser);
-        if (isCancelled) {
-          return;
-        }
+      const loadCloudSnapshot = async () => {
+        try {
+          const remoteTasks = await loadRemoteTasks(supabaseClient, account);
+          if (isCancelled || taskSyncAccountRef.current !== authUserId) {
+            return;
+          }
 
-        const merged = mergeRemoteTasks(localTasks, tasksRef.current, remoteTasks);
-        const normalizedTasks = mapTasksToSpaces(merged.tasks, spacesRef.current);
-        tasksRef.current = normalizedTasks;
-        setTasks(normalizedTasks);
-        if (normalizedTasks.length === 0 && remoteTasks.length === 0) {
-          clearUserTasks(authUser.id);
-        } else {
-          writeUserTasks(authUser.id, normalizedTasks);
-        }
+          const merged = mergeRemoteTasks(localTasks, tasksRef.current, remoteTasks);
+          const normalizedRemoteTasks = mapTasksToSpaces(remoteTasks, spacesRef.current);
+          const normalizedTasks = mapTasksToSpaces(merged.tasks, spacesRef.current);
+          taskSaveBaselineRef.current = normalizedRemoteTasks;
+          tasksRef.current = normalizedTasks;
+          setTasks(normalizedTasks);
+          if (normalizedTasks.length === 0 && remoteTasks.length === 0) {
+            clearUserTasks(window.localStorage, authUserId);
+          } else {
+            writeUserTasks(window.localStorage, authUserId, normalizedTasks);
+          }
 
-        if (merged.deletedTaskIds.length > 0) {
-          setPendingRemoteDeletes((currentIds) => [...new Set([...currentIds, ...merged.deletedTaskIds])]);
+          if (merged.deletedTaskIds.length > 0) {
+            setPendingRemoteDeletes((currentIds) => [...new Set([...currentIds, ...merged.deletedTaskIds])]);
+          }
+          setTaskSyncNotice("");
+          setRemoteSyncReady(true);
+          void loadScheduleSnapshot();
+        } catch {
+          if (isCancelled) {
+            return;
+          }
+          setTaskSyncNotice("Your tasks are safe on this device. Cloud sync is offline and will retry.");
+          retryTimerId = window.setTimeout(() => void loadCloudSnapshot(), 5_000);
         }
-        setRemoteSyncReady(true);
-        void loadScheduleSnapshot();
-      } catch {
-        // Keep the local snapshot visible if Supabase is temporarily slow or
-        // unavailable. A later account refresh can try the remote load again.
-      }
+      };
+
+      void loadCloudSnapshot();
     };
 
     void restoreTasks();
     return () => {
       isCancelled = true;
+      if (retryTimerId !== null) {
+        window.clearTimeout(retryTimerId);
+      }
     };
-  }, [authStatus, authUser, supabaseClient]);
+  }, [authStatus, authUserId, supabaseClient]);
 
   useEffect(() => {
-    if (!authUser || authStatus !== "signed_in") {
+    if (!authUserId || authStatus !== "signed_in") {
       return;
     }
     let isCancelled = false;
@@ -1091,29 +803,55 @@ export default function Home() {
         if (!isCancelled) setSpaceError(error instanceof Error ? error.message : "Spaces could not be loaded.");
       });
     return () => { isCancelled = true; };
-  }, [applySpaces, authStatus, authUser]);
+  }, [applySpaces, authStatus, authUserId]);
 
   useEffect(() => {
-    if (isHydrated && authUser) {
-      writeUserTasks(authUser.id, tasks);
+    if (isHydrated && authUserId) {
+      writeUserTasks(window.localStorage, authUserId, tasks);
     }
-  }, [authUser, isHydrated, tasks]);
+  }, [authUserId, isHydrated, tasks]);
 
   useEffect(() => {
-    if (!supabaseClient || !authUser || !remoteSyncReady || !isHydrated) {
+    if (!supabaseClient || !authUserId || !remoteSyncReady || !isHydrated) {
       return;
     }
 
     const deletedTaskIds = pendingRemoteDeletes;
+    const localTasks = tasks;
+    const accountId = authUserId;
+    const account = { id: accountId };
     let isCancelled = false;
+    let retryTimerId: number | null = null;
 
     const timeoutId = window.setTimeout(() => {
-      void persistRemoteTasks(supabaseClient, authUser, tasks, deletedTaskIds)
-      .then(() => {
-        if (isCancelled) {
+      void taskWriteQueue.enqueue(async () => {
+        const loadedRemoteTasks = await loadRemoteTasks(supabaseClient, account);
+        if (taskSyncAccountRef.current !== accountId) {
+          throw new Error("Task sync account changed.");
+        }
+        const remoteTasks = mapTasksToSpaces(loadedRemoteTasks, spacesRef.current);
+        const reconciled = reconcileTaskSave(
+          taskSaveBaselineRef.current,
+          localTasks,
+          remoteTasks,
+          deletedTaskIds,
+        );
+        await persistRemoteTasks(supabaseClient, account, reconciled.tasks, reconciled.deletedTaskIds);
+        if (taskSyncAccountRef.current === accountId) {
+          taskSaveBaselineRef.current = reconciled.tasks;
+        }
+        return reconciled;
+      })
+      .then((reconciled) => {
+        if (isCancelled || taskSyncAccountRef.current !== accountId) {
           return;
         }
 
+        if (areTaskListsEquivalent(tasksRef.current, localTasks)
+          && !areTaskListsEquivalent(localTasks, reconciled.tasks)) {
+          tasksRef.current = reconciled.tasks;
+          setTasks(reconciled.tasks);
+        }
         setPendingRemoteDeletes((currentIds) => {
           const nextIds = currentIds.filter((taskId) => !deletedTaskIds.includes(taskId));
           // Keep the same array reference when there is nothing to clear. The
@@ -1121,32 +859,32 @@ export default function Home() {
           // empty array would start another save after every successful save.
           return nextIds.length === currentIds.length ? currentIds : nextIds;
         });
+        setTaskSyncNotice(reconciled.conflicts.length > 0
+          ? "Another tab changed the same task. HeavyUser kept the newest cloud copy."
+          : "");
         requestSchedulerRun();
       })
-      .catch(async (error: unknown) => {
-        if (isCancelled) return;
-        setTimerNotice(error instanceof Error && error.message.includes("running timer")
+      .catch((error: unknown) => {
+        if (isCancelled || taskSyncAccountRef.current !== accountId) return;
+        setTaskSyncNotice(error instanceof Error && error.message.includes("running timer")
           ? "Stop the timer on the other device before deleting this task."
-          : "The task could not be deleted. Your saved tasks were restored.");
-        try {
-          const remoteTasks = await loadRemoteTasks(supabaseClient, authUser);
-          if (!isCancelled) {
-            setTasks(ensureSingleFocus(mapTasksToSpaces(remoteTasks, spacesRef.current)));
-            setPendingRemoteDeletes((currentIds) => currentIds.filter((taskId) => !deletedTaskIds.includes(taskId)));
-          }
-        } catch {
-          // The next authenticated refresh will reconcile the account again.
-        }
+          : "Your changes are safe on this device. Cloud sync failed and will retry.");
+        retryTimerId = window.setTimeout(() => {
+          if (!isCancelled) setTaskSaveRetryVersion((version) => version + 1);
+        }, 3_000);
       });
     }, 250);
 
     return () => {
       isCancelled = true;
       window.clearTimeout(timeoutId);
+      if (retryTimerId !== null) {
+        window.clearTimeout(retryTimerId);
+      }
     };
     // The scheduler helper is intentionally stable for this persistence lifecycle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authUser, isHydrated, pendingRemoteDeletes, remoteSyncReady, supabaseClient, tasks]);
+  }, [authUserId, isHydrated, pendingRemoteDeletes, remoteSyncReady, supabaseClient, taskSaveRetryVersion, taskWriteQueue, tasks]);
 
   useEffect(() => {
     if (!isNotificationsOpen) {
@@ -1200,9 +938,14 @@ export default function Home() {
 
     function handleTaskPopoverKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === "Escape") {
+        const returnFocus = priorityMenuRef.current?.querySelector<HTMLElement>("[aria-haspopup='menu']")
+          ?? durationMenuRef.current?.querySelector<HTMLElement>("[aria-haspopup='dialog']")
+          ?? dueDateMenuRef.current?.querySelector<HTMLElement>("[aria-haspopup='dialog']")
+          ?? null;
         setPriorityMenuTaskId(null);
         setDurationMenuTaskId(null);
         setDueDateMenuTaskId(null);
+        window.requestAnimationFrame(() => returnFocus?.focus());
       }
     }
 
@@ -1216,14 +959,34 @@ export default function Home() {
   }, [priorityMenuTaskId, durationMenuTaskId, dueDateMenuTaskId]);
 
   useEffect(() => {
+    if (!priorityMenuTaskId) {
+      return;
+    }
+    const frameId = window.requestAnimationFrame(() => {
+      priorityMenuRef.current?.querySelector<HTMLElement>("[role^='menuitem']")?.focus();
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [priorityMenuTaskId]);
+
+  useEffect(() => {
     if (!editingId) {
       return;
     }
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    const frameId = window.requestAnimationFrame(() => {
+      const dialog = taskDialogRef.current;
+      if (dialog && !dialog.contains(document.activeElement)) {
+        focusFirstElement(dialog);
+      }
+    });
 
     function handleEditDialogKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Tab" && taskDialogRef.current) {
+        trapTabKey(event, taskDialogRef.current);
+        return;
+      }
       if (event.key !== "Escape") {
         return;
       }
@@ -1234,61 +997,89 @@ export default function Home() {
 
     document.addEventListener("keydown", handleEditDialogKeyDown);
     return () => {
+      window.cancelAnimationFrame(frameId);
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleEditDialogKeyDown);
+      const returnFocus = editDialogReturnFocusRef.current;
+      editDialogReturnFocusRef.current = null;
+      window.requestAnimationFrame(() => returnFocus?.focus());
     };
   }, [editingId]);
+
+  useEffect(() => {
+    if (!loggingWorkTaskId) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => loggingWorkInputRef.current?.focus());
+    return () => window.cancelAnimationFrame(frameId);
+  }, [loggingWorkTaskId]);
 
   function getAppToday() {
     return currentDateTime === null ? calendarDate : getLogicalDate(currentDateTime, settings);
   }
 
   async function loadScheduleSnapshot() {
+    if (scheduleSnapshotRequestRef.current) {
+      return scheduleSnapshotRequestRef.current;
+    }
+
+    const request = (async () => {
+      try {
+        const [response, timerResponse] = await Promise.all([
+          fetch(getAppPath("/api/scheduler/status"), { cache: "no-store" }),
+          fetch(getAppPath("/api/timer/status"), { cache: "no-store" }),
+        ]);
+
+        if (response.ok) {
+          const body = (await response.json().catch(() => null)) as {
+            statuses?: ReadonlyArray<TaskScheduleStatus>;
+            blocks?: ReadonlyArray<ScheduleBlockSnapshot>;
+          } | null;
+          const nextStatuses: Record<string, TaskScheduleStatus> = {};
+          for (const status of body?.statuses ?? []) {
+            nextStatuses[status.taskId] = status;
+          }
+          const nextBlocks: Record<string, Array<ScheduleBlockSnapshot>> = {};
+          for (const block of body?.blocks ?? []) {
+            (nextBlocks[block.taskId] ??= []).push(block);
+          }
+          setScheduleStatuses(nextStatuses);
+          setScheduleBlocks(nextBlocks);
+          setSchedulerError("");
+        } else {
+          const body = (await response.json().catch(() => null)) as { error?: string } | null;
+          setSchedulerError(body?.error ?? "Scheduling status could not be loaded.");
+        }
+
+        if (timerResponse.ok) {
+          const timerBody = (await timerResponse.json().catch(() => null)) as {
+            activeSession?: ActiveTimerSnapshot | null;
+            sessionsByTask?: Readonly<Record<string, TaskWorkSummary>>;
+            missedBlocks?: ReadonlyArray<MissedBlockSnapshot>;
+            alerts?: ReadonlyArray<TimerAlert>;
+          } | null;
+          setActiveTimer(timerBody?.activeSession ?? null);
+          setTimerElapsedSeconds(timerBody?.activeSession?.elapsedSeconds ?? 0);
+          setTaskWorkSummaries(timerBody?.sessionsByTask ?? {});
+          setMissedBlocks(timerBody?.missedBlocks ?? []);
+          setTimerAlerts(timerBody?.alerts ?? []);
+        } else if (response.ok) {
+          const timerBody = (await timerResponse.json().catch(() => null)) as { error?: string } | null;
+          setSchedulerError(timerBody?.error ?? "Timer history could not be loaded. Try refreshing.");
+        }
+      } catch {
+        setSchedulerError("Scheduling status could not be loaded. We will try again.");
+      }
+    })();
+    scheduleSnapshotRequestRef.current = request;
+
     try {
-      const [response, timerResponse] = await Promise.all([
-        fetch(getAppPath("/api/scheduler/status"), { cache: "no-store" }),
-        fetch(getAppPath("/api/timer/status"), { cache: "no-store" }),
-      ]);
-
-      if (response.ok) {
-        const body = (await response.json().catch(() => null)) as {
-          statuses?: ReadonlyArray<TaskScheduleStatus>;
-          blocks?: ReadonlyArray<ScheduleBlockSnapshot>;
-        } | null;
-        const nextStatuses: Record<string, TaskScheduleStatus> = {};
-        for (const status of body?.statuses ?? []) {
-          nextStatuses[status.taskId] = status;
-        }
-        const nextBlocks: Record<string, Array<ScheduleBlockSnapshot>> = {};
-        for (const block of body?.blocks ?? []) {
-          (nextBlocks[block.taskId] ??= []).push(block);
-        }
-        setScheduleStatuses(nextStatuses);
-        setScheduleBlocks(nextBlocks);
-        setSchedulerError("");
-      } else {
-        const body = (await response.json().catch(() => null)) as { error?: string } | null;
-        setSchedulerError(body?.error ?? "Scheduling status could not be loaded.");
+      await request;
+    } finally {
+      if (scheduleSnapshotRequestRef.current === request) {
+        scheduleSnapshotRequestRef.current = null;
       }
-
-      if (timerResponse.ok) {
-        const timerBody = (await timerResponse.json().catch(() => null)) as {
-          activeSession?: ActiveTimerSnapshot | null;
-          sessionsByTask?: Readonly<Record<string, TaskWorkSummary>>;
-          missedBlocks?: ReadonlyArray<MissedBlockSnapshot>;
-          alerts?: ReadonlyArray<TimerAlert>;
-        } | null;
-        setActiveTimer(timerBody?.activeSession ?? null);
-        setTimerElapsedSeconds(timerBody?.activeSession?.elapsedSeconds ?? 0);
-        setTaskWorkSummaries(timerBody?.sessionsByTask ?? {});
-        setMissedBlocks(timerBody?.missedBlocks ?? []);
-        setTimerAlerts(timerBody?.alerts ?? []);
-      } else if (response.ok) {
-        const timerBody = (await timerResponse.json().catch(() => null)) as { error?: string } | null;
-        setSchedulerError(timerBody?.error ?? "Timer history could not be loaded. Try refreshing.");
-      }
-    } catch {
-      setSchedulerError("Scheduling status could not be loaded. We will try again.");
     }
   }
 
@@ -1318,7 +1109,7 @@ export default function Home() {
   }, [activeTimer]);
 
   useEffect(() => {
-    if (!authUser || authStatus !== "signed_in") return;
+    if (!authUserId || authStatus !== "signed_in") return;
     const intervalId = window.setInterval(() => {
       if (document.visibilityState === "visible") void loadScheduleSnapshot();
     }, 15_000);
@@ -1330,7 +1121,7 @@ export default function Home() {
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [authStatus, authUser]);
+  }, [authStatus, authUserId]);
 
   function requestSchedulerRun(delayMs = 400) {
     if (schedulerRunInFlightRef.current) {
@@ -1350,6 +1141,12 @@ export default function Home() {
       }
 
       schedulerRunInFlightRef.current = true;
+      schedulerSnapshotPollTimerRef.current = window.setInterval(() => {
+        if (document.visibilityState === "visible") {
+          void loadScheduleSnapshot();
+        }
+      }, 500);
+      void loadScheduleSnapshot();
       void (async () => {
         let retryDelay: number | null = null;
         try {
@@ -1367,6 +1164,10 @@ export default function Home() {
         } catch {
           setSchedulerError("Scheduling could not finish. We will try again.");
         } finally {
+          if (schedulerSnapshotPollTimerRef.current !== null) {
+            window.clearInterval(schedulerSnapshotPollTimerRef.current);
+            schedulerSnapshotPollTimerRef.current = null;
+          }
           await loadScheduleSnapshot();
           window.dispatchEvent(new Event("heavyuser:calendar-refresh"));
           schedulerRunInFlightRef.current = false;
@@ -1426,12 +1227,24 @@ export default function Home() {
     const taskId = activeTimer.session.taskId;
     setTimerRequestTaskId(taskId);
     setTimerNotice("");
+    const pendingOperation = getPendingTimerOperation(
+      window.sessionStorage,
+      authUser?.id ?? "signed-out",
+      "stop",
+      `${activeTimer.session.id}:${options.complete === true ? "complete" : "keep-open"}`,
+      () => ({ requestKey: crypto.randomUUID(), stoppedAt: new Date().toISOString() }),
+    );
 
     const sendStop = async (action?: "finish" | "keep_long" | "split") => {
       const response = await fetch(getAppPath("/api/timer/stop"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stoppedAt: new Date().toISOString(), action, complete: options.complete === true }),
+        body: JSON.stringify({
+          sessionId: activeTimer.session.id,
+          stoppedAt: pendingOperation.stoppedAt,
+          action,
+          complete: options.complete === true,
+        }),
       });
       const body = (await response.json().catch(() => null)) as { code?: string; error?: string; warning?: string; schedulerWarning?: string | null } | null;
       return { response, body };
@@ -1441,7 +1254,10 @@ export default function Home() {
       let result = await sendStop(options.complete ? "finish" : undefined);
       if (!result.response.ok && result.body?.code === "estimate_reached" && !options.complete) {
         const finish = window.confirm("You reached the estimate. Press OK to stop and leave the task open, or Cancel to keep working.");
-        if (!finish) return false;
+        if (!finish) {
+          clearPendingTimerOperation(window.sessionStorage, pendingOperation.storageKey);
+          return false;
+        }
         result = await sendStop("finish");
       }
       if (!result.response.ok && result.body?.code === "overrun_review") {
@@ -1451,6 +1267,7 @@ export default function Home() {
       if (!result.response.ok) {
         throw new Error(result.body?.error ?? "The timer could not stop.");
       }
+      clearPendingTimerOperation(window.sessionStorage, pendingOperation.storageKey);
       if (options.complete) {
         setTasks((currentTasks) => {
           const nextOpenTask = currentTasks.find((task) => task.id !== taskId && task.status !== "done")?.id ?? null;
@@ -1473,36 +1290,70 @@ export default function Home() {
     }
   }
 
-  async function handleLogWork(taskId: string, range?: { startedAt: string; stoppedAt: string; blockId?: string }) {
+  function handleBeginLogWork(taskId: string) {
+    if (timerRequestTaskId || !tasks.some((task) => task.id === taskId)) {
+      return;
+    }
+
+    setSessionActionError("");
+    setTimerNotice("");
+    setLoggingWorkMinutes("30");
+    setLoggingWorkTaskId((currentTaskId) => (currentTaskId === taskId ? null : taskId));
+  }
+
+  function handleCancelLogWork() {
+    setLoggingWorkTaskId(null);
+    setLoggingWorkMinutes("30");
+    setSessionActionError("");
+  }
+
+  async function handleLogWork(
+    taskId: string,
+    range?: { startedAt: string; stoppedAt: string; blockId?: string },
+    minutesText = loggingWorkMinutes,
+  ) {
     if (timerRequestTaskId) return;
     const task = tasks.find((candidate) => candidate.id === taskId);
     if (!task) return;
-    const minutesText = range ? null : window.prompt(`How many minutes did you work on “${task.title}”?`, "30");
-    if (minutesText === null && !range) return;
     const minutes = range
       ? Math.round((new Date(range.stoppedAt).getTime() - new Date(range.startedAt).getTime()) / 60_000)
-      : Math.round(Number(minutesText));
-    if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 1440) {
-      setTimerNotice("Enter a number from 1 to 1440 minutes.");
+      : parseWorkMinutes(minutesText);
+    if (minutes === null || !Number.isFinite(minutes) || minutes <= 0 || minutes > 1440) {
+      setSessionActionError("Enter a number from 1 to 1440 minutes.");
       return;
     }
-    const stoppedAt = range?.stoppedAt ?? new Date().toISOString();
-    const startedAt = range?.startedAt ?? new Date(new Date(stoppedAt).getTime() - minutes * 60_000).toISOString();
-    const requestKey = crypto.randomUUID();
+    const requestedStoppedAt = range?.stoppedAt ?? new Date().toISOString();
+    const requestedStartedAt = range?.startedAt ?? new Date(new Date(requestedStoppedAt).getTime() - minutes * 60_000).toISOString();
+    const fingerprint = range
+      ? `${taskId}:${range.blockId ?? "range"}:${requestedStartedAt}:${requestedStoppedAt}`
+      : `${taskId}:manual:${minutes}`;
+    const pendingOperation = getPendingTimerOperation(
+      window.sessionStorage,
+      authUser?.id ?? "signed-out",
+      "log-work",
+      fingerprint,
+      () => ({ requestKey: crypto.randomUUID(), startedAt: requestedStartedAt, stoppedAt: requestedStoppedAt }),
+    );
+    const startedAt = pendingOperation.startedAt ?? requestedStartedAt;
+    const stoppedAt = pendingOperation.stoppedAt ?? requestedStoppedAt;
+    setSessionActionError("");
     setTimerRequestTaskId(taskId);
     try {
       const response = await fetch(getAppPath("/api/timer/log-work"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ taskId, startedAt, stoppedAt, requestKey, missedBlockId: range?.blockId }),
+        body: JSON.stringify({ taskId, startedAt, stoppedAt, requestKey: pendingOperation.requestKey, missedBlockId: range?.blockId }),
       });
       const body = (await response.json().catch(() => null)) as { error?: string; warning?: string } | null;
       if (!response.ok) throw new Error(body?.error ?? "Work could not be logged.");
+      clearPendingTimerOperation(window.sessionStorage, pendingOperation.storageKey);
+      setLoggingWorkTaskId(null);
+      setLoggingWorkMinutes("30");
       setTimerNotice(body?.warning ?? "Work logged.");
       await loadScheduleSnapshot();
       window.dispatchEvent(new Event("heavyuser:calendar-refresh"));
     } catch (error) {
-      setTimerNotice(error instanceof Error ? error.message : "Work could not be logged.");
+      setSessionActionError(error instanceof Error ? error.message : "Work could not be logged.");
     } finally {
       setTimerRequestTaskId(null);
     }
@@ -1517,15 +1368,23 @@ export default function Home() {
       setTimerNotice("Enter a number from 1 to 1440 minutes.");
       return;
     }
+    const pendingOperation = getPendingTimerOperation(
+      window.sessionStorage,
+      authUser?.id ?? "signed-out",
+      "add-time",
+      `${activeTimer.session.id}:${minutes}`,
+      () => ({ requestKey: crypto.randomUUID() }),
+    );
     setTimerRequestTaskId(activeTimer.session.taskId);
     try {
       const response = await fetch(getAppPath("/api/timer/add-time"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ minutes, requestKey: crypto.randomUUID() }),
+        body: JSON.stringify({ minutes, requestKey: pendingOperation.requestKey }),
       });
       const body = (await response.json().catch(() => null)) as { error?: string; warning?: string; schedulerWarning?: string | null } | null;
       if (!response.ok) throw new Error(body?.error ?? "Time could not be added.");
+      clearPendingTimerOperation(window.sessionStorage, pendingOperation.storageKey);
       setTimerNotice(body?.warning ?? body?.schedulerWarning ?? "More time added.");
       await loadScheduleSnapshot();
       window.dispatchEvent(new Event("heavyuser:calendar-refresh"));
@@ -1536,18 +1395,40 @@ export default function Home() {
     }
   }
 
-  async function handleCorrectSession(session: TaskWorkSession) {
+  function handleBeginCorrectSession(session: TaskWorkSession) {
     if (timerRequestTaskId) return;
-    const minutesText = window.prompt("Correct this session to how many minutes?", String(Math.max(1, Math.round(session.workedSeconds / 60))));
-    if (minutesText === null) return;
-    const minutes = Math.round(Number(minutesText));
+    setDeletingSessionId(null);
+    setSessionActionError("");
+    setCorrectingSessionId(session.id);
+    setCorrectingMinutes(String(Math.max(1, Math.round(session.workedSeconds / 60))));
+    setCorrectionReason("Corrected work time");
+  }
+
+  function handleCancelCorrectSession() {
+    setCorrectingSessionId(null);
+    setCorrectingMinutes("");
+    setCorrectionReason("Corrected work time");
+    setSessionActionError("");
+  }
+
+  async function handleSaveCorrectedSession(session: TaskWorkSession) {
+    if (timerRequestTaskId) return;
+    const minutes = Math.round(Number(correctingMinutes));
     if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 1440) {
-      setTimerNotice("Enter a number from 1 to 1440 minutes.");
+      setSessionActionError("Enter a number from 1 to 1440 minutes.");
       return;
     }
-    const reason = window.prompt("Why are you correcting this session?", "Corrected work time");
-    if (!reason) return;
+    const reason = correctionReason.trim();
+    if (!reason) {
+      setSessionActionError("Add a short reason for this correction.");
+      return;
+    }
     const started = new Date(session.startedAt).getTime();
+    if (!Number.isFinite(started)) {
+      setSessionActionError("This session has an invalid start time.");
+      return;
+    }
+    setSessionActionError("");
     setTimerRequestTaskId(session.taskId);
     try {
       const response = await fetch(getAppPath(`/api/timer/sessions/${encodeURIComponent(session.id)}`), {
@@ -1557,11 +1438,43 @@ export default function Home() {
       });
       const body = (await response.json().catch(() => null)) as { error?: string; warning?: string } | null;
       if (!response.ok) throw new Error(body?.error ?? "The session could not be corrected.");
+      handleCancelCorrectSession();
       setTimerNotice(body?.warning ?? "Session corrected and recorded.");
       await loadScheduleSnapshot();
       window.dispatchEvent(new Event("heavyuser:calendar-refresh"));
     } catch (error) {
-      setTimerNotice(error instanceof Error ? error.message : "The session could not be corrected.");
+      setSessionActionError(error instanceof Error ? error.message : "The session could not be corrected.");
+    } finally {
+      setTimerRequestTaskId(null);
+    }
+  }
+
+  function handleRequestDeleteSession(session: TaskWorkSession) {
+    if (timerRequestTaskId) return;
+    setCorrectingSessionId(null);
+    setSessionActionError("");
+    setDeletingSessionId(session.id);
+  }
+
+  function handleCancelDeleteSession() {
+    setDeletingSessionId(null);
+    setSessionActionError("");
+  }
+
+  async function handleDeleteSession(session: TaskWorkSession) {
+    if (timerRequestTaskId) return;
+    setSessionActionError("");
+    setTimerRequestTaskId(session.taskId);
+    try {
+      const response = await fetch(getAppPath(`/api/timer/sessions/${encodeURIComponent(session.id)}`), { method: "DELETE" });
+      const body = (await response.json().catch(() => null)) as { error?: string; warning?: string } | null;
+      if (!response.ok) throw new Error(body?.error ?? "The work entry could not be removed.");
+      setDeletingSessionId(null);
+      setTimerNotice(body?.warning ?? "Work entry removed.");
+      await loadScheduleSnapshot();
+      window.dispatchEvent(new Event("heavyuser:calendar-refresh"));
+    } catch (error) {
+      setSessionActionError(error instanceof Error ? error.message : "The work entry could not be removed.");
     } finally {
       setTimerRequestTaskId(null);
     }
@@ -1584,6 +1497,7 @@ export default function Home() {
     const title = newTaskTitle.trim();
 
     if (!title) {
+      setTaskComposerError("Enter a task title.");
       return;
     }
     if (title.length > MAX_TASK_TITLE_LENGTH) {
@@ -1595,6 +1509,10 @@ export default function Home() {
       setTaskComposerError("The start date must be on or before the due date.");
       return;
     }
+    if (newTaskDuration.trim() && parseDuration(newTaskDuration) === null) {
+      setTaskComposerError(`Duration must be between 1 and ${MAX_TASK_DURATION_MINUTES.toLocaleString()} minutes.`);
+      return;
+    }
     const selectedSpace = spaces.find((space) => space.id === newTaskSpaceId && space.status === "active");
     if (!selectedSpace) {
       setTaskComposerError(spaces.length === 0 ? "Add a Google Calendar in Settings before adding a task." : "Choose a Space for this task.");
@@ -1604,7 +1522,7 @@ export default function Home() {
     setTaskComposerError("");
 
     const newTask: Task = {
-      id: `task-${Date.now()}`,
+      id: createTaskId(),
       title,
       spaceId: selectedSpace.id,
       subSpaceId: selectedSubSpace?.id ?? null,
@@ -1632,7 +1550,7 @@ export default function Home() {
     setNewTaskDeadline("");
     setNewTaskPriority("normal");
     setNewTaskSubSpaceId("");
-    try { window.localStorage.setItem(`heavyuser:last-space:${authUser?.id ?? ""}`, selectedSpace.id); } catch { /* best effort */ }
+    try { window.localStorage.setItem(`heavyuser:last-space:${authUserId}`, selectedSpace.id); } catch { /* best effort */ }
     setTaskComposerError("");
     newTaskInputRef.current?.focus();
   }
@@ -1707,8 +1625,11 @@ export default function Home() {
   }
 
   function handleStartEditing(task: Task) {
+    editDialogReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setIsAdding(false);
     setEditingId(task.id);
+    setLoggingWorkTaskId(null);
+    setLoggingWorkMinutes("30");
     setInlineEdit(null);
     setPriorityMenuTaskId(null);
     setDurationMenuTaskId(null);
@@ -1717,6 +1638,7 @@ export default function Home() {
   }
 
   function handleStartInlineEditing(task: Task, field: InlineEditField) {
+    setTaskActionError("");
     setIsAdding(false);
     setEditingId(null);
     setInlineEdit({ taskId: task.id, field });
@@ -1727,6 +1649,7 @@ export default function Home() {
   }
 
   function handleStartPriorityEditing(task: Task) {
+    setTaskActionError("");
     setIsAdding(false);
     setEditingId(null);
     setInlineEdit(null);
@@ -1736,6 +1659,7 @@ export default function Home() {
   }
 
   function handleStartDurationEditing(task: Task) {
+    setTaskActionError("");
     setIsAdding(false);
     const parts = getDurationParts(task.duration);
     setEditingId(null);
@@ -1748,6 +1672,7 @@ export default function Home() {
   }
 
   function handleStartDueDateEditing(task: Task) {
+    setTaskActionError("");
     setIsAdding(false);
     setEditingId(null);
     setInlineEdit(null);
@@ -1770,7 +1695,12 @@ export default function Home() {
 
     if (field === "title") {
       const title = rawValue.trim();
+      if (title.length > MAX_TASK_TITLE_LENGTH) {
+        setTaskActionError(`Keep the task title under ${MAX_TASK_TITLE_LENGTH} characters.`);
+        return;
+      }
       if (title) {
+        setTaskActionError("");
         setTasks((currentTasks) =>
           currentTasks.map((currentTask) => (currentTask.id === taskId ? { ...currentTask, title } : currentTask)),
         );
@@ -1794,13 +1724,20 @@ export default function Home() {
   }
 
   function handlePriorityChange(taskId: string, priority: Priority) {
+    const returnFocus = priorityMenuRef.current?.querySelector<HTMLElement>("[aria-haspopup='menu']") ?? null;
     setTasks((currentTasks) =>
       currentTasks.map((task) => (task.id === taskId ? { ...task, priority } : task)),
     );
     setPriorityMenuTaskId(null);
+    window.requestAnimationFrame(() => returnFocus?.focus());
   }
 
   function handleDurationChange(taskId: string, duration: number | null) {
+    if (duration !== null && (!Number.isFinite(duration) || duration < 1 || duration > MAX_TASK_DURATION_MINUTES)) {
+      setTaskActionError(`Duration must be between 1 and ${MAX_TASK_DURATION_MINUTES.toLocaleString()} minutes.`);
+      return;
+    }
+    setTaskActionError("");
     setTasks((currentTasks) =>
       currentTasks.map((task) => (task.id === taskId ? { ...task, duration } : task)),
     );
@@ -1808,13 +1745,29 @@ export default function Home() {
   }
 
   function handleCustomDurationSave(taskId: string) {
-    const hours = Math.max(0, Math.floor(Number(durationHours) || 0));
-    const minutes = Math.min(59, Math.max(0, Math.floor(Number(durationMinutes) || 0)));
+    const rawHours = durationHours.trim() ? Number(durationHours) : 0;
+    const rawMinutes = durationMinutes.trim() ? Number(durationMinutes) : 0;
+    if (!Number.isInteger(rawHours) || !Number.isInteger(rawMinutes) || rawHours < 0 || rawMinutes < 0 || rawMinutes > 59) {
+      setTaskActionError("Enter whole hours and 0–59 minutes.");
+      return;
+    }
+    const hours = rawHours;
+    const minutes = rawMinutes;
     const totalMinutes = hours * 60 + minutes;
+    if (totalMinutes > MAX_TASK_DURATION_MINUTES) {
+      setTaskActionError(`Duration cannot exceed ${MAX_TASK_DURATION_MINUTES.toLocaleString()} minutes.`);
+      return;
+    }
     handleDurationChange(taskId, totalMinutes > 0 ? totalMinutes : null);
   }
 
   function handleDueDateChange(taskId: string, deadline: string | null) {
+    const task = tasks.find((candidate) => candidate.id === taskId);
+    if (deadline && task?.startDate && task.startDate > deadline) {
+      setTaskActionError("The due date must be on or after the task start date.");
+      return;
+    }
+    setTaskActionError("");
     setTasks((currentTasks) =>
       currentTasks.map((task) => (task.id === taskId ? { ...task, deadline } : task)),
     );
@@ -1823,6 +1776,8 @@ export default function Home() {
 
   function handleCancelEditing() {
     setEditingId(null);
+    setLoggingWorkTaskId(null);
+    setLoggingWorkMinutes("30");
     setInlineEdit(null);
     setPriorityMenuTaskId(null);
     setDurationMenuTaskId(null);
@@ -1839,6 +1794,11 @@ export default function Home() {
     setEditingMaxBlockMinutes("");
     setEditingCalendarVisibility(null);
     setEditingCalendarTransparency(null);
+    setCorrectingSessionId(null);
+    setCorrectingMinutes("");
+    setCorrectionReason("Corrected work time");
+    setDeletingSessionId(null);
+    setSessionActionError("");
   }
 
   function handleSaveEdit(event: FormEvent<HTMLFormElement>, taskId: string) {
@@ -1859,8 +1819,17 @@ export default function Home() {
       return;
     }
 
+    if (editingDuration.trim() && parseDuration(editingDuration) === null) {
+      setEditingError(`Duration must be between 1 and ${MAX_TASK_DURATION_MINUTES.toLocaleString()} minutes.`);
+      return;
+    }
+
     const minBlockMinutes = parseDuration(editingMinBlockMinutes);
     const maxBlockMinutes = parseDuration(editingMaxBlockMinutes);
+    if ((editingMinBlockMinutes.trim() && minBlockMinutes === null) || (editingMaxBlockMinutes.trim() && maxBlockMinutes === null)) {
+      setEditingError(`Block overrides must be between 5 and ${MAX_TASK_DURATION_MINUTES.toLocaleString()} minutes.`);
+      return;
+    }
     if ((minBlockMinutes !== null && minBlockMinutes < 5) || (maxBlockMinutes !== null && maxBlockMinutes < 5)) {
       setEditingError("Block overrides must be at least 5 minutes.");
       return;
@@ -1909,7 +1878,7 @@ export default function Home() {
           : task,
       ),
     );
-    try { window.localStorage.setItem(`heavyuser:last-space:${authUser?.id ?? ""}`, selectedSpace.id); } catch { /* best effort */ }
+    try { window.localStorage.setItem(`heavyuser:last-space:${authUserId}`, selectedSpace.id); } catch { /* best effort */ }
     handleCancelEditing();
   }
 
@@ -1918,7 +1887,7 @@ export default function Home() {
       const stopped = await handleStopTimer();
       if (!stopped) return;
     }
-    if (supabaseClient && authUser) {
+    if (supabaseClient && authUserId) {
       setPendingRemoteDeletes((currentIds) =>
         currentIds.includes(taskId) ? currentIds : [...currentIds, taskId],
       );
@@ -1984,7 +1953,7 @@ export default function Home() {
       reorderedTasks.splice(nextTargetIndex, 0, movedTask);
       return replaceBucketOrder(currentTasks, reorderedTasks);
     });
-    setIsCustomOrder(true);
+    enableCustomTaskOrder();
   }
 
   function handleTaskDragStart(event: DragEvent<HTMLElement>, taskId: string) {
@@ -2060,7 +2029,25 @@ export default function Home() {
       ];
       return replaceBucketOrder(currentTasks, reorderedTasks);
     });
+    enableCustomTaskOrder();
+  }
+
+  function enableCustomTaskOrder() {
     setIsCustomOrder(true);
+    if (settings.customTaskOrder || customOrderSaveInFlightRef.current) {
+      return;
+    }
+
+    customOrderSaveInFlightRef.current = true;
+    void updateSettings({ ...settings, customTaskOrder: true })
+      .then((result) => {
+        if (!result.ok) {
+          setTaskActionError(`${result.message} Your order is kept on this screen, but may reset on another device.`);
+        }
+      })
+      .finally(() => {
+        customOrderSaveInFlightRef.current = false;
+      });
   }
 
   const logicalToday = getAppToday();
@@ -2097,6 +2084,15 @@ export default function Home() {
   const editingWorkSummary = editingTask ? taskWorkSummaries[editingTask.id] : undefined;
   const editingMissedBlocks = editingTask ? missedBlocks.filter((block) => block.taskId === editingTask.id) : [];
   const editingScheduleLabel = editingTask ? getScheduleLabel(editingTask, editingScheduleStatus) : null;
+  const isLoggingWork = Boolean(editingTask && loggingWorkTaskId === editingTask.id);
+  const liveTaskIds = new Set(tasks.map((task) => task.id));
+  const deletedTaskWorkSummaries = Object.values(taskWorkSummaries)
+    .filter((summary) => !liveTaskIds.has(summary.taskId) && summary.sessions.some((session) => session.state !== "cancelled"))
+    .sort((first, second) => {
+      const firstLatest = Math.max(...first.sessions.map((session) => new Date(session.startedAt).getTime()).filter(Number.isFinite), 0);
+      const secondLatest = Math.max(...second.sessions.map((session) => new Date(session.startedAt).getTime()).filter(Number.isFinite), 0);
+      return secondLatest - firstLatest;
+    });
   const headerDateTime = formatHeaderDateTime(currentDateTime, logicalToday);
   if (authStatus === "loading" || (authStatus === "signed_in" && !isHydrated)) {
     return (
@@ -2112,7 +2108,7 @@ export default function Home() {
   }
 
   return (
-    <main className="hu-shell">
+    <main className={`hu-shell ${activeTimer ? "has-active-timer" : ""}`}>
       <div className="hu-main">
         <header ref={topbarRef} className="hu-topbar" aria-label="Global navigation">
           <button
@@ -2206,6 +2202,8 @@ export default function Home() {
           </div>
         ) : null}
         {timerNotice ? <p className="hu-timer-notice" role="status">{timerNotice}</p> : null}
+        {taskSyncNotice ? <p className="hu-timer-notice is-warning" role="status">{taskSyncNotice}</p> : null}
+        {taskActionError ? <p className="hu-timer-notice is-warning" role="alert">{taskActionError}</p> : null}
         {timerAlerts[0] ? <p className="hu-timer-notice is-warning" role="alert">{timerAlerts[0].message} Review the task history before starting again.</p> : null}
 
         <div className="hu-content">
@@ -2229,7 +2227,6 @@ export default function Home() {
                         type="button"
                         onClick={() => {
                           setActiveBucket(option.value);
-                          setIsCustomOrder(false);
                         }}
                       >
                         <option.icon aria-hidden="true" size={13} />
@@ -2412,33 +2409,27 @@ export default function Home() {
                   </div>
                 ) : (
                   <>
-                    <div className="hu-task-table-head" role="row" aria-label="Task table columns">
+                    <div className="hu-task-table-head" role="group" aria-label="Task table columns">
                       <span aria-hidden="true" />
                       <span
-                        aria-label="Priority"
                         className="hu-table-head-icon-only"
-                        role="columnheader"
                         title="Priority"
                       >
                         <Flag aria-hidden="true" size={13} />
                       </span>
-                      <span role="columnheader">
+                      <span>
                         <ListTodo aria-hidden="true" size={13} />
                         <span className="hu-table-head-label">Task</span>
                       </span>
                       <span aria-hidden="true" />
                       <span
-                        aria-label="Duration"
                         className="hu-table-head-icon-only"
-                        role="columnheader"
                         title="Duration"
                       >
                         <Clock3 aria-hidden="true" size={13} />
                       </span>
                       <span
-                        aria-label="Due date"
                         className="hu-table-head-icon-only"
-                        role="columnheader"
                         title="Due date"
                       >
                         <CalendarDays aria-hidden="true" size={13} />
@@ -2557,6 +2548,7 @@ export default function Home() {
                                       aria-label={`Change priority for ${task.title}`}
                                       className="hu-priority-menu"
                                       role="menu"
+                                      onKeyDown={handleMenuArrowNavigation}
                                     >
                                       {priorityOptions.map((option) => {
                                         const optionPriority = option.value;
@@ -2593,6 +2585,7 @@ export default function Home() {
                                       autoFocus
                                       className="hu-inline-edit-input hu-inline-title-input"
                                       minLength={1}
+                                      maxLength={MAX_TASK_TITLE_LENGTH}
                                       value={editingTitle}
                                       onBlur={(event) =>
                                         handleCommitInlineEdit(task.id, "title", event.currentTarget.value)
@@ -2874,6 +2867,41 @@ export default function Home() {
                     })}
                   </>
                 )}
+                {deletedTaskWorkSummaries.length > 0 ? (
+                  <section aria-labelledby="deleted-task-work-title" className="hu-deleted-work-panel">
+                    <div>
+                      <h2 id="deleted-task-work-title">Saved work from deleted tasks</h2>
+                      <p>Deleting a task never deletes the time you already recorded.</p>
+                    </div>
+                    <div className="hu-deleted-work-list">
+                      {deletedTaskWorkSummaries.map((summary) => {
+                        const sessions = summary.sessions.filter((session) => session.state !== "cancelled");
+                        return (
+                          <details className="hu-deleted-work-item" key={summary.taskId}>
+                            <summary>
+                              <History aria-hidden="true" size={13} />
+                              <span>Deleted task · {summary.taskId.slice(-8)}</span>
+                              <strong>{summary.workedMinutes}m worked</strong>
+                            </summary>
+                            <div className="hu-work-session-list">
+                              {sessions.slice(0, 8).map((session) => (
+                                <div className="hu-work-session-item" key={session.id}>
+                                  <History aria-hidden="true" size={13} />
+                                  <span className="hu-work-session-copy">
+                                    <strong>{session.source === "manual" ? "Logged work" : "Timer"}</strong>
+                                    <time dateTime={session.startedAt}>{new Date(session.startedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</time>
+                                  </span>
+                                  <span className="hu-work-session-minutes">{Math.max(1, Math.floor(session.workedSeconds / 60))}m</span>
+                                  {session.repairNeeded ? <span className="hu-deleted-work-warning">Calendar repair pending</span> : null}
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ) : null}
               </div>
             </section>
 
@@ -2904,6 +2932,7 @@ export default function Home() {
             <form
               aria-label="Edit task"
               className="hu-task-dialog"
+              ref={taskDialogRef}
               role="dialog"
               aria-modal="true"
               onSubmit={(event) => handleSaveEdit(event, editingTask.id)}
@@ -2918,6 +2947,7 @@ export default function Home() {
               </button>
 
               <div className="hu-task-dialog-body">
+                <div className="hu-task-dialog-column hu-task-dialog-details">
                 <label className="hu-edit-field hu-dialog-title-field">
                   <span className="hu-field-label">Task</span>
                   <input
@@ -2932,7 +2962,7 @@ export default function Home() {
                   />
                 </label>
                 <div className="hu-dialog-field-grid">
-                  <label className="hu-edit-field">
+                  <div className="hu-edit-field hu-duration-field">
                     <span className="hu-field-label">Duration</span>
                     <span className="hu-duration-input-wrap">
                       <input
@@ -2941,6 +2971,7 @@ export default function Home() {
                         inputMode="numeric"
                         min="5"
                         max={MAX_TASK_DURATION_MINUTES}
+                        ref={editingDurationInputRef}
                         onChange={(event) => setEditingDuration(event.target.value)}
                         placeholder="30"
                         step="5"
@@ -2949,80 +2980,68 @@ export default function Home() {
                       />
                       <span aria-hidden="true">min</span>
                     </span>
-                  </label>
-                  <label className="hu-edit-field">
+                    <div aria-label="Duration presets" className="hu-dialog-duration-presets">
+                      {durationPresets.map((preset) => (
+                        <button
+                          aria-pressed={editingDuration === String(preset.minutes)}
+                          className="hu-dialog-duration-preset"
+                          key={preset.minutes}
+                          type="button"
+                          onClick={() => setEditingDuration(String(preset.minutes))}
+                        >
+                          {preset.dialogLabel}
+                        </button>
+                      ))}
+                      <button
+                        aria-pressed={editingDuration.trim() !== "" && !durationPresets.some((preset) => preset.minutes === Number(editingDuration))}
+                        className="hu-dialog-duration-preset is-custom"
+                        type="button"
+                        onClick={() => editingDurationInputRef.current?.focus()}
+                      >
+                        Custom
+                      </button>
+                    </div>
+                  </div>
+                  <div className="hu-edit-field">
                     <span className="hu-field-label">Priority</span>
-                    <select
-                      aria-label="Task priority"
-                      className={`hu-edit-input hu-priority-select is-${editingPriority}`}
-                      onChange={(event) => setEditingPriority(event.target.value as Priority)}
+                    <PriorityPicker
+                      ariaLabel="Task priority"
                       value={editingPriority}
-                    >
-                      {priorityOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="hu-edit-field">
-                    <span className="hu-field-label">Start date</span>
-                    <DateField
-                      ariaLabel="Task start date"
-                      className="hu-edit-input"
-                      value={editingStartDate}
-                      onChange={setEditingStartDate}
+                      onChange={setEditingPriority}
                     />
-                  </label>
-                  <label className="hu-edit-field">
-                    <span className="hu-field-label">Due date</span>
-                    <DateField
-                      ariaLabel="Task due date"
-                      className="hu-edit-input"
-                      value={editingDeadline}
-                      onChange={setEditingDeadline}
-                    />
-                  </label>
+                  </div>
+                  <QuickDateField
+                    ariaLabel="Custom task start date"
+                    className="hu-edit-input"
+                    fieldLabel="Start date"
+                    today={logicalToday}
+                    value={editingStartDate}
+                    onChange={setEditingStartDate}
+                  />
+                  <QuickDateField
+                    ariaLabel="Custom task due date"
+                    className="hu-edit-input"
+                    fieldLabel="Due date"
+                    today={logicalToday}
+                    value={editingDeadline}
+                    onChange={setEditingDeadline}
+                  />
                 </div>
-                <div className="hu-dialog-field-grid is-space-fields">
-                  <label className="hu-edit-field">
-                    <span className="hu-field-label">Space <span aria-hidden="true">*</span></span>
-                    <select
-                      aria-label="Task Space"
-                      className="hu-edit-input"
-                      required
-                      value={editingSpaceId}
-                      onChange={(event) => { setEditingSpaceId(event.target.value); setEditingSubSpaceId(""); }}
-                    >
-                      <option value="">Choose a Space</option>
-                      {spaces.map((space) => (
-                        <option disabled={space.status !== "active"} key={space.id} value={space.id}>{space.name}{space.status === "archived" ? " (Archived)" : space.status === "disconnected" ? " (Reconnect Google Calendar)" : ""}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="hu-edit-field">
-                    <span className="hu-field-label">Sub-space</span>
-                    <select
-                      aria-label="Task Sub-space"
-                      className="hu-edit-input"
-                      disabled={!editingSpaceId}
-                      value={editingSubSpaceId}
-                      onChange={(event) => setEditingSubSpaceId(event.target.value)}
-                    >
-                      <option value="">Space only</option>
-                      {(spaces.find((space) => space.id === editingSpaceId)?.subSpaces ?? []).filter((subSpace) => subSpace.status === "active" || subSpace.id === editingSubSpaceId).map((subSpace) => (
-                        <option key={subSpace.id} value={subSpace.id}>{subSpace.name}{subSpace.status === "archived" ? " (Archived)" : ""}</option>
-                      ))}
-                    </select>
-                  </label>
+                <SpacePicker
+                  onSpaceChange={setEditingSpaceId}
+                  onSubSpaceChange={setEditingSubSpaceId}
+                  spaceId={editingSpaceId}
+                  spaces={spaces}
+                  subSpaceId={editingSubSpaceId}
+                />
                 </div>
+                <div className="hu-task-dialog-column hu-task-dialog-planning">
                 <div className="hu-dialog-scheduling">
                   <div className="hu-dialog-scheduling-heading">
                     <div>
                       <span className="hu-field-label">Calendar scheduling</span>
-                      <p>HeavyUser places flexible work blocks around your Google Calendar.</p>
+                      <p>HeavyUser finds flexible work blocks around your Google Calendar.</p>
                     </div>
-                    <span className="hu-task-scheduling-always-on">Always on</span>
                   </div>
                   <div className="hu-dialog-field-grid is-scheduling">
                     <label className="hu-edit-field">
@@ -3109,8 +3128,10 @@ export default function Home() {
                           return (
                             <div className={`hu-task-schedule-item ${isPast ? "is-past" : ""}`} key={block.id}>
                               <CalendarDays aria-hidden="true" size={13} />
-                              <span className="hu-task-schedule-item-date">{formattedBlock.date}</span>
-                              <time dateTime={block.start}>{formattedBlock.time}</time>
+                              <span className="hu-task-schedule-item-copy">
+                                <span className="hu-task-schedule-item-date">{formattedBlock.date}</span>
+                                <time dateTime={block.start}>{formattedBlock.time}</time>
+                              </span>
                               <span className="hu-task-schedule-item-state">{isPast ? "Past" : block.state === "locked" ? "Locked" : "Planned"}</span>
                             </div>
                           );
@@ -3133,11 +3154,59 @@ export default function Home() {
                           <span className="hu-field-label">Work history</span>
                           <p>Actual work is separate from planned calendar time.</p>
                         </div>
-                        <button className="hu-inline-history-action" type="button" onClick={() => void handleLogWork(editingTask.id)}>
-                          <PlusCircle aria-hidden="true" size={13} />
-                          Log work
+                        <button
+                          aria-expanded={isLoggingWork}
+                          className="hu-inline-history-action"
+                          disabled={Boolean(timerRequestTaskId)}
+                          type="button"
+                          onClick={() => (isLoggingWork ? handleCancelLogWork() : handleBeginLogWork(editingTask.id))}
+                        >
+                          {isLoggingWork ? <X aria-hidden="true" size={13} /> : <PlusCircle aria-hidden="true" size={13} />}
+                          {isLoggingWork ? "Cancel" : "Log work"}
                         </button>
                       </div>
+                      {isLoggingWork ? (
+                        <div aria-label="Log work" className="hu-session-correction" role="group">
+                          <div className="hu-session-correction-fields is-single">
+                            <label>
+                              <span>Minutes worked</span>
+                              <input
+                                aria-label="Minutes worked"
+                                autoComplete="off"
+                                inputMode="numeric"
+                                max="1440"
+                                min="1"
+                                ref={loggingWorkInputRef}
+                                type="number"
+                                value={loggingWorkMinutes}
+                                onChange={(event) => setLoggingWorkMinutes(event.target.value)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    void handleLogWork(editingTask.id, undefined, loggingWorkMinutes);
+                                  } else if (event.key === "Escape") {
+                                    event.preventDefault();
+                                    handleCancelLogWork();
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                          <div className="hu-session-correction-actions">
+                            <button
+                              className="hu-session-correct-button is-primary"
+                              disabled={Boolean(timerRequestTaskId)}
+                              type="button"
+                              onClick={() => void handleLogWork(editingTask.id, undefined, loggingWorkMinutes)}
+                            >
+                              {timerRequestTaskId === editingTask.id ? "Saving…" : "Save work"}
+                            </button>
+                            <button className="hu-session-correct-button" disabled={Boolean(timerRequestTaskId)} type="button" onClick={handleCancelLogWork}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                       {editingWorkSummary ? (
                         <p className="hu-work-history-total">
                           <strong>{editingWorkSummary.workedMinutes}m worked</strong>
@@ -3146,17 +3215,66 @@ export default function Home() {
                       ) : <p className="hu-task-schedule-empty">No work recorded yet.</p>}
                       {editingWorkSummary?.sessions.length ? (
                         <div className="hu-work-session-list">
-                          {editingWorkSummary.sessions.slice(0, 6).map((session) => (
-                            <div className="hu-work-session-item" key={session.id}>
-                              <History aria-hidden="true" size={13} />
-                              <span>{session.source === "manual" ? "Logged" : session.state === "paused" ? "Paused" : "Timer"}</span>
-                              <time dateTime={session.startedAt}>{new Date(session.startedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time>
-                              <span>{Math.max(1, Math.floor(session.workedSeconds / 60))}m</span>
-                              {session.state !== "running" ? <button className="hu-session-correct-button" type="button" onClick={() => void handleCorrectSession(session)}>Correct</button> : null}
-                            </div>
+                          {editingWorkSummary.sessions.filter((session) => session.state !== "cancelled").slice(0, 6).map((session) => (
+                            correctingSessionId === session.id ? (
+                              <div aria-label="Correct work entry" className="hu-session-correction" key={session.id} role="group">
+                                <div className="hu-session-correction-fields">
+                                  <label>
+                                    <span>Minutes</span>
+                                    <input
+                                      aria-label="Corrected work minutes"
+                                      inputMode="numeric"
+                                      min="1"
+                                      max="1440"
+                                      onChange={(event) => setCorrectingMinutes(event.target.value)}
+                                      type="number"
+                                      value={correctingMinutes}
+                                    />
+                                  </label>
+                                  <label>
+                                    <span>Reason</span>
+                                    <input
+                                      aria-label="Correction reason"
+                                      maxLength={500}
+                                      onChange={(event) => setCorrectionReason(event.target.value)}
+                                      value={correctionReason}
+                                    />
+                                  </label>
+                                </div>
+                                <div className="hu-session-correction-actions">
+                                  <button className="hu-session-correct-button is-primary" disabled={timerRequestTaskId === session.taskId} type="button" onClick={() => void handleSaveCorrectedSession(session)}>{timerRequestTaskId === session.taskId ? "Saving…" : "Save"}</button>
+                                  <button className="hu-session-correct-button" disabled={timerRequestTaskId === session.taskId} type="button" onClick={handleCancelCorrectSession}>Cancel</button>
+                                </div>
+                              </div>
+                            ) : deletingSessionId === session.id ? (
+                              <div className="hu-work-session-item hu-work-session-delete-confirm" key={session.id}>
+                                <Trash2 aria-hidden="true" size={13} />
+                                <span>Remove this work entry?</span>
+                                <div className="hu-session-correction-actions">
+                                  <button className="hu-session-correct-button is-danger" disabled={timerRequestTaskId === session.taskId} type="button" onClick={() => void handleDeleteSession(session)}>{timerRequestTaskId === session.taskId ? "Removing…" : "Remove"}</button>
+                                  <button className="hu-session-correct-button" disabled={timerRequestTaskId === session.taskId} type="button" onClick={handleCancelDeleteSession}>Keep</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="hu-work-session-item" key={session.id}>
+                                <History aria-hidden="true" size={13} />
+                                <span className="hu-work-session-copy">
+                                  <strong>{session.source === "manual" ? "Logged work" : session.state === "paused" ? "Paused timer" : "Timer"}</strong>
+                                  <time dateTime={session.startedAt}>{new Date(session.startedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time>
+                                </span>
+                                <span className="hu-work-session-minutes">{Math.max(1, Math.floor(session.workedSeconds / 60))}m</span>
+                                {session.state !== "running" ? (
+                                  <div className="hu-work-session-actions">
+                                    <button aria-label={`Correct ${Math.max(1, Math.floor(session.workedSeconds / 60))} minute work entry`} className="hu-session-correct-button" type="button" onClick={() => handleBeginCorrectSession(session)}>Correct</button>
+                                    <button aria-label="Delete work entry" className="hu-session-delete-button" type="button" onClick={() => handleRequestDeleteSession(session)}>Delete</button>
+                                  </div>
+                                ) : null}
+                              </div>
+                            )
                           ))}
                         </div>
                       ) : null}
+                      {sessionActionError ? <p className="hu-session-action-error" role="alert">{sessionActionError}</p> : null}
                     </div>
                     {editingMissedBlocks.length > 0 ? (
                       <div className="hu-missed-block-panel">
@@ -3179,6 +3297,7 @@ export default function Home() {
                       </div>
                     ) : null}
                   </div>
+                </div>
                 </div>
               </div>
 
