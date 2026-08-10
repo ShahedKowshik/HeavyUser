@@ -13,6 +13,10 @@ describe("work session calculations", () => {
     expect(formatElapsedSeconds(27)).toBe("0:27");
   });
 
+  it("uses saved actual seconds for a paused session", () => {
+    expect(getSessionElapsedSeconds({ startedAt: "2026-08-06T09:00:00.000Z", stoppedAt: null, workedSeconds: 42, state: "paused" }, Date.parse("2026-08-10T12:00:00.000Z"))).toBe(42);
+  });
+
   it("separates estimate from actual work", () => {
     expect(getRemainingMinutes(60, 20)).toBe(40);
     expect(getRemainingMinutes(null, 20)).toBeNull();

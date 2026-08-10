@@ -60,7 +60,7 @@ export type TimerAlert = {
 };
 
 export function getSessionElapsedSeconds(session: Pick<TaskWorkSession, "startedAt" | "stoppedAt" | "workedSeconds" | "state">, now = Date.now()) {
-  if (session.state === "stopped" || session.state === "cancelled") {
+  if (session.state === "paused" || session.state === "stopped" || session.state === "cancelled") {
     return Math.max(0, Math.round(session.workedSeconds));
   }
 

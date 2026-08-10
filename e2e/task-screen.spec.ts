@@ -13,6 +13,31 @@ import {
 } from "./fixtures";
 
 test.describe("task capture, views, editing, and keyboard safety", () => {
+  test("closes the date picker after selecting a date or clicking outside", async ({ page }) => {
+    await installBrowserMocks(page, { tasks: [makeTask()] });
+    await openTaskWorkspace(page);
+
+    await page.locator("button.hu-add-button").click();
+    const form = page.getByRole("form", { name: "Add task" });
+    const dueDatePicker = form.getByRole("button", { name: "Choose task due date" });
+    const nativeDueDateInput = form.locator("input[type='date']").last();
+
+    await dueDatePicker.click();
+    await expect(dueDatePicker).toHaveAttribute("aria-expanded", "true");
+    await nativeDueDateInput.evaluate((input) => {
+      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setValue?.call(input, "2026-08-11");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await expect(dueDatePicker).toHaveAttribute("aria-expanded", "false");
+    await expect(form.locator('input[aria-label="Task due date"]')).toHaveValue("11 Aug 26");
+
+    await dueDatePicker.click();
+    await expect(dueDatePicker).toHaveAttribute("aria-expanded", "true");
+    await page.getByRole("tab", { name: /All tasks/ }).click();
+    await expect(dueDatePicker).toHaveAttribute("aria-expanded", "false");
+  });
+
   test("captures validation outcomes, filters, completion, accessibility, and responsive screenshots", async ({ page }, testInfo) => {
     await installBrowserMocks(page, {
       tasks: [

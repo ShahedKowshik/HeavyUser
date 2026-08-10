@@ -57,4 +57,17 @@ describe("security helpers", () => {
     expect(result.errorResponse?.status).toBe(413);
     expect(result.data).toBeNull();
   });
+
+  it("rejects malformed JSON instead of treating it as an empty body", async () => {
+    const request = new Request("https://web.heavyuser.app/api/google/calendar/select", {
+      method: "POST",
+      body: '{"calendarId":',
+    });
+
+    const result = await readJsonBody(request);
+
+    expect(result.errorResponse?.status).toBe(400);
+    await expect(result.errorResponse?.json()).resolves.toEqual({ error: "Invalid request." });
+    expect(result.data).toBeNull();
+  });
 });

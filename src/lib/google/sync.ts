@@ -399,8 +399,8 @@ export async function syncGoogleCalendar(
 
     const retainedEventKeys = await applyEvents(client, connection.user_id, result.events, scope);
     if (fullSync) {
-      // Fetch and apply the complete provider snapshot before removing stale
-      // cache rows. A Google/network failure can no longer blank the planner.
+      // Fetch and apply the complete bounded provider snapshot before removing
+      // stale cache rows. A Google/network failure can no longer blank the planner.
       await removeEventsMissingFromFullSnapshot(client, connection.user_id, scope, retainedEventKeys);
     }
     const { error: syncStateError } = await client.from("google_calendar_sync_states").upsert({

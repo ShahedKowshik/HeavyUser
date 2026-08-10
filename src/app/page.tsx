@@ -199,7 +199,31 @@ type DateFieldProps = {
 function DateField({ ariaLabel, className, value, onChange }: DateFieldProps) {
   const [draft, setDraft] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+  const [isNativePickerOpen, setIsNativePickerOpen] = useState(false);
+  const dateFieldRef = useRef<HTMLSpanElement | null>(null);
   const nativePickerRef = useRef<HTMLInputElement | null>(null);
+
+  function closeNativePicker() {
+    nativePickerRef.current?.blur();
+    setIsNativePickerOpen(false);
+  }
+
+  useEffect(() => {
+    if (!isNativePickerOpen) {
+      return;
+    }
+
+    function handleOutsidePointerDown(event: PointerEvent) {
+      if (event.target instanceof Node && dateFieldRef.current?.contains(event.target)) {
+        return;
+      }
+
+      closeNativePicker();
+    }
+
+    document.addEventListener("pointerdown", handleOutsidePointerDown, true);
+    return () => document.removeEventListener("pointerdown", handleOutsidePointerDown, true);
+  }, [isNativePickerOpen]);
 
   function commitDraft(nextValue: string) {
     if (!nextValue.trim()) {
@@ -224,21 +248,32 @@ function DateField({ ariaLabel, className, value, onChange }: DateFieldProps) {
       return;
     }
 
-    if (typeof picker.showPicker === "function") {
-      picker.showPicker();
+    if (isNativePickerOpen) {
+      closeNativePicker();
       return;
     }
 
-    picker.click();
+    setIsNativePickerOpen(true);
+    try {
+      if (typeof picker.showPicker === "function") {
+        picker.showPicker();
+        return;
+      }
+
+      picker.click();
+    } catch {
+      setIsNativePickerOpen(false);
+    }
   }
 
   return (
-    <span className="hu-date-field">
+    <span className="hu-date-field" ref={dateFieldRef}>
       <input
         aria-label={ariaLabel}
         className={className}
         inputMode="text"
         onFocus={() => {
+          closeNativePicker();
           setDraft(formatShortDate(value));
           setIsEditing(true);
         }}
@@ -263,6 +298,8 @@ function DateField({ ariaLabel, className, value, onChange }: DateFieldProps) {
       />
       <button
         aria-label={`Choose ${ariaLabel.toLowerCase()}`}
+        aria-expanded={isNativePickerOpen}
+        aria-haspopup="dialog"
         className="hu-date-picker-button"
         type="button"
         onMouseDown={(event) => event.preventDefault()}
@@ -277,11 +314,13 @@ function DateField({ ariaLabel, className, value, onChange }: DateFieldProps) {
         tabIndex={-1}
         type="date"
         value={value}
-          onChange={(event) => {
-            onChange(event.target.value);
-            setDraft(formatShortDate(event.target.value));
-            setIsEditing(false);
-          }}
+        onBlur={() => setIsNativePickerOpen(false)}
+        onChange={(event) => {
+          closeNativePicker();
+          onChange(event.target.value);
+          setDraft(formatShortDate(event.target.value));
+          setIsEditing(false);
+        }}
       />
     </span>
   );

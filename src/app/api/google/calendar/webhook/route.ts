@@ -38,7 +38,9 @@ export async function POST(request: Request) {
         await syncGoogleCalendar(admin, connection, request, { calendarId: state.calendar_id, spaceId: space.id });
       }
     } catch {
-      // Google will retry failed webhooks. The next app-load sync remains a fallback.
+      // A matched notification that could not be synced must remain retryable.
+      // Keep the response body empty so internal sync details are not exposed.
+      return new NextResponse(null, { status: 500 });
     }
   }
 

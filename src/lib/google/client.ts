@@ -1,6 +1,9 @@
 const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3";
 const GOOGLE_TOKEN_API = "https://oauth2.googleapis.com/token";
 const GOOGLE_REQUEST_TIMEOUT_MS = 15_000;
+const INITIAL_SYNC_HISTORY_DAYS = 90;
+const INITIAL_SYNC_FUTURE_DAYS = 365;
+const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
 
 export type GoogleApiErrorShape = {
   error?: {
@@ -212,6 +215,11 @@ export async function listGoogleEvents(input: {
   const query = new URLSearchParams({ singleEvents: "true", showDeleted: "true", maxResults: "2500", conferenceDataVersion: "1" });
   if (input.syncToken) {
     query.set("syncToken", input.syncToken);
+  } else {
+    // Keep the initial snapshot useful without importing years of history.
+    const now = Date.now();
+    query.set("timeMin", new Date(now - INITIAL_SYNC_HISTORY_DAYS * DAY_IN_MILLISECONDS).toISOString());
+    query.set("timeMax", new Date(now + INITIAL_SYNC_FUTURE_DAYS * DAY_IN_MILLISECONDS).toISOString());
   }
   if (input.pageToken) {
     query.set("pageToken", input.pageToken);

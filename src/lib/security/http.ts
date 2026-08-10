@@ -83,6 +83,9 @@ export async function readJsonBody<T>(request: Request, maximum = MAX_MUTATION_B
   try {
     return { data: JSON.parse(new TextDecoder().decode(bytes)) as T, errorResponse: null };
   } catch {
-    return { data: null, errorResponse: null };
+    return {
+      data: null,
+      errorResponse: NextResponse.json({ error: "Invalid request." }, { status: 400 }),
+    };
   }
 }

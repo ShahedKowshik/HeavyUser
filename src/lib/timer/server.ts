@@ -26,6 +26,7 @@ import type { Database, Json } from "@/lib/supabase/database.types";
 import { getUserSettings } from "@/lib/supabase/settings";
 import { loadSpaces } from "@/lib/spaces/server";
 import { releaseLockBestEffort } from "@/lib/reliability/locks";
+import { loadCachedEvents, type CalendarEventRow } from "@/lib/timer/calendar-events";
 import { loadActiveSessionRow, loadTimerSnapshot } from "@/lib/timer/data";
 import { getTimerBlockDurationMinutes } from "@/lib/timer/types";
 import type { TaskWorkSession } from "@/lib/timer/types";
@@ -34,7 +35,6 @@ type TimerClient = SupabaseClient<Database>;
 type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
 type BlockRow = Database["public"]["Tables"]["task_schedule_blocks"]["Row"];
 type SessionRow = Database["public"]["Tables"]["task_work_sessions"]["Row"];
-type CalendarEventRow = Database["public"]["Tables"]["google_calendar_events"]["Row"];
 type TimerReceiptOperation = "add_time" | "log_work";
 type AddTimeResult = { taskId: string; duration: number; warning: string | null; replayed?: boolean };
 
@@ -196,14 +196,6 @@ async function loadBlocks(client: TimerClient, userId: string, taskId?: string) 
   const { data, error } = await query.order("start_at", { ascending: true });
   if (error) throw error;
   return (data ?? []) as BlockRow[];
-}
-
-async function loadCachedEvents(client: TimerClient, userId: string, calendarId?: string) {
-  let query = client.from("google_calendar_events").select("*").eq("user_id", userId).neq("status", "cancelled");
-  if (calendarId) query = query.eq("calendar_id", calendarId);
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data ?? []) as CalendarEventRow[];
 }
 
 function getBusyEvents(
@@ -883,8 +875,8 @@ export async function startTimer(input: {
     }
     const currentBlock = selectedMissedBlock ?? getCurrentOrNextBlock(blocks, space.calendarId, startedAt);
     const currentBlockIsMissed = currentBlock?.state === "missed";
-    const activeCalendarIds = new Set(spaces.filter((candidate) => candidate.status === "active").map((candidate) => candidate.calendarId));
-    const events = (await loadCachedEvents(client, input.userId)).filter((event) => activeCalendarIds.has(event.calendar_id));
+    const activeCalendarIds = spaces.filter((candidate) => candidate.status === "active").map((candidate) => candidate.calendarId);
+    const events = await loadCachedEvents(client, input.userId, activeCalendarIds, nowIso(startedAt));
     const timezonesByCalendarId = new Map(spaces.map((candidate) => [candidate.calendarId, candidate.timeZone]));
     const busyEvents = getBusyEvents(
       events,
