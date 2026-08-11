@@ -40,6 +40,14 @@ describe("security helpers", () => {
     expect(oversized?.status).toBe(413);
   });
 
+  it("requires origin proof for browser mutations", () => {
+    const missingOrigin = rejectCrossOriginMutation(new Request("https://web.heavyuser.app/api/timer/start", {
+      method: "POST",
+    }));
+
+    expect(missingOrigin?.status).toBe(403);
+  });
+
   it("stops an oversized chunked JSON body even without Content-Length", async () => {
     const oversizedChunk = new TextEncoder().encode(`{"value":"${"x".repeat(70_000)}"}`);
     const request = new Request("https://web.heavyuser.app/api/timer/start", {

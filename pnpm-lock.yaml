@@ -78,7 +78,7 @@ importers:
         specifier: ^4.16.0
         version: 4.16.0(supports-color@7.2.0)(typescript@5.9.3)
       supabase:
-        specifier: ^2.111.0
+        specifier: 2.111.0
         version: 2.111.0
       tailwindcss:
         specifier: ^4

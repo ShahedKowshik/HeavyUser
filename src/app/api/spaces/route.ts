@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   const context = await requireAuthenticatedGoogleContext();
   if (!context) return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
 
-  const body = parsedBody.data;
+    const body = parsedBody.data;
   const calendarId = typeof body?.calendarId === "string" ? body.calendarId.trim() : "";
   if (!calendarId || calendarId.length > 512) return NextResponse.json({ error: "Choose a Google Calendar." }, { status: 400 });
 
@@ -90,7 +90,10 @@ export async function PATCH(request: Request) {
   if (!context) return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
   const body = parsedBody.data;
   const spaceId = typeof body?.spaceId === "string" ? body.spaceId : "";
-  if (!spaceId || spaceId.length > 100) return NextResponse.json({ error: "The Space could not be identified." }, { status: 400 });
+    if (!spaceId || spaceId.length > 100) return NextResponse.json({ error: "The Space could not be identified." }, { status: 400 });
+    if (body?.status !== undefined && body.status !== "active" && body.status !== "archived") {
+      return NextResponse.json({ code: "invalid_status", error: "That Space status is not supported." }, { status: 400 });
+    }
 
   try {
     const { data: space, error: spaceError } = await context.admin.from("spaces").select("*").eq("user_id", context.user.id).eq("id", spaceId).maybeSingle();
@@ -139,8 +142,13 @@ export async function PATCH(request: Request) {
     }
     const { error } = await context.admin.from("spaces").update(update).eq("user_id", context.user.id).eq("id", spaceId);
     if (error) throw error;
-    await queueSchedulerJob(context.admin, context.user.id, "space_changed");
-    return NextResponse.json({ spaces: await loadSpaces(context.admin, context.user.id) });
+    let schedulerWarning: string | null = null;
+    try {
+      await queueSchedulerJob(context.admin, context.user.id, "space_changed");
+    } catch (queueError) {
+      schedulerWarning = googleErrorMessage(queueError);
+    }
+    return NextResponse.json({ spaces: await loadSpaces(context.admin, context.user.id), schedulerWarning });
   } catch (error) {
     if ((error as { code?: string }).code === "23514") {
       return NextResponse.json({ error: "Complete or move open tasks before archiving this Space." }, { status: 409 });

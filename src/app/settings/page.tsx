@@ -63,7 +63,7 @@ export default function SettingsPage() {
   }
 
   const profileKey = typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "";
-  return <SettingsContent key={`${user.id}-${profileKey}-${settings.nightOwlMode}-${settings.dayStartTime}`} />;
+  return <SettingsContent key={`${user.id}-${profileKey}-${settings.nightOwlMode}-${settings.dayStartTime}-${settings.planningTimezone}`} />;
 }
 
 function SettingsContent() {
@@ -492,6 +492,24 @@ function SettingsContent() {
                     ? `Your task day continues until ${formatTimeValue(settingsDraft.dayStartTime)}.`
                     : "Turn on Night owl mode to change this time."}
                 </small>
+              </label>
+
+              <label className="hu-settings-time-field" htmlFor="settings-planning-timezone">
+                <span className="hu-field-label">Planning timezone</span>
+                <input
+                  id="settings-planning-timezone"
+                  aria-describedby="settings-planning-timezone-help"
+                  className="hu-edit-input"
+                  placeholder="Asia/Dhaka"
+                  value={settingsDraft.planningTimezone}
+                  onChange={(event) =>
+                    setSettingsDraft((current) => ({
+                      ...current,
+                      planningTimezone: event.target.value,
+                    }))
+                  }
+                />
+                <small id="settings-planning-timezone-help">Use an IANA timezone such as Asia/Dhaka or America/New_York. This clock controls task dates and planner days.</small>
               </label>
 
               {settingsMessage ? (

@@ -44,7 +44,7 @@ export async function GET(request: Request) {
     sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
     maxAge: 10 * 60,
-    path: "/",
+    path: getAppPath("/"),
   };
   response.cookies.set("heavyuser_google_oauth_state", state, cookieOptions);
   response.cookies.set("heavyuser_google_oauth_verifier", codeVerifier, cookieOptions);

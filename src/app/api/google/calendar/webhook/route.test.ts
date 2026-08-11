@@ -58,7 +58,7 @@ describe("Google Calendar webhook", () => {
     vi.mocked(loadGoogleConnection).mockResolvedValue({ selected_calendar_id: "calendar-1" } as never);
     vi.mocked(matchesSecret).mockReturnValue(true);
     vi.mocked(loadSpaces).mockResolvedValue([{ id: "space-1", calendarId: "calendar-1", status: "active" }] as never);
-    vi.mocked(syncGoogleCalendar).mockResolvedValue({ eventCount: 1, fullSync: false });
+    vi.mocked(syncGoogleCalendar).mockResolvedValue({ eventCount: 1, fullSync: false, truncated: false });
   });
 
   it("returns a retryable server error when a matched notification cannot sync", async () => {

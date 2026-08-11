@@ -7,6 +7,7 @@ describe("user settings", () => {
       nightOwlMode: true,
       dayStartTime: "03:30",
       customTaskOrder: false,
+      planningTimezone: "UTC",
     });
   });
 

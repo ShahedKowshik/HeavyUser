@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           access_token_encrypted: string
           access_token_expires_at: string | null
+          connection_generation: number
           created_at: string
           google_account_email: string | null
           granted_scope: string | null
@@ -33,6 +34,7 @@ export type Database = {
         Insert: {
           access_token_encrypted: string
           access_token_expires_at?: string | null
+          connection_generation?: number
           created_at?: string
           google_account_email?: string | null
           granted_scope?: string | null
@@ -48,6 +50,7 @@ export type Database = {
         Update: {
           access_token_encrypted?: string
           access_token_expires_at?: string | null
+          connection_generation?: number
           created_at?: string
           google_account_email?: string | null
           granted_scope?: string | null
@@ -194,8 +197,11 @@ export type Database = {
           last_synced_at: string | null
           resource_id: string | null
           sync_token: string | null
+          sync_window_end: string | null
+          sync_window_start: string | null
           updated_at: string
           user_id: string
+          watch_generation: number
         }
         Insert: {
           calendar_id?: string
@@ -206,8 +212,11 @@ export type Database = {
           last_synced_at?: string | null
           resource_id?: string | null
           sync_token?: string | null
+          sync_window_end?: string | null
+          sync_window_start?: string | null
           updated_at?: string
           user_id: string
+          watch_generation?: number
         }
         Update: {
           calendar_id?: string
@@ -218,8 +227,11 @@ export type Database = {
           last_synced_at?: string | null
           resource_id?: string | null
           sync_token?: string | null
+          sync_window_end?: string | null
+          sync_window_start?: string | null
           updated_at?: string
           user_id?: string
+          watch_generation?: number
         }
         Relationships: []
       }
@@ -464,6 +476,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      task_list_versions: {
+        Row: {
+          order_version: number
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          order_version?: number
+          updated_at?: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          order_version?: number
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: []
       }
       task_schedule_blocks: {
         Row: {
@@ -929,11 +962,89 @@ export type Database = {
           },
         ]
       }
+      user_operation_rate_limits: {
+        Row: {
+          operation: string
+          request_count: number
+          user_id: string
+          window_started_at: string
+        }
+        Insert: {
+          operation: string
+          request_count?: number
+          user_id: string
+          window_started_at: string
+        }
+        Update: {
+          operation?: string
+          request_count?: number
+          user_id?: string
+          window_started_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      consume_user_operation: {
+        Args: {
+          p_limit: number
+          p_operation: string
+          p_user_id: string
+          p_window_seconds?: number
+        }
+        Returns: boolean
+      }
+      create_space_for_user: {
+        Args: {
+          p_calendar_id: string
+          p_calendar_name: string
+          p_name: string
+          p_time_zone: string
+          p_user_id: string
+        }
+        Returns: {
+          archived_at: string | null
+          calendar_id: string
+          calendar_name: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+          status: string
+          time_zone: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "spaces"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_sub_space_for_user: {
+        Args: { p_name: string; p_space_id: string; p_user_id: string }
+        Returns: {
+          archived_at: string | null
+          created_at: string
+          id: string
+          name: string
+          position: number
+          space_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sub_spaces"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       get_recent_task_work_sessions: {
         Args: { p_limit?: number; p_user_id: string }
         Returns: {
@@ -968,12 +1079,24 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_task_work_total: {
+        Args: { p_task_id: string; p_user_id: string }
+        Returns: number
+      }
       get_task_work_totals: {
         Args: { p_user_id: string }
         Returns: {
           task_id: string
           worked_seconds: number
         }[]
+      }
+      purge_timer_operation_receipts: {
+        Args: { p_retention?: string }
+        Returns: number
+      }
+      purge_user_operation_rate_limits: {
+        Args: { p_age?: string }
+        Returns: number
       }
       refresh_scheduler_lock: {
         Args: { p_lock_token: string; p_user_id: string }
@@ -986,6 +1109,115 @@ export type Database = {
       release_scheduler_lock: {
         Args: { p_lock_token: string; p_user_id: string }
         Returns: undefined
+      }
+      save_task_snapshot: {
+        Args: {
+          p_base_order_version?: number
+          p_base_version?: number
+          p_deleted_task_ids?: string[]
+          p_order_changed?: boolean
+          p_tasks: Json
+          p_user_id: string
+        }
+        Returns: {
+          order_version: number
+          version: number
+        }[]
+      }
+      set_task_timer_state: {
+        Args: {
+          p_block_end_at?: string
+          p_block_last_error?: string
+          p_block_start_at?: string
+          p_block_state?: string
+          p_calendar_sync_state?: string
+          p_repair_needed?: boolean
+          p_session_id: string
+          p_state: string
+          p_stopped_at?: string
+          p_user_id: string
+          p_warning?: string
+          p_worked_seconds?: number
+        }
+        Returns: {
+          block_id: string | null
+          calendar_id: string | null
+          calendar_sync_state: string
+          created_at: string
+          estimated_minutes_at_start: number | null
+          id: string
+          original_started_at: string
+          original_stopped_at: string | null
+          planned_end_at: string | null
+          planned_start_at: string | null
+          provider_event_id: string | null
+          provider_event_key: string | null
+          repair_needed: boolean
+          source: string
+          space_id: string | null
+          started_at: string
+          state: string
+          stopped_at: string | null
+          task_id: string
+          updated_at: string
+          user_id: string
+          warning: string | null
+          worked_seconds: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "task_work_sessions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      start_task_timer: {
+        Args: {
+          p_block_id: string
+          p_calendar_id: string
+          p_end_at: string
+          p_estimated_minutes: number
+          p_etag?: string
+          p_provider_event_id: string
+          p_provider_event_key: string
+          p_session_id: string
+          p_space_id: string
+          p_started_at: string
+          p_sync_version?: number
+          p_task_id: string
+          p_user_id: string
+        }
+        Returns: {
+          block_id: string | null
+          calendar_id: string | null
+          calendar_sync_state: string
+          created_at: string
+          estimated_minutes_at_start: number | null
+          id: string
+          original_started_at: string
+          original_stopped_at: string | null
+          planned_end_at: string | null
+          planned_start_at: string | null
+          provider_event_id: string | null
+          provider_event_key: string | null
+          repair_needed: boolean
+          source: string
+          space_id: string | null
+          started_at: string
+          state: string
+          stopped_at: string | null
+          task_id: string
+          updated_at: string
+          user_id: string
+          warning: string | null
+          worked_seconds: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "task_work_sessions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       try_claim_scheduler_lock: {
         Args: { p_lock_token: string; p_user_id: string }

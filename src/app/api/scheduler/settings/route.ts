@@ -4,6 +4,7 @@ import { getUserSettings } from "@/lib/supabase/settings";
 import { getSchedulerBlockLimitError, hasWorkingWindow, normalizeSchedulerPreferences, preferencesToRow } from "@/lib/scheduler/preferences";
 import { runSchedulerForUserWithRetry, SchedulerBusyError } from "@/lib/scheduler/service";
 import { readJsonBody, rejectCrossOriginMutation } from "@/lib/security/http";
+import { consumeUserOperation } from "@/lib/security/rate-limit";
 
 async function getContext() {
   const context = await getAuthenticatedGoogleContext();
@@ -21,6 +22,7 @@ export async function GET() {
 
   const connection = await loadGoogleConnection(context.admin, context.user.id);
   const daySettings = getUserSettings(context.user) ?? undefined;
+  const planningTimezone = daySettings?.planningTimezone;
   const { data, error } = await context.admin
     .from("task_scheduling_preferences")
     .select("*")
@@ -33,7 +35,7 @@ export async function GET() {
   return NextResponse.json({
     settings: normalizeSchedulerPreferences(
       data,
-      connection?.selected_calendar_timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+      planningTimezone ?? connection?.selected_calendar_timezone ?? "UTC",
       daySettings,
     ),
   });
@@ -59,9 +61,10 @@ export async function PUT(request: Request) {
   }
   const connection = await loadGoogleConnection(context.admin, context.user.id);
   const daySettings = getUserSettings(context.user) ?? undefined;
+  const planningTimezone = daySettings?.planningTimezone;
   const preferences = normalizeSchedulerPreferences(
     body,
-    connection?.selected_calendar_timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+    planningTimezone ?? connection?.selected_calendar_timezone ?? "UTC",
     daySettings,
   );
   if (!hasWorkingWindow(preferences)) {
@@ -78,6 +81,13 @@ export async function PUT(request: Request) {
 
   let schedulerError: string | null = null;
   try {
+    if (!await consumeUserOperation(context.admin, context.user.id, "scheduler_run", 6, 60)) {
+      return NextResponse.json({
+        code: "rate_limited",
+        settings: normalizeSchedulerPreferences(data, preferences.timezone, preferences),
+        schedulerError: "Scheduling will retry after the short refresh limit resets.",
+      });
+    }
     await runSchedulerForUserWithRetry(context.user.id, request);
   } catch (error) {
     // Keep the working-hours change saved even if Google is temporarily

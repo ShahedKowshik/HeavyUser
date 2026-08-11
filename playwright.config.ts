@@ -13,7 +13,7 @@ export default defineConfig({
   reporter: process.env.CI ? [["line"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: "http://localhost:3100",
-    channel: "chrome",
+    browserName: "chromium",
     actionTimeout: 8_000,
     navigationTimeout: 15_000,
     trace: "retain-on-failure",

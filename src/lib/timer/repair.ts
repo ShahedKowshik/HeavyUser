@@ -218,6 +218,15 @@ async function repairCalendarEvent(input: {
       const event = await getGoogleEvent({ accessToken, calendarId, eventId: providerEventId });
       if (event.status !== "cancelled") {
         await upsertGoogleCalendarEvent(client, userId, event, { calendarId, spaceId: session?.space_id ?? block?.space_id ?? task?.space_id ?? null });
+        if (block?.id && event.start?.dateTime && event.end?.dateTime) {
+          await updateBlock(client, userId, block.id, {
+            state: "locked",
+            start_at: new Date(event.start.dateTime).toISOString(),
+            end_at: new Date(event.end.dateTime).toISOString(),
+            etag: event.etag ?? null,
+            last_error: null,
+          });
+        }
         if (session?.id) {
           await updateSession(client, userId, session.id, { calendar_sync_state: "synced", repair_needed: false });
         }
@@ -344,41 +353,56 @@ export async function processTimerCalendarRepairs(input: {
   if (!repairs || repairs.length === 0) {
     let pendingQuery = input.client
       .from("task_calendar_repairs")
-      .select("id,next_attempt_at")
+      .select("id,next_attempt_at", { count: "exact" })
       .eq("user_id", input.userId)
       .in("status", ["pending", "error"])
-      .lt("attempts", 20);
+      .lt("attempts", 20)
+      .order("next_attempt_at", { ascending: true })
+      .limit(1);
     if (input.calendarIds) {
       pendingQuery = pendingQuery.in("calendar_id", [...input.calendarIds]);
     }
-    const { data: pendingRows, error: pendingError } = await pendingQuery;
+    const { data: pendingRows, count: pendingCount, error: pendingError } = await pendingQuery;
     if (pendingError) throw pendingError;
     const nextAttemptAt = (pendingRows ?? []).map((row) => row.next_attempt_at).sort()[0];
     if (pendingRows && pendingRows.length > 0) {
       await queueSchedulerJob(input.client, input.userId, "timer_repair", nextAttemptAt);
     }
-    return { repaired: 0, failures: 0, pending: pendingRows?.length ?? 0, warnings: [] as ReadonlyArray<string> };
+    return { repaired: 0, failures: 0, pending: pendingCount ?? 0, warnings: [] as ReadonlyArray<string> };
   }
 
-  const [sessionsResult, blocksResult, tasksResult, spaces] = await Promise.all([
-    input.client.from("task_work_sessions").select("*").eq("user_id", input.userId),
-    input.client.from("task_schedule_blocks").select("*").eq("user_id", input.userId),
-    input.client.from("tasks").select("*").eq("user_id", input.userId),
+  const repairRows = repairs as RepairRow[];
+  const sessionIds = [...new Set(repairRows.map((repair) => repair.session_id).filter((id): id is string => Boolean(id)))];
+  const blockIds = [...new Set(repairRows.map((repair) => repair.block_id).filter((id): id is string => Boolean(id)))];
+  const [sessionsResult, blocksResult, spaces] = await Promise.all([
+    sessionIds.length > 0
+      ? input.client.from("task_work_sessions").select("*").eq("user_id", input.userId).in("id", sessionIds)
+      : Promise.resolve({ data: [], error: null }),
+    blockIds.length > 0
+      ? input.client.from("task_schedule_blocks").select("*").eq("user_id", input.userId).in("id", blockIds)
+      : Promise.resolve({ data: [], error: null }),
     loadSpaces(input.client, input.userId),
   ]);
   if (sessionsResult.error) throw sessionsResult.error;
   if (blocksResult.error) throw blocksResult.error;
-  if (tasksResult.error) throw tasksResult.error;
 
   const sessionsById = new Map(((sessionsResult.data ?? []) as SessionRow[]).map((session) => [session.id, session]));
   const blocksById = new Map(((blocksResult.data ?? []) as BlockRow[]).map((block) => [block.id, block]));
-  const tasksById = new Map(((tasksResult.data ?? []) as TaskRow[]).map((task) => [task.id, task]));
+  const taskIds = [...new Set([
+    ...((sessionsResult.data ?? []) as SessionRow[]).map((session) => session.task_id),
+    ...((blocksResult.data ?? []) as BlockRow[]).map((block) => block.task_id),
+  ])];
+  const { data: taskRows, error: taskError } = taskIds.length > 0
+    ? await input.client.from("tasks").select("*").eq("user_id", input.userId).in("id", taskIds)
+    : { data: [], error: null };
+  if (taskError) throw taskError;
+  const tasksById = new Map(((taskRows ?? []) as TaskRow[]).map((task) => [task.id, task]));
   const spacesById = new Map(spaces.map((space) => [space.id, space]));
   const warnings: string[] = [];
   let repaired = 0;
   let failures = 0;
 
-  for (const repair of repairs as RepairRow[]) {
+  for (const repair of repairRows) {
     const session = repair.session_id ? sessionsById.get(repair.session_id) ?? null : null;
     const block = repair.block_id ? blocksById.get(repair.block_id) ?? null : session?.block_id ? blocksById.get(session.block_id) ?? null : null;
     const taskId = session?.task_id ?? block?.task_id;
@@ -412,22 +436,22 @@ export async function processTimerCalendarRepairs(input: {
 
   let pendingQuery = input.client
     .from("task_calendar_repairs")
-    .select("id,next_attempt_at")
+    .select("id,next_attempt_at", { count: "exact" })
     .eq("user_id", input.userId)
     .in("status", ["pending", "error"])
-    .lt("attempts", 20);
+    .lt("attempts", 20)
+    .order("next_attempt_at", { ascending: true })
+    .limit(1);
   if (input.calendarIds) {
     pendingQuery = pendingQuery.in("calendar_id", [...input.calendarIds]);
   }
-  const { data: pendingRows, error: pendingError } = await pendingQuery;
+  const { data: pendingRows, count: pendingCount, error: pendingError } = await pendingQuery;
   if (pendingError) throw pendingError;
 
-  const nextAttemptAt = (pendingRows ?? [])
-    .map((row) => row.next_attempt_at)
-    .sort()[0];
+  const nextAttemptAt = pendingRows?.[0]?.next_attempt_at;
   if (pendingRows && pendingRows.length > 0) {
     await queueSchedulerJob(input.client, input.userId, "timer_repair", nextAttemptAt);
   }
 
-  return { repaired, failures, pending: pendingRows?.length ?? 0, warnings };
+  return { repaired, failures, pending: pendingCount ?? 0, warnings };
 }

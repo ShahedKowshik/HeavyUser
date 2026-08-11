@@ -7,18 +7,33 @@ export type UserSettings = {
   nightOwlMode: boolean;
   dayStartTime: string;
   customTaskOrder: boolean;
+  planningTimezone: string;
 };
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   nightOwlMode: false,
   dayStartTime: "04:00",
   customTaskOrder: false,
+  planningTimezone: "UTC",
 };
 
 export const LEGACY_SETTINGS_STORAGE_KEY = "heavyuser:settings:v2";
 
 function isTimeValue(value: unknown): value is string {
   return typeof value === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function isTimezone(value: unknown): value is string {
+  if (typeof value !== "string" || !value.trim()) {
+    return false;
+  }
+
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value }).format();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function normalizeUserSettings(value: unknown): UserSettings {
@@ -33,6 +48,9 @@ export function normalizeUserSettings(value: unknown): UserSettings {
       ? candidate.dayStartTime
       : DEFAULT_USER_SETTINGS.dayStartTime,
     customTaskOrder: candidate.customTaskOrder === true,
+    planningTimezone: isTimezone(candidate.planningTimezone)
+      ? candidate.planningTimezone
+      : DEFAULT_USER_SETTINGS.planningTimezone,
   };
 }
 

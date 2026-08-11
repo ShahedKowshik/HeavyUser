@@ -32,6 +32,9 @@ export function rejectCrossOriginMutation(request: Request) {
     return NextResponse.json({ error: "The application origin is not configured." }, { status: 503 });
   }
   const expectedOrigin = canonicalOrigin ?? new URL(request.url).origin;
+  if (!origin) {
+    return NextResponse.json({ error: "Origin proof is required." }, { status: 403 });
+  }
   if (origin && origin !== expectedOrigin) {
     return NextResponse.json({ error: "This request is not allowed." }, { status: 403 });
   }

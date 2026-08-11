@@ -4,14 +4,20 @@ import { randomUUID } from "node:crypto";
 import type { GoogleConnection, GoogleDbClient } from "@/lib/google/server";
 import {
   GoogleApiError,
+  stopGoogleChannel,
   listGoogleEvents,
+  INITIAL_SYNC_FUTURE_DAYS,
+  INITIAL_SYNC_HISTORY_DAYS,
   watchGoogleEvents,
   type GoogleEvent,
 } from "@/lib/google/client";
 import {
   getUsableGoogleAccessToken,
+  isGoogleAuthError,
+  isGoogleCalendarUnavailableError,
   loadGoogleSyncState,
   setGoogleConnectionError,
+  setGoogleConnectionWarning,
 } from "@/lib/google/server";
 import { queueSchedulerJob } from "@/lib/scheduler/queue";
 import { hashSecret } from "@/lib/security/http";
@@ -19,6 +25,7 @@ import { loadSpaces } from "@/lib/spaces/server";
 import { getStaleCalendarEventKeys } from "@/lib/google/event-utils";
 
 const EVENT_KEY_DELETE_BATCH_SIZE = 100;
+const MAX_SYNC_EVENTS_WARNING = 5_000;
 
 type EventScope = {
   calendarId: string;
@@ -278,18 +285,33 @@ async function removeEventsMissingFromFullSnapshot(
   userId: string,
   scope: EventScope,
   retainedEventKeys: ReadonlySet<string>,
+  windowStart: string,
+  windowEnd: string,
 ) {
   const { data, error } = await client
     .from("google_calendar_events")
-    .select("event_key")
+    .select("event_key,start_at,start_date,is_all_day")
     .eq("user_id", userId)
     .eq("calendar_id", scope.calendarId);
   if (error) {
     throw new Error(`Google Calendar cache could not be checked: ${error.message}`);
   }
 
+  const startTime = new Date(windowStart).getTime();
+  const endTime = new Date(windowEnd).getTime();
+  const startDate = windowStart.slice(0, 10);
+  const endDate = windowEnd.slice(0, 10);
+  const boundedKeys = (data ?? [])
+    .filter((row) => {
+      if (row.is_all_day) {
+        return Boolean(row.start_date && row.start_date >= startDate && row.start_date < endDate);
+      }
+      const timestamp = row.start_at ? new Date(row.start_at).getTime() : Number.NaN;
+      return Number.isFinite(timestamp) && timestamp >= startTime && timestamp < endTime;
+    })
+    .map((row) => row.event_key);
   const staleKeys = getStaleCalendarEventKeys(
-    (data ?? []).map((row) => row.event_key),
+    boundedKeys,
     retainedEventKeys,
   );
   for (let index = 0; index < staleKeys.length; index += EVENT_KEY_DELETE_BATCH_SIZE) {
@@ -328,7 +350,15 @@ async function performEventSync(client: GoogleDbClient, connection: GoogleConnec
     throw new Error("Google Calendar did not return a sync token.");
   }
 
-  return { events, nextSyncToken, accessToken };
+  const now = Date.now();
+  return {
+    events,
+    nextSyncToken,
+    accessToken,
+    truncated: events.length >= MAX_SYNC_EVENTS_WARNING,
+    windowStart: new Date(now - INITIAL_SYNC_HISTORY_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+    windowEnd: new Date(now + INITIAL_SYNC_FUTURE_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+  };
 }
 
 async function ensureWatch(client: GoogleDbClient, connection: GoogleConnection, scope: EventScope, request: Request | undefined, accessToken: string) {
@@ -360,6 +390,7 @@ async function ensureWatch(client: GoogleDbClient, connection: GoogleConnection,
     resource_id: channel.resourceId,
     channel_token_hash: hashSecret(channelToken),
     channel_expiration: channel.expiration ? new Date(Number(channel.expiration)).toISOString() : null,
+    watch_generation: (state?.watch_generation ?? 0) + 1,
     last_synced_at: state?.last_synced_at ?? null,
     last_error: null,
     updated_at: new Date().toISOString(),
@@ -367,13 +398,26 @@ async function ensureWatch(client: GoogleDbClient, connection: GoogleConnection,
   if (error) {
     throw error;
   }
+
+  if (state?.channel_id && state.resource_id && state.channel_id !== channel.id) {
+    try {
+      await stopGoogleChannel({
+        accessToken,
+        channelId: state.channel_id,
+        resourceId: state.resource_id,
+      });
+    } catch {
+      // The old channel may already have expired. The new saved channel is
+      // authoritative and will be replaced on its next renewal.
+    }
+  }
 }
 
 export async function syncGoogleCalendar(
   client: GoogleDbClient,
   connection: GoogleConnection,
   request?: Request,
-  options: { skipSchedulerQueue?: boolean; calendarId?: string; spaceId?: string | null } = {},
+  options: { skipSchedulerQueue?: boolean; calendarId?: string; spaceId?: string | null; updateConnectionStatus?: boolean } = {},
 ) {
   const calendarId = options.calendarId ?? connection.selected_calendar_id;
   if (!calendarId) {
@@ -383,7 +427,7 @@ export async function syncGoogleCalendar(
   const scope: EventScope = { calendarId, spaceId: options.spaceId ?? null };
   const state = await loadGoogleSyncState(client, connection.user_id, calendarId);
   let fullSync = !state?.sync_token;
-  let result: { events: GoogleEvent[]; nextSyncToken: string; accessToken: string };
+  let result: { events: GoogleEvent[]; nextSyncToken: string; accessToken: string; truncated: boolean; windowStart: string; windowEnd: string };
 
   try {
     try {
@@ -401,7 +445,14 @@ export async function syncGoogleCalendar(
     if (fullSync) {
       // Fetch and apply the complete bounded provider snapshot before removing
       // stale cache rows. A Google/network failure can no longer blank the planner.
-      await removeEventsMissingFromFullSnapshot(client, connection.user_id, scope, retainedEventKeys);
+      await removeEventsMissingFromFullSnapshot(
+        client,
+        connection.user_id,
+        scope,
+        retainedEventKeys,
+        result.windowStart,
+        result.windowEnd,
+      );
     }
     const { error: syncStateError } = await client.from("google_calendar_sync_states").upsert({
       user_id: connection.user_id,
@@ -412,6 +463,8 @@ export async function syncGoogleCalendar(
       channel_token_hash: state?.channel_token_hash ?? null,
       channel_expiration: state?.channel_expiration ?? null,
       last_synced_at: new Date().toISOString(),
+      sync_window_start: fullSync ? result.windowStart : (state?.sync_window_start ?? result.windowStart),
+      sync_window_end: fullSync ? result.windowEnd : (state?.sync_window_end ?? result.windowEnd),
       last_error: null,
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id,calendar_id" });
@@ -435,12 +488,14 @@ export async function syncGoogleCalendar(
 
     // A prior transient failure should not leave the connection marked as
     // errored after the calendar has successfully synced again.
-    const { error: connectionError } = await client
-      .from("google_calendar_connections")
-      .update({ status: "connected", last_error: null, updated_at: new Date().toISOString() })
-      .eq("user_id", connection.user_id);
-    if (connectionError) {
-      throw connectionError;
+    if (options.updateConnectionStatus !== false) {
+      const { error: connectionError } = await client
+        .from("google_calendar_connections")
+        .update({ status: "connected", last_error: null, updated_at: new Date().toISOString() })
+        .eq("user_id", connection.user_id);
+      if (connectionError) {
+        throw connectionError;
+      }
     }
 
     // Incremental Google syncs commonly return no events. Those reads are not
@@ -451,9 +506,15 @@ export async function syncGoogleCalendar(
       await queueSchedulerJob(client, connection.user_id, "google_sync");
     }
 
-    return { eventCount: result.events.filter((event) => event.status !== "cancelled").length, fullSync };
+    return { eventCount: result.events.filter((event) => event.status !== "cancelled").length, fullSync, truncated: result.truncated };
   } catch (error) {
-    await setGoogleConnectionError(client, connection.user_id, error instanceof Error ? error.message : "Calendar sync failed.");
+    if (options.updateConnectionStatus !== false) {
+      if (isGoogleAuthError(error) || isGoogleCalendarUnavailableError(error)) {
+        await setGoogleConnectionError(client, connection.user_id, error instanceof Error ? error.message : "Calendar sync failed.");
+      } else {
+        await setGoogleConnectionWarning(client, connection.user_id, error instanceof Error ? error.message : "Calendar sync failed.");
+      }
+    }
     throw error;
   }
 }
@@ -468,41 +529,99 @@ export async function syncAllGoogleCalendars(
   const spaces = allSpaces.filter((space) => space.status === "active");
   if (spaces.length === 0) {
     if (allSpaces.length > 0) {
-      return { calendars: 0, eventCount: 0, fullSync: false, errors: [] as ReadonlyArray<string> };
+      return { calendars: 0, attempted: 0, succeeded: 0, failed: 0, disconnected: 0, eventCount: 0, fullSync: false, truncated: false, errors: [] as ReadonlyArray<string> };
     }
-    if (!connection.selected_calendar_id) return { calendars: 0, eventCount: 0, fullSync: false, errors: [] as ReadonlyArray<string> };
+    if (!connection.selected_calendar_id) return { calendars: 0, attempted: 0, succeeded: 0, failed: 0, disconnected: 0, eventCount: 0, fullSync: false, truncated: false, errors: [] as ReadonlyArray<string> };
     const result = await syncGoogleCalendar(client, connection, request, options);
-    return { calendars: 1, eventCount: result.eventCount, fullSync: result.fullSync, errors: [] as ReadonlyArray<string> };
+    return { calendars: 1, attempted: 1, succeeded: 1, failed: 0, disconnected: 0, eventCount: result.eventCount, fullSync: result.fullSync, truncated: result.truncated, errors: [] as ReadonlyArray<string> };
   }
 
   let eventCount = 0;
   let fullSync = false;
+  let attempted = 0;
+  let succeeded = 0;
+  let failed = 0;
+  let disconnected = 0;
+  let authenticationFailure = false;
+  let truncated = false;
   const errors: string[] = [];
-  for (const space of spaces) {
-    try {
-      const result = await syncGoogleCalendar(client, connection, request, {
-        ...options,
-        calendarId: space.calendarId,
-        spaceId: space.id,
-      });
-      eventCount += result.eventCount;
-      fullSync = fullSync || result.fullSync;
-    } catch (error) {
-      // A removed calendar belongs to the old Google account. Keep its Space
-      // for history, but make it non-schedulable so it cannot block another
-      // active Space after reconnecting.
-      if (error instanceof GoogleApiError && [401, 403, 404, 410].includes(error.status)) {
-        const { error: disconnectError } = await client.from("spaces").update({
-          status: "disconnected",
-          archived_at: null,
-          updated_at: new Date().toISOString(),
-        }).eq("user_id", connection.user_id).eq("id", space.id).eq("status", "active");
-        if (disconnectError) {
-          errors.push(`${space.name}: ${disconnectError.message}`);
+  // Two workers keep multi-Space refreshes quick without creating an
+  // unbounded burst of Google requests. Leave time for the final status write.
+  const deadlineAt = Date.now() + 45_000;
+  let cursor = 0;
+  let deadlineNoticeAdded = false;
+
+  async function syncWorker() {
+    while (true) {
+      const space = spaces[cursor];
+      cursor += 1;
+      if (!space) return;
+      if (Date.now() >= deadlineAt) {
+        if (!deadlineNoticeAdded) {
+          deadlineNoticeAdded = true;
+          errors.push("Calendar sync stopped before the request deadline; the remaining Spaces will retry.");
         }
+        return;
       }
-      errors.push(`${space.name}: ${error instanceof Error ? error.message : "Calendar sync failed."}`);
+
+      attempted += 1;
+      try {
+        const result = await syncGoogleCalendar(client, connection, request, {
+          ...options,
+          calendarId: space.calendarId,
+          spaceId: space.id,
+          updateConnectionStatus: false,
+        });
+        succeeded += 1;
+        eventCount += result.eventCount;
+        fullSync = fullSync || result.fullSync;
+        truncated = truncated || result.truncated;
+      } catch (error) {
+        failed += 1;
+        // A removed calendar belongs to the old Google account. Keep its Space
+        // for history, but make it non-schedulable so it cannot block another
+        // active Space after reconnecting.
+        if (isGoogleAuthError(error) || isGoogleCalendarUnavailableError(error)) {
+          authenticationFailure = true;
+          const { error: disconnectError } = await client.from("spaces").update({
+            status: "disconnected",
+            archived_at: null,
+            updated_at: new Date().toISOString(),
+          }).eq("user_id", connection.user_id).eq("id", space.id).eq("status", "active");
+          if (disconnectError) {
+            errors.push(`${space.name}: ${disconnectError.message}`);
+          } else {
+            disconnected += 1;
+          }
+        }
+        errors.push(`${space.name}: ${error instanceof Error ? error.message : "Calendar sync failed."}`);
+      }
     }
   }
-  return { calendars: spaces.length, eventCount, fullSync, errors };
+
+  await Promise.all(Array.from({ length: Math.min(2, spaces.length) }, () => syncWorker()));
+
+  if (authenticationFailure && succeeded === 0) {
+    await setGoogleConnectionError(client, connection.user_id, errors.join(" ").slice(0, 240));
+  } else {
+    const { error: connectionUpdateError } = await client.from("google_calendar_connections").update({
+      status: "connected",
+      last_error: errors.length > 0 ? errors.join(" ").slice(0, 240) : null,
+      updated_at: new Date().toISOString(),
+    }).eq("user_id", connection.user_id);
+    if (connectionUpdateError) {
+      throw connectionUpdateError;
+    }
+  }
+  return {
+    calendars: spaces.length,
+    attempted,
+    succeeded,
+    failed,
+    disconnected,
+    eventCount,
+    fullSync,
+    truncated: truncated || errors.some((error) => error.toLowerCase().includes("limit") || error.toLowerCase().includes("deadline")),
+    errors,
+  };
 }

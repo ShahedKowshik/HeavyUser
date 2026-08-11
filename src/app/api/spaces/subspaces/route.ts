@@ -20,15 +20,22 @@ export async function POST(request: Request) {
     const { data: space, error: spaceError } = await context.admin.from("spaces").select("id,status").eq("user_id", context.user.id).eq("id", spaceId).maybeSingle();
     if (spaceError) throw spaceError;
     if (!space || space.status !== "active") return NextResponse.json({ error: "Restore that Space before adding a Sub-space." }, { status: 409 });
-    const { count, error: countError } = await context.admin.from("sub_spaces").select("id", { count: "exact", head: true }).eq("user_id", context.user.id).eq("space_id", spaceId);
-    if (countError) throw countError;
-    const { error } = await context.admin.from("sub_spaces").insert({ user_id: context.user.id, space_id: spaceId, name, position: count ?? 0, status: "active", archived_at: null });
+    const { error } = await context.admin.rpc("create_sub_space_for_user", {
+      p_user_id: context.user.id,
+      p_space_id: spaceId,
+      p_name: name,
+    });
     if (error) {
       if ((error as { code?: string }).code === "23505") return NextResponse.json({ error: "That Sub-space already exists in this Space." }, { status: 409 });
       throw error;
     }
-    await queueSchedulerJob(context.admin, context.user.id, "sub_space_added");
-    return NextResponse.json({ spaces: await loadSpaces(context.admin, context.user.id) });
+    let schedulerWarning: string | null = null;
+    try {
+      await queueSchedulerJob(context.admin, context.user.id, "sub_space_added");
+    } catch (queueError) {
+      schedulerWarning = googleErrorMessage(queueError);
+    }
+    return NextResponse.json({ spaces: await loadSpaces(context.admin, context.user.id), schedulerWarning });
   } catch (error) {
     if ((error as { code?: string }).code === "23514") {
       return NextResponse.json({ error: "Complete or move open tasks before archiving this Sub-space." }, { status: 409 });
@@ -47,6 +54,9 @@ export async function PATCH(request: Request) {
   const body = parsedBody.data;
   const subSpaceId = typeof body?.subSpaceId === "string" ? body.subSpaceId : "";
   if (!subSpaceId) return NextResponse.json({ error: "The Sub-space could not be identified." }, { status: 400 });
+  if (body?.status !== undefined && body.status !== "active" && body.status !== "archived") {
+    return NextResponse.json({ code: "invalid_status", error: "That Sub-space status is not supported." }, { status: 400 });
+  }
   try {
     const { data: subSpace, error: loadError } = await context.admin.from("sub_spaces").select("*").eq("user_id", context.user.id).eq("id", subSpaceId).maybeSingle();
     if (loadError) throw loadError;
@@ -68,8 +78,13 @@ export async function PATCH(request: Request) {
     }
     const { error } = await context.admin.from("sub_spaces").update(update).eq("user_id", context.user.id).eq("id", subSpaceId);
     if (error) throw error;
-    await queueSchedulerJob(context.admin, context.user.id, "sub_space_changed");
-    return NextResponse.json({ spaces: await loadSpaces(context.admin, context.user.id) });
+    let schedulerWarning: string | null = null;
+    try {
+      await queueSchedulerJob(context.admin, context.user.id, "sub_space_changed");
+    } catch (queueError) {
+      schedulerWarning = googleErrorMessage(queueError);
+    }
+    return NextResponse.json({ spaces: await loadSpaces(context.admin, context.user.id), schedulerWarning });
   } catch (error) {
     if ((error as { code?: string }).code === "23514") {
       return NextResponse.json({ error: "Complete or move open tasks before archiving this Sub-space." }, { status: 409 });

@@ -78,6 +78,14 @@ export async function setGoogleConnectionError(client: GoogleDbClient, userId: s
   }
 }
 
+export async function setGoogleConnectionWarning(client: GoogleDbClient, userId: string, message: string) {
+  const { error } = await client
+    .from("google_calendar_connections")
+    .update({ last_error: message, updated_at: new Date().toISOString() })
+    .eq("user_id", userId);
+  if (error) throw error;
+}
+
 export async function getUsableGoogleAccessToken(client: GoogleDbClient, connection: GoogleConnection) {
   const config = getGoogleConfig();
   if (!config) {
@@ -86,10 +94,10 @@ export async function getUsableGoogleAccessToken(client: GoogleDbClient, connect
 
   const expiresAt = connection.access_token_expires_at ? new Date(connection.access_token_expires_at).getTime() : 0;
   if (expiresAt > Date.now() + 60_000) {
-    return decryptSecret(connection.access_token_encrypted, config.tokenEncryptionKey);
+    return decryptSecret(connection.access_token_encrypted, config.tokenEncryptionKey, config.previousTokenEncryptionKeys);
   }
 
-  const refreshToken = decryptSecret(connection.refresh_token_encrypted, config.tokenEncryptionKey);
+  const refreshToken = decryptSecret(connection.refresh_token_encrypted, config.tokenEncryptionKey, config.previousTokenEncryptionKeys);
   const token = await refreshGoogleAccessToken({
     refreshToken,
     clientId: config.clientId,
@@ -131,7 +139,20 @@ export function publicGoogleConnection(connection: GoogleConnection | null) {
 }
 
 export function isGoogleAuthError(error: unknown) {
-  return error instanceof GoogleApiError && (error.status === 401 || error.status === 403);
+  if (!(error instanceof GoogleApiError)) return false;
+  if (error.status === 401) return true;
+  if (error.status !== 403) return false;
+  return [
+    "authError",
+    "forbidden",
+    "insufficientPermissions",
+    "invalid_grant",
+    "invalidCredentials",
+  ].includes(error.reason ?? "");
+}
+
+export function isGoogleCalendarUnavailableError(error: unknown) {
+  return error instanceof GoogleApiError && error.status === 404;
 }
 
 export function googleErrorMessage(error: unknown) {

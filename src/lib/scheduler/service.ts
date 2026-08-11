@@ -28,7 +28,7 @@ import { normalizeSchedulerPreferences } from "@/lib/scheduler/preferences";
 import { planSchedule } from "@/lib/scheduler/planner";
 import { getBusyIntervalsFromCalendarEvents } from "@/lib/scheduler/availability";
 import { getManagedEventCleanupKey, getManagedEventProperties, selectManagedEventCleanup } from "@/lib/scheduler/reconcile";
-import { getRowWorkedSeconds, loadWorkSessionRows } from "@/lib/timer/data";
+import { getRowWorkedSeconds, loadRunningWorkSessionRows, loadTaskWorkTotals, loadWorkSessionRows } from "@/lib/timer/data";
 import { processTimerCalendarRepairs } from "@/lib/timer/repair";
 import type {
   ScheduleBlockSnapshot,
@@ -384,7 +384,7 @@ async function pauseActiveSessionsForExternalChanges(
   now: number,
   calendarIds?: ReadonlySet<string>,
 ) {
-  const sessions = await loadWorkSessionRows(client, userId);
+  const sessions = await loadRunningWorkSessionRows(client, userId);
   const { data: taskRows, error: taskRowsError } = await client.from("tasks").select("id,status").eq("user_id", userId);
   if (taskRowsError) throw taskRowsError;
   const completedTaskIds = new Set((taskRows ?? []).filter((task) => task.status === "done").map((task) => task.id));
@@ -1183,15 +1183,17 @@ async function runSchedulerForUserWithClient(
   const refreshedEventsResult = await client.from("google_calendar_events").select("*").eq("user_id", userId);
   if (refreshedEventsResult.error) throw refreshedEventsResult.error;
   const refreshedEvents = (refreshedEventsResult.data ?? []).filter((event) => activeCalendarIds.has(event.calendar_id));
-  const workSessions = await loadWorkSessionRows(client, userId);
-  const workedSecondsByTask = new Map<string, number>();
+  const [workSessions, workedSecondsByTask] = await Promise.all([
+    loadRunningWorkSessionRows(client, userId),
+    loadTaskWorkTotals(client, userId),
+  ]);
   const workedMinutesByTask = new Map<string, number>();
   const activeBlockIds = new Set<string>();
   const activeSessionIdsByTask = new Map<string, string>();
   for (const session of workSessions) {
-    const workedSeconds = getRowWorkedSeconds(session, now);
-    workedSecondsByTask.set(session.task_id, (workedSecondsByTask.get(session.task_id) ?? 0) + workedSeconds);
     if (session.state === "running") {
+      const workedSeconds = getRowWorkedSeconds(session, now);
+      workedSecondsByTask.set(session.task_id, (workedSecondsByTask.get(session.task_id) ?? 0) + workedSeconds);
       if (session.block_id) activeBlockIds.add(session.block_id);
       activeSessionIdsByTask.set(session.task_id, session.id);
     }
@@ -1503,7 +1505,7 @@ export async function pauseSchedulerForUser(userId: string, warning = "Connect a
   if (error) {
     throw error;
   }
-  let sessions = await loadWorkSessionRows(client, userId);
+  const sessions = await loadRunningWorkSessionRows(client, userId);
   for (const session of sessions.filter((candidate) => candidate.state === "running")) {
     const started = new Date(session.started_at).getTime();
     const stoppedAt = Math.max(Date.now(), Number.isFinite(started) ? started + 1000 : Date.now());
@@ -1536,12 +1538,8 @@ export async function pauseSchedulerForUser(userId: string, warning = "Connect a
       if (repairError) throw repairError;
     }
   }
-  sessions = await loadWorkSessionRows(client, userId);
-  const workedSecondsByTask = new Map<string, number>();
+  const workedSecondsByTask = await loadTaskWorkTotals(client, userId);
   const workedMinutesByTask = new Map<string, number>();
-  for (const session of sessions) {
-    workedSecondsByTask.set(session.task_id, (workedSecondsByTask.get(session.task_id) ?? 0) + getRowWorkedSeconds(session));
-  }
   for (const [taskId, workedSeconds] of workedSecondsByTask) {
     workedMinutesByTask.set(taskId, Math.floor(workedSeconds / 60));
   }
@@ -1565,13 +1563,15 @@ async function markCalendarErrorForUser(client: SchedulerAdminClient, userId: st
   ]);
   if (tasksResult.error) throw tasksResult.error;
   if (statusesResult.error) throw statusesResult.error;
-  const sessions = await loadWorkSessionRows(client, userId);
-  const workedSecondsByTask = new Map<string, number>();
+  const sessions = await loadRunningWorkSessionRows(client, userId);
+  const workedSecondsByTask = await loadTaskWorkTotals(client, userId);
   const workedMinutesByTask = new Map<string, number>();
   const activeSessionIdsByTask = new Map<string, string>();
   for (const session of sessions) {
-    workedSecondsByTask.set(session.task_id, (workedSecondsByTask.get(session.task_id) ?? 0) + getRowWorkedSeconds(session));
-    if (session.state === "running") activeSessionIdsByTask.set(session.task_id, session.id);
+    if (session.state === "running") {
+      workedSecondsByTask.set(session.task_id, (workedSecondsByTask.get(session.task_id) ?? 0) + getRowWorkedSeconds(session));
+      activeSessionIdsByTask.set(session.task_id, session.id);
+    }
   }
   for (const [taskId, workedSeconds] of workedSecondsByTask) {
     workedMinutesByTask.set(taskId, Math.floor(workedSeconds / 60));
@@ -1606,6 +1606,14 @@ export async function processSchedulerQueue(limit = 10, request?: Request) {
   if (!client) {
     throw new Error("The scheduler is not configured on this deployment.");
   }
+
+  // Keep idempotency and rate-limit tables bounded. Cleanup is deliberately
+  // best-effort so an old deployment or a temporary database hiccup cannot
+  // stop the scheduler worker from repairing real user work.
+  await Promise.all([
+    client.rpc("purge_timer_operation_receipts", { p_retention: "90 days" }),
+    client.rpc("purge_user_operation_rate_limits", { p_age: "2 hours" }),
+  ]).catch(() => undefined);
 
   const now = new Date();
   const boundedLimit = Math.min(Math.max(Math.floor(limit), 1), 10);

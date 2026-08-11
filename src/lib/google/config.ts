@@ -14,7 +14,13 @@ export function getGoogleConfig() {
     return null;
   }
 
-  return { clientId, clientSecret, tokenEncryptionKey };
+  const previousTokenEncryptionKey = process.env.GOOGLE_TOKEN_ENCRYPTION_KEY_PREVIOUS;
+  return {
+    clientId,
+    clientSecret,
+    tokenEncryptionKey,
+    previousTokenEncryptionKeys: previousTokenEncryptionKey ? [previousTokenEncryptionKey] : [],
+  };
 }
 
 export function getGoogleRedirectUri(request: Request) {

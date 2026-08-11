@@ -41,7 +41,7 @@ import { ProfileMenu } from "@/components/profile-menu";
 import { GoogleCalendarPanel } from "@/components/google-calendar-panel";
 import { getAppPath, publicBasePath } from "@/lib/supabase/config";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { createTaskWriteQueue, loadRemoteTasks, persistRemoteTasks } from "@/lib/supabase/tasks";
+import { createTaskWriteQueue, loadRemoteTaskSnapshot, persistRemoteTasks } from "@/lib/supabase/tasks";
 import type { CalendarTransparency, CalendarVisibility, Priority, Task, TaskScheduleState } from "@/lib/tasks";
 import type { ScheduleBlockSnapshot, TaskScheduleStatus } from "@/lib/scheduler/types";
 import type { Space } from "@/lib/spaces";
@@ -53,7 +53,9 @@ import {
   MAX_TASK_DURATION_MINUTES,
   MAX_TASK_TITLE_LENGTH,
   addCalendarDays,
+  areTasksEquivalent,
   areTaskListsEquivalent,
+  areTaskOrdersEquivalent,
   createTaskId,
   formatDuration,
   formatHeaderDateTime,
@@ -417,6 +419,10 @@ type SpacePickerProps = {
 function SpacePicker({ onSpaceChange, onSubSpaceChange, spaceId, spaces, subSpaceId }: SpacePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const wasOpenRef = useRef(false);
   const selectedSpace = spaces.find((space) => space.id === spaceId);
   const selectedSubSpace = selectedSpace?.subSpaces.find((subSpace) => subSpace.id === subSpaceId);
   const selectableSpaces = spaces.filter((space) => space.status === "active" || space.id === spaceId);
@@ -437,7 +443,12 @@ function SpacePicker({ onSpaceChange, onSubSpaceChange, spaceId, spaces, subSpac
 
     function handleKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === "Escape") {
+        event.preventDefault();
         setIsOpen(false);
+        return;
+      }
+      if (event.key === "Tab" && menuRef.current) {
+        trapTabKey(event, menuRef.current);
       }
     }
 
@@ -447,6 +458,24 @@ function SpacePicker({ onSpaceChange, onSubSpaceChange, spaceId, spaces, subSpac
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      wasOpenRef.current = true;
+      const frameId = window.requestAnimationFrame(() => {
+        menuRef.current?.querySelector<HTMLElement>("input:not(:disabled)")?.focus();
+      });
+      return () => window.cancelAnimationFrame(frameId);
+    }
+
+    if (wasOpenRef.current) {
+      wasOpenRef.current = false;
+      window.requestAnimationFrame(() => {
+        (returnFocusRef.current ?? triggerRef.current)?.focus();
+      });
+    }
+    return undefined;
   }, [isOpen]);
 
   function handleSpaceSelect(nextSpaceId: string) {
@@ -468,8 +497,12 @@ function SpacePicker({ onSpaceChange, onSubSpaceChange, spaceId, spaces, subSpac
         aria-label="Choose task Space and sub-space"
         className="hu-space-picker-trigger hu-edit-input"
         disabled={spaces.length === 0}
+        ref={triggerRef}
         type="button"
-        onClick={() => setIsOpen((current) => !current)}
+        onClick={() => {
+          returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : triggerRef.current;
+          setIsOpen((current) => !current);
+        }}
       >
         <span className="hu-space-picker-value">
           {selectedSpace?.name ?? "Choose a Space"}
@@ -478,8 +511,8 @@ function SpacePicker({ onSpaceChange, onSubSpaceChange, spaceId, spaces, subSpac
         <ChevronDown aria-hidden="true" size={14} />
       </button>
       {isOpen ? (
-        <div aria-label="Choose task Space and sub-space" className="hu-space-picker-menu" role="dialog">
-          <span className="hu-popover-kicker">Space</span>
+        <div aria-label="Choose task Space and sub-space" aria-modal="true" className="hu-space-picker-menu" ref={menuRef} role="dialog">
+          <span className="hu-popover-kicker" id="space-picker-space-label">Space</span>
           <div className="hu-space-picker-options">
             {selectableSpaces.length > 0 ? selectableSpaces.map((space) => {
               const isDisabled = space.status !== "active";
@@ -488,7 +521,8 @@ function SpacePicker({ onSpaceChange, onSubSpaceChange, spaceId, spaces, subSpac
                   <input
                     checked={space.id === spaceId}
                     disabled={isDisabled}
-                    type="checkbox"
+                    name="task-space"
+                    type="radio"
                     onChange={() => handleSpaceSelect(space.id)}
                   />
                   <span aria-hidden="true" className="hu-space-picker-check"><Check size={12} /></span>
@@ -501,13 +535,14 @@ function SpacePicker({ onSpaceChange, onSubSpaceChange, spaceId, spaces, subSpac
             }) : <span className="hu-space-picker-empty">Add a calendar first.</span>}
           </div>
           <div className="hu-popover-divider" role="presentation" />
-          <span className="hu-popover-kicker">Sub-space</span>
+          <span className="hu-popover-kicker" id="space-picker-subspace-label">Sub-space</span>
           <div className="hu-space-picker-options">
             <label className={`hu-space-picker-option ${!spaceId ? "is-disabled" : ""}`}>
               <input
                 checked={Boolean(spaceId) && !subSpaceId}
                 disabled={!spaceId}
-                type="checkbox"
+                name="task-subspace"
+                type="radio"
                 onChange={() => onSubSpaceChange("")}
               />
               <span aria-hidden="true" className="hu-space-picker-check"><Check size={12} /></span>
@@ -523,7 +558,8 @@ function SpacePicker({ onSpaceChange, onSubSpaceChange, spaceId, spaces, subSpac
                   <input
                     checked={subSpace.id === subSpaceId}
                     disabled={isDisabled}
-                    type="checkbox"
+                    name="task-subspace"
+                    type="radio"
                     onChange={() => onSubSpaceChange(subSpace.id)}
                   />
                   <span aria-hidden="true" className="hu-space-picker-check"><Check size={12} /></span>
@@ -552,6 +588,7 @@ export default function Home() {
   const [pendingRemoteDeletes, setPendingRemoteDeletes] = useState<ReadonlyArray<string>>([]);
   const [taskSyncNotice, setTaskSyncNotice] = useState("");
   const [taskSaveRetryVersion, setTaskSaveRetryVersion] = useState(0);
+  const [taskOrderNotice, setTaskOrderNotice] = useState("");
   const [taskWriteQueue] = useState(createTaskWriteQueue);
   const [isCustomOrder, setIsCustomOrder] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -632,6 +669,9 @@ export default function Home() {
   const spacesRef = useRef<ReadonlyArray<Space>>([]);
   const taskSaveBaselineRef = useRef<ReadonlyArray<Task>>([]);
   const taskSyncAccountRef = useRef("");
+  const taskListVersionRef = useRef(0);
+  const taskOrderVersionRef = useRef(0);
+  const taskSaveRetryAttemptRef = useRef(0);
   const customOrderSaveInFlightRef = useRef(false);
   const customTaskOrderRef = useRef(settings.customTaskOrder);
   customTaskOrderRef.current = settings.customTaskOrder;
@@ -686,7 +726,10 @@ export default function Home() {
         target instanceof HTMLInputElement ||
         target instanceof HTMLSelectElement ||
         target instanceof HTMLTextAreaElement ||
-        (target instanceof HTMLElement && target.isContentEditable)
+        (target instanceof HTMLElement && (
+          target.isContentEditable
+          || Boolean(target.closest("button, a, [role='button'], [role='dialog'], [role='menu'], [role='listbox']"))
+        ))
       ) {
         return;
       }
@@ -752,6 +795,9 @@ export default function Home() {
       setRemoteSyncReady(false);
       taskSaveBaselineRef.current = localMergeBaseline;
       taskSyncAccountRef.current = authUserId;
+      taskListVersionRef.current = 0;
+      taskOrderVersionRef.current = 0;
+      taskSaveRetryAttemptRef.current = 0;
       setIsHydrated(false);
       setPendingRemoteDeletes([]);
       setIsCustomOrder(customTaskOrderRef.current);
@@ -787,7 +833,8 @@ export default function Home() {
 
       const loadCloudSnapshot = async () => {
         try {
-          const remoteTasks = await loadRemoteTasks(supabaseClient, account);
+          const remoteSnapshot = await loadRemoteTaskSnapshot(supabaseClient, account);
+          const remoteTasks = remoteSnapshot.tasks;
           if (isCancelled || taskSyncAccountRef.current !== authUserId) {
             return;
           }
@@ -796,6 +843,8 @@ export default function Home() {
           const normalizedRemoteTasks = mapTasksToSpaces(remoteTasks, spacesRef.current);
           const normalizedTasks = mapTasksToSpaces(merged.tasks, spacesRef.current);
           taskSaveBaselineRef.current = normalizedRemoteTasks;
+          taskListVersionRef.current = remoteSnapshot.version;
+          taskOrderVersionRef.current = remoteSnapshot.orderVersion;
           writeUserTaskBaseline(window.localStorage, authUserId, normalizedRemoteTasks);
           tasksRef.current = normalizedTasks;
           setTasks(normalizedTasks);
@@ -871,20 +920,47 @@ export default function Home() {
 
     const timeoutId = window.setTimeout(() => {
       void taskWriteQueue.enqueue(async () => {
-        const loadedRemoteTasks = await loadRemoteTasks(supabaseClient, account);
+        const remoteSnapshot = await loadRemoteTaskSnapshot(supabaseClient, account);
+        const loadedRemoteTasks = remoteSnapshot.tasks;
         if (taskSyncAccountRef.current !== accountId) {
           throw new Error("Task sync account changed.");
         }
         const remoteTasks = mapTasksToSpaces(loadedRemoteTasks, spacesRef.current);
+        const localOrderChanged = !areTaskOrdersEquivalent(taskSaveBaselineRef.current, localTasks);
+        const remoteOrderChanged = remoteSnapshot.orderVersion !== taskOrderVersionRef.current;
         const reconciled = reconcileTaskSave(
           taskSaveBaselineRef.current,
           localTasks,
           remoteTasks,
           deletedTaskIds,
+          { preferRemoteOrder: remoteOrderChanged && localOrderChanged },
         );
-        await persistRemoteTasks(supabaseClient, account, reconciled.tasks, reconciled.deletedTaskIds);
+        const orderChanged = localOrderChanged && !remoteOrderChanged;
+        if (remoteOrderChanged && localOrderChanged) {
+          setTaskOrderNotice("Another device changed the task order. HeavyUser kept that newer order.");
+        }
+        const tasksToPersist = orderChanged
+          ? reconciled.tasks
+          : reconciled.tasks.filter((task) => {
+            const remoteTask = remoteTasks.find((candidate) => candidate.id === task.id);
+            return !remoteTask || !areTasksEquivalent(task, remoteTask);
+          });
+        const persisted = await persistRemoteTasks(
+          supabaseClient,
+          account,
+          tasksToPersist,
+          reconciled.deletedTaskIds,
+          {
+            baseVersion: remoteSnapshot.version,
+            baseOrderVersion: remoteSnapshot.orderVersion,
+            orderChanged,
+          },
+        );
         if (taskSyncAccountRef.current === accountId) {
           taskSaveBaselineRef.current = reconciled.tasks;
+          taskListVersionRef.current = persisted.version;
+          taskOrderVersionRef.current = persisted.orderVersion;
+          taskSaveRetryAttemptRef.current = 0;
           writeUserTaskBaseline(window.localStorage, accountId, reconciled.tasks);
         }
         return reconciled;
@@ -913,12 +989,21 @@ export default function Home() {
       })
       .catch((error: unknown) => {
         if (isCancelled || taskSyncAccountRef.current !== accountId) return;
+        const errorCode = typeof error === "object" && error !== null && "code" in error
+          ? String((error as { code?: unknown }).code ?? "")
+          : "";
+        const conflict = errorCode === "40001" || (error instanceof Error && error.message.includes("changed on another device"));
         setTaskSyncNotice(error instanceof Error && error.message.includes("running timer")
           ? "Stop the timer on the other device before deleting this task."
-          : "Your changes are safe on this device. Cloud sync failed and will retry.");
+          : conflict
+            ? "Another device changed the task list. HeavyUser will merge it before trying again."
+            : "Your changes are safe on this device. Cloud sync failed and will retry.");
+        const attempt = taskSaveRetryAttemptRef.current;
+        taskSaveRetryAttemptRef.current = Math.min(attempt + 1, 8);
+        const retryDelay = Math.min(30_000, 2_000 * 2 ** attempt) + Math.floor(Math.random() * 500);
         retryTimerId = window.setTimeout(() => {
           if (!isCancelled) setTaskSaveRetryVersion((version) => version + 1);
-        }, 3_000);
+        }, retryDelay);
       });
     }, 250);
 
@@ -1779,7 +1864,16 @@ export default function Home() {
     window.requestAnimationFrame(() => returnFocus?.focus());
   }
 
-  function handleDurationChange(taskId: string, duration: number | null) {
+  function handleDurationChange(taskId: string, durationOrPrevious: number | null, nextDuration?: number) {
+    const duration = nextDuration === undefined
+      ? durationOrPrevious
+      : (() => {
+        const currentTask = tasks.find((task) => task.id === taskId);
+        if (!currentTask || durationOrPrevious === null) {
+          return nextDuration;
+        }
+        return Math.round((currentTask.duration ?? durationOrPrevious) + (nextDuration - durationOrPrevious));
+      })();
     if (duration !== null && (!Number.isFinite(duration) || duration < 1 || duration > MAX_TASK_DURATION_MINUTES)) {
       setTaskActionError(`Duration must be between 1 and ${MAX_TASK_DURATION_MINUTES.toLocaleString()} minutes.`);
       return;
@@ -2000,6 +2094,7 @@ export default function Home() {
       reorderedTasks.splice(nextTargetIndex, 0, movedTask);
       return replaceBucketOrder(currentTasks, reorderedTasks);
     });
+    setTaskOrderNotice("Task order updated. It will be saved to your account.");
     enableCustomTaskOrder();
   }
 
@@ -2076,6 +2171,7 @@ export default function Home() {
       ];
       return replaceBucketOrder(currentTasks, reorderedTasks);
     });
+    setTaskOrderNotice(event.key === "ArrowUp" ? "Task moved up." : "Task moved down.");
     enableCustomTaskOrder();
   }
 
@@ -2098,6 +2194,7 @@ export default function Home() {
   }
 
   const logicalToday = getAppToday();
+  const hasNotifications = timerAlerts.length > 0 || Boolean(taskSyncNotice);
   const taskCounts = taskBucketOptions.reduce<Record<TaskBucket, number>>(
     (counts, option) => {
       if (option.value === "all") {
@@ -2140,7 +2237,7 @@ export default function Home() {
       const secondLatest = Math.max(...second.sessions.map((session) => new Date(session.startedAt).getTime()).filter(Number.isFinite), 0);
       return secondLatest - firstLatest;
     });
-  const headerDateTime = formatHeaderDateTime(currentDateTime, logicalToday);
+  const headerDateTime = formatHeaderDateTime(currentDateTime, logicalToday, settings.planningTimezone);
   if (authStatus === "loading" || (authStatus === "signed_in" && !isHydrated)) {
     return (
       <main className="hu-auth-loading" aria-busy="true">
@@ -2199,12 +2296,12 @@ export default function Home() {
                 title="Notifications"
               >
                 <Bell aria-hidden="true" size={17} />
-                <span className="hu-notification-dot" aria-hidden="true" />
+                {hasNotifications ? <span className="hu-notification-dot" aria-hidden="true" /> : null}
               </button>
               {isNotificationsOpen ? (
                 <div className="hu-popover hu-notifications-popover" role="status">
                   <strong>Notifications</strong>
-                  <span>You&apos;re all caught up.</span>
+                  <span>{hasNotifications ? "Review the notices below." : "You're all caught up."}</span>
                 </div>
               ) : null}
             </div>
@@ -2222,6 +2319,10 @@ export default function Home() {
                 setMissedBlocks([]);
                 setTimerAlerts([]);
                 setSchedulerError("");
+                setTaskOrderNotice("");
+                if (authUserId) {
+                  clearUserTasks(window.localStorage, authUserId);
+                }
                 setTasks([]);
               }}
             />
@@ -2229,12 +2330,12 @@ export default function Home() {
         </header>
 
         {activeTimer ? (
-          <div className="hu-active-timer-bar" aria-live="polite">
+          <div className="hu-active-timer-bar" aria-label="Active timer">
             <div className="hu-active-timer-copy">
               <span className="hu-active-timer-pulse" aria-hidden="true" />
               <span className="hu-active-timer-label">Working now</span>
               <strong>{tasks.find((task) => task.id === activeTimer.session.taskId)?.title ?? "Task"}</strong>
-              <time dateTime={activeTimer.session.startedAt}>{formatElapsedSeconds(timerElapsedSeconds)}</time>
+              <time aria-label="Elapsed time" dateTime={activeTimer.session.startedAt}>{formatElapsedSeconds(timerElapsedSeconds)}</time>
             </div>
             <div className="hu-active-timer-actions">
               <button className="hu-timer-secondary-button" type="button" onClick={handleAddTime}>
@@ -2250,6 +2351,7 @@ export default function Home() {
         ) : null}
         {timerNotice ? <p className="hu-timer-notice" role="status">{timerNotice}</p> : null}
         {taskSyncNotice ? <p className="hu-timer-notice is-warning" role="status">{taskSyncNotice}</p> : null}
+        <p className="sr-only" role="status" aria-live="polite">{taskOrderNotice}</p>
         {taskActionError ? <p className="hu-timer-notice is-warning" role="alert">{taskActionError}</p> : null}
         {timerAlerts[0] ? <p className="hu-timer-notice is-warning" role="alert">{timerAlerts[0].message} Review the task history before starting again.</p> : null}
 

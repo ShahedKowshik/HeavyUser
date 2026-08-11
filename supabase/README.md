@@ -41,3 +41,6 @@ The server-only tables intentionally have RLS enabled with no user policies.
 That is default-deny defense in depth, not a missing access path. The hosted
 `pg_net` extension is non-relocatable in this project, so its advisor notice is
 documented rather than repaired with a risky drop-and-recreate operation.
+Supabase Auth's leaked-password protection is a hosted dashboard setting; it
+must be enabled in Authentication settings before password-based sign-in is
+introduced or before the final production security sign-off.

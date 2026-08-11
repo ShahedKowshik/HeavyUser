@@ -126,7 +126,7 @@ type GoogleCalendarPanelProps = {
   scheduleBlocks: Readonly<Record<string, ReadonlyArray<ScheduleBlockSnapshot>>>;
   activeBlockId?: string | null;
   schedulerError?: string;
-  onTaskDurationChange?: (taskId: string, duration: number) => void;
+  onTaskDurationChange?: (taskId: string, previousDuration: number | null, duration: number) => void;
   onSpacesChange?: (spaces: ReadonlyArray<Space>) => void;
 };
 
@@ -143,7 +143,7 @@ const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 
 function formatDateLabel(value: string) {
-  const date = new Date(`${value}T12:00:00`);
+  const date = new Date(`${value}T12:00:00Z`);
   return date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
 }
 
@@ -185,9 +185,8 @@ function getTimestampForLocalDateTime(date: string, minutes: number, timeZone: s
 }
 
 function addCalendarDays(value: string, days: number) {
-  const date = new Date(`${value}T12:00:00`);
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
 function getTimeMinutes(value: string) {
@@ -202,13 +201,13 @@ function formatDayButtonLabel(value: string, today: string) {
   if (value === addCalendarDays(today, 1)) {
     return "Tomorrow";
   }
-  return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { weekday: "short" });
+  return new Date(`${value}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "short" });
 }
 
 function formatStartTime(value: string) {
   const [hours, minutes] = value.split(":").map(Number);
-  const date = new Date(2000, 0, 1, hours, minutes);
-  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const date = new Date(Date.UTC(2000, 0, 1, hours, minutes));
+  return new Intl.DateTimeFormat(undefined, { timeZone: "UTC", hour: "numeric", minute: "2-digit" }).format(date);
 }
 
 function getEventRange(event: LiveEvent, timelineStart: number, timelineEnd: number) {
@@ -239,19 +238,25 @@ function formatEventTime(event: LiveEvent, timeZone: string) {
   return `${formatter.format(new Date(event.start))} – ${formatter.format(new Date(event.end))}`;
 }
 
-function toDateTimeInput(value: string | null) {
+function toDateTimeInput(value: string | null, timeZone: string) {
   if (!value) {
     return "";
   }
 
   const date = new Date(value);
-  const offset = date.getTimezoneOffset();
-  return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16);
+  if (!Number.isFinite(date.getTime())) {
+    return "";
+  }
+
+  const parts = getDateTimeParts(date, timeZone);
+  const hours = String(Math.floor(parts.minutes / 60)).padStart(2, "0");
+  const minutes = String(parts.minutes % 60).padStart(2, "0");
+  return `${parts.date}T${hours}:${minutes}`;
 }
 
-function getDraftDurationMinutes(start: string, end: string) {
-  const startTime = new Date(start).getTime();
-  const endTime = new Date(end).getTime();
+function getDraftDurationMinutes(start: string, end: string, timeZone: string) {
+  const startTime = Date.parse(fromDateTimeInput(start, timeZone));
+  const endTime = Date.parse(fromDateTimeInput(end, timeZone));
   if (Number.isNaN(startTime) || Number.isNaN(endTime) || endTime <= startTime) {
     return null;
   }
@@ -259,13 +264,15 @@ function getDraftDurationMinutes(start: string, end: string) {
   return Math.round((endTime - startTime) / 60_000);
 }
 
-function addMinutesToDateTimeInput(value: string, minutes: number) {
-  const startTime = new Date(value);
-  if (Number.isNaN(startTime.getTime())) {
+function addMinutesToDateTimeInput(value: string, minutes: number, timeZone: string) {
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!match) {
     return "";
   }
 
-  return toDateTimeInput(new Date(startTime.getTime() + minutes * 60_000).toISOString());
+  const inputMinutes = Number(match[2]) * 60 + Number(match[3]);
+  const timestamp = getTimestampForLocalDateTime(match[1], inputMinutes, timeZone) + minutes * MINUTE_MS;
+  return toDateTimeInput(new Date(timestamp).toISOString(), timeZone);
 }
 
 function snapMinutes(value: number) {
@@ -308,8 +315,14 @@ function getMinutesAtPointer(clientY: number, stage: HTMLElement, timelineHours:
   return ((clientY - bounds.top) / bounds.height) * timelineHours * 60;
 }
 
-function fromDateTimeInput(value: string) {
-  return new Date(value).toISOString();
+function fromDateTimeInput(value: string, timeZone: string) {
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!match) {
+    return "";
+  }
+
+  const minutes = Number(match[2]) * 60 + Number(match[3]);
+  return new Date(getTimestampForLocalDateTime(match[1], minutes, timeZone)).toISOString();
 }
 
 function defaultDraft(date: string): EventDraft {
@@ -330,6 +343,7 @@ export function GoogleCalendarPanel({
   const timelineHours = TIMELINE_HOURS;
   const [connection, setConnection] = useState<CalendarConnection | null>(null);
   const [events, setEvents] = useState<ReadonlyArray<LiveEvent>>([]);
+  const eventsRef = useRef<ReadonlyArray<LiveEvent>>([]);
   const [calendarOptions, setCalendarOptions] = useState<ReadonlyArray<CalendarOption>>([]);
   const [selectedSpaceFilter, setSelectedSpaceFilter] = useState("all");
   const [isCalendarPickerOpen, setIsCalendarPickerOpen] = useState(false);
@@ -416,7 +430,7 @@ export function GoogleCalendarPanel({
   const effectiveSpaceFilter = selectedSpaceFilter !== "all" && spaces.some((space) => space.id === selectedSpaceFilter)
     ? selectedSpaceFilter
     : "all";
-  const timeZone = connection?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const timeZone = settings.planningTimezone || "UTC";
   const dayStartMinutes = settings.nightOwlMode ? getTimeMinutes(settings.dayStartTime) : 0;
   const timelineHourHeight = timelineViewportHeight > 0
     ? timelineViewportHeight / CURRENT_TIME_WINDOW_HOURS
@@ -523,10 +537,13 @@ export function GoogleCalendarPanel({
   const visiblePlannerEvents = effectiveSpaceFilter === "all"
     ? plannerEvents
     : plannerEvents.filter((event) => event.spaceId === effectiveSpaceFilter || isCrossSpaceBusyEvent(event));
+  const draftTimeZone = editingEvent?.timeZone
+    ?? spaces.find((space) => space.id === effectiveSpaceFilter)?.timeZone
+    ?? timeZone;
 
   const plannerTimelineDays = plannerDates.map((plannerDate) => {
     const timelineStartTimestamp = getTimestampForLocalDateTime(plannerDate, dayStartMinutes, timeZone);
-    const timelineEndTimestamp = timelineStartTimestamp + timelineHours * HOUR_MS;
+    const timelineEndTimestamp = getTimestampForLocalDateTime(addCalendarDays(plannerDate, 1), dayStartMinutes, timeZone);
     const allDayEvents = visiblePlannerEvents.filter((event) => (
       event.allDay
       && Boolean(event.startDate && event.endDate && event.startDate <= plannerDate && event.endDate > plannerDate)
@@ -546,6 +563,10 @@ export function GoogleCalendarPanel({
       timedEvents,
     };
   });
+
+  useEffect(() => {
+    eventsRef.current = events;
+  }, [events]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setSelectedDate(date));
@@ -862,7 +883,7 @@ export function GoogleCalendarPanel({
           method: "POST",
           cache: "no-store",
         });
-        const syncBody = (await syncResponse.json().catch(() => null)) as { connection?: CalendarConnection; sync?: { errors?: ReadonlyArray<string> }; error?: string } | null;
+        const syncBody = (await syncResponse.json().catch(() => null)) as { connection?: CalendarConnection; sync?: { errors?: ReadonlyArray<string>; truncated?: boolean }; error?: string } | null;
         if (!syncResponse.ok) {
           throw new Error(syncBody?.error ?? "Calendar events could not be synchronized.");
         }
@@ -870,10 +891,13 @@ export function GoogleCalendarPanel({
         if (syncBody?.sync?.errors?.length) {
           syncWarning = `Some Spaces could not be refreshed: ${syncBody.sync.errors.join(" ")}`;
         }
+        if (syncBody?.sync?.truncated) {
+          syncWarning = `${syncWarning ? `${syncWarning} ` : ""}Some calendar events were not loaded because the result was too large. Narrow the planner range or refresh again.`;
+        }
       }
 
       const eventsRange = new URLSearchParams();
-      const eventsTimeZone = nextConnection.timeZone ?? timeZone;
+      const eventsTimeZone = timeZone;
       const eventsStartDate = plannerDates[0] ?? date;
       const eventsEndDate = addCalendarDays(eventsStartDate, PLANNER_DAYS);
       const eventsStart = getTimestampForLocalDateTime(eventsStartDate, dayStartMinutes, eventsTimeZone);
@@ -883,7 +907,7 @@ export function GoogleCalendarPanel({
       eventsRange.set("startDate", eventsStartDate);
       eventsRange.set("endDate", eventsEndDate);
       const eventsResponse = await fetch(`${getAppPath("/api/google/calendar/events")}?${eventsRange.toString()}`, { cache: "no-store" });
-      const eventsBody = (await eventsResponse.json().catch(() => null)) as { events?: LiveEvent[]; connection?: CalendarConnection; spaces?: ReadonlyArray<Space>; error?: string } | null;
+      const eventsBody = (await eventsResponse.json().catch(() => null)) as { events?: LiveEvent[]; connection?: CalendarConnection; spaces?: ReadonlyArray<Space>; truncated?: boolean; error?: string } | null;
       if (!eventsResponse.ok) {
         throw new Error(eventsBody?.error ?? "Calendar events could not be loaded.");
       }
@@ -892,6 +916,9 @@ export function GoogleCalendarPanel({
       }
       setConnection(eventsBody?.connection ?? syncConnection ?? nextConnection);
       setEvents(mergePendingLocalEvents(mergePendingEventRanges(eventsBody?.events ?? [])));
+      if (eventsBody?.truncated) {
+        syncWarning = `${syncWarning ? `${syncWarning} ` : ""}Some calendar events were not loaded because the result was too large. Narrow the planner range or refresh again.`;
+      }
       setError(syncWarning);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Calendar could not be loaded.");
@@ -965,12 +992,13 @@ export function GoogleCalendarPanel({
     setError("");
     setIsCreating(false);
     setEditingEvent(event);
+    const eventTimeZone = event.timeZone ?? timeZone;
     setDraft({
       title: event.title,
       description: event.description ?? "",
       location: event.location ?? "",
-      start: toDateTimeInput(event.start),
-      end: toDateTimeInput(event.end),
+      start: toDateTimeInput(event.start, eventTimeZone),
+      end: toDateTimeInput(event.end, eventTimeZone),
     });
   }
 
@@ -1014,7 +1042,13 @@ export function GoogleCalendarPanel({
       setError("Enter a title, start time, and end time.");
       return;
     }
-    if (new Date(draft.end).getTime() <= new Date(draft.start).getTime()) {
+    const targetSpace = effectiveSpaceFilter === "all"
+      ? null
+      : spaces.find((space) => space.id === effectiveSpaceFilter) ?? null;
+    const draftTimeZone = editingEvent?.timeZone ?? targetSpace?.timeZone ?? timeZone;
+    const draftStart = fromDateTimeInput(draft.start, draftTimeZone);
+    const draftEnd = fromDateTimeInput(draft.end, draftTimeZone);
+    if (!draftStart || !draftEnd || Date.parse(draftEnd) <= Date.parse(draftStart)) {
       setError("The end time must be after the start time.");
       return;
     }
@@ -1022,9 +1056,6 @@ export function GoogleCalendarPanel({
     setIsSaving(true);
     setError("");
     try {
-      const targetSpace = effectiveSpaceFilter === "all"
-        ? null
-        : spaces.find((space) => space.id === effectiveSpaceFilter) ?? null;
       if (isCreating && effectiveSpaceFilter !== "all" && !targetSpace) {
         throw new Error("Choose an active Space before creating this event.");
       }
@@ -1035,8 +1066,8 @@ export function GoogleCalendarPanel({
           title: draft.title,
           description: draft.description,
           location: draft.location,
-          start: fromDateTimeInput(draft.start),
-          end: fromDateTimeInput(draft.end),
+          start: draftStart,
+          end: draftEnd,
           ...(targetSpace ? { calendarId: targetSpace.calendarId } : {}),
         } : {
           eventKey: editingEvent?.id,
@@ -1045,8 +1076,8 @@ export function GoogleCalendarPanel({
           title: draft.title,
           description: draft.description,
           location: draft.location,
-          start: fromDateTimeInput(draft.start),
-          end: fromDateTimeInput(draft.end),
+          start: draftStart,
+          end: draftEnd,
         }),
       });
       const body = (await response.json().catch(() => null)) as { error?: string; event?: LiveEvent } | null;
@@ -1209,14 +1240,31 @@ export function GoogleCalendarPanel({
           end,
         }),
       });
-      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      const body = (await response.json().catch(() => null)) as { error?: string; event?: LiveEvent } | null;
       if (!response.ok) {
         throw new Error(body?.error ?? "The event could not be moved.");
+      }
+      const savedEvent = body?.event;
+      const eventKey = getLiveEventKey(eventItem);
+      if (savedEvent) {
+        eventsRef.current = eventsRef.current.map((currentEvent) => (
+          getLiveEventKey(currentEvent) === eventKey
+            ? { ...currentEvent, ...savedEvent, start, end }
+            : currentEvent
+        ));
+        setEvents((currentEvents) => currentEvents.map((currentEvent) => (
+          getLiveEventKey(currentEvent) === eventKey
+            ? { ...currentEvent, ...savedEvent, start, end }
+            : currentEvent
+        )));
       }
       if (mode !== "move" && eventItem.isTaskBlock && eventItem.taskId) {
         const duration = Math.round((new Date(end).getTime() - new Date(start).getTime()) / MINUTE_MS);
         if (Number.isFinite(duration) && duration >= MIN_EVENT_DURATION_MINUTES) {
-          onTaskDurationChange?.(eventItem.taskId, duration);
+          const previousDuration = eventItem.start && eventItem.end
+            ? Math.round((new Date(eventItem.end).getTime() - new Date(eventItem.start).getTime()) / MINUTE_MS)
+            : null;
+          onTaskDurationChange?.(eventItem.taskId, previousDuration, duration);
         }
       }
       // The timeline already reflects the new range optimistically. Release the
@@ -1246,7 +1294,10 @@ export function GoogleCalendarPanel({
   function saveDraggedEvent(eventItem: LiveEvent, start: string, end: string, mode: EventGestureMode) {
     // Keep direct-manipulation writes in order. This prevents two quick drags
     // from racing Google Calendar's If-Match check while keeping the UI free.
-    const operation = dragWriteChain.current.then(() => performDraggedEventSave(eventItem, start, end, mode));
+    const operation = dragWriteChain.current.then(() => {
+      const latestEvent = eventsRef.current.find((currentEvent) => getLiveEventKey(currentEvent) === getLiveEventKey(eventItem)) ?? eventItem;
+      return performDraggedEventSave(latestEvent, start, end, mode);
+    });
     dragWriteChain.current = operation.catch(() => undefined);
     return operation;
   }
@@ -1524,7 +1575,7 @@ export function GoogleCalendarPanel({
                         const eventHidesMeta = eventHeight < 38;
                         const eventHidesTitle = eventHeight < 24;
                         const eventIsTiny = eventHeight < 18;
-                        const eventTimeLabel = formatEventTime(renderedEvent, timeZone);
+                        const eventTimeLabel = formatEventTime(renderedEvent, renderedEvent.timeZone ?? timeZone);
                         const eventStatusLabel = event.isActiveTimerBlock ? "Working now" : event.isTaskBlock ? "Planned" : null;
                         const crossSpaceBusy = isCrossSpaceBusyEvent(event);
                         return (
@@ -1596,8 +1647,8 @@ export function GoogleCalendarPanel({
               <X aria-hidden="true" />
             </button>
             <span className="hu-calendar-kicker">Google Calendar</span>
-            <h2 id="google-calendar-picker-title">Choose one calendar</h2>
-            <p>HeavyUser will read and update this calendar. You can change it later.</p>
+            <h2 id="google-calendar-picker-title">Choose a calendar for this Space</h2>
+            <p>This calendar becomes one Space. You can add more calendars as separate Spaces later.</p>
             <div className="hu-calendar-option-list">
               {calendarOptions.map((calendar) => (
                 <button className="hu-calendar-option" disabled={isSaving} key={calendar.id} type="button" onClick={() => void chooseCalendar(calendar.id)}>
@@ -1630,10 +1681,10 @@ export function GoogleCalendarPanel({
               <label>Start<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic || (editingEvent && isReadOnlyEvent(editingEvent)))} required type="datetime-local" value={draft.start} onChange={(event) => setDraft((current) => ({ ...current, start: event.target.value }))} /></label>
               <label>End<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic || (editingEvent && isReadOnlyEvent(editingEvent)))} required type="datetime-local" value={draft.end} onChange={(event) => setDraft((current) => ({ ...current, end: event.target.value }))} /></label>
             </div>
-            <label>Duration (minutes)<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic || (editingEvent && isReadOnlyEvent(editingEvent)))} min="5" max="1440" step="5" type="number" value={getDraftDurationMinutes(draft.start, draft.end) ?? ""} onChange={(event) => {
+            <label>Duration (minutes)<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic || (editingEvent && isReadOnlyEvent(editingEvent)))} min="5" max="1440" step="5" type="number" value={getDraftDurationMinutes(draft.start, draft.end, draftTimeZone) ?? ""} onChange={(event) => {
               const minutes = Number(event.target.value);
               if (Number.isFinite(minutes) && minutes > 0) {
-                setDraft((current) => ({ ...current, end: addMinutesToDateTimeInput(current.start, minutes) }));
+                setDraft((current) => ({ ...current, end: addMinutesToDateTimeInput(current.start, minutes, draftTimeZone) }));
               }
             }} /></label>
             <label>Location<input disabled={Boolean(editingEvent?.allDay || editingEvent?.isPlannerSynthetic || (editingEvent && isReadOnlyEvent(editingEvent)))} value={draft.location} onChange={(event) => setDraft((current) => ({ ...current, location: event.target.value }))} /></label>

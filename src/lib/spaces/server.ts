@@ -115,27 +115,18 @@ export async function ensureSpaceForCalendar(input: {
     return loadSpaceById(input.client, input.userId, existing.data.id);
   }
 
-  const { count, error: countError } = await input.client.from("spaces").select("id", { count: "exact", head: true }).eq("user_id", input.userId);
-  if (countError) throw countError;
   const name = input.calendarName.trim().slice(0, 120) || calendarId.slice(0, 120);
-  const { data, error } = await input.client.from("spaces").insert({
-    user_id: input.userId,
-    calendar_id: calendarId,
-    name,
-    calendar_name: name,
-    time_zone: input.timeZone || "UTC",
-    position: count ?? 0,
-    status: "active",
-    archived_at: null,
-  }).select("*").single();
+  const { data, error } = await input.client.rpc("create_space_for_user", {
+    p_user_id: input.userId,
+    p_calendar_id: calendarId,
+    p_name: name,
+    p_calendar_name: name,
+    p_time_zone: input.timeZone || "UTC",
+  });
   if (error) {
-    // Two tabs can add the same calendar at once. Let the winner create the
-    // Space and make the loser return that same record instead of an error.
-    if ((error as { code?: string }).code === "23505") {
-      return ensureSpaceForCalendar(input);
-    }
     throw error;
   }
+  if (!data) throw new Error("The Space could not be created.");
 
   // Keep old, calendar-less tasks safe. Only the oldest Space adopts them;
   // later calendar additions must never steal another Space's tasks.

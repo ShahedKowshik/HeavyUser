@@ -1,8 +1,8 @@
 const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3";
 const GOOGLE_TOKEN_API = "https://oauth2.googleapis.com/token";
 const GOOGLE_REQUEST_TIMEOUT_MS = 15_000;
-const INITIAL_SYNC_HISTORY_DAYS = 90;
-const INITIAL_SYNC_FUTURE_DAYS = 365;
+export const INITIAL_SYNC_HISTORY_DAYS = 90;
+export const INITIAL_SYNC_FUTURE_DAYS = 365;
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
 
 export type GoogleApiErrorShape = {

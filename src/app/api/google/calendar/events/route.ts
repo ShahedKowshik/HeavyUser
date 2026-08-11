@@ -20,6 +20,7 @@ import { getCalendarBusyInterval } from "@/lib/scheduler/availability";
 import { hasEventEditConflict, isValidCalendarDate, isValidTimedEventRange } from "@/lib/google/event-utils";
 import { readJsonBody, rejectCrossOriginMutation } from "@/lib/security/http";
 import { loadSpaces } from "@/lib/spaces/server";
+import { saveRepair } from "@/lib/timer/server";
 
 function toEventResponse(row: Record<string, unknown>, managedBlock?: { id: string; task_id: string }, space?: { name: string; subSpaceName?: string | null }) {
   const privateProperties = row.private_properties && typeof row.private_properties === "object"
@@ -246,17 +247,16 @@ async function pauseActiveTimerForBlock(userId: string, blockId: string, warning
   if (!session) return false;
   const started = new Date(session.started_at).getTime();
   const workedSeconds = Number.isFinite(started) ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0;
-  const { error: updateError } = await admin.from("task_work_sessions").update({
-    state: "paused",
-    worked_seconds: workedSeconds,
-    warning,
-    calendar_sync_state: "history_only",
-    repair_needed: false,
-    updated_at: new Date().toISOString(),
-  }).eq("user_id", userId).eq("id", session.id);
+  const { error: updateError } = await admin.rpc("set_task_timer_state", {
+    p_user_id: userId,
+    p_session_id: session.id,
+    p_state: "paused",
+    p_worked_seconds: workedSeconds,
+    p_warning: warning,
+    p_calendar_sync_state: "history_only",
+    p_repair_needed: false,
+  });
   if (updateError) throw updateError;
-  const { error: ownerError } = await admin.from("task_active_session_owners").delete().eq("user_id", userId).eq("session_id", session.id);
-  if (ownerError) throw ownerError;
   return true;
 }
 
@@ -293,7 +293,7 @@ export async function GET(request: Request) {
           .order("start_date", { ascending: true, nullsFirst: false })
           .limit(5_000);
         if (fallback.error) throw fallback.error;
-        return fallback.data ?? [];
+        return { rows: fallback.data ?? [], truncated: (fallback.data?.length ?? 0) >= 5_000 };
       }
 
       const [timed, allDay] = await Promise.all([
@@ -312,10 +312,13 @@ export async function GET(request: Request) {
       ]);
       if (timed.error) throw timed.error;
       if (allDay.error) throw allDay.error;
-      return [...new Map([...(timed.data ?? []), ...(allDay.data ?? [])].map((row) => [`${row.calendar_id}:${row.event_key}`, row])).values()];
+      return {
+        rows: [...new Map([...(timed.data ?? []), ...(allDay.data ?? [])].map((row) => [`${row.calendar_id}:${row.event_key}`, row])).values()],
+        truncated: (timed.data?.length ?? 0) >= 5_000 || (allDay.data?.length ?? 0) >= 1_000,
+      };
     };
 
-    const [eventRows, blocksResult, tasksResult, spaces] = await Promise.all([
+    const [eventResult, blocksResult, tasksResult, spaces] = await Promise.all([
       loadEventRows(),
       result.context.admin
         .from("task_schedule_blocks")
@@ -327,6 +330,8 @@ export async function GET(request: Request) {
     ]);
 
     if (blocksResult.error) throw blocksResult.error;
+    if (tasksResult.error) throw tasksResult.error;
+    const eventRows = eventResult.rows;
     const tasksById = new Map((tasksResult.data ?? []).map((task) => [task.id, task]));
     const blocksByProviderId = new Map((blocksResult.data ?? []).map((block) => [`${block.calendar_id}:${block.provider_event_id}`, block]));
     const spacesById = new Map(spaces.map((space) => [space.id, space]));
@@ -342,6 +347,7 @@ export async function GET(request: Request) {
         return toEventResponse(row as unknown as Record<string, unknown>, managedBlock, space ? { name: space.name, subSpaceName: subSpace?.name ?? null } : undefined);
       }),
       spaces,
+      truncated: eventResult.truncated,
     });
   } catch (error) {
     return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });
@@ -411,8 +417,26 @@ export async function POST(request: Request) {
       // Google's follow-up list sync is temporarily unavailable or delayed.
       syncPending = true;
     }
-    const localEvent = await upsertGoogleCalendarEvent(result.context.admin, result.context.user.id, createdEvent, { calendarId: targetCalendarId, spaceId: targetSpace?.id ?? null });
-    return NextResponse.json({ ok: true, event: toEventResponse(localEvent, undefined, targetSpace ? { name: targetSpace.name } : undefined), syncPending });
+    try {
+      const localEvent = await upsertGoogleCalendarEvent(result.context.admin, result.context.user.id, createdEvent, { calendarId: targetCalendarId, spaceId: targetSpace?.id ?? null });
+      return NextResponse.json({ ok: true, event: toEventResponse(localEvent, undefined, targetSpace ? { name: targetSpace.name } : undefined), syncPending });
+    } catch (localError) {
+      await saveRepair(result.context.admin, {
+        userId: result.context.user.id,
+        calendarId: targetCalendarId,
+        providerEventId: createdEvent.id,
+        operation: "reconcile",
+        error: localError,
+      });
+      return NextResponse.json({
+        ok: true,
+        code: "reconciliation_pending",
+        reconciliationPending: true,
+        providerEventId: createdEvent.id,
+        warning: "Google saved the event. HeavyUser will finish saving it in the background.",
+        syncPending: true,
+      });
+    }
   } catch (error) {
     return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });
   }
@@ -493,13 +517,13 @@ export async function PATCH(request: Request) {
   }
   if (hasStart && hasEnd) {
     const moveConflict = await findManagedMoveConflict(result.context.user.id, localEvent as unknown as Record<string, unknown>, body.start as string, body.end as string);
-    if (moveConflict) return NextResponse.json({ conflict: true, error: moveConflict }, { status: 409 });
+    if (moveConflict) return NextResponse.json({ code: "event_overlap", conflict: true, error: moveConflict }, { status: 409 });
   }
   if (hasEventEditConflict({
     requestedEtag: typeof body?.etag === "string" ? body.etag : undefined,
     localEtag: localEvent.etag,
   })) {
-    return NextResponse.json({ conflict: true, error: "This event changed in Google Calendar. Refresh before editing it." }, { status: 409 });
+    return NextResponse.json({ code: "stale_etag", conflict: true, error: "This event changed in Google Calendar. Refresh before editing it." }, { status: 409 });
   }
 
   try {
@@ -510,14 +534,14 @@ export async function PATCH(request: Request) {
       eventId: localEvent.provider_event_id,
     });
     if (latest.status === "cancelled") {
-      return NextResponse.json({ conflict: true, error: "This event changed in Google Calendar. Refresh before editing it." }, { status: 409 });
+      return NextResponse.json({ code: "stale_etag", conflict: true, error: "This event changed in Google Calendar. Refresh before editing it." }, { status: 409 });
     }
     if (hasEventEditConflict({
       requestedEtag: typeof body?.etag === "string" ? body.etag : undefined,
       localEtag: localEvent.etag,
       providerEtag: latest.etag,
     })) {
-      return NextResponse.json({ conflict: true, error: "This event changed in Google Calendar. Refresh before editing it." }, { status: 409 });
+      return NextResponse.json({ code: "stale_etag", conflict: true, error: "This event changed in Google Calendar. Refresh before editing it." }, { status: 409 });
     }
 
     const resource: Record<string, unknown> = {};
@@ -538,21 +562,50 @@ export async function PATCH(request: Request) {
       sendUpdates: "none",
       resource,
     });
-    await lockManagedBlock(
-      result.context.user.id,
-      localEvent as unknown as Record<string, unknown>,
-      typeof body?.start === "string" ? new Date(body.start).toISOString() : localEvent.start_at,
-      typeof body?.end === "string" ? new Date(body.end).toISOString() : localEvent.end_at,
-      updatedEvent.etag ?? latest.etag ?? localEvent.etag,
-    );
-    const localUpdatedEvent = await upsertGoogleCalendarEvent(result.context.admin, result.context.user.id, updatedEvent, { calendarId: localEvent.calendar_id, spaceId: localEvent.space_id });
-    // The client performs one serialized read sync after the write. Keeping
-    // sync-token advancement out of this request prevents a drag write and a
-    // nearby modal edit from running competing Google syncs at the same time.
-    return NextResponse.json({ ok: true, event: toEventResponse(localUpdatedEvent) });
+    const managedBlockIdForRepair = await getManagedBlockId(result.context.user.id, localEvent as unknown as Record<string, unknown>);
+    try {
+      await lockManagedBlock(
+        result.context.user.id,
+        localEvent as unknown as Record<string, unknown>,
+        typeof body?.start === "string" ? new Date(body.start).toISOString() : localEvent.start_at,
+        typeof body?.end === "string" ? new Date(body.end).toISOString() : localEvent.end_at,
+        updatedEvent.etag ?? latest.etag ?? localEvent.etag,
+      );
+      const localUpdatedEvent = await upsertGoogleCalendarEvent(result.context.admin, result.context.user.id, updatedEvent, { calendarId: localEvent.calendar_id, spaceId: localEvent.space_id });
+      // The client performs one serialized read sync after the write. Keeping
+      // sync-token advancement out of this request prevents a drag write and a
+      // nearby modal edit from running competing Google syncs at the same time.
+      return NextResponse.json({ ok: true, event: toEventResponse(localUpdatedEvent) });
+    } catch (localError) {
+      await saveRepair(result.context.admin, {
+        userId: result.context.user.id,
+        blockId: managedBlockIdForRepair,
+        calendarId: localEvent.calendar_id,
+        providerEventId: updatedEvent.id ?? localEvent.provider_event_id,
+        operation: "reconcile",
+        error: localError,
+      });
+      const pendingRow = {
+        ...localEvent,
+        provider_event_id: updatedEvent.id ?? localEvent.provider_event_id,
+        summary: updatedEvent.summary ?? localEvent.summary,
+        description: updatedEvent.description ?? localEvent.description,
+        location: updatedEvent.location ?? localEvent.location,
+        start_at: typeof body?.start === "string" ? new Date(body.start).toISOString() : localEvent.start_at,
+        end_at: typeof body?.end === "string" ? new Date(body.end).toISOString() : localEvent.end_at,
+        etag: updatedEvent.etag ?? latest.etag ?? localEvent.etag,
+      };
+      return NextResponse.json({
+        ok: true,
+        event: toEventResponse(pendingRow),
+        code: "reconciliation_pending",
+        reconciliationPending: true,
+        warning: "Google saved the change. HeavyUser will finish saving it in the background.",
+      });
+    }
   } catch (error) {
     if (error instanceof GoogleApiError && error.status === 412) {
-      return NextResponse.json({ conflict: true, error: "This event changed in Google Calendar. Refresh before editing it." }, { status: 409 });
+      return NextResponse.json({ code: "stale_etag", conflict: true, error: "This event changed in Google Calendar. Refresh before editing it." }, { status: 409 });
     }
     return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });
   }
@@ -618,9 +671,6 @@ export async function DELETE(request: Request) {
     const blockId = localEvent
       ? await getManagedBlockId(result.context.user.id, localEvent as unknown as Record<string, unknown>)
       : scheduleBlock?.id ?? null;
-    if (blockId) {
-      timerPaused = await pauseActiveTimerForBlock(result.context.user.id, blockId, "The calendar block was deleted, so the timer is paused for review.");
-    }
     const accessToken = await getUsableGoogleAccessToken(result.context.admin, result.connection);
     const targetCalendarId = localEvent?.calendar_id ?? scheduleBlock?.calendar_id ?? (requestedCalendarId || result.connection.selected_calendar_id!);
     const providerEventId = localEvent?.provider_event_id ?? scheduleBlock?.provider_event_id;
@@ -634,6 +684,9 @@ export async function DELETE(request: Request) {
         calendarId: targetCalendarId,
         eventId: providerEventId,
       });
+      if (blockId) {
+        timerPaused = await pauseActiveTimerForBlock(result.context.user.id, blockId, "The calendar block was deleted, so the timer is paused for review.");
+      }
       await recordGoogleEventDeletion(
         result.context.admin,
         result.context.user.id,

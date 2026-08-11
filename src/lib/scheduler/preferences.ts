@@ -89,7 +89,7 @@ export function normalizeWorkWindows(value: unknown): WorkWindows {
 export function normalizeSchedulerPreferences(
   value: unknown,
   timezoneFallback = "UTC",
-  daySettings?: Partial<Pick<SchedulerPreferences, "nightOwlMode" | "dayStartTime">>,
+  daySettings?: Partial<Pick<SchedulerPreferences, "nightOwlMode" | "dayStartTime">> & { planningTimezone?: string },
 ): SchedulerPreferences {
   const candidate = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const minValue = candidate.default_min_block_minutes ?? candidate.defaultMinBlockMinutes;
@@ -122,7 +122,9 @@ export function normalizeSchedulerPreferences(
     // Scheduling is a product rule now. Keep reading the legacy column so old
     // rows and old tabs remain compatible, but never allow it to turn off.
     enabled: true,
-    timezone: isTimezone(candidate.timezone)
+    timezone: isTimezone(daySettings?.planningTimezone)
+      ? daySettings.planningTimezone
+      : isTimezone(candidate.timezone)
       ? candidate.timezone
       : (isTimezone(timezoneFallback) ? timezoneFallback : DEFAULT_SCHEDULER_PREFERENCES.timezone),
     workWindows: normalizeWorkWindows(candidate.work_windows ?? candidate.workWindows),

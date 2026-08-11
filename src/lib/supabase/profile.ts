@@ -20,16 +20,23 @@ function getAvatarPath(user: User) {
   return typeof avatarPath === "string" && avatarPath ? avatarPath : null;
 }
 
-function getAvatarExtension(file: File) {
-  if (file.type === "image/png") {
-    return "png";
-  }
+type AvatarFormat = {
+  extension: "jpg" | "png" | "webp";
+  contentType: (typeof avatarConstraints.acceptedTypes)[number];
+};
 
-  if (file.type === "image/webp") {
-    return "webp";
+async function detectAvatarFormat(file: File): Promise<AvatarFormat | null> {
+  const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const startsWith = (...signature: number[]) => signature.every((value, index) => bytes[index] === value);
+  if (startsWith(0xff, 0xd8, 0xff)) {
+    return { extension: "jpg", contentType: "image/jpeg" };
   }
-
-  return "jpg";
+  if (startsWith(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) {
+    return { extension: "png", contentType: "image/png" };
+  }
+  const riff = String.fromCharCode(...bytes.slice(0, 4)) === "RIFF";
+  const webp = String.fromCharCode(...bytes.slice(8, 12)) === "WEBP";
+  return riff && webp ? { extension: "webp", contentType: "image/webp" } : null;
 }
 
 export function getProfileName(user: User | null) {
@@ -85,6 +92,7 @@ export async function updateUserProfile(client: ProfileClient, user: User, draft
     return { user: null, errorMessage: `Keep your display name under ${MAX_PROFILE_NAME_LENGTH} characters.` };
   }
 
+  let avatarFormat: AvatarFormat | null = null;
   if (draft.avatarFile) {
     if (!avatarConstraints.acceptedTypes.includes(draft.avatarFile.type as (typeof avatarConstraints.acceptedTypes)[number])) {
       return { user: null, errorMessage: "Choose a JPG, PNG, or WebP image." };
@@ -93,6 +101,15 @@ export async function updateUserProfile(client: ProfileClient, user: User, draft
     if (draft.avatarFile.size > avatarConstraints.maxBytes) {
       return { user: null, errorMessage: "Choose an image smaller than 2 MB." };
     }
+
+    try {
+      avatarFormat = await detectAvatarFormat(draft.avatarFile);
+    } catch {
+      avatarFormat = null;
+    }
+    if (!avatarFormat) {
+      return { user: null, errorMessage: "That file is not a valid JPG, PNG, or WebP image." };
+    }
   }
 
   const oldAvatarPath = getAvatarPath(user);
@@ -100,10 +117,10 @@ export async function updateUserProfile(client: ProfileClient, user: User, draft
   let uploadedAvatarPath: string | null = null;
 
   if (draft.avatarFile) {
-    uploadedAvatarPath = `${user.id}/${crypto.randomUUID()}.${getAvatarExtension(draft.avatarFile)}`;
+    uploadedAvatarPath = `${user.id}/${crypto.randomUUID()}.${avatarFormat!.extension}`;
     const { error } = await client.storage.from("avatars").upload(uploadedAvatarPath, draft.avatarFile, {
       cacheControl: "3600",
-      contentType: draft.avatarFile.type,
+      contentType: avatarFormat!.contentType,
       upsert: false,
     });
 
@@ -116,9 +133,11 @@ export async function updateUserProfile(client: ProfileClient, user: User, draft
     nextAvatarPath = null;
   }
 
+  const { data: latestUserData } = await client.auth.getUser();
+  const latestMetadata = latestUserData.user?.id === user.id ? latestUserData.user.user_metadata : user.user_metadata;
   const { data, error } = await client.auth.updateUser({
     data: {
-      ...user.user_metadata,
+      ...latestMetadata,
       full_name: fullName,
       avatar_path: nextAvatarPath,
     },

@@ -260,9 +260,27 @@ describe("task dates and focus", () => {
   });
 
   it("uses the previous logical day before the Night Owl boundary", () => {
-    const settings = { nightOwlMode: true, dayStartTime: "04:00", customTaskOrder: false };
+    const settings = { nightOwlMode: true, dayStartTime: "04:00", customTaskOrder: false, planningTimezone: "Asia/Dhaka" };
     expect(getLogicalDate(new Date(2026, 7, 2, 3, 59).getTime(), settings)).toBe("2026-08-01");
     expect(getLogicalDate(new Date(2026, 7, 2, 4, 0).getTime(), settings)).toBe("2026-08-02");
+  });
+
+  it("uses the saved timezone across DST and UTC+14 boundaries", () => {
+    expect(getLogicalDate(Date.parse("2026-03-08T06:59:00.000Z"), {
+      nightOwlMode: false,
+      dayStartTime: "04:00",
+      planningTimezone: "America/New_York",
+    })).toBe("2026-03-08");
+    expect(getLogicalDate(Date.parse("2026-03-08T07:00:00.000Z"), {
+      nightOwlMode: false,
+      dayStartTime: "04:00",
+      planningTimezone: "America/New_York",
+    })).toBe("2026-03-08");
+    expect(getLogicalDate(Date.parse("2025-12-31T10:00:00.000Z"), {
+      nightOwlMode: false,
+      dayStartTime: "04:00",
+      planningTimezone: "Pacific/Kiritimati",
+    })).toBe("2026-01-01");
   });
 
   it("does not mark completed overdue tasks as overdue", () => {

@@ -379,9 +379,9 @@ test("keeps the local task safe while a failed cloud save retries", async ({ pag
   await form.locator("#new-task-title").fill("Should roll back");
   await form.getByRole("button", { name: "Add task", exact: true }).click();
   await expect(getTaskRow(page, "Should roll back")).toBeVisible();
-  await expect(page.getByRole("status")).toContainText("Your changes are safe on this device. Cloud sync failed and will retry.", { timeout: 5_000 });
+  await expect(page.locator(".hu-timer-notice").filter({ hasText: "Your changes are safe on this device. Cloud sync failed and will retry." })).toBeVisible({ timeout: 5_000 });
   await expect(getTaskRow(page, "Should roll back")).toBeVisible();
-  expect(mock.requests.some((request) => request.path === "/rest/v1/tasks" && request.method === "POST")).toBe(true);
+  expect(mock.requests.some((request) => request.path === "/rest/v1/rpc/save_task_snapshot" && request.method === "POST")).toBe(true);
 
   await page.reload();
   await expect(getTaskRow(page, "Should roll back")).toBeVisible();

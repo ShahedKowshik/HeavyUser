@@ -41,7 +41,7 @@ The worker endpoint requires:
 Authorization: Bearer <CRON_SECRET>
 ```
 
-Store the same secret as `CRON_SECRET` in the deployed Next.js environment and in Supabase Vault. Use Supabase Cron with `pg_net` to call the deployed endpoint every minute. The worker endpoint is intentionally not protected by the browser login redirect; it returns `401` unless the bearer secret is correct. Do not commit either value to this repository.
+Store `CRON_SECRET` in the deployed Next.js environment and in Supabase Vault. For deployments that keep only a digest in the app, set `CRON_SECRET_HASH` to the SHA-256 digest of the bearer value instead. Use Supabase Cron with `pg_net` to call the deployed endpoint every minute. The worker endpoint is intentionally not protected by the browser login redirect; it returns `401` unless the bearer secret is correct. Do not commit either value to this repository.
 
 ## Google event ownership
 

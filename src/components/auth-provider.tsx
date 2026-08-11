@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { getSafeSameOriginPath } from "@/lib/security/redirect";
 import { getAppPath, getAppUrl } from "@/lib/supabase/config";
@@ -82,11 +82,14 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
   const [user, setUser] = useState<User | null>(isE2EAuthEnabled ? e2eUser : null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [settings, setSettings] = useState<UserSettings>({ ...DEFAULT_USER_SETTINGS });
+  const avatarRequestGeneration = useRef(0);
 
   const applyUser = useCallback(
     (nextUser: User | null) => {
       setUser(nextUser);
       setStatus(nextUser ? "signed_in" : "signed_out");
+      const requestGeneration = avatarRequestGeneration.current + 1;
+      avatarRequestGeneration.current = requestGeneration;
 
       if (!client || !nextUser) {
         setAvatarUrl(null);
@@ -97,7 +100,11 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
       }
 
       setSettings(getUserSettings(nextUser) ?? readLegacySettings() ?? { ...DEFAULT_USER_SETTINGS });
-      void getSignedAvatarUrl(client, nextUser).then(setAvatarUrl);
+      void getSignedAvatarUrl(client, nextUser).then((nextAvatarUrl) => {
+        if (avatarRequestGeneration.current === requestGeneration) {
+          setAvatarUrl(nextAvatarUrl);
+        }
+      });
     },
     [client],
   );
@@ -308,7 +315,8 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
 
       const normalizedSettings = normalizeUserSettings(nextSettings);
       const schedulerSettingsChanged = normalizedSettings.nightOwlMode !== settings.nightOwlMode
-        || normalizedSettings.dayStartTime !== settings.dayStartTime;
+        || normalizedSettings.dayStartTime !== settings.dayStartTime
+        || normalizedSettings.planningTimezone !== settings.planningTimezone;
       setSettings(normalizedSettings);
       applyUser(result.user);
       // Night Owl changes the boundary used by All day scheduling. Re-run the

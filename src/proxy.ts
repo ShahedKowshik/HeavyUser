@@ -62,10 +62,7 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set("Content-Security-Policy", csp);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
-  const suppliedRequestId = request.headers.get("x-request-id");
-  const requestId = suppliedRequestId && /^[A-Za-z0-9._-]{1,64}$/.test(suppliedRequestId)
-    ? suppliedRequestId
-    : randomUUID();
+  const requestId = randomUUID();
   response.headers.set("X-Request-Id", requestId);
   if (process.env.NODE_ENV === "production") {
     response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");

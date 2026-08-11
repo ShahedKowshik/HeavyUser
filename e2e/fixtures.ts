@@ -51,6 +51,8 @@ export type BrowserMockState = {
   calendarEvents: Record<string, unknown>[];
   connection: CalendarConnection | null;
   failTaskSave: boolean;
+  taskVersion: number;
+  taskOrderVersion: number;
   failures: Map<string, MockResponse>;
   abortedPaths: Set<string>;
   requests: Array<{ method: string; path: string; body: unknown }>;
@@ -302,6 +304,8 @@ export async function installBrowserMocks(page: Page, options: BrowserMockOption
     calendarEvents: [...(options.calendarEvents ?? [defaultCalendarEvent()])],
     connection: makeConnection(options.connection),
     failTaskSave: options.failTaskSave ?? false,
+    taskVersion: 0,
+    taskOrderVersion: 0,
     failures: new Map(),
     abortedPaths: new Set(),
     requests: [],
@@ -363,6 +367,42 @@ export async function installBrowserMocks(page: Page, options: BrowserMockOption
     }
 
     await route.continue();
+  });
+
+  await page.route("**/rest/v1/task_list_versions**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    mock.requests.push({ method: request.method(), path: url.pathname, body: request.postDataJSON() as unknown });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ version: mock.taskVersion, order_version: mock.taskOrderVersion }),
+    });
+  });
+
+  await page.route("**/rest/v1/rpc/save_task_snapshot", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const body = request.postDataJSON() as { p_tasks?: unknown; p_deleted_task_ids?: unknown; p_order_changed?: unknown } | null;
+    mock.requests.push({ method: request.method(), path: url.pathname, body });
+    if (mock.failTaskSave) {
+      await fulfill(route, { status: 500, body: { code: "e2e_save_failed", message: "The task save failed." } });
+      return;
+    }
+    const deletedIds = Array.isArray(body?.p_deleted_task_ids) ? body.p_deleted_task_ids.filter((id): id is string => typeof id === "string") : [];
+    mock.tasks = mock.tasks.filter((task) => !deletedIds.includes(task.id));
+    const rows = Array.isArray(body?.p_tasks) ? body.p_tasks : [];
+    for (const row of rows) {
+      if (!row || typeof row !== "object") continue;
+      const nextTask = rowToTask(row as Record<string, unknown>);
+      if (!nextTask) continue;
+      const index = mock.tasks.findIndex((task) => task.id === nextTask.id);
+      if (index >= 0) mock.tasks[index] = nextTask;
+      else mock.tasks.push(nextTask);
+    }
+    mock.taskVersion += 1;
+    if (body?.p_order_changed === true) mock.taskOrderVersion += 1;
+    await fulfill(route, { status: 200, body: [{ version: mock.taskVersion, order_version: mock.taskOrderVersion }] });
   });
 
   await page.route("**/api/**", async (route) => {

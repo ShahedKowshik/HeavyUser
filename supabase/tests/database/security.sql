@@ -1,6 +1,6 @@
 begin;
 
-select plan(40);
+select plan(48);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.tasks'::regclass),
@@ -43,6 +43,29 @@ select ok(
     and not has_table_privilege('authenticated', 'public.tasks', 'REFERENCES')
     and not has_table_privilege('authenticated', 'public.tasks', 'TRIGGER'),
   'Signed-in task access excludes elevated table privileges'
+);
+
+select ok(
+  (select relrowsecurity from pg_class where oid = 'public.task_list_versions'::regclass),
+  'Task list versions have RLS enabled'
+);
+select ok(
+  has_table_privilege('authenticated', 'public.task_list_versions', 'SELECT')
+    and not has_table_privilege('anon', 'public.task_list_versions', 'SELECT'),
+  'Task list versions are readable only by signed-in users'
+);
+select has_function('public', 'save_task_snapshot', array['uuid', 'jsonb', 'text[]', 'bigint', 'bigint', 'boolean']);
+select ok(
+  has_function_privilege('authenticated', 'public.save_task_snapshot(uuid,jsonb,text[],bigint,bigint,boolean)', 'EXECUTE')
+    and not has_function_privilege('anon', 'public.save_task_snapshot(uuid,jsonb,text[],bigint,bigint,boolean)', 'EXECUTE'),
+  'Task snapshot RPC is limited to signed-in callers'
+);
+select has_function('public', 'start_task_timer', array['uuid', 'uuid', 'text', 'uuid', 'text', 'text', 'text', 'text', 'timestamp with time zone', 'timestamp with time zone', 'integer', 'integer', 'text']);
+select has_function('public', 'set_task_timer_state', array['uuid', 'uuid', 'text', 'timestamp with time zone', 'bigint', 'text', 'text', 'boolean', 'text', 'timestamp with time zone', 'timestamp with time zone', 'text']);
+select has_function('public', 'consume_user_operation', array['uuid', 'text', 'integer', 'integer']);
+select ok(
+  (select relrowsecurity from pg_class where oid = 'public.user_operation_rate_limits'::regclass),
+  'Operation rate limits have RLS enabled'
 );
 
 select ok(

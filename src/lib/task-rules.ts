@@ -305,7 +305,7 @@ export function matchesTaskBucket(task: Task, bucket: TaskBucket, today = CALEND
 }
 
 function toIsoDate(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
 }
 
 function getTimeMinutes(value: string) {
@@ -313,20 +313,49 @@ function getTimeMinutes(value: string) {
   return hours * 60 + minutes;
 }
 
-export function getLogicalDate(timestamp: number, settings: UserSettings) {
-  const date = new Date(timestamp);
-  const currentMinutes = date.getHours() * 60 + date.getMinutes();
+export function getDatePartsInTimeZone(timestamp: number, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    hourCycle: "h23",
+  }).formatToParts(new Date(timestamp));
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return {
+    date: `${values.year}-${values.month}-${values.day}`,
+    minutes: Number(values.hour) * 60 + Number(values.minute),
+  };
+}
 
-  if (settings.nightOwlMode && currentMinutes < getTimeMinutes(settings.dayStartTime)) {
-    date.setDate(date.getDate() - 1);
+function getDefaultPlanningTimezone() {
+  // Planning dates must be deterministic on the server and in every browser.
+  // The account setting is the normal path; UTC is the explicit legacy
+  // fallback instead of silently adopting whichever device is open.
+  return "UTC";
+}
+
+export function getLogicalDate(
+  timestamp: number,
+  settings: Pick<UserSettings, "nightOwlMode" | "dayStartTime"> & Partial<Pick<UserSettings, "planningTimezone">>,
+  timeZone = settings.planningTimezone ?? getDefaultPlanningTimezone(),
+) {
+  const dateParts = getDatePartsInTimeZone(timestamp, timeZone);
+  let date = dateParts.date;
+
+  if (settings.nightOwlMode && dateParts.minutes < getTimeMinutes(settings.dayStartTime)) {
+    date = addCalendarDays(date, -1);
   }
 
-  return toIsoDate(date);
+  return date;
 }
 
 export function addCalendarDays(value: string, days: number) {
-  const date = new Date(`${value}T12:00:00`);
-  date.setDate(date.getDate() + days);
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
   return toIsoDate(date);
 }
 
@@ -339,15 +368,15 @@ export function getDueDatePresets(today = CALENDAR_DATE) {
 }
 
 function getMonthEnd(value: string) {
-  const date = new Date(`${value}T12:00:00`);
-  date.setMonth(date.getMonth() + 1, 0);
+  const [year, month] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month, 0));
   return toIsoDate(date);
 }
 
 function getQuarterEnd(value: string) {
-  const date = new Date(`${value}T12:00:00`);
-  const quarterEndMonth = Math.floor(date.getMonth() / 3) * 3 + 2;
-  date.setMonth(quarterEndMonth + 1, 0);
+  const [year, month] = value.split("-").map(Number);
+  const quarterEndMonth = Math.floor((month - 1) / 3) * 3 + 3;
+  const date = new Date(Date.UTC(year, quarterEndMonth, 0));
   return toIsoDate(date);
 }
 
@@ -356,8 +385,8 @@ function getYearEnd(value: string) {
 }
 
 function getDaysBetween(start: string, end: string) {
-  const startTime = new Date(`${start}T12:00:00`).getTime();
-  const endTime = new Date(`${end}T12:00:00`).getTime();
+  const startTime = Date.parse(`${start}T00:00:00Z`);
+  const endTime = Date.parse(`${end}T00:00:00Z`);
   return Math.max(0, Math.round((endTime - startTime) / 86_400_000));
 }
 
@@ -435,13 +464,13 @@ export function formatShortDate(value: string | null) {
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
-  const date = new Date(year, month - 1, day);
+  const date = new Date(Date.UTC(year, month - 1, day));
 
   if (
     Number.isNaN(date.getTime()) ||
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
   ) {
     return "";
   }
@@ -449,17 +478,21 @@ export function formatShortDate(value: string | null) {
   return `${String(day).padStart(2, "0")} ${shortMonthNames[month - 1]} ${String(year).slice(-2)}`;
 }
 
-export function formatHeaderDateTime(timestamp: number | null, logicalDate = CALENDAR_DATE) {
+export function formatHeaderDateTime(
+  timestamp: number | null,
+  logicalDate = CALENDAR_DATE,
+  timeZone = getDefaultPlanningTimezone(),
+) {
   if (timestamp === null) {
     return null;
   }
 
   const actualDate = new Date(timestamp);
-  const contextDate = new Date(`${logicalDate}T12:00:00`);
+  const contextDate = new Date(`${logicalDate}T12:00:00Z`);
   return {
-    weekday: contextDate.toLocaleDateString(undefined, { weekday: "long" }),
+    weekday: new Intl.DateTimeFormat(undefined, { timeZone, weekday: "long" }).format(contextDate),
     date: formatShortDate(logicalDate),
-    time: actualDate.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true }),
+    time: new Intl.DateTimeFormat(undefined, { timeZone, hour: "numeric", minute: "2-digit", hour12: true }).format(actualDate),
   };
 }
 
@@ -532,6 +565,11 @@ export function areTaskListsEquivalent(first: ReadonlyArray<Task>, second: Reado
     && first.every((task, index) => Boolean(second[index] && areTasksEquivalent(task, second[index])));
 }
 
+export function areTaskOrdersEquivalent(first: ReadonlyArray<Task>, second: ReadonlyArray<Task>) {
+  return first.length === second.length
+    && first.every((task, index) => second[index]?.id === task.id);
+}
+
 export type TaskSaveConflict = {
   taskId: string;
   kind: "remote_deleted" | "both_changed" | "id_collision";
@@ -548,6 +586,7 @@ export function reconcileTaskSave(
   localTasks: ReadonlyArray<Task>,
   remoteTasks: ReadonlyArray<Task>,
   locallyDeletedTaskIds: ReadonlyArray<string> = [],
+  options: { preferRemoteOrder?: boolean } = {},
 ) {
   const baselineById = new Map(baselineTasks.map((task) => [task.id, task]));
   const localById = new Map(localTasks.map((task) => [task.id, task]));
@@ -600,10 +639,15 @@ export function reconcileTaskSave(
     }
   }
 
-  const orderedIds = [
-    ...localTasks.map((task) => task.id),
-    ...remoteTasks.map((task) => task.id).filter((taskId) => !localById.has(taskId)),
-  ];
+  const orderedIds = options.preferRemoteOrder
+    ? [
+      ...remoteTasks.map((task) => task.id),
+      ...localTasks.map((task) => task.id).filter((taskId) => !remoteById.has(taskId)),
+    ]
+    : [
+      ...localTasks.map((task) => task.id),
+      ...remoteTasks.map((task) => task.id).filter((taskId) => !localById.has(taskId)),
+    ];
   const resolvedTasks = ensureSingleFocus(
     orderedIds
       .map((taskId) => resolvedById.get(taskId))

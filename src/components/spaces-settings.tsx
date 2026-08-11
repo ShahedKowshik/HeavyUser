@@ -63,10 +63,10 @@ export function SpacesSettings() {
     setError("");
     try {
       const response = await fetch(getAppPath("/api/spaces"), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spaceId: space.id, name: draftNames[space.id] ?? space.name, status }) });
-      const body = (await response.json().catch(() => null)) as { spaces?: ReadonlyArray<Space>; error?: string } | null;
+      const body = (await response.json().catch(() => null)) as { spaces?: ReadonlyArray<Space>; error?: string; schedulerWarning?: string | null } | null;
       if (!response.ok) throw new Error(body?.error ?? "Space could not be saved.");
       setSpaces(body?.spaces ?? []);
-      setMessage(status === "archived" ? "Space archived." : status === "active" ? "Space restored." : "Space renamed.");
+      setMessage(`${status === "archived" ? "Space archived." : status === "active" ? "Space restored." : "Space renamed."}${body?.schedulerWarning ? ` Scheduling will retry: ${body.schedulerWarning}` : ""}`);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Space could not be saved.");
     } finally { setSavingId(""); }
@@ -79,11 +79,11 @@ export function SpacesSettings() {
     setError("");
     try {
       const response = await fetch(getAppPath("/api/spaces/subspaces"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spaceId, name }) });
-      const body = (await response.json().catch(() => null)) as { spaces?: ReadonlyArray<Space>; error?: string } | null;
+      const body = (await response.json().catch(() => null)) as { spaces?: ReadonlyArray<Space>; error?: string; schedulerWarning?: string | null } | null;
       if (!response.ok) throw new Error(body?.error ?? "Sub-space could not be added.");
       setSpaces(body?.spaces ?? []);
       setNewSubSpace((current) => ({ ...current, [spaceId]: "" }));
-      setMessage("Sub-space added.");
+      setMessage(`Sub-space added.${body?.schedulerWarning ? ` Scheduling will retry: ${body.schedulerWarning}` : ""}`);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Sub-space could not be added.");
     } finally { setSavingId(""); }

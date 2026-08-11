@@ -91,11 +91,9 @@ export async function loadActiveSessionRow(client: TimerClient, userId: string) 
 }
 
 export async function loadTaskWorkedSeconds(client: TimerClient, userId: string, taskId: string) {
-  const { data, error } = await client.rpc("get_task_work_totals", { p_user_id: userId });
+  const { data, error } = await client.rpc("get_task_work_total", { p_user_id: userId, p_task_id: taskId });
   if (error) throw error;
-
-  const row = (data ?? []).find((candidate) => candidate.task_id === taskId);
-  return row ? Math.max(0, Number(row.worked_seconds)) : 0;
+  return Math.max(0, Number(data ?? 0));
 }
 
 const RECENT_SESSIONS_PER_TASK = 8;
@@ -109,11 +107,21 @@ async function loadRecentWorkSessionRows(client: TimerClient, userId: string) {
   return (data ?? []) as SessionRow[];
 }
 
-async function loadTaskWorkTotals(client: TimerClient, userId: string) {
+export async function loadTaskWorkTotals(client: TimerClient, userId: string) {
   const { data, error } = await client.rpc("get_task_work_totals", { p_user_id: userId });
   if (error) throw error;
 
   return new Map((data ?? []).map((row) => [row.task_id, Math.max(0, Number(row.worked_seconds))]));
+}
+
+export async function loadRunningWorkSessionRows(client: TimerClient, userId: string) {
+  const { data, error } = await client
+    .from("task_work_sessions")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("state", "running");
+  if (error) throw error;
+  return (data ?? []) as SessionRow[];
 }
 
 export async function loadTimerSnapshot(client: TimerClient, userId: string, now = Date.now()) {

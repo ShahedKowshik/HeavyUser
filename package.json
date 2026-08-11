@@ -39,7 +39,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
     "shadcn": "^4.16.0",
-    "supabase": "^2.111.0",
+    "supabase": "2.111.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.10"

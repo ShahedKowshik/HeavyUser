@@ -235,7 +235,7 @@ function getSelectedMissedBlock(blocks: ReadonlyArray<BlockRow>, taskId: string,
   return blocks.find((block) => block.id === blockId && block.task_id === taskId && block.state === "missed") ?? null;
 }
 
-async function saveRepair(client: TimerClient, input: {
+export async function saveRepair(client: TimerClient, input: {
   userId: string;
   sessionId?: string | null;
   blockId?: string | null;
@@ -356,14 +356,16 @@ async function clearActiveOwner(client: TimerClient, userId: string, sessionId: 
 
 async function pauseSessionForCalendarChange(client: TimerClient, userId: string, session: SessionRow, warning: string) {
   const workedSeconds = secondsDifference(session.started_at, nowIso());
-  await updateSession(client, userId, session.id, {
-    state: "paused",
-    worked_seconds: workedSeconds,
-    warning,
-    calendar_sync_state: "history_only",
-    repair_needed: false,
+  const { error } = await client.rpc("set_task_timer_state", {
+    p_user_id: userId,
+    p_session_id: session.id,
+    p_state: "paused",
+    p_worked_seconds: workedSeconds,
+    p_warning: warning,
+    p_calendar_sync_state: "history_only",
+    p_repair_needed: false,
   });
-  await clearActiveOwner(client, userId, session.id);
+  if (error) throw error;
 }
 
 async function createOrPatchEvent(input: {
@@ -580,16 +582,17 @@ async function stopSessionInsideLock(input: {
     });
   }
 
-  const saved = await updateSession(input.client, input.userId, input.session.id, {
-    state: "stopped",
-    stopped_at: stopIso,
-    original_stopped_at: input.session.original_stopped_at ?? stopIso,
-    worked_seconds: elapsedSeconds,
-    calendar_sync_state: input.session.calendar_sync_state === "history_only" ? "history_only" : "pending",
-    repair_needed: false,
-    warning: null,
+  const { data: saved, error: saveError } = await input.client.rpc("set_task_timer_state", {
+    p_user_id: input.userId,
+    p_session_id: input.session.id,
+    p_state: "stopped",
+    p_stopped_at: stopIso,
+    p_worked_seconds: elapsedSeconds,
+    p_warning: undefined,
+    p_calendar_sync_state: input.session.calendar_sync_state === "history_only" ? "history_only" : "pending",
+    p_repair_needed: false,
   });
-  await clearActiveOwner(input.client, input.userId, input.session.id);
+  if (saveError) throw saveError;
 
   let warning: string | null = null;
   let activeAccessToken: string | null = null;
@@ -909,7 +912,11 @@ export async function startTimer(input: {
     }
 
     const sessionId = randomUUID();
-    const remainingMinutes = Math.max(1, task.duration);
+    const workedSeconds = await loadTaskWorkedSeconds(client, input.userId, task.id);
+    const remainingMinutes = Math.max(0, task.duration - Math.floor(workedSeconds / 60));
+    if (remainingMinutes <= 0) {
+      throw new TimerOperationError("estimate_reached", "This task has no remaining estimated time. Add more time before starting it.", 409);
+    }
     const defaultBlockMinutes = Math.max(5, Math.min(remainingMinutes, task.max_block_minutes ?? 90));
     const existingDuration = currentBlock
       ? currentBlockIsMissed
@@ -934,57 +941,28 @@ export async function startTimer(input: {
         existingProviderEventId: currentBlockIsMissed ? null : currentBlock?.provider_event_id,
         existingEtag: currentBlockIsMissed ? null : currentBlock?.etag,
       });
-      const savedBlock = await upsertBlock(client, input.userId, {
-        id: blockId,
-        task_id: task.id,
-        space_id: space.id,
-        calendar_id: space.calendarId,
-        provider_event_id: eventResult.event.id,
-        provider_event_key: getGoogleEventKey(eventResult.event),
-        start_at: nowIso(startedAt),
-        end_at: endAt,
-        planned_start_at: nowIso(startedAt),
-        planned_end_at: endAt,
-        state: "locked",
-        sync_version: (currentBlock?.sync_version ?? 0) + 1,
-        etag: eventResult.event.etag ?? null,
-        last_error: null,
+      const { data: savedSession, error: sessionError } = await client.rpc("start_task_timer", {
+        p_user_id: input.userId,
+        p_session_id: sessionId,
+        p_task_id: task.id,
+        p_space_id: space.id,
+        p_calendar_id: space.calendarId,
+        p_block_id: blockId,
+        p_provider_event_id: eventResult.event.id,
+        p_provider_event_key: getGoogleEventKey(eventResult.event),
+        p_started_at: nowIso(startedAt),
+        p_end_at: endAt,
+        p_estimated_minutes: remainingMinutes,
+        p_sync_version: (currentBlock?.sync_version ?? 0) + 1,
+        p_etag: eventResult.event.etag ?? undefined,
       });
-      const sessionInsert = await client.from("task_work_sessions").insert({
-        id: sessionId,
-        user_id: input.userId,
-        task_id: task.id,
-        space_id: space.id,
-        calendar_id: space.calendarId,
-        block_id: savedBlock.id,
-        provider_event_id: eventResult.event.id,
-        provider_event_key: getGoogleEventKey(eventResult.event),
-        source: "timer",
-        state: "running",
-        started_at: nowIso(startedAt),
-        original_started_at: nowIso(startedAt),
-        planned_start_at: nowIso(startedAt),
-        planned_end_at: endAt,
-        worked_seconds: 0,
-        estimated_minutes_at_start: task.duration,
-        calendar_sync_state: "synced",
-        repair_needed: false,
-        warning: null,
-        updated_at: nowIso(),
-      });
-      if (sessionInsert.error) {
-        if ((sessionInsert.error as { code?: string }).code === "23505") {
+      if (sessionError) {
+        if ((sessionError as { code?: string }).code === "23505") {
           throw new TimerOperationError("timer_active", "A timer is already running for this workspace.", 409);
         }
-        throw sessionInsert.error;
+        throw sessionError;
       }
-      await updateBlock(client, input.userId, savedBlock.id, { work_session_id: sessionId });
-      const ownerInsert = await client.from("task_active_session_owners").insert({ user_id: input.userId, session_id: sessionId, task_id: task.id, updated_at: nowIso() });
-      if (ownerInsert.error) {
-        await updateSession(client, input.userId, sessionId, { state: "cancelled", stopped_at: nowIso(), worked_seconds: 0, calendar_sync_state: "history_only" });
-        throw ownerInsert.error;
-      }
-      return { active: true, sessionId, taskId: task.id, blockId: savedBlock.id, startedAt: nowIso(startedAt), warning: null };
+      return { active: true, sessionId, taskId: task.id, blockId, startedAt: nowIso(startedAt), warning: null, savedSession };
     } catch (error) {
       if (eventResult) {
         await compensateEventWrite({ client, userId: input.userId, calendarId: space.calendarId, blockId, eventResult });
@@ -1282,7 +1260,12 @@ export async function logWork(input: { userId: string; taskId: string; startedAt
     }
     try {
       const { data: session, error } = await client.from("task_work_sessions").insert({ id: sessionId, user_id: input.userId, task_id: task.id, space_id: space?.id ?? missedBlock?.space_id ?? task.space_id, calendar_id: space?.calendarId ?? missedBlock?.calendar_id ?? connection?.selected_calendar_id ?? null, block_id: blockId, provider_event_id: eventId, provider_event_key: eventKey, source: "manual", state: "stopped", started_at: nowIso(started), stopped_at: nowIso(stopped), original_started_at: nowIso(started), original_stopped_at: nowIso(stopped), worked_seconds: workedSeconds, estimated_minutes_at_start: task.duration, calendar_sync_state: calendarSyncState, repair_needed: Boolean(warning), warning, updated_at: nowIso() }).select("*").single();
-      if (error) throw error;
+      if (error) {
+        if ((error as { code?: string }).code === "23P01") {
+          throw new TimerOperationError("work_overlap", "This work range overlaps an existing work session. Choose a different time range.", 409);
+        }
+        throw error;
+      }
       if (blockId) {
         await updateBlock(client, input.userId, blockId, { work_session_id: sessionId });
       }

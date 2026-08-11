@@ -1,5 +1,6 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { exchangeGoogleCode } from "@/lib/google/client";
+import { exchangeGoogleCode, stopGoogleChannel } from "@/lib/google/client";
 import { encryptSecret } from "@/lib/google/crypto";
 import { getGoogleConfig, getGoogleRedirectUri } from "@/lib/google/config";
 import { getAuthenticatedGoogleContext } from "@/lib/google/server";
@@ -14,9 +15,16 @@ function redirectWithError(request: Request, reason: string) {
   } else {
     response = NextResponse.redirect(new URL(`${getAppPath("/")}?google_calendar=error&reason=${encodeURIComponent(reason)}`, origin));
   }
-  response.cookies.delete("heavyuser_google_oauth_state");
-  response.cookies.delete("heavyuser_google_oauth_verifier");
+  const cookieOptions = { path: getAppPath("/"), maxAge: 0 };
+  response.cookies.set("heavyuser_google_oauth_state", "", cookieOptions);
+  response.cookies.set("heavyuser_google_oauth_verifier", "", cookieOptions);
   return response;
+}
+
+function safelyEqual(first: string, second: string) {
+  const firstBuffer = Buffer.from(first);
+  const secondBuffer = Buffer.from(second);
+  return firstBuffer.length === secondBuffer.length && timingSafeEqual(firstBuffer, secondBuffer);
 }
 
 export async function GET(request: Request) {
@@ -33,8 +41,9 @@ export async function GET(request: Request) {
   if (!context.client || !context.admin || !context.user) {
     return redirectWithError(request, "signed_out");
   }
+  const admin = context.admin;
 
-  if (!config || !stateCookie || !verifierCookie || stateCookie !== url.searchParams.get("state")) {
+  if (!config || !stateCookie || !verifierCookie || !url.searchParams.get("state") || !safelyEqual(stateCookie, url.searchParams.get("state")!)) {
     return redirectWithError(request, "invalid_state");
   }
 
@@ -63,6 +72,46 @@ export async function GET(request: Request) {
       return redirectWithError(request, "missing_refresh_token");
     }
     const refreshToken = encryptSecret(token.refresh_token, config.tokenEncryptionKey);
+
+    const previousConnection = await context.admin
+      .from("google_calendar_connections")
+      .select("*")
+      .eq("user_id", context.user.id)
+      .maybeSingle();
+    const previousStates = await context.admin
+      .from("google_calendar_sync_states")
+      .select("*")
+      .eq("user_id", context.user.id);
+    if (previousStates.error) throw previousStates.error;
+    if (previousConnection.error) throw previousConnection.error;
+    if (previousConnection.data) {
+      const previousConnectionRow = previousConnection.data;
+      const previousAccessToken = await (async () => {
+        try {
+          const { getUsableGoogleAccessToken } = await import("@/lib/google/server");
+          return await getUsableGoogleAccessToken(admin, previousConnectionRow);
+        } catch {
+          return null;
+        }
+      })();
+      if (previousAccessToken) {
+        for (const state of previousStates.data ?? []) {
+          if (!state.channel_id || !state.resource_id) continue;
+          await stopGoogleChannel({
+            accessToken: previousAccessToken,
+            channelId: state.channel_id,
+            resourceId: state.resource_id,
+          }).catch(() => undefined);
+        }
+      }
+      const cleanupResults = await Promise.all([
+        context.admin.from("google_calendar_sync_states").delete().eq("user_id", context.user.id),
+        context.admin.from("google_calendar_events").delete().eq("user_id", context.user.id),
+        context.admin.from("google_calendar_event_deletions").delete().eq("user_id", context.user.id),
+      ]);
+      const cleanupError = cleanupResults.find((result) => result.error)?.error;
+      if (cleanupError) throw cleanupError;
+    }
 
     // A reconnect can replace the account without going through the explicit
     // disconnect button. Stop any live timer while the old token is still the
@@ -96,6 +145,7 @@ export async function GET(request: Request) {
       selected_calendar_timezone: null,
       access_token_encrypted: encryptSecret(token.access_token, config.tokenEncryptionKey),
       refresh_token_encrypted: refreshToken,
+      connection_generation: (previousConnection.data?.connection_generation ?? 0) + 1,
       access_token_expires_at: new Date(Date.now() + (token.expires_in ?? 3600) * 1000).toISOString(),
       granted_scope: token.scope ?? null,
       status: "awaiting_calendar",
@@ -116,8 +166,9 @@ export async function GET(request: Request) {
     }
 
     const response = NextResponse.redirect(new URL(`${getAppPath("/")}?google_calendar=select`, redirectOrigin));
-    response.cookies.delete("heavyuser_google_oauth_state");
-    response.cookies.delete("heavyuser_google_oauth_verifier");
+    const cookieOptions = { path: getAppPath("/"), maxAge: 0 };
+    response.cookies.set("heavyuser_google_oauth_state", "", cookieOptions);
+    response.cookies.set("heavyuser_google_oauth_verifier", "", cookieOptions);
     return response;
   } catch {
     return redirectWithError(request, "oauth_failed");
