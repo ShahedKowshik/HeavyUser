@@ -261,8 +261,8 @@ describe("task dates and focus", () => {
 
   it("uses the previous logical day before the Night Owl boundary", () => {
     const settings = { nightOwlMode: true, dayStartTime: "04:00", customTaskOrder: false, planningTimezone: "Asia/Dhaka" };
-    expect(getLogicalDate(new Date(2026, 7, 2, 3, 59).getTime(), settings)).toBe("2026-08-01");
-    expect(getLogicalDate(new Date(2026, 7, 2, 4, 0).getTime(), settings)).toBe("2026-08-02");
+    expect(getLogicalDate(Date.parse("2026-08-01T21:59:00.000Z"), settings)).toBe("2026-08-01");
+    expect(getLogicalDate(Date.parse("2026-08-01T22:00:00.000Z"), settings)).toBe("2026-08-02");
   });
 
   it("uses the saved timezone across DST and UTC+14 boundaries", () => {
