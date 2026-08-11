@@ -830,6 +830,27 @@ export type Database = {
           },
         ]
       }
+      task_work_totals: {
+        Row: {
+          task_id: string
+          updated_at: string
+          user_id: string
+          worked_seconds: number
+        }
+        Insert: {
+          task_id: string
+          updated_at?: string
+          user_id: string
+          worked_seconds?: number
+        }
+        Update: {
+          task_id?: string
+          updated_at?: string
+          user_id?: string
+          worked_seconds?: number
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           auto_schedule: boolean
@@ -913,9 +934,54 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_recent_task_work_sessions: {
+        Args: { p_limit?: number; p_user_id: string }
+        Returns: {
+          block_id: string | null
+          calendar_id: string | null
+          calendar_sync_state: string
+          created_at: string
+          estimated_minutes_at_start: number | null
+          id: string
+          original_started_at: string
+          original_stopped_at: string | null
+          planned_end_at: string | null
+          planned_start_at: string | null
+          provider_event_id: string | null
+          provider_event_key: string | null
+          repair_needed: boolean
+          source: string
+          space_id: string | null
+          started_at: string
+          state: string
+          stopped_at: string | null
+          task_id: string
+          updated_at: string
+          user_id: string
+          warning: string | null
+          worked_seconds: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "task_work_sessions"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      get_task_work_totals: {
+        Args: { p_user_id: string }
+        Returns: {
+          task_id: string
+          worked_seconds: number
+        }[]
+      }
       refresh_scheduler_lock: {
         Args: { p_lock_token: string; p_user_id: string }
         Returns: boolean
+      }
+      refresh_task_work_total: {
+        Args: { p_task_id: string; p_user_id: string }
+        Returns: undefined
       }
       release_scheduler_lock: {
         Args: { p_lock_token: string; p_user_id: string }

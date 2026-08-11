@@ -313,7 +313,10 @@ export async function installBrowserMocks(page: Page, options: BrowserMockOption
 
   await page.clock.install({ time: FROZEN_NOW });
   await page.addInitScript(({ tasks, userId }) => {
-    window.localStorage.setItem(`heavyuser:tasks:v2:${userId}`, JSON.stringify(tasks));
+    const key = `heavyuser:tasks:v2:${userId}`;
+    if (!window.localStorage.getItem(key)) {
+      window.localStorage.setItem(key, JSON.stringify(tasks));
+    }
     window.localStorage.removeItem(`heavyuser:last-space:${userId}`);
   }, { tasks: mock.tasks, userId: E2E_USER_ID });
 

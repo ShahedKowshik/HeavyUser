@@ -69,11 +69,13 @@ import {
   mergeRemoteTasks,
   parseDuration,
   parseShortDate,
+  readUserTaskBaseline,
   readUserTasks,
   reconcileTaskSave,
   replaceBucketOrder,
   sortTasks,
   writeUserTasks,
+  writeUserTaskBaseline,
   clearUserTasks,
   type TaskBucket,
   type UpcomingGroupId,
@@ -741,10 +743,14 @@ export default function Home() {
 
       const account = { id: authUserId };
       const localTasks = mapTasksToSpaces(readUserTasks(window.localStorage, authUserId), spacesRef.current);
+      const savedBaseline = readUserTaskBaseline(window.localStorage, authUserId);
+      const localMergeBaseline = savedBaseline === null
+        ? localTasks
+        : mapTasksToSpaces(savedBaseline, spacesRef.current);
       setTasks([]);
       tasksRef.current = [];
       setRemoteSyncReady(false);
-      taskSaveBaselineRef.current = [];
+      taskSaveBaselineRef.current = localMergeBaseline;
       taskSyncAccountRef.current = authUserId;
       setIsHydrated(false);
       setPendingRemoteDeletes([]);
@@ -786,10 +792,11 @@ export default function Home() {
             return;
           }
 
-          const merged = mergeRemoteTasks(localTasks, tasksRef.current, remoteTasks);
+          const merged = mergeRemoteTasks(localMergeBaseline, tasksRef.current, remoteTasks);
           const normalizedRemoteTasks = mapTasksToSpaces(remoteTasks, spacesRef.current);
           const normalizedTasks = mapTasksToSpaces(merged.tasks, spacesRef.current);
           taskSaveBaselineRef.current = normalizedRemoteTasks;
+          writeUserTaskBaseline(window.localStorage, authUserId, normalizedRemoteTasks);
           tasksRef.current = normalizedTasks;
           setTasks(normalizedTasks);
           if (normalizedTasks.length === 0 && remoteTasks.length === 0) {
@@ -878,6 +885,7 @@ export default function Home() {
         await persistRemoteTasks(supabaseClient, account, reconciled.tasks, reconciled.deletedTaskIds);
         if (taskSyncAccountRef.current === accountId) {
           taskSaveBaselineRef.current = reconciled.tasks;
+          writeUserTaskBaseline(window.localStorage, accountId, reconciled.tasks);
         }
         return reconciled;
       })
@@ -1103,7 +1111,7 @@ export default function Home() {
           setTaskWorkSummaries(timerBody?.sessionsByTask ?? {});
           setMissedBlocks(timerBody?.missedBlocks ?? []);
           setTimerAlerts(timerBody?.alerts ?? []);
-        } else if (response.ok) {
+        } else if (response.ok && !timerResponse.ok) {
           const timerBody = (await timerResponse.json().catch(() => null)) as { error?: string } | null;
           setSchedulerError(timerBody?.error ?? "Timer history could not be loaded. Try refreshing.");
         }

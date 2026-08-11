@@ -90,9 +90,36 @@ export async function loadActiveSessionRow(client: TimerClient, userId: string) 
   return data as SessionRow | null;
 }
 
+export async function loadTaskWorkedSeconds(client: TimerClient, userId: string, taskId: string) {
+  const { data, error } = await client.rpc("get_task_work_totals", { p_user_id: userId });
+  if (error) throw error;
+
+  const row = (data ?? []).find((candidate) => candidate.task_id === taskId);
+  return row ? Math.max(0, Number(row.worked_seconds)) : 0;
+}
+
+const RECENT_SESSIONS_PER_TASK = 8;
+
+async function loadRecentWorkSessionRows(client: TimerClient, userId: string) {
+  const { data, error } = await client.rpc("get_recent_task_work_sessions", {
+    p_user_id: userId,
+    p_limit: RECENT_SESSIONS_PER_TASK,
+  });
+  if (error) throw error;
+  return (data ?? []) as SessionRow[];
+}
+
+async function loadTaskWorkTotals(client: TimerClient, userId: string) {
+  const { data, error } = await client.rpc("get_task_work_totals", { p_user_id: userId });
+  if (error) throw error;
+
+  return new Map((data ?? []).map((row) => [row.task_id, Math.max(0, Number(row.worked_seconds))]));
+}
+
 export async function loadTimerSnapshot(client: TimerClient, userId: string, now = Date.now()) {
-  const [sessionRows, blockResult, tasksResult] = await Promise.all([
-    loadWorkSessionRows(client, userId),
+  const [sessionRows, workedSecondsByTask, blockResult, tasksResult] = await Promise.all([
+    loadRecentWorkSessionRows(client, userId),
+    loadTaskWorkTotals(client, userId),
     client
       .from("task_schedule_blocks")
       .select("id,task_id,space_id,calendar_id,start_at,end_at,state")
@@ -118,7 +145,6 @@ export async function loadTimerSnapshot(client: TimerClient, userId: string, now
       }
     : null;
   const sessionsByTask: Record<string, TaskWorkSummary> = {};
-  const workedSecondsByTask = new Map<string, number>();
   const sessionRowsById = new Map(sessionRows.map((row) => [row.id, row]));
   for (const session of sessions) {
     const currentEstimate = taskDurations.get(session.taskId) ?? session.estimatedMinutesAtStart;
@@ -130,8 +156,9 @@ export async function loadTimerSnapshot(client: TimerClient, userId: string, now
       sessions: [],
     };
     const row = sessionRowsById.get(session.id);
-    const workedSeconds = row ? getRowWorkedSeconds(row, now) : session.workedSeconds;
-    workedSecondsByTask.set(session.taskId, (workedSecondsByTask.get(session.taskId) ?? 0) + workedSeconds);
+    if (row?.state === "running") {
+      workedSecondsByTask.set(session.taskId, (workedSecondsByTask.get(session.taskId) ?? 0) + getRowWorkedSeconds(row, now));
+    }
     summary.estimatedMinutes = summary.estimatedMinutes ?? currentEstimate;
     summary.sessions = [...summary.sessions, session];
     sessionsByTask[session.taskId] = summary;

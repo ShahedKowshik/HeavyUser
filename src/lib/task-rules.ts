@@ -18,6 +18,7 @@ export const CALENDAR_DATE = "2026-08-01";
 export const MAX_TASK_TITLE_LENGTH = 240;
 export const MAX_TASK_DURATION_MINUTES = 10080;
 export const USER_STORAGE_KEY_PREFIX = "heavyuser:tasks:v2:";
+export const USER_TASK_BASELINE_STORAGE_KEY_PREFIX = "heavyuser:tasks:baseline:v1:";
 const MAX_TASK_ID_LENGTH = 240;
 
 const shortMonthNames = [
@@ -675,11 +676,23 @@ export function getUserStorageKey(userId: string) {
   return `${USER_STORAGE_KEY_PREFIX}${userId}`;
 }
 
+export function getUserTaskBaselineStorageKey(userId: string) {
+  return `${USER_TASK_BASELINE_STORAGE_KEY_PREFIX}${userId}`;
+}
+
 export function writeUserTasks(storage: TaskStorage, userId: string, tasks: ReadonlyArray<Task>) {
   try {
     storage.setItem(getUserStorageKey(userId), JSON.stringify(tasks));
   } catch {
     // Cloud sync remains the source of truth if browser storage is unavailable.
+  }
+}
+
+export function writeUserTaskBaseline(storage: TaskStorage, userId: string, tasks: ReadonlyArray<Task>) {
+  try {
+    storage.setItem(getUserTaskBaselineStorageKey(userId), JSON.stringify(tasks));
+  } catch {
+    // The cloud remains the source of truth if browser storage is unavailable.
   }
 }
 
@@ -702,9 +715,33 @@ export function readUserTasks(storage: TaskStorage, userId: string) {
   }
 }
 
+/**
+ * Returns null when no successful cloud baseline has been recorded yet. An
+ * empty array is a valid baseline for an empty cloud account.
+ */
+export function readUserTaskBaseline(storage: TaskStorage, userId: string): ReadonlyArray<Task> | null {
+  try {
+    const savedTasks = storage.getItem(getUserTaskBaselineStorageKey(userId));
+    if (savedTasks === null) {
+      return null;
+    }
+
+    const parsedTasks: unknown = JSON.parse(savedTasks);
+    if (!Array.isArray(parsedTasks)) {
+      return null;
+    }
+
+    const normalizedTasks = parsedTasks.map(normalizeStoredTask).filter((task): task is Task => task !== null);
+    return ensureSingleFocus(normalizedTasks);
+  } catch {
+    return null;
+  }
+}
+
 export function clearUserTasks(storage: TaskStorage, userId: string) {
   try {
     storage.removeItem(getUserStorageKey(userId));
+    storage.removeItem(getUserTaskBaselineStorageKey(userId));
   } catch {
     // The cloud remains the source of truth if browser storage is unavailable.
   }

@@ -1,6 +1,6 @@
 begin;
 
-select plan(37);
+select plan(40);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.tasks'::regclass),
@@ -181,6 +181,8 @@ select ok(
 select has_function('public', 'try_claim_scheduler_lock', array['uuid', 'text']);
 select has_function('public', 'refresh_scheduler_lock', array['uuid', 'text']);
 select has_function('public', 'release_scheduler_lock', array['uuid', 'text']);
+select has_function('public', 'get_task_work_totals', array['uuid']);
+select has_function('public', 'get_recent_task_work_sessions', array['uuid', 'integer']);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.task_work_sessions'::regclass),
@@ -201,6 +203,10 @@ select ok(
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.task_timer_operation_receipts'::regclass),
   'Timer retry receipts have RLS enabled'
+);
+select ok(
+  (select relrowsecurity from pg_class where oid = 'public.task_work_totals'::regclass),
+  'Timer work totals have RLS enabled'
 );
 select ok(
   exists (

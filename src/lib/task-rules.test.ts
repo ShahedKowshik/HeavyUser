@@ -23,10 +23,12 @@ import {
   normalizeStoredTask,
   parseDuration,
   parseShortDate,
+  readUserTaskBaseline,
   readUserTasks,
   reconcileTaskSave,
   replaceBucketOrder,
   sortTasks,
+  writeUserTaskBaseline,
   writeUserTasks,
   clearUserTasks,
   type TaskStorage,
@@ -334,9 +336,12 @@ describe("task Space mapping and persistence", () => {
     const storage = new MemoryStorage();
     const saved = task({ id: "saved", status: "focus" });
     writeUserTasks(storage, "user-a", [saved]);
+    writeUserTaskBaseline(storage, "user-a", [saved]);
 
     expect(readUserTasks(storage, "user-a").map((item) => item.id)).toEqual(["saved"]);
+    expect(readUserTaskBaseline(storage, "user-a")).toEqual([saved]);
     expect(readUserTasks(storage, "user-b")).toEqual([]);
+    expect(readUserTaskBaseline(storage, "user-b")).toBeNull();
     storage.setItem("heavyuser:tasks:v2:user-a", "not json");
     expect(readUserTasks(storage, "user-a")).toEqual([]);
     storage.setItem("heavyuser:tasks:v2:user-a", JSON.stringify([saved, { invalid: true }]));
@@ -344,6 +349,7 @@ describe("task Space mapping and persistence", () => {
     storage.setItem("heavyuser:tasks:v2:user-a", JSON.stringify([saved]));
     clearUserTasks(storage, "user-a");
     expect(readUserTasks(storage, "user-a")).toEqual([]);
+    expect(readUserTaskBaseline(storage, "user-a")).toBeNull();
   });
 });
 
@@ -378,6 +384,15 @@ describe("task synchronization", () => {
     const remote = task({ id: "same", title: "Remote title", duration: 60, status: "focus" });
     const result = mergeRemoteTasks([cached], [cached], [remote]);
     expect(result.tasks).toEqual([remote]);
+    expect(result.deletedTaskIds).toEqual([]);
+  });
+
+  it("uses the persisted cloud baseline when local changes survive a reload", () => {
+    const baseline = task({ id: "same", title: "Before the failed save" });
+    const localEdit = task({ id: "same", title: "Edited while offline", status: "focus" });
+    const result = mergeRemoteTasks([baseline], [localEdit], [baseline]);
+
+    expect(result.tasks).toEqual([localEdit]);
     expect(result.deletedTaskIds).toEqual([]);
   });
 

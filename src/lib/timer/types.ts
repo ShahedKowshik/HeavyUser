@@ -90,6 +90,10 @@ export function getRemainingMinutes(estimatedMinutes: number | null, workedMinut
   return estimatedMinutes === null ? null : Math.max(0, estimatedMinutes - workedMinutes);
 }
 
+export function hasReachedTaskEstimate(estimatedMinutes: number | null, totalWorkedSeconds: number) {
+  return estimatedMinutes !== null && totalWorkedSeconds >= estimatedMinutes * 60;
+}
+
 export function parseWorkMinutes(value: string) {
   const minutes = Math.round(Number(value));
   return Number.isFinite(minutes) && minutes > 0 && minutes <= 1440 ? minutes : null;

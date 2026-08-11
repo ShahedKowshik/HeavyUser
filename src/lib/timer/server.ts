@@ -27,8 +27,8 @@ import { getUserSettings } from "@/lib/supabase/settings";
 import { loadSpaces } from "@/lib/spaces/server";
 import { releaseLockBestEffort } from "@/lib/reliability/locks";
 import { loadCachedEvents, type CalendarEventRow } from "@/lib/timer/calendar-events";
-import { loadActiveSessionRow, loadTimerSnapshot } from "@/lib/timer/data";
-import { getTimerBlockDurationMinutes } from "@/lib/timer/types";
+import { loadActiveSessionRow, loadTaskWorkedSeconds, loadTimerSnapshot } from "@/lib/timer/data";
+import { getTimerBlockDurationMinutes, hasReachedTaskEstimate } from "@/lib/timer/types";
 import type { TaskWorkSession } from "@/lib/timer/types";
 
 type TimerClient = SupabaseClient<Database>;
@@ -555,11 +555,15 @@ async function stopSessionInsideLock(input: {
     throw new TimerOperationError("invalid_stop", "Stop time must be after the timer started.", 400);
   }
   const elapsedSeconds = secondsDifference(input.session.started_at, stopIso);
-  const estimateReached = task.duration !== null && elapsedSeconds >= task.duration * 60;
+  const previousWorkedSeconds = task.duration === null
+    ? 0
+    : await loadTaskWorkedSeconds(input.client, input.userId, task.id);
+  const totalWorkedSeconds = previousWorkedSeconds + elapsedSeconds;
+  const estimateReached = hasReachedTaskEstimate(task.duration, totalWorkedSeconds);
   if (estimateReached && !["finish", "keep_long", "split"].includes(input.action ?? "") && !input.complete) {
     throw new TimerOperationError("estimate_reached", "You reached the estimate. Choose whether to finish this task or add more time.", 409, {
       estimateMinutes: task.duration,
-      workedSeconds: elapsedSeconds,
+      workedSeconds: totalWorkedSeconds,
     });
   }
 

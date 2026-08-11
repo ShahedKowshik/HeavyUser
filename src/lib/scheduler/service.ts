@@ -28,7 +28,7 @@ import { normalizeSchedulerPreferences } from "@/lib/scheduler/preferences";
 import { planSchedule } from "@/lib/scheduler/planner";
 import { getBusyIntervalsFromCalendarEvents } from "@/lib/scheduler/availability";
 import { getManagedEventCleanupKey, getManagedEventProperties, selectManagedEventCleanup } from "@/lib/scheduler/reconcile";
-import { getRowWorkedSeconds, loadWorkSessionRows, loadTimerSnapshot } from "@/lib/timer/data";
+import { getRowWorkedSeconds, loadWorkSessionRows } from "@/lib/timer/data";
 import { processTimerCalendarRepairs } from "@/lib/timer/repair";
 import type {
   ScheduleBlockSnapshot,
@@ -1343,7 +1343,11 @@ async function runSchedulerForUserWithClient(
   return { userId, created, moved, deleted, locked, warnings } satisfies SchedulerSummary;
 }
 
-export async function runSchedulerForUser(userId: string, request?: Request) {
+type SchedulerRunOptions = {
+  queuedRequestAt?: string;
+};
+
+export async function runSchedulerForUser(userId: string, request?: Request, options: SchedulerRunOptions = {}) {
   const client = getSupabaseAdminClient();
   if (!client) {
     throw new Error("The scheduler is not configured on this deployment.");
@@ -1395,7 +1399,12 @@ export async function runSchedulerForUser(userId: string, request?: Request) {
       } finally {
         // Keep a durable repair request even when an immediate run was
         // started outside the queue (for example after calendar selection).
-        await queueSchedulerJob(client, userId, "scheduler_retry");
+        // A queue worker already owns the row it claimed. Re-enqueuing here
+        // would replace requested_at and reset attempts before the worker can
+        // apply its backoff, so leave that row for processSchedulerQueue.
+        if (!options.queuedRequestAt) {
+          await queueSchedulerJob(client, userId, "scheduler_retry");
+        }
       }
     }
     throw error;
@@ -1436,10 +1445,10 @@ export async function loadTaskScheduleStatus(userId: string) {
 export async function loadTaskScheduleSnapshot(userId: string): Promise<TaskScheduleSnapshot> {
   const client = getSupabaseAdminClient();
   if (!client) {
-    return { statuses: [], blocks: [], activeSession: null, sessionsByTask: {}, missedBlocks: [], alerts: [] };
+    return { statuses: [], blocks: [] };
   }
 
-  const [statusesResult, blocksResult, timerSnapshot] = await Promise.all([
+  const [statusesResult, blocksResult] = await Promise.all([
     client.from("task_schedule_status").select("*").eq("user_id", userId),
     client
       .from("task_schedule_blocks")
@@ -1448,7 +1457,6 @@ export async function loadTaskScheduleSnapshot(userId: string): Promise<TaskSche
       .not("state", "in", "(replaced,cancelled)")
       .not("provider_event_id", "is", null)
       .order("start_at", { ascending: true }),
-    loadTimerSnapshot(client, userId),
   ]);
   if (statusesResult.error) throw statusesResult.error;
   if (blocksResult.error) throw blocksResult.error;
@@ -1483,10 +1491,6 @@ export async function loadTaskScheduleSnapshot(userId: string): Promise<TaskSche
   return {
     statuses,
     blocks,
-    activeSession: timerSnapshot.activeSession,
-    sessionsByTask: timerSnapshot.sessionsByTask,
-    missedBlocks: timerSnapshot.missedBlocks,
-    alerts: timerSnapshot.alerts,
   };
 }
 
@@ -1635,7 +1639,7 @@ export async function processSchedulerQueue(limit = 10, request?: Request) {
     if (!claimed) continue;
 
     try {
-      const result = await runSchedulerForUser(job.user_id, request);
+      const result = await runSchedulerForUser(job.user_id, request, { queuedRequestAt: job.requested_at });
       // A task/settings/calendar change can enqueue a newer request while this
       // run is in flight. Only remove the row we actually claimed; otherwise
       // the newer request would be lost.
