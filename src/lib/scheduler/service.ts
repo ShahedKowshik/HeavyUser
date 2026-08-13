@@ -781,8 +781,23 @@ export async function removeManagedBlocksForConnection(connection: GoogleConnect
     return { deleted: 0, errors: [] as ReadonlyArray<string> };
   }
 
-  const accessToken = await getUsableGoogleAccessToken(client, connection);
-  await processTaskCleanup(client, connection.user_id, accessToken);
+  let accessToken: string | null = null;
+  let accessTokenError: string | null = null;
+  try {
+    accessToken = await getUsableGoogleAccessToken(client, connection);
+  } catch (error) {
+    // Disconnect must still finish locally when Google authorization is already
+    // invalid. The provider event cannot be deleted in that case, so each one
+    // is queued for best-effort cleanup after the user reconnects.
+    accessTokenError = googleErrorMessage(error);
+  }
+  if (accessToken) {
+    try {
+      await processTaskCleanup(client, connection.user_id, accessToken);
+    } catch (error) {
+      accessTokenError = googleErrorMessage(error);
+    }
+  }
   const now = Date.now();
   const { data, error } = await client
     .from("task_schedule_blocks")
@@ -794,13 +809,16 @@ export async function removeManagedBlocksForConnection(connection: GoogleConnect
   }
 
   let deleted = 0;
-  const errors: string[] = [];
+  const errors: string[] = accessTokenError ? [accessTokenError] : [];
   for (const block of data ?? []) {
     if (new Date(block.end_at).getTime() <= now) {
       continue;
     }
     try {
       if (block.provider_event_id) {
+        if (!accessToken) {
+          throw new Error(accessTokenError ?? "Google Calendar access is unavailable. Reconnect to finish cleanup.");
+        }
         await safeDeleteGoogleEvent({
           accessToken,
           calendarId: block.calendar_id,

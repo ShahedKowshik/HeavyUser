@@ -10,9 +10,13 @@ import {
   googleErrorMessage,
   getUsableGoogleAccessToken,
   getSupabaseAdminClient,
+  isGoogleAuthError,
+  isGoogleCalendarUnavailableError,
   loadGoogleConnection,
   publicGoogleConnection,
   requireAuthenticatedGoogleContext,
+  setGoogleConnectionError,
+  type GoogleDbClient,
 } from "@/lib/google/server";
 import { recordGoogleEventDeletion, syncGoogleCalendar, upsertGoogleCalendarEvent } from "@/lib/google/sync";
 import { runSchedulerForUserWithRetry } from "@/lib/scheduler/service";
@@ -67,8 +71,37 @@ async function getSelectedCalendarContext() {
   if (!connection?.selected_calendar_id) {
     return { response: NextResponse.json({ error: "Connect and choose a Google Calendar first." }, { status: 400 }) } as const;
   }
+  if (connection.status === "error") {
+    return {
+      response: NextResponse.json({
+        code: "google_reconnect_required",
+        reconnectRequired: true,
+        connection: publicGoogleConnection(connection),
+        error: connection.last_error ?? "Reconnect Google Calendar to continue.",
+      }, { status: 409 }),
+    } as const;
+  }
 
   return { context, connection } as const;
+}
+
+async function googleCalendarErrorResponse(error: unknown, context?: { admin: GoogleDbClient; userId: string }) {
+  if (isGoogleAuthError(error) || isGoogleCalendarUnavailableError(error)) {
+    const message = googleErrorMessage(error);
+    let connection: ReturnType<typeof publicGoogleConnection> = null;
+    if (context) {
+      await setGoogleConnectionError(context.admin, context.userId, message).catch(() => undefined);
+      const refreshed = await loadGoogleConnection(context.admin, context.userId).catch(() => null);
+      connection = publicGoogleConnection(refreshed);
+    }
+    return NextResponse.json({
+      code: "google_reconnect_required",
+      reconnectRequired: true,
+      connection,
+      error: message,
+    }, { status: 409 });
+  }
+  return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });
 }
 
 function getManagedBlockIdFromProperties(localEvent: Record<string, unknown>) {
@@ -350,7 +383,7 @@ export async function GET(request: Request) {
       truncated: eventResult.truncated,
     });
   } catch (error) {
-    return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });
+    return googleCalendarErrorResponse(error, { admin: result.context.admin, userId: result.context.user.id });
   }
 }
 
@@ -438,7 +471,7 @@ export async function POST(request: Request) {
       });
     }
   } catch (error) {
-    return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });
+    return googleCalendarErrorResponse(error, { admin: result.context.admin, userId: result.context.user.id });
   }
 }
 
@@ -607,7 +640,7 @@ export async function PATCH(request: Request) {
     if (error instanceof GoogleApiError && error.status === 412) {
       return NextResponse.json({ code: "stale_etag", conflict: true, error: "This event changed in Google Calendar. Refresh before editing it." }, { status: 409 });
     }
-    return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });
+    return googleCalendarErrorResponse(error, { admin: result.context.admin, userId: result.context.user.id });
   }
 }
 
@@ -739,6 +772,6 @@ export async function DELETE(request: Request) {
     }
     return NextResponse.json({ ok: true, schedulerPending, timerPaused });
   } catch (error) {
-    return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });
+    return googleCalendarErrorResponse(error, { admin: result.context.admin, userId: result.context.user.id });
   }
 }

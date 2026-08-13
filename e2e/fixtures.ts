@@ -17,6 +17,7 @@ type MockResponse = {
 
 type CalendarConnection = {
   status: string;
+  requiresReconnect?: boolean;
   accountEmail: string | null;
   calendarId: string | null;
   calendarName: string | null;
@@ -36,6 +37,7 @@ type BrowserMockOptions = {
   alerts?: ReadonlyArray<TimerAlert>;
   calendarEvents?: ReadonlyArray<Record<string, unknown>>;
   connection?: Partial<CalendarConnection> | null;
+  disconnectResponse?: MockResponse;
   failTaskSave?: boolean;
 };
 
@@ -60,6 +62,7 @@ export type BrowserMockState = {
   timerStartResponse: MockResponse | null;
   timerLogWorkResponse: MockResponse | null;
   timerAddTimeResponse: MockResponse | null;
+  disconnectResponse: MockResponse | null;
 };
 
 function makeConnection(connection: Partial<CalendarConnection> | null | undefined): CalendarConnection | null {
@@ -69,6 +72,7 @@ function makeConnection(connection: Partial<CalendarConnection> | null | undefin
 
   return {
     status: "connected",
+    requiresReconnect: false,
     accountEmail: "e2e@heavyuser.test",
     calendarId: "calendar-work",
     calendarName: "Work calendar",
@@ -303,6 +307,7 @@ export async function installBrowserMocks(page: Page, options: BrowserMockOption
     alerts: [...(options.alerts ?? [])],
     calendarEvents: [...(options.calendarEvents ?? [defaultCalendarEvent()])],
     connection: makeConnection(options.connection),
+    disconnectResponse: options.disconnectResponse ?? null,
     failTaskSave: options.failTaskSave ?? false,
     taskVersion: 0,
     taskOrderVersion: 0,
@@ -510,7 +515,17 @@ export async function installBrowserMocks(page: Page, options: BrowserMockOption
       return;
     }
     if (path === "/api/google/calendar/connection") {
-      await fulfill(route, { status: 200, body: { connection: mock.connection } });
+      if (request.method() === "DELETE") {
+        if (mock.disconnectResponse) {
+          await fulfill(route, mock.disconnectResponse);
+          return;
+        }
+        mock.connection = null;
+        mock.spaces = mock.spaces.map((space) => space.status === "active" ? { ...space, status: "disconnected", archivedAt: null } : space);
+        await fulfill(route, { status: 200, body: { ok: true, connection: null, spaces: mock.spaces } });
+      } else {
+        await fulfill(route, { status: 200, body: { connection: mock.connection, spaces: mock.spaces } });
+      }
       return;
     }
     if (path === "/api/google/calendar/sync") {

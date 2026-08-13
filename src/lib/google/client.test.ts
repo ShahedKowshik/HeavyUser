@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { listGoogleEvents } from "./client";
+import { GoogleApiError, isGoogleAuthError, listGoogleEvents, refreshGoogleAccessToken } from "./client";
 
 function googleEventsResponse(body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
@@ -47,5 +47,31 @@ describe("Google Calendar event listing", () => {
     expect(query.get("syncToken")).toBe("sync-1");
     expect(query.get("timeMin")).toBeNull();
     expect(query.get("timeMax")).toBeNull();
+  });
+
+  it("preserves OAuth invalid_grant details from a token refresh failure", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: "invalid_grant",
+      error_description: "Token has been expired or revoked.",
+    }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(refreshGoogleAccessToken({
+      refreshToken: "refresh-token",
+      clientId: "client-id",
+      clientSecret: "client-secret",
+    })).rejects.toMatchObject({
+      status: 400,
+      reason: "invalid_grant",
+      message: "Token has been expired or revoked.",
+    });
+  });
+
+  it("classifies OAuth invalid_grant as a reconnect-required error", () => {
+    expect(isGoogleAuthError(new GoogleApiError(400, "Token has been expired or revoked.", "invalid_grant"))).toBe(true);
+    expect(isGoogleAuthError(new GoogleApiError(400, "Bad request.", "invalidArgument"))).toBe(false);
   });
 });

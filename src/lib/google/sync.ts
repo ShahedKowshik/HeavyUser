@@ -13,6 +13,7 @@ import {
 } from "@/lib/google/client";
 import {
   getUsableGoogleAccessToken,
+  googleErrorMessage,
   isGoogleAuthError,
   isGoogleCalendarUnavailableError,
   loadGoogleSyncState,
@@ -23,9 +24,11 @@ import { queueSchedulerJob } from "@/lib/scheduler/queue";
 import { hashSecret } from "@/lib/security/http";
 import { loadSpaces } from "@/lib/spaces/server";
 import { getStaleCalendarEventKeys } from "@/lib/google/event-utils";
+import { chunkValues, GOOGLE_DELETION_RECORD_BATCH_SIZE } from "@/lib/google/sync-utils";
 
 const EVENT_KEY_DELETE_BATCH_SIZE = 100;
 const MAX_SYNC_EVENTS_WARNING = 5_000;
+type DeletionRecordColumn = "event_key" | "provider_event_id";
 
 type EventScope = {
   calendarId: string;
@@ -182,6 +185,28 @@ export async function upsertGoogleCalendarEvent(client: GoogleDbClient, userId: 
   return row;
 }
 
+async function deleteGoogleDeletionRecords(
+  client: GoogleDbClient,
+  userId: string,
+  calendarId: string,
+  column: DeletionRecordColumn,
+  values: ReadonlyArray<string>,
+  errorPrefix: string,
+) {
+  const uniqueValues = [...new Set(values)];
+  for (const batch of chunkValues(uniqueValues, GOOGLE_DELETION_RECORD_BATCH_SIZE)) {
+    const { error } = await client
+      .from("google_calendar_event_deletions")
+      .delete()
+      .eq("user_id", userId)
+      .eq("calendar_id", calendarId)
+      .in(column, batch);
+    if (error) {
+      throw new Error(`${errorPrefix}: ${error.message}`);
+    }
+  }
+}
+
 async function applyEvents(client: GoogleDbClient, userId: string, events: GoogleEvent[], scope: EventScope) {
   const { data: deletionRows, error: deletionLoadError } = await client
     .from("google_calendar_event_deletions")
@@ -218,26 +243,24 @@ async function applyEvents(client: GoogleDbClient, userId: string, events: Googl
       }
     }
 
-    const { error: deletionCleanupError } = await client
-      .from("google_calendar_event_deletions")
-      .delete()
-      .eq("user_id", userId)
-      .eq("calendar_id", scope.calendarId)
-      .in("event_key", cancelledKeys);
-    if (deletionCleanupError) {
-      throw new Error(`Google Calendar deletion record cleanup failed: ${deletionCleanupError.message}`);
-    }
+    await deleteGoogleDeletionRecords(
+      client,
+      userId,
+      scope.calendarId,
+      "event_key",
+      cancelledKeys.filter((eventKey) => deletedByEventKey.has(eventKey)),
+      "Google Calendar deletion record cleanup failed",
+    );
 
     if (cancelledProviderEventIds.length > 0) {
-      const { error: providerDeletionCleanupError } = await client
-        .from("google_calendar_event_deletions")
-        .delete()
-        .eq("user_id", userId)
-        .eq("calendar_id", scope.calendarId)
-        .in("provider_event_id", cancelledProviderEventIds);
-      if (providerDeletionCleanupError) {
-        throw new Error(`Google Calendar provider deletion record cleanup failed: ${providerDeletionCleanupError.message}`);
-      }
+      await deleteGoogleDeletionRecords(
+        client,
+        userId,
+        scope.calendarId,
+        "provider_event_id",
+        cancelledProviderEventIds.filter((providerEventId) => deletedByProviderEventId.has(providerEventId)),
+        "Google Calendar provider deletion record cleanup failed",
+      );
     }
   }
 
@@ -256,26 +279,24 @@ async function applyEvents(client: GoogleDbClient, userId: string, events: Googl
   const activeEventKeys = activeEvents.map(getGoogleEventKey);
   const activeProviderEventIds = [...new Set(activeEvents.map((event) => event.id))];
   if (activeEventKeys.length > 0) {
-    const { error: eventTombstoneCleanupError } = await client
-      .from("google_calendar_event_deletions")
-      .delete()
-      .eq("user_id", userId)
-      .eq("calendar_id", scope.calendarId)
-      .in("event_key", activeEventKeys);
-    if (eventTombstoneCleanupError) {
-      throw new Error(`Google Calendar deletion record cleanup failed: ${eventTombstoneCleanupError.message}`);
-    }
+    await deleteGoogleDeletionRecords(
+      client,
+      userId,
+      scope.calendarId,
+      "event_key",
+      activeEventKeys.filter((eventKey) => deletedByEventKey.has(eventKey)),
+      "Google Calendar deletion record cleanup failed",
+    );
   }
   if (activeProviderEventIds.length > 0) {
-    const { error: providerTombstoneCleanupError } = await client
-      .from("google_calendar_event_deletions")
-      .delete()
-      .eq("user_id", userId)
-      .eq("calendar_id", scope.calendarId)
-      .in("provider_event_id", activeProviderEventIds);
-    if (providerTombstoneCleanupError) {
-      throw new Error(`Google Calendar provider deletion record cleanup failed: ${providerTombstoneCleanupError.message}`);
-    }
+    await deleteGoogleDeletionRecords(
+      client,
+      userId,
+      scope.calendarId,
+      "provider_event_id",
+      activeProviderEventIds.filter((providerEventId) => deletedByProviderEventId.has(providerEventId)),
+      "Google Calendar provider deletion record cleanup failed",
+    );
   }
   return new Set(activeEventKeys);
 }
@@ -510,9 +531,9 @@ export async function syncGoogleCalendar(
   } catch (error) {
     if (options.updateConnectionStatus !== false) {
       if (isGoogleAuthError(error) || isGoogleCalendarUnavailableError(error)) {
-        await setGoogleConnectionError(client, connection.user_id, error instanceof Error ? error.message : "Calendar sync failed.");
+        await setGoogleConnectionError(client, connection.user_id, googleErrorMessage(error));
       } else {
-        await setGoogleConnectionWarning(client, connection.user_id, error instanceof Error ? error.message : "Calendar sync failed.");
+        await setGoogleConnectionWarning(client, connection.user_id, googleErrorMessage(error));
       }
     }
     throw error;
@@ -594,7 +615,7 @@ export async function syncAllGoogleCalendars(
             disconnected += 1;
           }
         }
-        errors.push(`${space.name}: ${error instanceof Error ? error.message : "Calendar sync failed."}`);
+        errors.push(`${space.name}: ${googleErrorMessage(error)}`);
       }
     }
   }

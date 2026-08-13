@@ -5,7 +5,14 @@ import type { Database } from "@/lib/supabase/database.types";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { decryptSecret, encryptSecret } from "@/lib/google/crypto";
 import { getGoogleConfig } from "@/lib/google/config";
-import { GoogleApiError, refreshGoogleAccessToken } from "@/lib/google/client";
+import {
+  GoogleApiError,
+  isGoogleAuthError,
+  isGoogleCalendarUnavailableError,
+  refreshGoogleAccessToken,
+} from "@/lib/google/client";
+
+export { isGoogleAuthError, isGoogleCalendarUnavailableError } from "@/lib/google/client";
 
 export type GoogleDbClient = SupabaseClient<Database>;
 export type GoogleConnection = Database["public"]["Tables"]["google_calendar_connections"]["Row"];
@@ -98,11 +105,19 @@ export async function getUsableGoogleAccessToken(client: GoogleDbClient, connect
   }
 
   const refreshToken = decryptSecret(connection.refresh_token_encrypted, config.tokenEncryptionKey, config.previousTokenEncryptionKeys);
-  const token = await refreshGoogleAccessToken({
-    refreshToken,
-    clientId: config.clientId,
-    clientSecret: config.clientSecret,
-  });
+  let token: Awaited<ReturnType<typeof refreshGoogleAccessToken>>;
+  try {
+    token = await refreshGoogleAccessToken({
+      refreshToken,
+      clientId: config.clientId,
+      clientSecret: config.clientSecret,
+    });
+  } catch (error) {
+    if (isGoogleAuthError(error)) {
+      await setGoogleConnectionError(client, connection.user_id, googleErrorMessage(error)).catch(() => undefined);
+    }
+    throw error;
+  }
   const accessTokenExpiresAt = new Date(Date.now() + (token.expires_in ?? 3600) * 1000).toISOString();
   const { error } = await client
     .from("google_calendar_connections")
@@ -129,6 +144,7 @@ export function publicGoogleConnection(connection: GoogleConnection | null) {
 
   return {
     status: connection.status,
+    requiresReconnect: connection.status === "error",
     accountEmail: connection.google_account_email,
     calendarId: connection.selected_calendar_id,
     calendarName: connection.selected_calendar_name,
@@ -138,24 +154,14 @@ export function publicGoogleConnection(connection: GoogleConnection | null) {
   };
 }
 
-export function isGoogleAuthError(error: unknown) {
-  if (!(error instanceof GoogleApiError)) return false;
-  if (error.status === 401) return true;
-  if (error.status !== 403) return false;
-  return [
-    "authError",
-    "forbidden",
-    "insufficientPermissions",
-    "invalid_grant",
-    "invalidCredentials",
-  ].includes(error.reason ?? "");
-}
-
-export function isGoogleCalendarUnavailableError(error: unknown) {
-  return error instanceof GoogleApiError && error.status === 404;
-}
-
 export function googleErrorMessage(error: unknown) {
+  if (isGoogleAuthError(error)) {
+    return "Google Calendar authorization expired or was removed. Reconnect Google Calendar to continue.";
+  }
+  if (isGoogleCalendarUnavailableError(error)) {
+    return "That Google Calendar is no longer available. Reconnect Google Calendar to choose another calendar.";
+  }
+
   const message = error instanceof GoogleApiError || error instanceof Error
     ? error.message
     : error && typeof error === "object" && typeof (error as { message?: unknown }).message === "string"

@@ -32,15 +32,16 @@ export async function DELETE(request: Request) {
   if (statesError) return NextResponse.json({ error: googleErrorMessage(statesError) }, { status: 500 });
   let cleanupWarning: string | null = null;
 
+  try {
+    await stopTimerForCalendarDisconnect(context.user.id);
+  } catch (timerError) {
+    return NextResponse.json({
+      error: "The active timer could not be saved safely, so Calendar was not disconnected.",
+      detail: googleErrorMessage(timerError),
+    }, { status: 409 });
+  }
+
   if (connection) {
-    try {
-      await stopTimerForCalendarDisconnect(context.user.id);
-    } catch (timerError) {
-      return NextResponse.json({
-        error: "The active timer could not be saved safely, so Calendar was not disconnected.",
-        detail: googleErrorMessage(timerError),
-      }, { status: 409 });
-    }
     try {
       const cleanup = await removeManagedBlocksForConnection(connection);
       if (cleanup.errors.length > 0) {
@@ -85,7 +86,21 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: googleErrorMessage(failed.error) }, { status: 500 });
   }
 
-  await pauseSchedulerForUser(context.user.id, cleanupWarning ?? "Google Calendar is disconnected. Connect a calendar to resume scheduling.");
+  try {
+    await pauseSchedulerForUser(context.user.id, cleanupWarning ?? "Google Calendar is disconnected. Connect a calendar to resume scheduling.");
+  } catch (schedulerError) {
+    cleanupWarning = cleanupWarning
+      ? `${cleanupWarning} Scheduling state will retry: ${googleErrorMessage(schedulerError)}`
+      : `Scheduling state will retry: ${googleErrorMessage(schedulerError)}`;
+  }
 
-  return NextResponse.json({ ok: true, cleanupWarning });
+  let spaces: Awaited<ReturnType<typeof loadSpaces>> = [];
+  try {
+    spaces = await loadSpaces(context.admin, context.user.id);
+  } catch (spaceError) {
+    cleanupWarning = cleanupWarning
+      ? `${cleanupWarning} Spaces will refresh on the next load: ${googleErrorMessage(spaceError)}`
+      : `Spaces will refresh on the next load: ${googleErrorMessage(spaceError)}`;
+  }
+  return NextResponse.json({ ok: true, connection: null, spaces, cleanupWarning });
 }

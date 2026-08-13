@@ -3,7 +3,10 @@ import { listGoogleCalendars } from "@/lib/google/client";
 import {
   getUsableGoogleAccessToken,
   googleErrorMessage,
+  isGoogleAuthError,
+  isGoogleCalendarUnavailableError,
   loadGoogleConnection,
+  publicGoogleConnection,
   requireAuthenticatedGoogleContext,
 } from "@/lib/google/server";
 import { ensureSpaceForCalendar, loadSpaces } from "@/lib/spaces/server";
@@ -12,6 +15,17 @@ import { syncAllGoogleCalendars } from "@/lib/google/sync";
 import { readJsonBody, rejectCrossOriginMutation } from "@/lib/security/http";
 import type { Database } from "@/lib/supabase/database.types";
 import { getRefreshedCalendarMetadata } from "@/lib/spaces";
+
+function googleReconnectResponse(error: unknown) {
+  if (isGoogleAuthError(error) || isGoogleCalendarUnavailableError(error)) {
+    return NextResponse.json({
+      code: "google_reconnect_required",
+      reconnectRequired: true,
+      error: googleErrorMessage(error),
+    }, { status: 409 });
+  }
+  return null;
+}
 
 export async function GET() {
   const context = await requireAuthenticatedGoogleContext();
@@ -41,6 +55,13 @@ export async function POST(request: Request) {
   try {
     const connection = await loadGoogleConnection(context.admin, context.user.id);
     if (!connection) return NextResponse.json({ error: "Connect Google Calendar first." }, { status: 400 });
+    if (connection.status === "error") {
+      return NextResponse.json({
+        code: "google_reconnect_required",
+        reconnectRequired: true,
+        error: connection.last_error ?? "Reconnect Google Calendar before adding a Space.",
+      }, { status: 409 });
+    }
     const accessToken = await getUsableGoogleAccessToken(context.admin, connection);
     const calendars = await listGoogleCalendars(accessToken);
     const selected = calendars.find((calendar) => calendar.id === calendarId);
@@ -75,8 +96,16 @@ export async function POST(request: Request) {
       syncPending = true;
       followUpError = googleErrorMessage(error);
     }
-    return NextResponse.json({ space, spaces: await loadSpaces(context.admin, context.user.id), syncPending, followUpError });
+    return NextResponse.json({
+      space,
+      spaces: await loadSpaces(context.admin, context.user.id),
+      connection: publicGoogleConnection(await loadGoogleConnection(context.admin, context.user.id)),
+      syncPending,
+      followUpError,
+    });
   } catch (error) {
+    const reconnectResponse = googleReconnectResponse(error);
+    if (reconnectResponse) return reconnectResponse;
     return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });
   }
 }
@@ -118,6 +147,13 @@ export async function PATCH(request: Request) {
           if (!connection) {
             return NextResponse.json({ error: "Reconnect Google Calendar before restoring this Space." }, { status: 409 });
           }
+          if (connection.status === "error") {
+            return NextResponse.json({
+              code: "google_reconnect_required",
+              reconnectRequired: true,
+              error: connection.last_error ?? "Reconnect Google Calendar before restoring this Space.",
+            }, { status: 409 });
+          }
           const accessToken = await getUsableGoogleAccessToken(context.admin, connection);
           const calendars = await listGoogleCalendars(accessToken);
           const providerCalendar = calendars.find((calendar) => calendar.id === space.calendar_id);
@@ -153,6 +189,8 @@ export async function PATCH(request: Request) {
     if ((error as { code?: string }).code === "23514") {
       return NextResponse.json({ error: "Complete or move open tasks before archiving this Space." }, { status: 409 });
     }
+    const reconnectResponse = googleReconnectResponse(error);
+    if (reconnectResponse) return reconnectResponse;
     return NextResponse.json({ error: googleErrorMessage(error) }, { status: 500 });
   }
 }

@@ -4,20 +4,35 @@ import { exchangeGoogleCode, stopGoogleChannel } from "@/lib/google/client";
 import { encryptSecret } from "@/lib/google/crypto";
 import { getGoogleConfig, getGoogleRedirectUri } from "@/lib/google/config";
 import { getAuthenticatedGoogleContext } from "@/lib/google/server";
-import { getAppPath, getAppRedirectOrigin } from "@/lib/supabase/config";
+import { getAppPath, getAppRedirectOrigin, getSafeAppReturnPath } from "@/lib/supabase/config";
 import { stopTimerForCalendarDisconnect } from "@/lib/timer/server";
+
+function readCookie(request: Request, name: string) {
+  const value = request.headers.get("cookie")?.match(new RegExp(`(?:^|; )${name}=([^;]+)`))?.[1];
+  if (!value) return null;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+}
 
 function redirectWithError(request: Request, reason: string) {
   const origin = getAppRedirectOrigin(request);
+  const returnTo = getSafeAppReturnPath(readCookie(request, "heavyuser_google_oauth_return_to"));
   let response: NextResponse;
   if (!origin) {
     response = NextResponse.json({ error: "The application origin is not configured." }, { status: 503 });
   } else {
-    response = NextResponse.redirect(new URL(`${getAppPath("/")}?google_calendar=error&reason=${encodeURIComponent(reason)}`, origin));
+    const target = new URL(returnTo, origin);
+    target.searchParams.set("google_calendar", "error");
+    target.searchParams.set("reason", reason);
+    response = NextResponse.redirect(target);
   }
   const cookieOptions = { path: getAppPath("/"), maxAge: 0 };
   response.cookies.set("heavyuser_google_oauth_state", "", cookieOptions);
   response.cookies.set("heavyuser_google_oauth_verifier", "", cookieOptions);
+  response.cookies.set("heavyuser_google_oauth_return_to", "", cookieOptions);
   return response;
 }
 
@@ -165,10 +180,14 @@ export async function GET(request: Request) {
       throw error;
     }
 
-    const response = NextResponse.redirect(new URL(`${getAppPath("/")}?google_calendar=select`, redirectOrigin));
+    const returnTo = getSafeAppReturnPath(readCookie(request, "heavyuser_google_oauth_return_to"));
+    const target = new URL(returnTo, redirectOrigin);
+    target.searchParams.set("google_calendar", "select");
+    const response = NextResponse.redirect(target);
     const cookieOptions = { path: getAppPath("/"), maxAge: 0 };
     response.cookies.set("heavyuser_google_oauth_state", "", cookieOptions);
     response.cookies.set("heavyuser_google_oauth_verifier", "", cookieOptions);
+    response.cookies.set("heavyuser_google_oauth_return_to", "", cookieOptions);
     return response;
   } catch {
     return redirectWithError(request, "oauth_failed");

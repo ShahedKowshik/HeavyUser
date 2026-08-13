@@ -10,7 +10,8 @@ export type GoogleApiErrorShape = {
     code?: number;
     message?: string;
     errors?: Array<{ reason?: string }>;
-  };
+  } | string;
+  error_description?: string;
 };
 
 export class GoogleApiError extends Error {
@@ -23,6 +24,26 @@ export class GoogleApiError extends Error {
     this.status = status;
     this.reason = reason;
   }
+}
+
+export function isGoogleAuthError(error: unknown) {
+  if (!(error instanceof GoogleApiError)) return false;
+  if (error.status === 401) return true;
+  if (error.status === 400) {
+    return ["admin_policy_enforced", "expired_token", "invalid_grant", "invalid_rapt"].includes(error.reason ?? "");
+  }
+  if (error.status !== 403) return false;
+  return [
+    "authError",
+    "forbidden",
+    "insufficientPermissions",
+    "invalid_grant",
+    "invalidCredentials",
+  ].includes(error.reason ?? "");
+}
+
+export function isGoogleCalendarUnavailableError(error: unknown) {
+  return error instanceof GoogleApiError && error.status === 404;
 }
 
 export type GoogleCalendarListEntry = {
@@ -109,10 +130,12 @@ async function parseResponse<T>(response: Response) {
 
   if (!response.ok) {
     const errorBody = body as GoogleApiErrorShape | null;
+    const nestedError = errorBody?.error && typeof errorBody.error === "object" ? errorBody.error : null;
+    const oauthError = typeof errorBody?.error === "string" ? errorBody.error : null;
     throw new GoogleApiError(
       response.status,
-      errorBody?.error?.message ?? `Google Calendar request failed with status ${response.status}.`,
-      errorBody?.error?.errors?.[0]?.reason ?? null,
+      nestedError?.message ?? errorBody?.error_description ?? oauthError ?? `Google Calendar request failed with status ${response.status}.`,
+      nestedError?.errors?.[0]?.reason ?? oauthError,
     );
   }
 

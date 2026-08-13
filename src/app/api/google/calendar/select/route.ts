@@ -3,6 +3,8 @@ import { listGoogleCalendars } from "@/lib/google/client";
 import {
   googleErrorMessage,
   getUsableGoogleAccessToken,
+  isGoogleAuthError,
+  isGoogleCalendarUnavailableError,
   loadGoogleConnection,
   publicGoogleConnection,
   requireAuthenticatedGoogleContext,
@@ -34,6 +36,13 @@ export async function POST(request: Request) {
   const connection = await loadGoogleConnection(context.admin, context.user.id);
   if (!connection) {
     return NextResponse.json({ error: "Connect Google Calendar first." }, { status: 400 });
+  }
+  if (connection.status === "error") {
+    return NextResponse.json({
+      code: "google_reconnect_required",
+      reconnectRequired: true,
+      error: connection.last_error ?? "Reconnect Google Calendar before choosing a calendar.",
+    }, { status: 409 });
   }
 
   try {
@@ -83,8 +92,9 @@ export async function POST(request: Request) {
     } catch (error) {
       schedulerError = googleErrorMessage(error);
     }
+    const latestConnection = await loadGoogleConnection(context.admin, context.user.id);
     return NextResponse.json({
-      connection: publicGoogleConnection(updatedConnection),
+      connection: publicGoogleConnection(latestConnection),
       space,
       spaces: await loadSpaces(context.admin, context.user.id),
       sync,
@@ -93,6 +103,13 @@ export async function POST(request: Request) {
       schedulerError,
     });
   } catch (error) {
+    if (isGoogleAuthError(error) || isGoogleCalendarUnavailableError(error)) {
+      return NextResponse.json({
+        code: "google_reconnect_required",
+        reconnectRequired: true,
+        error: googleErrorMessage(error),
+      }, { status: 409 });
+    }
     return NextResponse.json({ error: googleErrorMessage(error) }, { status: 502 });
   }
 }

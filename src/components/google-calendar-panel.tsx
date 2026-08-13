@@ -2,7 +2,7 @@
 
 import { FormEvent, PointerEvent as ReactPointerEvent, TouchEvent as ReactTouchEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, ExternalLink, Pencil, Plus, RefreshCw, Trash2, Video, X } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, ExternalLink, Pencil, Plus, RefreshCw, Trash2, Unplug, Video, X } from "lucide-react";
 import { getAppPath } from "@/lib/supabase/config";
 import { dedupePlannerEvents } from "@/lib/google/event-utils";
 import type { ScheduleBlockSnapshot } from "@/lib/scheduler/types";
@@ -13,6 +13,7 @@ import { focusFirstElement, trapTabKey } from "@/lib/accessibility/focus";
 
 type CalendarConnection = {
   status: string;
+  requiresReconnect?: boolean;
   accountEmail: string | null;
   calendarId: string | null;
   calendarName: string | null;
@@ -58,6 +59,11 @@ type LiveEvent = {
   visibility?: string | null;
   isPlannerSynthetic?: boolean;
   isActiveTimerBlock?: boolean;
+};
+
+type TaskPlanSummary = {
+  label: string;
+  tone: "normal" | "warning";
 };
 
 function getLiveEventKey(event: Pick<LiveEvent, "id" | "calendarId">) {
@@ -238,6 +244,48 @@ function formatEventTime(event: LiveEvent, timeZone: string) {
   return `${formatter.format(new Date(event.start))} – ${formatter.format(new Date(event.end))}`;
 }
 
+function formatPlannerMinutes(minutes: number) {
+  const totalMinutes = Math.max(0, Math.round(minutes));
+  if (totalMinutes >= 60) {
+    const hours = Math.floor(totalMinutes / 60);
+    const remainder = totalMinutes % 60;
+    return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
+  }
+  return `${totalMinutes}m`;
+}
+
+function getTaskPlanSummary(task: Pick<Task, "duration">, blocks: ReadonlyArray<ScheduleBlockSnapshot>): TaskPlanSummary | null {
+  const activeBlocks = blocks.filter((block) => block.state !== "cancelled" && block.state !== "replaced" && block.state !== "missed");
+  const scheduledMinutes = activeBlocks.reduce((total, block) => {
+    const start = new Date(block.start).getTime();
+    const end = new Date(block.end).getTime();
+    return Number.isFinite(start) && Number.isFinite(end) && end > start
+      ? total + Math.round((end - start) / MINUTE_MS)
+      : total;
+  }, 0);
+
+  if (scheduledMinutes <= 0) {
+    return null;
+  }
+
+  const scheduledLabel = formatPlannerMinutes(scheduledMinutes);
+  if (task.duration === null) {
+    return { label: `${scheduledLabel} planned`, tone: "normal" };
+  }
+
+  const estimateLabel = formatPlannerMinutes(task.duration);
+  if (scheduledMinutes < task.duration) {
+    return { label: `${scheduledLabel} of ${estimateLabel}`, tone: "warning" };
+  }
+  if (scheduledMinutes > task.duration) {
+    return { label: `${scheduledLabel} planned for ${estimateLabel}`, tone: "warning" };
+  }
+  if (activeBlocks.length > 1) {
+    return { label: `${scheduledLabel} total · ${activeBlocks.length} blocks`, tone: "normal" };
+  }
+  return null;
+}
+
 function toDateTimeInput(value: string | null, timeZone: string) {
   if (!value) {
     return "";
@@ -350,6 +398,8 @@ export function GoogleCalendarPanel({
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [connectionNotice, setConnectionNotice] = useState("");
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [editingEvent, setEditingEvent] = useState<LiveEvent | null>(null);
   const [draft, setDraft] = useState<EventDraft>(defaultDraft(date));
   const [isCreating, setIsCreating] = useState(false);
@@ -425,8 +475,11 @@ export function GoogleCalendarPanel({
   }, []);
 
   // A disconnected Google account may still have archived or disconnected Space records. The
-  // toolbar must follow the actual connection, not the saved Space list.
-  const isConnected = Boolean(connection?.calendarId);
+  // toolbar must follow the actual connection, not the saved Space list. An error state is not
+  // usable: retrying it every 30 seconds only creates noise while hiding the reconnect action.
+  const isReconnectRequired = Boolean(connection?.requiresReconnect || connection?.status === "error");
+  const isAwaitingCalendar = connection?.status === "awaiting_calendar";
+  const isConnected = Boolean(connection?.calendarId) && !isReconnectRequired;
   const effectiveSpaceFilter = selectedSpaceFilter !== "all" && spaces.some((space) => space.id === selectedSpaceFilter)
     ? selectedSpaceFilter
     : "all";
@@ -453,6 +506,9 @@ export function GoogleCalendarPanel({
   const currentDayTimeOffset = getCurrentTimeOffset(nowTimestamp, currentDayStartTimestamp, timelineHourHeight);
   const selectedDateIndex = Math.max(0, plannerDates.indexOf(selectedDate));
   const taskById = new Map(tasks.map((task) => [task.id, task]));
+  const taskPlanSummaryById = new Map(
+    tasks.map((task) => [task.id, getTaskPlanSummary(task, scheduleBlocks[task.id] ?? [])]),
+  );
   const preferredScheduleBlockIds = new Set(
     events.map((event) => event.scheduleBlockId).filter((blockId): blockId is string => Boolean(blockId)),
   );
@@ -836,7 +892,10 @@ export function GoogleCalendarPanel({
   async function loadCalendars() {
     setError("");
     const response = await fetch(getAppPath("/api/google/calendar/calendars"), { cache: "no-store" });
-    const body = (await response.json().catch(() => null)) as { calendars?: CalendarOption[]; error?: string } | null;
+    const body = (await response.json().catch(() => null)) as { calendars?: CalendarOption[]; connection?: CalendarConnection | null; reconnectRequired?: boolean; error?: string } | null;
+    if (body?.connection) {
+      setConnection(body.reconnectRequired ? { ...body.connection, status: "error", requiresReconnect: true } : body.connection);
+    }
     if (!response.ok) {
       throw new Error(body?.error ?? "Google calendars could not be loaded.");
     }
@@ -856,6 +915,7 @@ export function GoogleCalendarPanel({
       setIsLoading(true);
     }
     setError("");
+    setConnectionNotice("");
     try {
       const connectionResponse = await fetch(getAppPath("/api/google/calendar/connection"), { cache: "no-store" });
       const connectionBody = (await connectionResponse.json().catch(() => null)) as { connection?: CalendarConnection | null; spaces?: ReadonlyArray<Space>; error?: string } | null;
@@ -868,7 +928,7 @@ export function GoogleCalendarPanel({
         onSpacesChange?.(connectionBody.spaces);
       }
       setConnection(nextConnection);
-      if (!nextConnection?.calendarId) {
+      if (!nextConnection?.calendarId || nextConnection.status === "error" || nextConnection.requiresReconnect) {
         setEvents([]);
         if (nextConnection?.status === "awaiting_calendar") {
           await loadCalendars();
@@ -883,8 +943,11 @@ export function GoogleCalendarPanel({
           method: "POST",
           cache: "no-store",
         });
-        const syncBody = (await syncResponse.json().catch(() => null)) as { connection?: CalendarConnection; sync?: { errors?: ReadonlyArray<string>; truncated?: boolean }; error?: string } | null;
+        const syncBody = (await syncResponse.json().catch(() => null)) as { connection?: CalendarConnection; reconnectRequired?: boolean; sync?: { errors?: ReadonlyArray<string>; truncated?: boolean }; error?: string } | null;
         if (!syncResponse.ok) {
+          if (syncBody?.connection) {
+            setConnection(syncBody.reconnectRequired ? { ...syncBody.connection, status: "error", requiresReconnect: true } : syncBody.connection);
+          }
           throw new Error(syncBody?.error ?? "Calendar events could not be synchronized.");
         }
         syncConnection = syncBody?.connection;
@@ -907,8 +970,11 @@ export function GoogleCalendarPanel({
       eventsRange.set("startDate", eventsStartDate);
       eventsRange.set("endDate", eventsEndDate);
       const eventsResponse = await fetch(`${getAppPath("/api/google/calendar/events")}?${eventsRange.toString()}`, { cache: "no-store" });
-      const eventsBody = (await eventsResponse.json().catch(() => null)) as { events?: LiveEvent[]; connection?: CalendarConnection; spaces?: ReadonlyArray<Space>; truncated?: boolean; error?: string } | null;
+      const eventsBody = (await eventsResponse.json().catch(() => null)) as { events?: LiveEvent[]; connection?: CalendarConnection; reconnectRequired?: boolean; spaces?: ReadonlyArray<Space>; truncated?: boolean; error?: string } | null;
       if (!eventsResponse.ok) {
+        if (eventsBody?.connection) {
+          setConnection(eventsBody.reconnectRequired ? { ...eventsBody.connection, status: "error", requiresReconnect: true } : eventsBody.connection);
+        }
         throw new Error(eventsBody?.error ?? "Calendar events could not be loaded.");
       }
       if (eventsBody?.spaces) {
@@ -1002,6 +1068,47 @@ export function GoogleCalendarPanel({
     });
   }
 
+  function startGoogleConnection() {
+    const returnTo = typeof window === "undefined" ? getAppPath("/") : window.location.pathname;
+    const query = new URLSearchParams({ returnTo });
+    window.location.href = `${getAppPath("/api/google/calendar/connect")}?${query.toString()}`;
+  }
+
+  async function disconnectGoogleCalendar() {
+    if (isDisconnecting || syncInFlight.current) {
+      setError("Calendar is still refreshing. Wait for that refresh to finish, then disconnect.");
+      return;
+    }
+    if (!window.confirm("Disconnect Google Calendar? HeavyUser will pause scheduling and keep your existing Spaces for when you reconnect.")) {
+      return;
+    }
+
+    setIsDisconnecting(true);
+    setError("");
+    setConnectionNotice("");
+    try {
+      const response = await fetch(getAppPath("/api/google/calendar/connection"), { method: "DELETE" });
+      const body = (await response.json().catch(() => null)) as { ok?: boolean; spaces?: ReadonlyArray<Space>; cleanupWarning?: string | null; error?: string } | null;
+      if (!response.ok || body?.ok !== true) {
+        throw new Error(body?.error ?? "Google Calendar could not be disconnected.");
+      }
+      setConnection(null);
+      setCalendarOptions([]);
+      setEvents([]);
+      if (body.spaces) {
+        onSpacesChange?.(body.spaces);
+      }
+      setConnectionNotice(body.cleanupWarning
+        ? `Google Calendar disconnected. ${body.cleanupWarning}`
+        : "Google Calendar disconnected. Reconnect it to resume scheduling.");
+      window.dispatchEvent(new Event("heavyuser:schedule-refresh"));
+    } catch (disconnectError) {
+      setError(disconnectError instanceof Error ? disconnectError.message : "Google Calendar could not be disconnected.");
+    } finally {
+      setIsDisconnecting(false);
+    }
+  }
+
   async function chooseCalendar(calendarId: string) {
     setIsSaving(true);
     setError("");
@@ -1011,12 +1118,15 @@ export function GoogleCalendarPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ calendarId }),
       });
-      const body = (await response.json().catch(() => null)) as { error?: string; spaces?: ReadonlyArray<Space>; syncError?: string | null; schedulerError?: string | null } | null;
+      const body = (await response.json().catch(() => null)) as { error?: string; connection?: CalendarConnection | null; spaces?: ReadonlyArray<Space>; syncError?: string | null; schedulerError?: string | null } | null;
       if (!response.ok) {
         throw new Error(body?.error ?? "That calendar could not be selected.");
       }
       if (body?.spaces) {
         onSpacesChange?.(body.spaces);
+      }
+      if (body?.connection) {
+        setConnection(body.connection);
       }
       const followUpWarning = body?.syncError ?? body?.schedulerError;
       setIsCalendarPickerOpen(false);
@@ -1415,18 +1525,33 @@ export function GoogleCalendarPanel({
                 <span className="hu-calendar-connection-dot" aria-hidden="true" />
                 {spaces.length > 1 ? `${spaces.length} Spaces` : connection?.calendarName ?? "Google Calendar"}
               </span>
-              <button aria-label="Refresh Google Calendar" className="hu-calendar-icon-button" disabled={isRefreshing} type="button" onClick={() => void refresh()}>
+              <button aria-label="Refresh Google Calendar" className="hu-calendar-icon-button" disabled={isRefreshing || isDisconnecting} type="button" onClick={() => void refresh()}>
                 <RefreshCw aria-hidden="true" size={14} className={isRefreshing ? "is-spinning" : ""} />
               </button>
-              <button className="hu-calendar-add-button" type="button" onClick={beginCreate}>
+              <button className="hu-calendar-add-button" disabled={isDisconnecting} type="button" onClick={beginCreate}>
                 <Plus aria-hidden="true" size={14} />
                 Add event
               </button>
+              <button className="hu-calendar-secondary-button" disabled={isDisconnecting || isRefreshing} type="button" onClick={() => void disconnectGoogleCalendar()}>
+                <Unplug aria-hidden="true" size={13} />
+                {isDisconnecting ? "Disconnecting…" : "Disconnect"}
+              </button>
+            </>
+          ) : isReconnectRequired ? (
+            <>
+              <span className="hu-calendar-connection is-warning" title={connection?.lastError ?? "Reconnect Google Calendar to continue."}>
+                <span className="hu-calendar-connection-dot" aria-hidden="true" />
+                Reconnect needed
+              </span>
+              <button className="hu-calendar-connect-button" type="button" onClick={startGoogleConnection}>
+                <RefreshCw aria-hidden="true" size={14} />
+                Reconnect Google Calendar
+              </button>
             </>
           ) : (
-            <button className="hu-calendar-connect-button" type="button" onClick={() => { window.location.href = getAppPath("/api/google/calendar/connect"); }}>
+            <button className="hu-calendar-connect-button" type="button" onClick={isAwaitingCalendar ? () => void loadCalendars() : startGoogleConnection}>
               <CalendarDays aria-hidden="true" size={14} />
-              Connect Google Calendar
+              {isAwaitingCalendar ? "Choose Google Calendar" : "Connect Google Calendar"}
             </button>
           )}
         </div>
@@ -1483,14 +1608,20 @@ export function GoogleCalendarPanel({
       </div>
 
       {error || schedulerError ? <div className="hu-calendar-alert" role="alert">{error || schedulerError}</div> : null}
+      {!error && !schedulerError && connectionNotice ? <div className="hu-calendar-alert is-info" role="status">{connectionNotice}</div> : null}
 
       {!isConnected && !isLoading ? (
         <div className="hu-calendar-empty">
           <CalendarDays aria-hidden="true" size={22} />
-          <strong>See your day in HeavyUser</strong>
-            <p>Connect a Google Calendar to bring your commitments into the planner.</p>
-          <button className="hu-calendar-connect-button" type="button" onClick={() => { window.location.href = getAppPath("/api/google/calendar/connect"); }}>
-            Connect Google Calendar
+          <strong>{isReconnectRequired ? "Google Calendar needs reconnecting" : isAwaitingCalendar ? "Choose your task calendar" : "See your day in HeavyUser"}</strong>
+          <p>{isReconnectRequired
+            ? connection?.lastError ?? "Google Calendar access has expired or was removed. Reconnect to continue."
+            : isAwaitingCalendar
+              ? "Choose a writable calendar to finish setting up HeavyUser."
+              : "Connect a Google Calendar to bring your commitments into the planner."}</p>
+          <button className="hu-calendar-connect-button" type="button" onClick={isAwaitingCalendar ? () => void loadCalendars() : startGoogleConnection}>
+            {isReconnectRequired ? <RefreshCw aria-hidden="true" size={14} /> : <CalendarDays aria-hidden="true" size={14} />}
+            {isReconnectRequired ? "Reconnect Google Calendar" : isAwaitingCalendar ? "Choose Google Calendar" : "Connect Google Calendar"}
           </button>
         </div>
       ) : null}
@@ -1577,17 +1708,20 @@ export function GoogleCalendarPanel({
                         const eventIsTiny = eventHeight < 18;
                         const eventTimeLabel = formatEventTime(renderedEvent, renderedEvent.timeZone ?? timeZone);
                         const eventStatusLabel = event.isActiveTimerBlock ? "Working now" : event.isTaskBlock ? "Planned" : null;
+                        const taskPlanSummary = event.isTaskBlock && event.taskId ? taskPlanSummaryById.get(event.taskId) ?? null : null;
+                        const eventPlanLabel = taskPlanSummary?.label ?? null;
+                        const eventDetailsLabel = [eventStatusLabel, eventPlanLabel, eventTimeLabel].filter(Boolean).join(" · ");
                         const crossSpaceBusy = isCrossSpaceBusyEvent(event);
                         return (
                           <button
-                            aria-label={`${event.title}. ${eventStatusLabel ? `${eventStatusLabel}. ` : ""}${eventTimeLabel}`}
+                            aria-label={`${event.title}. ${eventDetailsLabel}`}
                             className={`hu-event hu-event-button ${event.hasAttendees ? "is-guest-event" : ""} ${event.isTaskBlock ? "is-task-block" : ""} ${event.isActiveTimerBlock ? "is-active-timer" : ""} ${event.isPlannerSynthetic ? "is-planner-synthetic" : ""} ${crossSpaceBusy ? "is-cross-space-busy" : ""} ${eventIsCompact ? "is-compact" : ""} ${eventIsTiny ? "is-tiny" : ""} ${eventGesture && getLiveEventKey(eventGesture.event) === eventKey ? "is-gesture-active" : ""}`}
                             key={eventKey}
                             style={{
                               top: `${(range.start / (timelineHours * 60)) * 100}%`,
                               height: `${((range.end - range.start) / (timelineHours * 60)) * 100}%`,
                             }}
-                            title={`${event.title} · ${eventStatusLabel ? `${eventStatusLabel} · ` : ""}${eventTimeLabel}`}
+                            title={`${event.title} · ${eventDetailsLabel}`}
                             type="button"
                             onPointerDown={event.isPlannerSynthetic || isReadOnlyEvent(event) ? undefined : (pointerEvent) => startEventGesture(pointerEvent, event, "move")}
                             onClick={event.isPlannerSynthetic ? undefined : () => handleEventClick(event)}
@@ -1603,7 +1737,14 @@ export function GoogleCalendarPanel({
                               />
                             ) : null}
                             <span className="hu-event-heading">
-                              {!eventHidesTitle ? <span className="hu-event-title">{event.title}</span> : null}
+                              {!eventHidesTitle ? (
+                                <span className="hu-event-title">
+                                  {event.title}
+                                  {eventHidesMeta && eventPlanLabel ? (
+                                    <span className={`hu-event-title-plan ${taskPlanSummary?.tone === "warning" ? "is-warning" : ""}`}> · {eventPlanLabel}</span>
+                                  ) : null}
+                                </span>
+                              ) : null}
                               {!eventHidesMeta && (event.isTaskBlock || event.spaceName || crossSpaceBusy) ? <span className="hu-event-space-label">{crossSpaceBusy ? `Busy · ${event.spaceName ?? "Other Space"}` : event.subSpaceName ?? event.spaceName}</span> : null}
                               {event.meetingUrl ? (
                                 <span aria-label="Video meeting available" className="hu-event-meeting" title="Video meeting available">
@@ -1614,7 +1755,9 @@ export function GoogleCalendarPanel({
                             {!eventHidesMeta ? (
                               <span className="hu-event-meta">
                                 {eventStatusLabel ? <span className={`hu-event-status ${event.isActiveTimerBlock ? "is-active" : ""}`}>{eventStatusLabel}</span> : null}
-                                {eventStatusLabel ? " · " : null}
+                                {eventStatusLabel && eventPlanLabel ? " · " : null}
+                                {eventPlanLabel ? <span className={`hu-event-plan-summary ${taskPlanSummary?.tone === "warning" ? "is-warning" : ""}`}>{eventPlanLabel}</span> : null}
+                                {eventStatusLabel || eventPlanLabel ? " · " : null}
                                 {eventTimeLabel}
                               </span>
                             ) : null}

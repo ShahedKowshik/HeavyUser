@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChangeEvent, FormEvent } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CalendarClock, ChevronRight, ImagePlus, MoonStar, Settings2, SlidersHorizontal, Trash2, UserRound } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -25,6 +25,23 @@ const schedulerWeekdays = [
   { key: "0", label: "Sunday" },
 ] as const;
 
+const fallbackTimezones = [
+  "UTC",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/New_York",
+  "Asia/Dhaka",
+  "Asia/Dubai",
+  "Asia/Kolkata",
+  "Asia/Singapore",
+  "Asia/Tokyo",
+  "Australia/Sydney",
+  "Europe/Berlin",
+  "Europe/London",
+  "Pacific/Auckland",
+] as const;
+
 const settingsNavigation = [
   { href: "#account", label: "Profile", detail: "Name and avatar", icon: UserRound },
   { href: "#rhythm", label: "Daily rhythm", detail: "When your day starts", icon: MoonStar },
@@ -37,6 +54,24 @@ function formatTimeValue(value: string) {
   const period = hours >= 12 ? "PM" : "AM";
   const displayHour = hours % 12 || 12;
   return `${displayHour}:${String(minutes).padStart(2, "0")} ${period}`;
+}
+
+function getTimezoneOptions(currentTimezone: string) {
+  const supportedTimezones = typeof Intl.supportedValuesOf === "function"
+    ? Intl.supportedValuesOf("timeZone")
+    : fallbackTimezones;
+
+  return Array.from(new Set(["UTC", ...supportedTimezones, currentTimezone]))
+    .filter(Boolean)
+    .sort((left, right) => {
+      if (left === "UTC") {
+        return -1;
+      }
+      if (right === "UTC") {
+        return 1;
+      }
+      return left.localeCompare(right);
+    });
 }
 
 export default function SettingsPage() {
@@ -85,6 +120,10 @@ function SettingsContent() {
   const [schedulerMessageType, setSchedulerMessageType] = useState<"error" | "success">("success");
   const [schedulerLoadFailed, setSchedulerLoadFailed] = useState(false);
   const [schedulerLoadVersion, setSchedulerLoadVersion] = useState(0);
+  const planningTimezoneOptions = useMemo(
+    () => getTimezoneOptions(settingsDraft.planningTimezone),
+    [settingsDraft.planningTimezone],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -496,11 +535,10 @@ function SettingsContent() {
 
               <label className="hu-settings-time-field" htmlFor="settings-planning-timezone">
                 <span className="hu-field-label">Planning timezone</span>
-                <input
+                <select
                   id="settings-planning-timezone"
                   aria-describedby="settings-planning-timezone-help"
-                  className="hu-edit-input"
-                  placeholder="Asia/Dhaka"
+                  className="hu-edit-input hu-timezone-select"
                   value={settingsDraft.planningTimezone}
                   onChange={(event) =>
                     setSettingsDraft((current) => ({
@@ -508,8 +546,12 @@ function SettingsContent() {
                       planningTimezone: event.target.value,
                     }))
                   }
-                />
-                <small id="settings-planning-timezone-help">Use an IANA timezone such as Asia/Dhaka or America/New_York. This clock controls task dates and planner days.</small>
+                >
+                  {planningTimezoneOptions.map((timezone) => (
+                    <option key={timezone} value={timezone}>{timezone}</option>
+                  ))}
+                </select>
+                <small id="settings-planning-timezone-help">Choose the IANA timezone used for task dates and planner days.</small>
               </label>
 
               {settingsMessage ? (

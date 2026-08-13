@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { GOOGLE_CALENDAR_SCOPES, getGoogleConfig, getGoogleRedirectUri } from "@/lib/google/config";
 import { getAuthenticatedGoogleContext } from "@/lib/google/server";
-import { getAppPath, getAppRedirectOrigin } from "@/lib/supabase/config";
+import { getAppPath, getAppRedirectOrigin, getSafeAppReturnPath } from "@/lib/supabase/config";
 
 function toBase64Url(value: Buffer) {
   return value.toString("base64url");
@@ -23,6 +23,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL(`${getAppPath("/")}?google_calendar=error&reason=not_configured`, origin));
   }
 
+  const returnTo = getSafeAppReturnPath(new URL(request.url).searchParams.get("returnTo"));
   const state = toBase64Url(randomBytes(32));
   const codeVerifier = toBase64Url(randomBytes(32));
   const codeChallenge = toBase64Url(createHash("sha256").update(codeVerifier).digest());
@@ -48,5 +49,6 @@ export async function GET(request: Request) {
   };
   response.cookies.set("heavyuser_google_oauth_state", state, cookieOptions);
   response.cookies.set("heavyuser_google_oauth_verifier", codeVerifier, cookieOptions);
+  response.cookies.set("heavyuser_google_oauth_return_to", returnTo, cookieOptions);
   return response;
 }

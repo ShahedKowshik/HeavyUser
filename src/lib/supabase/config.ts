@@ -16,6 +16,19 @@ export function getAppPath(pathname: string) {
   return `${publicBasePath}${normalizedPath === "/" ? "/" : normalizedPath}`;
 }
 
+export function getSafeAppReturnPath(value: string | null | undefined) {
+  const fallback = getAppPath("/");
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
+    return fallback;
+  }
+
+  const base = publicBasePath.replace(/\/+$/, "");
+  if (base && value !== base && !value.startsWith(`${base}/`)) {
+    return fallback;
+  }
+  return value;
+}
+
 export function getAppUrl(pathname: string) {
   if (typeof window === "undefined") {
     return getAppPath(pathname);

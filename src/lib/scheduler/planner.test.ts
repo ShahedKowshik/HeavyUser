@@ -85,6 +85,26 @@ describe("planSchedule", () => {
     expect(result.tasks[0].blocks[0].start).toBe("2026-08-03T10:00:00.000Z");
   });
 
+  it("schedules the full estimate when busy events leave only a 30-minute first slot", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 60 })],
+      existingBlocks: [],
+      busyIntervals: [
+        { start: "2026-08-03T09:00:00.000Z", end: "2026-08-03T13:30:00.000Z", source: "calendar" },
+        { start: "2026-08-03T14:00:00.000Z", end: "2026-08-03T17:00:00.000Z", source: "calendar" },
+      ],
+      preferences,
+      now: Date.parse("2026-08-03T08:00:00Z"),
+    });
+
+    expect(result.tasks[0]?.blocks.map((block) => [block.start, block.end])).toEqual([
+      ["2026-08-03T13:30:00.000Z", "2026-08-03T14:00:00.000Z"],
+      ["2026-08-04T09:00:00.000Z", "2026-08-04T09:30:00.000Z"],
+    ]);
+    expect(result.tasks[0]?.scheduledMinutes).toBe(60);
+    expect(result.tasks[0]?.missingMinutes).toBe(0);
+  });
+
   it("uses busy time from one Space when scheduling a task in another Space", () => {
     const result = planSchedule({
       tasks: [task({ id: "space-b-task", spaceId: "space-b", duration: 60, deadline: "2026-08-03" })],

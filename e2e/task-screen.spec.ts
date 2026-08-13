@@ -255,6 +255,35 @@ test.describe("planner statuses and failure states", () => {
     await pastDialog.getByRole("button", { name: "Cancel" }).click();
   });
 
+  test("shows the total task time when the calendar splits it into multiple blocks", async ({ page }) => {
+    const task = makeTask({ id: "task-split", title: "Split task", duration: 60, status: "open" });
+    const partialTask = makeTask({ id: "task-partial", title: "Partial task", duration: 60, status: "open" });
+    const overplannedTask = makeTask({ id: "task-overplanned", title: "Overplanned task", duration: 60, status: "open" });
+    await installBrowserMocks(page, {
+      tasks: [task, partialTask, overplannedTask],
+      scheduleStatuses: [
+        { ...makeStatus(task.id), scheduledMinutes: 60, remainingMinutes: 60 },
+        { ...makeStatus(partialTask.id), scheduledMinutes: 30, missingMinutes: 30, remainingMinutes: 30 },
+        { ...makeStatus(overplannedTask.id), scheduledMinutes: 80, missingMinutes: 0, remainingMinutes: 0 },
+      ],
+      scheduleBlocks: [
+        makeBlock(task.id, { id: "block-split-1", start: "2026-08-01T09:00:00.000Z", end: "2026-08-01T09:30:00.000Z" }),
+        makeBlock(task.id, { id: "block-split-2", start: "2026-08-02T09:00:00.000Z", end: "2026-08-02T09:30:00.000Z" }),
+        makeBlock(partialTask.id, { id: "block-partial", start: "2026-08-01T11:00:00.000Z", end: "2026-08-01T11:30:00.000Z" }),
+        makeBlock(overplannedTask.id, { id: "block-overplanned-1", start: "2026-08-01T15:00:00.000Z", end: "2026-08-01T15:40:00.000Z" }),
+        makeBlock(overplannedTask.id, { id: "block-overplanned-2", start: "2026-08-02T15:00:00.000Z", end: "2026-08-02T15:40:00.000Z" }),
+      ],
+    });
+    await openTaskWorkspace(page);
+
+    const splitEvent = page.getByRole("button", { name: /Split task\. Planned · 1h total · 2 blocks/ }).first();
+    await expect(splitEvent).toBeVisible();
+    await expect(splitEvent).toHaveAttribute("title", /1h total · 2 blocks/);
+
+    await expect(page.getByRole("button", { name: /Partial task\. Planned · 30m of 1h/ }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /Overplanned task\. Planned · 1h 20m planned for 1h/ }).first()).toBeVisible();
+  });
+
   test("announces planner and network failures instead of going silent", async ({ page }) => {
     const mock = await installBrowserMocks(page, { tasks: [makeTask()] });
     mock.failures.set("/api/scheduler/status", { status: 502, body: { error: "Planner is temporarily unavailable." } });
