@@ -12,7 +12,7 @@ import { getAppPath, publicBasePath } from "@/lib/supabase/config";
 import { avatarConstraints, getProfileName, type ProfileDraft } from "@/lib/supabase/profile";
 import type { UserSettings } from "@/lib/supabase/settings";
 import { DEFAULT_SCHEDULER_PREFERENCES, MAX_SCHEDULER_BLOCK_MINUTES, type SchedulerPreferences, type WorkWindow } from "@/lib/scheduler/types";
-import { hasWorkingWindow, normalizeSchedulerPreferences } from "@/lib/scheduler/preferences";
+import { hasWorkingWindow, normalizeSchedulerPreferences, resolveWorkWindowDay } from "@/lib/scheduler/preferences";
 import { SpacesSettings } from "@/components/spaces-settings";
 
 const schedulerWeekdays = [
@@ -24,6 +24,10 @@ const schedulerWeekdays = [
   { key: "6", label: "Saturday" },
   { key: "0", label: "Sunday" },
 ] as const;
+
+function getSchedulerWeekdayLabel(day: string) {
+  return schedulerWeekdays.find((candidate) => candidate.key === day)?.label ?? day;
+}
 
 const fallbackTimezones = [
   "UTC",
@@ -124,6 +128,10 @@ function SettingsContent() {
     () => getTimezoneOptions(settingsDraft.planningTimezone),
     [settingsDraft.planningTimezone],
   );
+  const schedulerPreviewSettings = {
+    nightOwlMode: settingsDraft.nightOwlMode,
+    dayStartTime: settingsDraft.dayStartTime,
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -679,18 +687,29 @@ function SettingsContent() {
                         <div className="hu-work-window-fields">
                           {allDay ? (
                             <span className="hu-work-window-full-day">
-                              {schedulerDraft.nightOwlMode
-                                ? `Whole logical day · starts ${formatTimeValue(schedulerDraft.dayStartTime)}`
+                              {schedulerPreviewSettings.nightOwlMode
+                                ? `Whole logical day · starts ${formatTimeValue(schedulerPreviewSettings.dayStartTime)}`
                                 : "Whole calendar day"}
                             </span>
-                          ) : manualWindows.length === 0 ? <span className="hu-work-window-off">Off</span> : manualWindows.map((window, index) => (
-                            <span className="hu-work-window" key={`${day.key}-${index}`}>
-                              <input aria-label={`${day.label} window ${index + 1} start`} className="hu-edit-input" type="time" value={window.start} onChange={(event) => updateSchedulerWindow(day.key, index, "start", event.target.value)} />
-                              <span aria-hidden="true">to</span>
-                              <input aria-label={`${day.label} window ${index + 1} end`} className="hu-edit-input" type="time" value={window.end} onChange={(event) => updateSchedulerWindow(day.key, index, "end", event.target.value)} />
-                              <button className="hu-work-window-remove" type="button" onClick={() => updateSchedulerWindows(day.key, manualWindows.filter((_, windowIndex) => windowIndex !== index))}>Remove</button>
-                            </span>
-                          ))}
+                          ) : manualWindows.length === 0 ? <span className="hu-work-window-off">Off</span> : manualWindows.map((window, index) => {
+                            const resolution = resolveWorkWindowDay(day.key, window, schedulerPreviewSettings);
+                            const nightOwlDescription = resolution.shiftedByNightOwl
+                              ? `Night Owl moves this window to ${getSchedulerWeekdayLabel(resolution.effectiveDay)}.`
+                              : null;
+                            return (
+                              <span className="hu-work-window" key={`${day.key}-${index}`}>
+                                <input aria-label={`${day.label} window ${index + 1} start`} className="hu-edit-input" type="time" value={window.start} onChange={(event) => updateSchedulerWindow(day.key, index, "start", event.target.value)} />
+                                <span aria-hidden="true">to</span>
+                                <input aria-label={`${day.label} window ${index + 1} end`} className="hu-edit-input" type="time" value={window.end} onChange={(event) => updateSchedulerWindow(day.key, index, "end", event.target.value)} />
+                                {nightOwlDescription ? (
+                                  <span aria-label={nightOwlDescription} className="hu-work-window-night-owl" role="img" title={nightOwlDescription}>
+                                    <MoonStar aria-hidden="true" size={14} />
+                                  </span>
+                                ) : null}
+                                <button className="hu-work-window-remove" type="button" onClick={() => updateSchedulerWindows(day.key, manualWindows.filter((_, windowIndex) => windowIndex !== index))}>Remove</button>
+                              </span>
+                            );
+                          })}
                           {!allDay && manualWindows.length < 4 ? (
                             <button className="hu-work-window-add" type="button" onClick={() => updateSchedulerWindows(day.key, [...manualWindows, { start: "13:00", end: "14:00" }])}>+ Add window</button>
                           ) : null}

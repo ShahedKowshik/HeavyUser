@@ -60,6 +60,19 @@ function timestamp(value: string | null) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+export function isCalendarEventInProgress(
+  event: { start: string | null; end: string | null; allDay?: boolean },
+  now = Date.now(),
+) {
+  if (event.allDay || !event.start || !event.end) {
+    return false;
+  }
+
+  const start = timestamp(event.start);
+  const end = timestamp(event.end);
+  return start !== null && end !== null && start <= now && now < end;
+}
+
 export function getPlannerEventKey(event: PlannerEventIdentity) {
   if (event.isTaskBlock && event.taskId) {
     const start = timestamp(event.start);

@@ -236,6 +236,86 @@ describe("planSchedule", () => {
     expect(result.tasks[0].blocks[0].end).toBe("2026-08-04T00:30:00.000Z");
   });
 
+  it("moves an early manual window to the next weekday under Night Owl", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 60 })],
+      existingBlocks: [],
+      busyIntervals: [],
+      preferences: {
+        ...preferences,
+        nightOwlMode: true,
+        dayStartTime: "07:00",
+        workWindows: { "0": [], "1": [{ start: "00:00", end: "15:00" }], "2": [], "3": [], "4": [], "5": [], "6": [] },
+      },
+      now: Date.parse("2026-08-03T08:00:00Z"),
+    });
+
+    expect(result.tasks[0].blocks[0]).toMatchObject({
+      start: "2026-08-04T00:00:00.000Z",
+      end: "2026-08-04T01:00:00.000Z",
+    });
+  });
+
+  it("keeps later manual windows on the source weekday and respects the exact boundary", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 60 })],
+      existingBlocks: [],
+      busyIntervals: [],
+      preferences: {
+        ...preferences,
+        nightOwlMode: true,
+        dayStartTime: "07:00",
+        workWindows: { "0": [], "1": [{ start: "00:00", end: "03:00" }, { start: "07:00", end: "09:00" }], "2": [], "3": [], "4": [], "5": [], "6": [] },
+      },
+      now: Date.parse("2026-08-03T06:00:00Z"),
+    });
+
+    expect(result.tasks[0].blocks[0]).toMatchObject({
+      start: "2026-08-03T07:00:00.000Z",
+      end: "2026-08-03T08:00:00.000Z",
+    });
+  });
+
+  it("does not use a shifted window for a source-day deadline", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 60, deadline: "2026-08-03" })],
+      existingBlocks: [],
+      busyIntervals: [],
+      preferences: {
+        ...preferences,
+        nightOwlMode: true,
+        dayStartTime: "07:00",
+        workWindows: { "0": [], "1": [{ start: "00:00", end: "15:00" }], "2": [], "3": [], "4": [], "5": [], "6": [] },
+      },
+      now: Date.parse("2026-08-02T23:00:00Z"),
+    });
+
+    expect(result.tasks[0].blocks).toHaveLength(0);
+    expect(result.tasks[0].missingMinutes).toBe(60);
+    expect(result.tasks[0].state).toBe("at_risk");
+  });
+
+  it("resolves the shifted weekday in the planning timezone", () => {
+    const result = planSchedule({
+      tasks: [task({ duration: 60 })],
+      existingBlocks: [],
+      busyIntervals: [],
+      preferences: {
+        ...preferences,
+        timezone: "America/New_York",
+        nightOwlMode: true,
+        dayStartTime: "07:00",
+        workWindows: { "0": [], "1": [{ start: "00:00", end: "03:00" }], "2": [], "3": [], "4": [], "5": [], "6": [] },
+      },
+      now: Date.parse("2026-08-03T11:00:00Z"),
+    });
+
+    expect(result.tasks[0].blocks[0]).toMatchObject({
+      start: "2026-08-04T04:00:00.000Z",
+      end: "2026-08-04T05:00:00.000Z",
+    });
+  });
+
   it("does not use weekends and reports missing time when a deadline is impossible", () => {
     const result = planSchedule({
       tasks: [task({ duration: 120, deadline: "2026-08-03" })],

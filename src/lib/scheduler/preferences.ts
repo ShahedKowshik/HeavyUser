@@ -34,6 +34,126 @@ function isTime(value: unknown, allowEndOfDay = false): value is string {
   return typeof value === "string" && (allowEndOfDay && value === "24:00" || /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value));
 }
 
+function getTimeMinutes(value: string) {
+  if (!isTime(value)) {
+    return null;
+  }
+
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function normalizeWeekday(day: string | number) {
+  const numericDay = typeof day === "number" ? day : Number(day);
+  return Number.isInteger(numericDay) && numericDay >= 0 && numericDay <= 6 ? numericDay : 0;
+}
+
+function nextWeekday(day: string | number) {
+  return String((normalizeWeekday(day) + 1) % 7);
+}
+
+export type WorkWindowDayResolution = {
+  effectiveDay: string;
+  shiftedByNightOwl: boolean;
+};
+
+export type ResolvedWorkWindow = {
+  start: string;
+  end: string;
+  sourceDay: string;
+  effectiveDay: string;
+  shiftedByNightOwl: boolean;
+};
+
+export function resolveWorkWindowDay(
+  day: string | number,
+  window: WorkWindow,
+  settings: Pick<SchedulerPreferences, "nightOwlMode" | "dayStartTime">,
+): WorkWindowDayResolution {
+  const sourceDay = String(normalizeWeekday(day));
+  const startMinutes = getTimeMinutes(window.start);
+  const dayStartMinutes = getTimeMinutes(settings.dayStartTime);
+  const shiftedByNightOwl = !window.allDay
+    && settings.nightOwlMode
+    && startMinutes !== null
+    && dayStartMinutes !== null
+    && startMinutes < dayStartMinutes;
+
+  return {
+    effectiveDay: shiftedByNightOwl ? nextWeekday(sourceDay) : sourceDay,
+    shiftedByNightOwl,
+  };
+}
+
+function sortResolvedWindows(windows: ResolvedWorkWindow[]) {
+  return windows.sort((first, second) => {
+    const firstMinutes = getTimeMinutes(first.start) ?? Number.MAX_SAFE_INTEGER;
+    const secondMinutes = getTimeMinutes(second.start) ?? Number.MAX_SAFE_INTEGER;
+    return firstMinutes - secondMinutes;
+  });
+}
+
+export function getResolvedWorkWindowsForDay(
+  day: string | number,
+  preferences: SchedulerPreferences,
+): ReadonlyArray<ResolvedWorkWindow> {
+  const targetDay = String(normalizeWeekday(day));
+  const previousDay = String((normalizeWeekday(day) + 6) % 7);
+  const currentWindows = preferences.workWindows[targetDay] ?? [];
+  const previousWindows = preferences.workWindows[previousDay] ?? [];
+  const currentAllDay = currentWindows.some((window) => window.allDay === true);
+  const previousAllDay = previousWindows.some((window) => window.allDay === true);
+  const resolved: ResolvedWorkWindow[] = [];
+  const dayStartMinutes = getTimeMinutes(preferences.dayStartTime);
+
+  if (preferences.nightOwlMode && previousAllDay && dayStartMinutes !== null && dayStartMinutes > 0) {
+    resolved.push({
+      start: "00:00",
+      end: preferences.dayStartTime,
+      sourceDay: previousDay,
+      effectiveDay: targetDay,
+      shiftedByNightOwl: true,
+    });
+  }
+
+  const addManualWindows = (sourceDay: string, windows: ReadonlyArray<WorkWindow>) => {
+    for (const window of windows.filter((candidate) => !candidate.allDay)) {
+      const resolution = resolveWorkWindowDay(sourceDay, window, preferences);
+      if (resolution.effectiveDay !== targetDay) {
+        continue;
+      }
+      resolved.push({
+        start: window.start,
+        end: window.end,
+        sourceDay,
+        effectiveDay: resolution.effectiveDay,
+        shiftedByNightOwl: resolution.shiftedByNightOwl,
+      });
+    }
+  };
+
+  if (currentAllDay) {
+    resolved.push({
+      start: preferences.nightOwlMode && dayStartMinutes !== null ? preferences.dayStartTime : "00:00",
+      end: "24:00",
+      sourceDay: targetDay,
+      effectiveDay: targetDay,
+      shiftedByNightOwl: false,
+    });
+    if (preferences.nightOwlMode && !previousAllDay) {
+      addManualWindows(previousDay, previousWindows);
+    }
+    return sortResolvedWindows(resolved);
+  }
+
+  addManualWindows(targetDay, currentWindows);
+  if (preferences.nightOwlMode && !previousAllDay) {
+    addManualWindows(previousDay, previousWindows);
+  }
+
+  return sortResolvedWindows(resolved);
+}
+
 function isTimezone(value: unknown): value is string {
   if (typeof value !== "string" || !value.trim()) {
     return false;

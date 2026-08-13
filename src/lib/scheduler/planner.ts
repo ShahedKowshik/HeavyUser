@@ -1,4 +1,5 @@
 import type { TaskScheduleState } from "@/lib/tasks";
+import { getResolvedWorkWindowsForDay } from "@/lib/scheduler/preferences";
 import {
   DEFAULT_SCHEDULER_PREFERENCES,
   type BusyInterval,
@@ -69,31 +70,8 @@ function getWindowMinutes(window: WorkWindow) {
   return { start, end };
 }
 
-function isAllDayWindow(window: WorkWindow) {
-  return window.allDay === true;
-}
-
 function getWorkingWindows(day: number, preferences: SchedulerPreferences): ReadonlyArray<WorkWindow> {
-  const currentWindows = preferences.workWindows[String(day)] ?? [];
-  const previousWindows = preferences.workWindows[String((day + 6) % 7)] ?? [];
-  const currentIsAllDay = currentWindows.some(isAllDayWindow);
-  const manualWindows = currentWindows.filter((window) => !isAllDayWindow(window));
-  const windows: WorkWindow[] = [];
-
-  if (preferences.nightOwlMode && previousWindows.some(isAllDayWindow) && preferences.dayStartTime !== "00:00") {
-    windows.push({ start: "00:00", end: preferences.dayStartTime });
-  }
-
-  if (currentIsAllDay) {
-    windows.push({
-      start: preferences.nightOwlMode ? preferences.dayStartTime : "00:00",
-      end: "24:00",
-    });
-  } else {
-    windows.push(...manualWindows);
-  }
-
-  return windows;
+  return getResolvedWorkWindowsForDay(day, preferences);
 }
 
 function isDeadlinePassed(deadline: string, now: number, preferences: SchedulerPreferences) {

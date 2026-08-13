@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "files": {
+    "tsconfig.json": {
+      "sha256": "829b4ab8d07a7db80a497d690ac2d2f0f4a67ff103270b7470081dd592d7a34d",
+      "reason": "Existing Next E2E development-server entries were recorded before the root-fix implementation. Future E2E runs must restore this exact snapshot."
+    }
+  }
+}

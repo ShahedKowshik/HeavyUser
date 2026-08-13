@@ -27,15 +27,23 @@ parity and generated types should be checked before database work is shipped.
 Run these from the repository root:
 
 ```sh
+pnpm preflight
 pnpm supabase:check
-pnpm supabase:types
+pnpm supabase:types:check
 pnpm typecheck
 ```
 
 `supabase:check` compares local and linked migrations, lints the live schema,
 and shows current high-signal advisor warnings. `supabase:types` refreshes the
-checked-in TypeScript map from the linked database; review that diff before
-committing it.
+checked-in TypeScript map from the linked database; `supabase:types:check`
+compares the generated result without rewriting the checked-in file. Refresh
+the file only as an intentional, scoped database change and review the diff
+before committing it.
+
+Database changes must declare their migration impact in
+`.heavyuser/change-manifest.json`. Migration parity and schema lint are
+required release evidence, but they do not replace linked behavior tests or a
+provider-backed QA journey.
 
 The server-only tables intentionally have RLS enabled with no user policies.
 That is default-deny defense in depth, not a missing access path. The hosted

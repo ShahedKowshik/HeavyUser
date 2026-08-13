@@ -1,34 +1,69 @@
 # HeavyUser agent guide
 
-HeavyUser is a focused personal productivity workspace. The current product surface is intentionally small: a compact authenticated account bar, synced tasks on the left, a single-day vertical calendar on the right, and a dedicated account/settings page.
+HeavyUser is a focused authenticated task workspace with synced tasks, Google Calendar-backed Spaces, automatic scheduling, durable timers, and account settings. Keep the surface compact, but treat the Calendar, scheduler, timer, task-sync, and authentication paths as one reliability system.
 
-## Repository location
+## Repository identity
 
 - The authoritative runnable checkout is `/Users/kowshik/Projects/HeavyUser`.
-- `/Users/kowshik/.codex/.chatgpt-projects/g-p-6a53428369508191b1e12179b516b0c3` is a reference-only ChatGPT project mirror, not the application source. Verify the checkout before editing.
+- `/Users/kowshik/.codex/.chatgpt-projects/g-p-6a53428369508191b1e12179b516b0c3` is a reference-only ChatGPT project mirror.
+- At the beginning of every run, verify `pwd`, `realpath`, `git status`, the current branch, and `git rev-parse HEAD`.
+- Read `.heavyuser/change-manifest.json` before editing. Preserve existing user changes and classify them before adding new work.
+- For a new change group, update the manifest's `baselineSha`, `changeType`, `mode`, allowed paths, evidence level, and expected migrations before editing.
 
-## Current scope
+## Current product scope
 
-- Keep the first screen light, compact, flat, and focused on the task workspace.
-- Keep task interactions fast and constrained to the task region, with Supabase as the authenticated source of truth.
-- Keep account entry passwordless and separate from the task workspace.
-- Preserve the 60/40 desktop split and stack tasks above the calendar below 900px.
-- Keep task rows single-line and scannable: title, duration, state, and compact actions only.
+- Tasks: capture, edit, complete, delete, reorder, estimate, dates, priorities, and account-scoped recovery cache.
+- Account: passwordless Supabase Auth, profile, private avatar, settings, and Night Owl planning preferences.
+- Calendar: Google connection/reconnect/disconnect, calendar-backed Spaces/Sub-spaces, ordinary event display/editing where supported, managed task blocks, sync, cleanup, and provider error recovery.
+- Scheduler: timezone-aware work windows, automatic planning, conflict handling, queue retries, Space ownership, and repair/cleanup work.
+- Timer: durable sessions, paused/stopped work history, active-block state, corrections, missed blocks, idempotent retries, and cumulative task totals.
 
-## Non-goals
+Deferred work includes collaboration, dashboards, extra authentication providers, password authentication, MFA, public APIs, and unrelated integrations. Do not remove or reject currently implemented Calendar, Space, scheduler, or timer behavior because an older document calls it a non-goal.
 
-Do not add additional navigation destinations, dashboards, password authentication, OAuth providers, MFA, collaboration, calendar editing, drag-to-calendar behavior, date navigation, integrations, or extra product areas without a new request. The profile menu is limited to account access, Settings, and sign out. Authentication, task sync, private avatar storage, and account-synced settings are part of the current phase.
+## Default working rules
+
+1. Investigate the underlying invariant before patching the visible symptom.
+2. Keep one bounded change group at a time. Split work that crosses unrelated product areas.
+3. Add or update the regression test with every bug fix.
+4. For stateful changes, record the source of truth, ownership, allowed states, retry identity, concurrency rule, failure behavior, and user recovery action in `ARCHITECTURE.md`.
+5. Do not silently broaden scope, rewrite unrelated files, or discard existing changes.
+6. A read-only audit is genuinely read-only: report findings and write only the approved audit artifact. Remediation needs an implementation request or explicit authorization.
+
+## Evidence rules
+
+Label every result as one of: `code`, `mocked`, `local`, `linked-database`, `provider-qa`, or `production`.
+
+- A public redirect proves routing, not an authenticated session.
+- Mocked E2E proves application behavior under the mock, not Google consent, SMTP delivery, or a live account.
+- Migration parity and schema lint do not prove database behavior tests.
+- Never call blocked provider, browser, email, or authenticated proof a pass.
+
+## Start and finish gates
+
+At the start of a change, run `pnpm preflight` and inspect the declared change manifest. During implementation, use `pnpm check:scope` to catch unrelated files.
+
+Before handoff, run `pnpm verify`. It runs the checks sequentially so generated Next artifacts cannot race typecheck or build. E2E must not leave tracked configuration changes. Do not claim a clean tree until `git status` confirms it.
+
+For authentication, Supabase, Calendar, scheduler, or timer releases, use isolated QA data and require the provider-QA and exact deployed-SHA evidence described in `ARCHITECTURE.md`. Do not deploy from an unexplained dirty tree.
 
 ## Important files
 
-- `src/app/page.tsx` — first screen, task interactions, and user-scoped cache.
-- `src/app/login/` and `src/app/auth/` — passwordless account entry and magic-link confirmation.
-- `src/components/auth-provider.tsx` — browser session, profile state, and account-synced settings.
-- `src/app/globals.css` — HeavyUser visual system and responsive layout.
-- `src/app/layout.tsx` — metadata and font setup.
-- `design.md` — design authority for this phase.
-- `components.json` — shadcn preset configuration.
+- `src/app/page.tsx` — task workspace, task interactions, and recovery cache.
+- `src/components/auth-provider.tsx` — browser session, profile, and account settings.
+- `src/components/google-calendar-panel.tsx` — planner and Calendar event presentation.
+- `src/lib/google/` — provider client, sync, errors, and event ownership.
+- `src/lib/scheduler/` — planning, preferences, queue, reconciliation, and repairs.
+- `src/lib/timer/` — durable timer sessions, totals, corrections, and idempotency.
+- `src/lib/task-rules.ts` and `src/lib/supabase/tasks.ts` — task validation and persistence.
+- `supabase/migrations/` and `supabase/tests/database/` — append-only schema and database safety checks.
+- `design.md` — visual and interaction authority.
+- `ARCHITECTURE.md` — state ownership and reliability authority.
 
-## Checks
+## Routine commands
 
-Use the local bundled runtime when needed. Run `pnpm lint`, `pnpm typecheck`, and `pnpm build` before handoff.
+```sh
+pnpm preflight
+pnpm verify
+```
+
+Use `pnpm supabase:types:check` to compare generated database types without rewriting the tracked file. Never print secrets or commit service-role credentials.

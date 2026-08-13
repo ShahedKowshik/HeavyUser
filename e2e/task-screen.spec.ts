@@ -199,6 +199,98 @@ test.describe("task capture, views, editing, and keyboard safety", () => {
 });
 
 test.describe("planner statuses and failure states", () => {
+  test("does not mark past blocks or ordinary Google events as working now", async ({ page }) => {
+    const task = makeTask({ id: "task-past-active", title: "Past active block", status: "open" });
+    const block = makeBlock(task.id, {
+      id: "block-past-active",
+      start: "2026-08-01T09:00:00.000Z",
+      end: "2026-08-01T09:30:00.000Z",
+    });
+    const activeSession = {
+      session: makeSession({
+        taskId: task.id,
+        blockId: block.id,
+        state: "running",
+        startedAt: block.start,
+        stoppedAt: null,
+        originalStoppedAt: null,
+      }),
+      elapsedSeconds: 3_600,
+      serverNow: FROZEN_NOW,
+    };
+    const ordinaryGoogleEvent = {
+      id: "ordinary-google-event",
+      providerEventId: "ordinary-google-event",
+      calendarId: "calendar-work",
+      spaceId: "space-work",
+      spaceName: "Work",
+      subSpaceName: null,
+      title: "Ordinary Google event",
+      description: null,
+      location: null,
+      meetingUrl: null,
+      start: "2026-08-01T09:30:00.000Z",
+      end: "2026-08-01T10:30:00.000Z",
+      startDate: null,
+      endDate: null,
+      allDay: false,
+      hasAttendees: false,
+      etag: "etag-ordinary-google-event",
+      htmlLink: null,
+      timeZone: "UTC",
+      recurringEventId: null,
+      isTaskBlock: false,
+      taskId: null,
+      scheduleBlockId: block.id,
+      isPlannerSynthetic: false,
+      isActiveTimerBlock: false,
+    };
+    await installBrowserMocks(page, {
+      tasks: [task],
+      activeSession,
+      scheduleBlocks: [block],
+      calendarEvents: [{
+        id: "provider-past-active",
+        providerEventId: "provider-past-active",
+        calendarId: "calendar-work",
+        spaceId: "space-work",
+        spaceName: "Work",
+        subSpaceName: null,
+        title: "Past active block",
+        description: null,
+        location: null,
+        meetingUrl: null,
+        start: block.start,
+        end: block.end,
+        startDate: null,
+        endDate: null,
+        allDay: false,
+        hasAttendees: false,
+        etag: "etag-past-active",
+        htmlLink: null,
+        timeZone: "UTC",
+        recurringEventId: null,
+        isTaskBlock: true,
+        taskId: task.id,
+        scheduleBlockId: block.id,
+        isPlannerSynthetic: false,
+        isActiveTimerBlock: false,
+      }, ordinaryGoogleEvent],
+    });
+    await openTaskWorkspace(page);
+
+    const calendarEvent = page.locator(".hu-event").filter({ hasText: task.title });
+    await expect(calendarEvent).toBeVisible();
+    await expect(calendarEvent).not.toHaveClass(/is-active-timer/);
+    await expect(calendarEvent.getByText("Working now", { exact: true })).toHaveCount(0);
+    await expect(calendarEvent).toHaveAccessibleName(/Past active block\. Planned/);
+
+    const ordinaryEvent = page.locator(".hu-event").filter({ hasText: ordinaryGoogleEvent.title });
+    await expect(ordinaryEvent).toBeVisible();
+    await expect(ordinaryEvent).not.toHaveClass(/is-active-timer/);
+    await expect(ordinaryEvent.getByText("Working now", { exact: true })).toHaveCount(0);
+  });
+
   test("shows every planner status and past or locked block result in the task dialog", async ({ page }) => {
     const tasks = [
       makeTask({ id: "task-needs-duration", title: "Needs duration", duration: null, status: "open" }),

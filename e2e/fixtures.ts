@@ -1,6 +1,6 @@
 import { expect, type Page, type Route } from "@playwright/test";
 import type { Space } from "@/lib/spaces";
-import type { ScheduleBlockSnapshot, TaskScheduleStatus } from "@/lib/scheduler/types";
+import { DEFAULT_SCHEDULER_PREFERENCES, type ScheduleBlockSnapshot, type SchedulerPreferences, type TaskScheduleStatus } from "@/lib/scheduler/types";
 import type { Task, Priority } from "@/lib/tasks";
 import type { ActiveTimerSnapshot, MissedBlockSnapshot, TaskWorkSession, TaskWorkSummary, TimerAlert } from "@/lib/timer/types";
 
@@ -37,6 +37,7 @@ type BrowserMockOptions = {
   alerts?: ReadonlyArray<TimerAlert>;
   calendarEvents?: ReadonlyArray<Record<string, unknown>>;
   connection?: Partial<CalendarConnection> | null;
+  schedulerSettings?: SchedulerPreferences;
   disconnectResponse?: MockResponse;
   failTaskSave?: boolean;
 };
@@ -52,6 +53,7 @@ export type BrowserMockState = {
   alerts: TimerAlert[];
   calendarEvents: Record<string, unknown>[];
   connection: CalendarConnection | null;
+  schedulerSettings: SchedulerPreferences;
   failTaskSave: boolean;
   taskVersion: number;
   taskOrderVersion: number;
@@ -307,6 +309,7 @@ export async function installBrowserMocks(page: Page, options: BrowserMockOption
     alerts: [...(options.alerts ?? [])],
     calendarEvents: [...(options.calendarEvents ?? [defaultCalendarEvent()])],
     connection: makeConnection(options.connection),
+    schedulerSettings: options.schedulerSettings ?? { ...DEFAULT_SCHEDULER_PREFERENCES },
     disconnectResponse: options.disconnectResponse ?? null,
     failTaskSave: options.failTaskSave ?? false,
     taskVersion: 0,
@@ -434,6 +437,13 @@ export async function installBrowserMocks(page: Page, options: BrowserMockOption
     }
     if (path === "/api/scheduler/status") {
       await fulfill(route, { status: 200, body: { statuses: mock.scheduleStatuses, blocks: mock.scheduleBlocks } });
+      return;
+    }
+    if (path === "/api/scheduler/settings") {
+      if (request.method() === "PUT" && body && typeof body === "object") {
+        mock.schedulerSettings = { ...mock.schedulerSettings, ...(body as Partial<SchedulerPreferences>) };
+      }
+      await fulfill(route, { status: 200, body: { settings: mock.schedulerSettings, schedulerError: null } });
       return;
     }
     if (path === "/api/scheduler/run") {

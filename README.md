@@ -2,52 +2,32 @@
 
 > Make the next important task obvious—and protect the time to do it.
 
-HeavyUser is a focused execution workspace for people carrying more active work than a simple to-do list can hold. It puts a prioritized task queue beside a single-day planner so the next action and the time to do it stay in the same view.
+HeavyUser is a focused execution workspace for people carrying more active work than a simple to-do list can hold. It puts a prioritized task queue beside a Calendar-backed planner so the next action and the time to do it stay in the same view.
 
 **[Open the live app](https://web.heavyuser.app)** · **[View the source](https://github.com/ShahedKowshik/HeavyUser)** · **[Share feedback](https://github.com/ShahedKowshik/HeavyUser/issues/new)**
 
-## The product
-
-Most task tools make capture easy, then leave prioritization and time protection disconnected. HeavyUser is built around one daily job:
-
-1. Decide what matters next.
-2. See when the day can support it.
-3. Keep moving without opening a dashboard full of noise.
-
-The interface is deliberately small: a task queue on the left, a single-day planner on the right, and a compact shell around them. It is a workbench, not a dashboard.
-
 ## What works today
 
-- Add tasks with a title, estimate, start date, due date, and priority.
-- Edit, complete, delete, and reorder tasks.
-- Move between Backlog, Today, and Upcoming views derived from task dates.
-- Select one focus task so the next action stays visible.
-- Review a connected Google Calendar day alongside the queue, or see a clear connect state when no calendar is linked.
-- Sign in with a passwordless email link and keep tasks synced to Supabase.
-- Keep a user-scoped browser cache as a recovery backup without mixing accounts.
-- Edit the account display name and private profile portrait.
-- Open a dedicated Settings page to edit account details and save the daily rhythm across signed-in devices.
-- Use the responsive layout on desktop and mobile, with keyboard-accessible controls and visible focus states.
+- Passwordless Supabase account entry, profile editing, private avatar storage, and account-synced settings.
+- Account-scoped task capture, editing, completion, deletion, reordering, priorities, dates, estimates, and recovery cache.
+- Google Calendar connection, reconnect, disconnect, sync, managed task blocks, Calendar-backed Spaces/Sub-spaces, and supported ordinary-event actions.
+- Automatic scheduling across work windows, Night Owl logical days, timezones, busy events, Spaces, retries, cleanup, and repairs.
+- Durable timers with persisted sessions, paused/stopped work history, active-block state, corrections, missed blocks, idempotent retries, and cumulative totals.
+- Compact responsive task-first UI with keyboard and focus support.
+
+The source and deterministic test suite cover these behaviors. Provider-backed proof is still required for releases that change authentication, Supabase data, Google Calendar, scheduling, or timers.
 
 ## Product principles
 
 - **Task-first:** the next piece of work gets the strongest visual priority.
 - **Time belongs next to work:** planning is part of execution, not a separate report.
 - **Quiet until useful:** neutral surfaces carry the interface; green marks focus, current time, today, and completion.
-- **Small surface area:** one problem, one focused screen, no speculative features.
-- **Fast learning loop:** ship a useful slice, put it in front of people, and let real use decide what comes next.
+- **Small surface area:** keep the main workspace focused and defer dashboards, collaboration, extra auth providers, MFA, public APIs, and unrelated integrations.
+- **Safe iteration:** one bounded change group, one explicit invariant, a regression test, and evidence that matches the claim.
 
-## Current status
+## Deployment and proof
 
-HeavyUser is an early product slice in active iteration. The workspace requires a HeavyUser account and uses Supabase Auth, Postgres row-level security, and private Storage for account portraits. Collaboration, integrations, and calendar editing remain outside the current surface.
-
-## Deployment
-
-The production app is hosted on Vercel:
-
-- **Production:** [web.heavyuser.app](https://web.heavyuser.app)
-- **Deployment target:** Vercel
-- **Build output:** Next.js server runtime
+Production is hosted on Vercel at [web.heavyuser.app](https://web.heavyuser.app). A successful public response proves routing only. A production release is complete only when the exact deployed commit, migration parity, required local/CI checks, and the relevant authenticated QA journey have been verified.
 
 ## Run locally
 
@@ -62,15 +42,14 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-## Verify the build
+## Verify safely
 
 ```bash
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm audit --prod
+pnpm preflight
+pnpm verify
 ```
+
+`pnpm verify` runs lint, typecheck, unit tests, production build, isolated E2E, dependency audits, generated-file checks, and linked Supabase checks sequentially. `pnpm supabase:types:check` compares generated types without changing the tracked source file.
 
 ## Stack
 
@@ -78,35 +57,24 @@ pnpm audit --prod
 - React 19 and TypeScript
 - Tailwind CSS v4
 - shadcn `base-lyra` preset with neutral tokens and Lucide icons
-- Supabase Auth, Postgres task storage, and private avatar Storage
-- User-scoped browser cache for task recovery and one-time migration
+- Supabase Auth, Postgres, RLS, private avatar Storage, and server-only Calendar/scheduler/timer data
+- Google Calendar provider integration
 - Vercel for production hosting
 
 ## Project map
 
 ```text
-src/app/page.tsx       Product surface, task interactions, persistence, and planner composition
-src/app/login/         Passwordless account entry screen
-src/app/auth/          Magic-link confirmation route
-src/components/        Auth provider, profile menu, and shared UI
-src/app/settings/      Account and daily rhythm settings page
-src/app/globals.css    Design tokens, layout, responsive rules, and calendar geometry
-src/app/layout.tsx     App metadata and typography setup
-design.md              Product thesis and visual constraints
-components.json        shadcn preset configuration
+src/app/page.tsx                 Task workspace and recovery cache
+src/app/login/                   Passwordless account entry
+src/app/auth/                    Magic-link confirmation
+src/components/auth-provider.tsx Session, profile, and account settings
+src/components/google-calendar-panel.tsx Planner and Calendar presentation
+src/lib/google/                  Provider client, sync, and event rules
+src/lib/scheduler/               Planning, queue, preferences, and repairs
+src/lib/timer/                   Durable timer sessions and work history
+supabase/migrations/             Append-only database changes
+supabase/tests/database/         Database security and integrity checks
+AGENTS.md                        Agent operating rules
+ARCHITECTURE.md                  State ownership and reliability rules
+design.md                        Visual and interaction authority
 ```
-
-## Feedback
-
-If HeavyUser helps—or gets in your way—[open an issue](https://github.com/ShahedKowshik/HeavyUser/issues/new) with:
-
-- the kind of workday you were trying to manage;
-- what you expected to happen;
-- what actually happened; and
-- what would make the next decision easier.
-
-Specific stories are more useful than generic feature requests.
-
-## License
-
-This repository does not currently include a license for reuse.

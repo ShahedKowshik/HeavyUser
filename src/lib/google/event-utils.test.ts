@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dedupePlannerEvents, getPlannerEventKey, getStaleCalendarEventKeys, hasEventEditConflict, isValidCalendarDate, isValidTimedEventRange, type PlannerEventIdentity } from "@/lib/google/event-utils";
+import { dedupePlannerEvents, getPlannerEventKey, getStaleCalendarEventKeys, hasEventEditConflict, isCalendarEventInProgress, isValidCalendarDate, isValidTimedEventRange, type PlannerEventIdentity } from "@/lib/google/event-utils";
 
 function event(overrides: Partial<PlannerEventIdentity> = {}): PlannerEventIdentity {
   return {
@@ -90,5 +90,23 @@ describe("calendar request bounds", () => {
     expect(isValidTimedEventRange("2026-08-01T10:00:00Z", "2026-08-02T10:01:00Z")).toBe(false);
     expect(isValidTimedEventRange("2026-08-01T10:00:00Z", "2026-08-01T10:04:00Z")).toBe(false);
     expect(isValidTimedEventRange("2026-08-01T10:00:00Z", "2026-08-01T09:00:00Z")).toBe(false);
+  });
+});
+
+describe("calendar event timing", () => {
+  const now = Date.parse("2026-08-01T10:00:00.000Z");
+
+  it("only treats a timed event as active while now is inside its range", () => {
+    expect(isCalendarEventInProgress({ start: "2026-08-01T09:00:00.000Z", end: "2026-08-01T09:30:00.000Z" }, now)).toBe(false);
+    expect(isCalendarEventInProgress({ start: "2026-08-01T09:30:00.000Z", end: "2026-08-01T10:30:00.000Z" }, now)).toBe(true);
+    expect(isCalendarEventInProgress({ start: "2026-08-01T10:00:00.000Z", end: "2026-08-01T11:00:00.000Z" }, now)).toBe(true);
+    expect(isCalendarEventInProgress({ start: "2026-08-01T09:00:00.000Z", end: "2026-08-01T10:00:00.000Z" }, now)).toBe(false);
+    expect(isCalendarEventInProgress({ start: "2026-08-01T10:30:00.000Z", end: "2026-08-01T11:00:00.000Z" }, now)).toBe(false);
+  });
+
+  it("does not activate all-day or invalid events", () => {
+    expect(isCalendarEventInProgress({ start: "2026-08-01T09:00:00.000Z", end: "2026-08-01T11:00:00.000Z", allDay: true }, now)).toBe(false);
+    expect(isCalendarEventInProgress({ start: null, end: null }, now)).toBe(false);
+    expect(isCalendarEventInProgress({ start: "not-a-date", end: "2026-08-01T11:00:00.000Z" }, now)).toBe(false);
   });
 });

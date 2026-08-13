@@ -4,7 +4,7 @@ import { FormEvent, PointerEvent as ReactPointerEvent, TouchEvent as ReactTouchE
 import type { CSSProperties } from "react";
 import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, ExternalLink, Pencil, Plus, RefreshCw, Trash2, Unplug, Video, X } from "lucide-react";
 import { getAppPath } from "@/lib/supabase/config";
-import { dedupePlannerEvents } from "@/lib/google/event-utils";
+import { dedupePlannerEvents, isCalendarEventInProgress } from "@/lib/google/event-utils";
 import type { ScheduleBlockSnapshot } from "@/lib/scheduler/types";
 import type { UserSettings } from "@/lib/supabase/settings";
 import type { Task } from "@/lib/tasks";
@@ -523,7 +523,9 @@ export function GoogleCalendarPanel({
         const space = task?.spaceId ? spaces.find((candidate) => candidate.id === task.spaceId) : event.spaceId ? spaces.find((candidate) => candidate.id === event.spaceId) : null;
         const subSpace = task?.subSpaceId ? space?.subSpaces.find((candidate) => candidate.id === task.subSpaceId) : event.subSpaceName ? { name: event.subSpaceName } : null;
         const decorated = task ? { ...event, title: task.title, spaceId: task.spaceId, spaceName: space?.name ?? event.spaceName, subSpaceName: subSpace?.name ?? null } : event;
-        return decorated.scheduleBlockId === activeBlockId ? { ...decorated, isActiveTimerBlock: true } : decorated;
+        return decorated.isTaskBlock && decorated.scheduleBlockId === activeBlockId && isCalendarEventInProgress(decorated, nowTimestamp)
+          ? { ...decorated, isActiveTimerBlock: true }
+          : decorated;
       }),
     preferredScheduleBlockIds,
   );
@@ -573,7 +575,7 @@ export function GoogleCalendarPanel({
           taskId: task.id,
           scheduleBlockId: block.id,
           isPlannerSynthetic: true,
-          isActiveTimerBlock: block.id === activeBlockId,
+          isActiveTimerBlock: block.id === activeBlockId && isCalendarEventInProgress(block, nowTimestamp),
         };
       })
       .filter((event): event is LiveEvent => event !== null),
