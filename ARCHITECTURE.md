@@ -48,8 +48,17 @@ best-effort lock release or cleanup step failed.
 ## Change contract
 
 Every implementation change is declared in `.heavyuser/change-manifest.json`.
-The manifest records the change type, mode, baseline SHA, allowed paths,
-required checks, evidence level, and migration impact.
+The manifest records the change type, mode, baseline SHA, change ID, allowed
+paths, required checks, evidence level, migration impact, and risk areas. Risky
+mutating work also points to a filled contract under `docs/qa/changes/`. The
+contract must be new or changed in the current work, its ID must match the
+manifest, and every risk area found in the changed files must be declared.
+
+Use `docs/engineering/change-contract-template.md` before coding and
+`docs/qa/edge-case-and-evidence-template.md` to build the evidence matrix.
+The contract is a short decision record, not a second product specification.
+The contract, scope, and release checks use the same pull-request base or
+previous-push comparison point, with a safe first-push fallback.
 
 For a release manifest, also declare `releaseClass` as `ui` or `integration`
 and record non-secret `releaseEvidence`. Every release needs the exact
@@ -68,10 +77,16 @@ Every bug fix must include:
 5. evidence labeled by layer: code, mocked, local, linked-database,
    provider-qa, or production.
 
+The contract checker requires each matrix row to use `PASS`, `BLOCKED`,
+`NOT RUN`, or `N/A`. `BLOCKED` and `NOT RUN` remain incomplete evidence.
+
 ## Release contract
 
-Changes involving Auth, Supabase data, Calendar, Spaces, scheduler, or timers
-require isolated QA account data, a writable QA Calendar where relevant, QA
-email proof where relevant, linked migration parity, exact deployed SHA, an
-authenticated smoke journey, and a clean tree. A public HTTP response alone
-cannot satisfy this contract.
+Changes involving Auth, Supabase data, Calendar, Spaces, scheduler, timers, or
+security require isolated QA account data, a writable QA Calendar where
+relevant, QA email proof where relevant, linked migration parity, exact
+deployed SHA, an authenticated smoke journey, and a clean tree. A public HTTP
+response alone cannot satisfy this contract. `pnpm check:contract`,
+`pnpm check:release`, and `pnpm verify` must pass before handoff; an
+integration release cannot contain blocked or not-run provider/authentication
+evidence.

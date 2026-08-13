@@ -16,6 +16,8 @@ jobs:
   app:
     name: App checks
     runs-on: ubuntu-latest
+    env:
+      HEAVYUSER_SCOPE_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
     steps:
       - name: Check out source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -34,9 +36,11 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Check repository preflight
         run: pnpm preflight
+      - name: Check change contract
+        run: pnpm check:contract
+      - name: Test change contract
+        run: pnpm test:contracts
       - name: Check declared change scope
-        env:
-          HEAVYUSER_SCOPE_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
         run: pnpm check:scope
       - name: Check generated-file baseline
         run: pnpm check:generated

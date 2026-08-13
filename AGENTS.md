@@ -8,7 +8,9 @@ HeavyUser is a focused authenticated task workspace with synced tasks, Google Ca
 - `/Users/kowshik/.codex/.chatgpt-projects/g-p-6a53428369508191b1e12179b516b0c3` is a reference-only ChatGPT project mirror.
 - At the beginning of every run, verify `pwd`, `realpath`, `git status`, the current branch, and `git rev-parse HEAD`.
 - Read `.heavyuser/change-manifest.json` before editing. Preserve existing user changes and classify them before adding new work.
-- For a new change group, update the manifest's `baselineSha`, `changeType`, `mode`, allowed paths, evidence level, and expected migrations before editing.
+- For a new change group, update the manifest's `baselineSha`, `changeType`, `mode`, `changeId`, `riskAreas`, `planFile` when required, allowed paths, evidence level, and expected migrations before editing.
+- For Calendar, Scheduler, Timer, Auth, Supabase, persistence, retry, lifecycle, or security work, copy `docs/engineering/change-contract-template.md` to `docs/qa/changes/` and complete it before coding.
+- The contract must be new or changed in the current work, its ID must match the manifest, and every risk area detected from changed files must be listed.
 
 ## Current product scope
 
@@ -28,6 +30,7 @@ Deferred work includes collaboration, dashboards, extra authentication providers
 4. For stateful changes, record the source of truth, ownership, allowed states, retry identity, concurrency rule, failure behavior, and user recovery action in `ARCHITECTURE.md`.
 5. Do not silently broaden scope, rewrite unrelated files, or discard existing changes.
 6. A read-only audit is genuinely read-only: report findings and write only the approved audit artifact. Remediation needs an implementation request or explicit authorization.
+7. If implementation reveals a new invariant or edge case, update the filled change contract and add the regression before continuing.
 
 ## Evidence rules
 
@@ -36,15 +39,16 @@ Label every result as one of: `code`, `mocked`, `local`, `linked-database`, `pro
 - A public redirect proves routing, not an authenticated session.
 - Mocked E2E proves application behavior under the mock, not Google consent, SMTP delivery, or a live account.
 - Migration parity and schema lint do not prove database behavior tests.
+- Every contract row must be `PASS`, `BLOCKED`, `NOT RUN`, or `N/A` with a reason where needed.
 - Never call blocked provider, browser, email, or authenticated proof a pass.
 
 ## Start and finish gates
 
-At the start of a change, run `pnpm preflight` and inspect the declared change manifest. During implementation, use `pnpm check:scope` to catch unrelated files.
+At the start of a change, run `pnpm preflight`, `pnpm check:contract`, and inspect the declared change manifest. The checks compare the real pull-request or push changes against the correct starting version. During implementation, use `pnpm check:scope` to catch unrelated files.
 
 Before handoff, run `pnpm verify`. It runs the checks sequentially so generated Next artifacts cannot race typecheck or build. E2E must not leave tracked configuration changes. Do not claim a clean tree until `git status` confirms it.
 
-For authentication, Supabase, Calendar, scheduler, or timer releases, use isolated QA data and require the provider-QA and exact deployed-SHA evidence described in `ARCHITECTURE.md`. Do not deploy from an unexplained dirty tree.
+For authentication, Supabase, Calendar, scheduler, timer, or security releases, use isolated QA data and require the provider-QA and exact deployed-SHA evidence described in `ARCHITECTURE.md`. Do not deploy from an unexplained dirty tree.
 
 ## Important files
 
@@ -58,6 +62,8 @@ For authentication, Supabase, Calendar, scheduler, or timer releases, use isolat
 - `supabase/migrations/` and `supabase/tests/database/` — append-only schema and database safety checks.
 - `design.md` — visual and interaction authority.
 - `ARCHITECTURE.md` — state ownership and reliability authority.
+- `docs/engineering/change-contract-template.md` — before-coding contract template.
+- `docs/qa/edge-case-and-evidence-template.md` — edge-case and evidence checklist.
 
 ## Routine commands
 

@@ -6,6 +6,8 @@ const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 const stages = [
   ["preflight", ["preflight"]],
+  ["contract", ["check:contract"]],
+  ["contract tests", ["test:contracts"]],
   ["scope", ["check:scope"]],
   ["release evidence", ["check:release"]],
   ["lint", ["lint"]],

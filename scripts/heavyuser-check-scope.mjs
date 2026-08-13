@@ -1,20 +1,9 @@
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { collectChangedFiles } from "./heavyuser-check-contract.mjs";
 
 const root = resolve(new URL("..", import.meta.url).pathname);
 const manifestPath = resolve(root, ".heavyuser/change-manifest.json");
-
-function git(args) {
-  return execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
-}
-
-function changedFiles() {
-  const base = process.env.HEAVYUSER_SCOPE_BASE?.trim() || "HEAD";
-  const tracked = git(["diff", "--name-only", base]).split("\n").filter(Boolean);
-  const untracked = git(["ls-files", "--others", "--exclude-standard"]).split("\n").filter(Boolean);
-  return [...new Set([...tracked, ...untracked])].sort();
-}
 
 function patternMatches(file, pattern) {
   const escape = (value) => value.replace(/[.+^${}()|[\]\\]/g, "\\$&");
@@ -30,8 +19,13 @@ try {
   process.exit(1);
 }
 
-const files = changedFiles();
+const files = collectChangedFiles(root).sort();
 const allowed = manifest.allowedPaths ?? [];
+const invalidAllowedPaths = allowed.filter((pattern) => typeof pattern !== "string");
+if (invalidAllowedPaths.length) {
+  console.error("scope check failed: allowedPaths must contain only string patterns");
+  process.exit(1);
+}
 const unexpected = files.filter((file) => !allowed.some((pattern) => patternMatches(file, pattern)));
 
 if (manifest.mode === "read-only" && files.some((file) => /^(src|e2e|supabase\/migrations|package\.json|scripts)\//.test(file) || ["package.json", "tsconfig.json"].includes(file))) {

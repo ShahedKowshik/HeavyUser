@@ -64,6 +64,9 @@ if (!existsSync(manifestPath)) {
     dirtyFiles: git(["status", "--porcelain=v1", "--untracked-files=all"]).split("\n").filter(Boolean),
     changeType: manifest.changeType,
     mode: manifest.mode,
+    changeId: manifest.changeId ?? null,
+    riskAreas: manifest.riskAreas ?? [],
+    planFile: manifest.planFile ?? null,
     requiredEvidence: manifest.requiredEvidence ?? null,
   }, null, 2));
 }

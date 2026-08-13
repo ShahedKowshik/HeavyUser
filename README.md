@@ -77,4 +77,6 @@ supabase/tests/database/         Database security and integrity checks
 AGENTS.md                        Agent operating rules
 ARCHITECTURE.md                  State ownership and reliability rules
 design.md                        Visual and interaction authority
+docs/engineering/                Before-coding change contract template
+docs/qa/                         Edge-case, evidence, and release records
 ```

@@ -3,6 +3,21 @@
   "changeType": "stabilization",
   "mode": "mutating",
   "baselineSha": "9804de09229eb2cbfd6877431b549c9663e48eb2",
+  "changeId": "2026-08-14-safety-check-fixes",
+  "riskAreas": [
+    "auth",
+    "process",
+    "persistence",
+    "retry",
+    "lifecycle",
+    "calendar",
+    "scheduler",
+    "timer",
+    "supabase",
+    "security",
+    "ui-lifecycle"
+  ],
+  "planFile": "docs/qa/changes/2026-08-14-safety-check-fixes.md",
   "allowedPaths": [
     ".heavyuser/**",
     "AGENTS.md",
@@ -13,6 +28,9 @@
     ".github/workflows/ci.yml",
     "package.json",
     "scripts/**",
+    "docs/engineering/**",
+    "docs/qa/edge-case-and-evidence-template.md",
+    "docs/qa/changes/**",
     "docs/qa/2026-08-14-heavyuser-process-and-assistant-audit.md",
     "docs/qa/2026-08-14-root-fix-baseline.md",
     "e2e/**",
@@ -25,6 +43,8 @@
   ],
   "requiredChecks": [
     "pnpm preflight",
+    "pnpm check:contract",
+    "pnpm test:contracts",
     "pnpm check:scope",
     "pnpm check:generated",
     "pnpm check:release",
@@ -44,5 +64,5 @@
   "releaseClass": null,
   "releaseEvidence": null,
   "expectedMigrations": [],
-  "notes": "Batch A preserves the existing Night Owl and active-block changes while adding root instructions and safety gates. The current tsconfig hash is recorded separately as generated baseline drift."
+  "notes": "This change hardens the Markdown contract checker and its GitHub comparison wiring. The current tsconfig hash is recorded separately as generated baseline drift."
 }
