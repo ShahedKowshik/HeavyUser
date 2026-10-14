@@ -9,7 +9,7 @@ The product's next features and visual design are deliberately undecided.
 Use Node.js 24.
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -34,4 +34,4 @@ The pre-reset source and history can be recovered from `archive/pre-rebuild-2026
 
 The existing Supabase avatar bucket/object and obsolete Vercel environment variables are not used by the clean app and require dashboard/API cleanup. Avoid deleting Supabase storage metadata directly with SQL; remove files through the Storage API.
 
-**Dependency note:** A committed npm lockfile has not yet been generated; dependency resolution is not fully reproducible until it is added. Do not claim hermetic builds from this baseline.
+The committed `package-lock.json` pins the dependency tree. Use `npm ci` for consistent installs.
