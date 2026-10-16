@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
+import {resolveSignedAvatarUrl} from "../lib/avatar-url";
 
 export type AccountUser={id:string;email?:string;new_email?:string;user_metadata?:Record<string,unknown>};
 type Props={url:string;apiKey:string;token:string;userId:string;onClose:()=>void;onLogout:()=>void;onUpdated:(user:AccountUser)=>void};
@@ -21,7 +22,7 @@ export async function getAvatar(url:string,key:string,token:string,path:string):
   const response=await api(url,key,token,"/storage/v1/object/sign/"+BUCKET+"/"+pathUrl(path),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({expiresIn:3600})});
   const signed=response.signedURL||response.signedUrl;
   if(typeof signed!=="string")throw Error("Could not load profile photo.");
-  return new URL(signed,url).toString();
+  return resolveSignedAvatarUrl(url,signed);
 }
 async function updateUser(url:string,key:string,token:string,body:Record<string,unknown>):Promise<AccountUser>{
   return api(url,key,token,"/auth/v1/user",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
@@ -84,9 +85,9 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
       const extension=file.type==="image/jpeg"?"jpg":file.type==="image/png"?"png":"webp";
       const path=userId+"/"+crypto.randomUUID()+"."+extension;
       await api(url,apiKey,token,"/storage/v1/object/"+BUCKET+"/"+path,{method:"POST",headers:{"Content-Type":file.type,"x-upsert":"false"},body:file});
+      const signedImageUrl=await getAvatar(url,apiKey,token,path);
       const updated=await updateUser(url,apiKey,token,{data:{...user.user_metadata,avatar_path:path}});
-      setUser(updated);onUpdated(updated);
-      setPhoto(await getAvatar(url,apiKey,token,path));
+      setUser(updated);setPhoto(signedImageUrl);onUpdated(updated);
       setNotice("Profile photo updated.");
       const old=String(user.user_metadata?.avatar_path||"");
       if(old&&old.startsWith(userId+"/"))try{await api(url,apiKey,token,"/storage/v1/object/"+BUCKET,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({prefixes:[old]})})}catch{}
@@ -142,7 +143,7 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
           {tab==="profile"&&<div className="account-section">
             <h3>Personal information</h3><p className="account-help">This is how your profile appears inside HeavyUser.</p>
             <div className="photo-row">
-              <div className="account-photo">{photo?<img src={photo} alt="Your profile picture"/>:initials(first,last,displayEmail)}</div>
+              <div className="account-photo">{photo?<img src={photo} alt="Your profile picture" onError={()=>{setPhoto("");setError("The saved photo could not be displayed. Try reopening settings or uploading another image.");}}/>:initials(first,last,displayEmail)}</div>
               <div className="photo-controls"><strong>Profile picture</strong><p>JPG, PNG or WebP, up to 2 MB.</p><div className="photo-buttons"><input type="file" ref={fileRef} accept="image/jpeg,image/png,image/webp" className="visually-hidden" id="account-photo-file" onChange={e=>uploadPhoto(e.target.files?.[0])}/><button type="button" disabled={!!pending} className="account-secondary" onClick={()=>fileRef.current?.click()}>{pending==="photo"?"Uploading…":"Upload photo"}</button>{currentPath&&<button type="button" disabled={!!pending} className="account-link" onClick={removePhoto}>Remove</button>}</div></div>
             </div>
             <form className="account-form" onSubmit={saveProfile}><div className="account-two"><label>First name<input autoComplete="given-name" maxLength={60} value={first} onChange={e=>setFirst(e.target.value)} placeholder="First name"/></label><label>Last name<input autoComplete="family-name" maxLength={60} value={last} onChange={e=>setLast(e.target.value)} placeholder="Last name"/></label></div><label>Current email<input readOnly value={displayEmail} aria-label="Current account email"/></label><div className="account-actions"><button className="primary" type="submit" disabled={!!pending}>{pending==="profile"?"Saving…":"Save profile"}</button></div></form>
