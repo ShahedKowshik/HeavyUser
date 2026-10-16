@@ -3,7 +3,7 @@ import {useEffect,useRef,useState} from "react";
 import {resolveSignedAvatarUrl} from "../lib/avatar-url";
 
 export type AccountUser={id:string;email?:string;new_email?:string;user_metadata?:Record<string,unknown>};
-type Props={url:string;apiKey:string;token:string;userId:string;onClose:()=>void;onLogout:()=>void;onUpdated:(user:AccountUser)=>void};
+type Props={url:string;apiKey:string;token:string;userId:string;onClose:()=>void;onLogout:()=>void;onUpdated:(user:AccountUser)=>void;dayStartMinutes:number;timeZone:string;pendingCounters:number;onDaySettingsChanged:(zone:string,minutes:number)=>void};
 const BUCKET="heavyuser-avatars";
 const errorText=(data:Record<string,unknown>|null)=>String(data?.msg||data?.error_description||data?.message||data?.error||"Unable to complete the request.");
 const initials=(first:string,last:string,email:string)=>((first[0]||"")+(last[0]||"")).toUpperCase()||email.slice(0,1).toUpperCase()||"H";
@@ -37,16 +37,23 @@ async function exportRows(url:string,key:string,token:string,table:string){
   }
   throw Error("Export exceeded the safety limit; no incomplete export was downloaded.");
 }
-export default function AccountSettings({url,apiKey,token,userId,onClose,onLogout,onUpdated}:Props){
-  const [tab,setTab]=useState<"profile"|"security"|"data">("profile");
+export default function AccountSettings({url,apiKey,token,userId,onClose,onLogout,onUpdated,dayStartMinutes,timeZone,pendingCounters,onDaySettingsChanged}:Props){
+  const [tab,setTab]=useState<"profile"|"schedule"|"security"|"data">("profile");
   const [user,setUser]=useState<AccountUser|null>(null);
   const [first,setFirst]=useState("");const [last,setLast]=useState("");
   const [photo,setPhoto]=useState("");
   const [pending,setPending]=useState("");const [notice,setNotice]=useState("");
   const [email,setEmail]=useState("");const [password,setPassword]=useState("");const [repeat,setRepeat]=useState("");
   const [error,setError]=useState("");
+  const [confirmSignOut,setConfirmSignOut]=useState(false);
+  const [reset,setReset]=useState(dayStartMinutes);
+  const [zone,setZone]=useState(timeZone);
+  const zoneChoices=Array.from(new Set([timeZone,"Asia/Dhaka","UTC",...(typeof Intl.supportedValuesOf==="function"?Intl.supportedValuesOf("timeZone"):[])]))
+   .filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  useEffect(()=>{setReset(dayStartMinutes);setZone(timeZone)},[dayStartMinutes,timeZone]);
+
   const [loading,setLoading]=useState(true);
-  useEffect(()=>{const onKey=(e:KeyboardEvent)=>{if(e.key==="Escape"&&!pending)onClose()};window.addEventListener("keydown",onKey);return()=>window.removeEventListener("keydown",onKey)},[onClose,pending]);
+  useEffect(()=>{const onKey=(e:KeyboardEvent)=>{if(e.key==="Escape"&&!pending){if(confirmSignOut)setConfirmSignOut(false);else onClose()}};window.addEventListener("keydown",onKey);return()=>window.removeEventListener("keydown",onKey)},[onClose,pending,confirmSignOut]);
   const fileRef=useRef<HTMLInputElement>(null);
   const panelRef=useRef<HTMLElement>(null);
   useEffect(()=>{
@@ -74,6 +81,21 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
     clear();setPending(action);
     try{await handler()}catch(e){setError((e as Error).message)}finally{setPending("")}
   }
+  async function saveDaySettings(e:React.FormEvent){e.preventDefault();
+    await run("schedule",async()=>{
+      if(!userId)throw Error("Account is still loading. Try again.");
+      if(!Number.isInteger(reset)||reset<0||reset>720)throw Error("Choose a day start between 12:00 AM and 12:00 PM.");
+      try{new Intl.DateTimeFormat("en-US",{timeZone:zone})}
+      catch{throw Error("Choose a valid time zone.")}
+      await api(url,apiKey,token,"/rest/v1/user_preferences?on_conflict=user_id",{
+        method:"POST",headers:{"Content-Type":"application/json",Prefer:"resolution=merge-duplicates"},
+        body:JSON.stringify({user_id:userId,day_start_minutes:reset,time_zone:zone})
+      });
+      onDaySettingsChanged(zone,reset);
+      setNotice("Daily reset saved. Existing logs keep their recorded dates.");
+    });
+  }
+  const resetValue=String(Math.floor(reset/60)).padStart(2,"0")+":"+String(reset%60).padStart(2,"0");
   async function saveProfile(e:React.FormEvent){e.preventDefault();if(!user)return;
     await run("profile",async()=>{
       const a=first.trim(),b=last.trim();
@@ -126,8 +148,8 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
   }
   async function downloadData(){
     await run("export",async()=>{
-      const [habits,habit_entries,work_sessions]=await Promise.all(["habits","habit_entries","work_sessions"].map(table=>exportRows(url,apiKey,token,table)));
-      const payload={exported_at:new Date().toISOString(),account_email:displayEmail,profile:{first_name:first,last_name:last},habits,habit_entries,work_sessions};
+      const [habits,habit_entries,work_sessions,user_preferences]=await Promise.all([..."habits,habit_entries,work_sessions".split(","),].map(table=>exportRows(url,apiKey,token,table)).concat([api(url,apiKey,token,"/rest/v1/user_preferences?select=*")]));
+      const payload={exported_at:new Date().toISOString(),account_email:displayEmail,profile:{first_name:first,last_name:last},habits,habit_entries,work_sessions,user_preferences};
       const data=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));
       const link=document.createElement("a");link.href=data;link.download="heavyuser-backup-"+new Date().toISOString().slice(0,10)+".json";document.body.append(link);link.click();link.remove();
       setTimeout(()=>URL.revokeObjectURL(data),2000);
@@ -147,9 +169,10 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
       <div className="account-layout">
         <nav className="account-tabs" aria-label="Account sections">
           <button type="button" aria-current={tab==="profile"?"page":undefined} className={tab==="profile"?"selected":""} onClick={()=>{setTab("profile");clear()}}>Profile</button>
+          <button type="button" aria-current={tab==="schedule"?"page":undefined} className={tab==="schedule"?"selected":""} onClick={()=>{setTab("schedule");clear()}}>Day & calendar</button>
           <button type="button" aria-current={tab==="security"?"page":undefined} className={tab==="security"?"selected":""} onClick={()=>{setTab("security");clear()}}>Email & password</button>
           <button type="button" aria-current={tab==="data"?"page":undefined} className={tab==="data"?"selected":""} onClick={()=>{setTab("data");clear()}}>Data & privacy</button>
-        <button type="button" className="account-tab-signout" onClick={onLogout} title="Sign out of this browser">Sign out</button>
+        <button type="button" className="account-tab-signout" disabled={!!pending} onClick={()=>setConfirmSignOut(true)} title="Sign out of this browser">Sign out</button>
         </nav>
         <div className="account-content">
           {loading?<p className="account-help">Loading your account…</p>:<>
@@ -161,6 +184,23 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
             </div>
             <form className="account-form" onSubmit={saveProfile}><div className="account-two"><label>First name<input autoComplete="given-name" maxLength={60} value={first} onChange={e=>setFirst(e.target.value)} placeholder="First name"/></label><label>Last name<input autoComplete="family-name" maxLength={60} value={last} onChange={e=>setLast(e.target.value)} placeholder="Last name"/></label></div><label>Current email<input readOnly value={displayEmail} aria-label="Current account email"/></label><div className="account-actions"><button className="primary" type="submit" disabled={!!pending}>{pending==="profile"?"Saving…":"Save profile"}</button></div></form>
           </div>}
+          {tab==="schedule"&&<div className="account-section">
+          <h3>When your day starts</h3>
+          <p className="account-help">Choose when HeavyUser switches to the next habit day. A habit recorded after midnight but before this time stays on the previous day.</p>
+          <form className="account-form" onSubmit={saveDaySettings}>
+            <label>New day starts at
+              <input type="time" required min="00:00" max="12:00" step="900" value={resetValue}
+                onChange={e=>{const [h,m]=e.target.value.split(":").map(Number);if(Number.isFinite(h)&&Number.isFinite(m))setReset(h*60+m)}}/>
+            </label>
+            <label>Time zone
+              <select value={zone} onChange={e=>setZone(e.target.value)}>{zoneChoices.map(z=><option value={z} key={z}>{z.replace(/_/g," ")}</option>)}</select>
+            </label>
+            <button type="button" className="account-link" onClick={()=>setZone(Intl.DateTimeFormat().resolvedOptions().timeZone||"Asia/Dhaka")}>Use device time zone</button>
+            <p className="account-help">Example: with 3:00 AM selected, checking off meditation at 1:30 AM on October 16 counts toward October 15.</p>
+            <p className="account-help"><strong>Existing records do not move.</strong> Changing this setting affects how new days and timer time are grouped. You can edit old entries manually.</p>
+            <div className="account-actions"><button type="submit" className="primary" disabled={!!pending||!userId}>{pending==="schedule"?"Saving…":"Save day settings"}</button></div>
+          </form>
+        </div>}
           {tab==="security"&&<div className="account-section">
             <h3>Change email address</h3><p className="account-help">We'll send confirmation instructions before switching your account email.</p>
             <form className="account-form" onSubmit={changeEmail}><label>New email address<input type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)}/></label><div className="account-actions"><button type="submit" className="account-secondary" disabled={!!pending}>{pending==="email"?"Sending…":"Request email change"}</button></div></form>
@@ -178,6 +218,21 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
           {error&&<p className="account-error" role="alert">{error}</p>}
         </div>
       </div>
+      {confirmSignOut&&<div className="account-signout-overlay">
+        <div className="account-signout-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-signout-title" aria-describedby="confirm-signout-message"
+          onKeyDown={e=>{if(e.key==="Escape"){e.stopPropagation();setConfirmSignOut(false)}
+          if(e.key!=="Tab")return;const controls=Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button:not([disabled])"));
+          if(e.shiftKey&&document.activeElement===controls[0]){e.preventDefault();controls.at(-1)?.focus()}
+          else if(!e.shiftKey&&document.activeElement===controls.at(-1)){e.preventDefault();controls[0]?.focus()}}}>
+          <h3 id="confirm-signout-title">Sign out of HeavyUser?</h3>
+          <p id="confirm-signout-message">You will need to sign in again to access your habits on this device.</p>
+          {pendingCounters>0&&<p className="account-warning">{pendingCounters} counter changes are still syncing. Wait until they finish before signing out.</p>}
+          <div className="account-signout-actions">
+            <button autoFocus type="button" className="account-secondary" onClick={()=>setConfirmSignOut(false)}>Stay signed in</button>
+            <button type="button" className="account-signout-final" disabled={pendingCounters>0} onClick={()=>{setConfirmSignOut(false);onLogout()}}>Sign out</button>
+          </div>
+        </div>
+      </div>}
     </section>
   </div>;
 }
