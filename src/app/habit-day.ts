@@ -83,7 +83,9 @@ export function fromZonedInput(value:string,zone:string):string|null{
  const [day,time]=value.split("T");
  if(!day||!time||!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw Error("Enter a valid local date and time");
  const mins=Number(time.slice(0,2))*60+Number(time.slice(3));
- return new Date(dayBoundaryInstant(day,zone,mins)).toISOString();
+ const iso=new Date(dayBoundaryInstant(day,zone,mins)).toISOString();
+ if(toZonedInput(iso,zone)!==value)throw Error("That local time does not exist because the clock changed. Choose another time.");
+ return iso;
 }
 export function recordedSessionMinutes(session:{
  started_at:string;ended_at:string|null;paused_at:string|null;paused_total_ms:number;
