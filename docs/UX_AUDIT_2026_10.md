@@ -7,7 +7,7 @@ Method: inspected actual React components, styles, action handlers and test suit
 - **Record first.** The daily check-off, quantity +/− and timer stay visible and one action away.
 - **Manage second.** Edit is clearly visible beside the selected habit name; lower-frequency Archive/Delete live next to it in a named, accessible More menu.
 - **One predictable location.** No separate Archive control in a distant panel or buried at the end of an unrelated form.
-- **Safe change.** Archive is reversible, while permanent Delete stays in Archive with exact-name confirmation. Never close a logging form on failed saving.
+- **Safe change.** Archive is immediate and reversible via Undo, while permanent Delete stays in Archive with exact-name confirmation. Never close a logging form on failed saving.
 - **Mobile-first touch.** Important targets are at least 44px, with a bottom-sheet modal and safe-area spacing.
 - **No lost work.** Every form has Cancel, Escape handling and a focus cycle; click outside never discards typed form data.
 
@@ -17,7 +17,7 @@ Method: inspected actual React components, styles, action handlers and test suit
 | 01 | High | Edit in header, Archive after charts/history | Place More adjacent to Edit in habit header; menu contains Archive |
 | 02 | High | Duplicate Archive controls inside Edit form and Details | Remove both duplicates; one top contextual action |
 | 03 | High | Archived Restore/Delete in a disconnected content panel | Restore in header; Delete in header's More menu |
-| 04 | High | Native browser confirm looks unrelated to product | Consistent in-app archive confirmation with context |
+| 04 | High | Native browser confirm adds a needless decision for reversible Archive | Archive immediately; show a clear Undo action |
 | 05 | High | No immediate way to reverse archive | In-app feedback with a direct Undo/Restore action |
 | 06 | Critical | Log/Sleep form closed even when network write failed | Save only closes after success, preserve typed inputs on errors |
 | 07 | High | Modals close when backdrop accidentally touched | Disable backdrop dismissal for data-entry and destructive dialogs |
