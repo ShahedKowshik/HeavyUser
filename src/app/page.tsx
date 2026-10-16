@@ -171,7 +171,7 @@ const chartMax=focused?Math.max(1,focused.kind==="sleep"?(focused.sleep_duration
 const statusFor=(h:Habit,date=day)=>{
   if(success(h,date))return "On target";
   if(!recordedFor(h,date))return "Not recorded";
-  if(h.kind==="quantity"&&h.direction==="at_most"&&date===ymd()&&(entry(h,date)?.value??Infinity)<=h.target)return "Within limit";
+  if(h.kind==="quantity"&&h.direction==="at_most")return (date===ymd()?displayedQuantity(h,date):(entry(h,date)?.value??Infinity))<=h.target?"Within limit":"Over limit";
   return "Below target";
 };
 const logout=()=>{if(token)fetch(URL+"/auth/v1/logout",{method:"POST",headers:{...baseHeaders(),Authorization:"Bearer "+token}}).catch(()=>{});localStorage.removeItem("heavyuser-session");setToken("");setUserId("");setAccount(null);setAccountAvatar("");setSettingsOpen(false);setRecoveryMode(false);setEmail("");setPassword("");setHabits([]);setEntries([]);setSessions([]);setQuantityEvents([])};
