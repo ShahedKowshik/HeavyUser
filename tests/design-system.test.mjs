@@ -23,7 +23,7 @@ test("compact master-detail layout replaces promotional dashboard",()=>{
 });
 test("habit and account flows preserved through styling change",()=>{
   const app=source();
-  for(const part of ['record(h)','timer(h,','<AccountSettings','getAvatar','recoverPassword','saveHabit','setSleepForm','setView("insights")'])assert.ok(app.includes(part),part);
+  for(const part of ['record(focused)','timer(focused,','<AccountSettings','getAvatar','recoverPassword','saveHabit','setSleepForm','setView("insights")'])assert.ok(app.includes(part),part);
 });
 test("focus, mobile layout, contrast and chart styling provided",()=>{
   const css=system();
