@@ -89,3 +89,10 @@ test("every management control works on phone-sized screens",()=>{
  assert.match(css,/env\(safe-area-inset-bottom\)/);
  assert.match(css,/\.modal-footer button\{min-height:44px\}/);
 });
+
+test("account settings Escape and close do not interrupt pending operations",()=>{
+ const s=account();
+ assert.match(s,/if\(e.key==="Escape"&&!pending\)onClose\(\)/);
+ assert.match(s,/aria-label="Close settings" disabled=\{!!pending\}/);
+ assert.match(s,/if\(e\.key!=="Tab"\)return/);
+});
