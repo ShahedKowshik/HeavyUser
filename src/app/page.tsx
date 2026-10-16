@@ -10,6 +10,7 @@ import "./compact.css";
 import "./tracker-enhancements.css";
 import "./habit-experience.css";
 import "./ux-consistency.css";
+import "./ui-audit.css";
 import AccountSettings,{getAccount,getAvatar,type AccountUser} from "./account-settings";
 type Habit={id:string;name:string;kind:"check"|"quantity"|"duration"|"sleep";icon:string;color:string;unit:string;target:number;direction:"at_least"|"at_most";schedule_days:number[];start_date:string;archived_at:string|null;sleep_bedtime_goal:string|null;sleep_wake_goal:string|null;sleep_duration_goal:number|null;frequency_mode:FrequencyMode;frequency_count:number;interval_days:number;sort_order:number};
 type Entry={id:string;habit_id:string;local_date:string;value:number|null;completed:boolean|null;confirmed:boolean;bed_at:string|null;asleep_at:string|null;awake_at:string|null;out_of_bed_at:string|null;target_snapshot:number|null;direction_snapshot:string|null;explicit_status?:string|null};
