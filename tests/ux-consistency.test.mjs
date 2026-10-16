@@ -60,7 +60,8 @@ test("calendar browsing is separate from choosing a tracking date",()=>{
 test("history editing has a visible selected date and returns to recording controls",()=>{
  const s=page();
  assert.match(s,/function jumpToHistoryDate\(date:string\)/);
- assert.match(s,/scrollTo\(\{top:0,behavior:"smooth"\}\)/);
+ assert.match(s,/scrollTo\(\{top:0,behavior\}\)/);
+ assert.match(s,/prefers-reduced-motion: reduce/);
  assert.match(s,/aria-current=\{day===d\?"date":undefined\}/);
 });
 test("selected habit, active checks and saved results have clear feedback",()=>{
