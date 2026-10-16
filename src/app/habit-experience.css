@@ -104,3 +104,6 @@
 .tracker-advanced summary{cursor:pointer;color:#525252;font-weight:650;font-size:12px;list-style-position:outside}
 .tracker-advanced>.fields-two{margin-top:13px}
 .tracker-advanced:focus-within summary{color:#171717}
+
+.tracker-week-cell-wrap{min-width:0;display:flex;align-items:stretch}
+.tracker-week-cell-wrap>.tracker-week-cell{width:100%;height:100%}
