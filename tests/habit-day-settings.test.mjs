@@ -120,3 +120,24 @@ test("Clock, entry form and stats use logical time but real timestamps remain fa
  assert.match(page,/effectiveToday\(\),versions/);
  assert.doesNotMatch(page,/new Date\(date\+"T00:00:00\+06:00"\)/);
 });
+
+test("A log dialog remembers its original habit day if reset occurs while the dialog is open",()=>{
+ const source=readFileSync("src/app/page.tsx","utf8");
+ assert.match(source,/const \[modalDate,setModalDate\]=useState\(ymd\(\)\)/);
+ assert.match(source,/setModalDate\(day\)/);
+ assert.match(source,/counter\.enqueue\(selected\.id,modalDate,"set",value\)/);
+ assert.match(source,/saveEntry\(selected,\{value:Number\(quantity\),confirmed:true\},modalDate\)/);
+ assert.match(source,/Recording for \{niceDate\(modalDate\)\}/);
+});
+test("History and direct quick actions cannot record before a future habit start",()=>{
+ const s=readFileSync("src/app/page.tsx","utf8");
+ assert.match(s,/day!==effectiveToday\(\)\|\|!isDue\(h,day,versions\)/);
+ assert.match(s,/disabled=\{saving\|\|day>effectiveToday\(\)\|\|!isDue\(h,day,versions\)\}/);
+ assert.match(s,/day<h\.start_date\?"Starts "\+niceDate\(h\.start_date\)/);
+});
+test("App waits for preferences instead of briefly showing an incorrect new day",()=>{
+ const s=readFileSync("src/app/page.tsx","utf8");
+ assert.match(s,/const \[prefsReady,setPrefsReady\]=useState\(false\)/);
+ assert.match(s,/setPrefsReady\(true\)/);
+ assert.match(s,/if\(!prefsReady\)return <main/);
+});
