@@ -30,7 +30,7 @@ export function WeeklyGrid({habits,entries,today,selectedDate,first,versions,val
            const e=entries.find(x=>x.habit_id===h.id&&x.local_date===d);
            const state=stateFor(h,d,e,(h.kind==="duration"||h.kind==="sleep")?valueFor(h,d):e?.value??undefined,today,versions);
            const isActionable=d<=today&&isDue(h,d,versions);
-           return <button type="button" key={d} role="cell" disabled={!isActionable} aria-label={short(d)+" "+label(state)+" — "+((h as MetricHabit&{name?:string}).name||"Habit")} title={short(d)+": "+label(state)} className={"tracker-week-cell state-"+state+(d===today?" today":"")} onClick={()=>h.kind==="check"?onCheck(h,d):onSelect(h,d)}>{character(state)}</button>;
+           return <div role="cell" key={d} className="tracker-week-cell-wrap"><button type="button" disabled={!isActionable} aria-label={short(d)+" "+label(state)+" — "+((h as MetricHabit&{name?:string}).name||"Habit")} title={short(d)+": "+label(state)} className={"tracker-week-cell state-"+state+(d===today?" today":"")} onClick={()=>h.kind==="check"?onCheck(h,d):onSelect(h,d)}>{character(state)}</button></div>;
           })}
           <span role="cell" className="tracker-week-goal">{schedule.frequency_mode==="weekly"||schedule.frequency_mode==="monthly"?p.done+"/"+p.required+(schedule.frequency_mode==="weekly"?" wk":" mo"):h.kind==="quantity"?"≤"+h.target:"—"}</span>
         </div>;
