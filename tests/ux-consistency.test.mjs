@@ -17,11 +17,13 @@ test("habit edit and archive share a visible management area in the details head
  assert.doesNotMatch(s,/className="compact-secondary-actions"/);
  assert.doesNotMatch(s,/className="danger-text" onClick=\{\(\)=>archiveHabit/);
 });
-test("archive confirmation is contextual, reversible and never uses a native confirm",()=>{
+test("archive is immediate and reversible; permanent deletion still confirms",()=>{
  const s=page();
- assert.match(s,/modal==="archive"/);
+ assert.doesNotMatch(s,/modal==="archive"/);
+ assert.match(s,/function requestArchive\(h:Habit\)\{setHabitMenuOpenId\(null\);void archiveHabit\(h\)\}/);
  assert.match(s,/Archive habit/);
  assert.match(s,/undoId:h.id/);
+ assert.match(s,/modal==="delete"/);
  assert.match(s,/void restoreHabit\(h\)/);
  assert.doesNotMatch(s,/\bconfirm\("Archive /);
 });
