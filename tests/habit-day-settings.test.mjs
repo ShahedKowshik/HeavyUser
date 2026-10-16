@@ -29,8 +29,9 @@ test("Timezone support includes unusual 45-minute Nepal offset",()=>{
 });
 test("Input reset range is validated; a timezone offset cannot become a reset time",()=>{
  assert.equal(safeDayStart(180),180);
- for(const n of [-1,721,NaN,180.5])assert.equal(safeDayStart(n),0);
+ for(const n of [-1,1440,NaN,180.5])assert.equal(safeDayStart(n),0);
  assert.equal(safeDayStart(720),720);
+ assert.equal(safeDayStart(1439),1439);
 });
 test("Day windows are continuous at the chosen boundary",()=>{
  const a=dayWindow("2026-10-15",zone,180);
@@ -94,6 +95,7 @@ test("Start date control and per-account settings are wired end-to-end",()=>{
  const account=readFileSync("src/app/account-settings.tsx","utf8");
  assert.match(page,/start_date:form\.start_date/);
  assert.match(page,/type="date" required value=\{form\.start_date\}/);
+ assert.match(page,/className="hu-day-boundary-note"/);
  assert.match(page,/selectedDate=\{day\}/);
  assert.match(page,/habitToday\(new Date\(now\),timeZone,dayStartMinutes\)/);
  assert.match(page,/recordedSessionMinutes\(s,date,timeZone,dayStartMinutes,now\)/);
