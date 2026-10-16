@@ -3,7 +3,11 @@
  * All stored events retain real UTC timestamps. Old daily records are never shifted
  * automatically when the user changes timezone or reset time.
  */
-import {addDays} from "./habit-metrics";
+function addDays(day:string,n:number):string{
+ const d=new Date(day+"T12:00:00Z");
+ d.setUTCDate(d.getUTCDate()+n);
+ return d.toISOString().slice(0,10);
+}
 export const DEFAULT_ZONE="Asia/Dhaka";
 export const DEFAULT_DAY_START=0;
 export const MAX_DAY_START=720;
