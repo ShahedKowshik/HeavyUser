@@ -1,11 +1,1 @@
-import type { Metadata } from "next";
-import "./globals.css";
-
-export const metadata: Metadata = {
-  title: "HeavyUser",
-  description: "A new HeavyUser is taking shape.",
-};
-
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
-}
+import type {Metadata} from "next";import "./globals.css";export const metadata:Metadata={title:"HeavyUser — Your daily practice",description:"A thoughtfully simple space to build consistency, track meaningful habits, and understand your progress."};export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="en"><body>{children}</body></html>}
