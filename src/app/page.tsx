@@ -12,7 +12,7 @@ import "./habit-experience.css";
 import AccountSettings,{getAccount,getAvatar,type AccountUser} from "./account-settings";
 type Habit={id:string;name:string;kind:"check"|"quantity"|"duration"|"sleep";icon:string;color:string;unit:string;target:number;direction:"at_least"|"at_most";schedule_days:number[];start_date:string;archived_at:string|null;sleep_bedtime_goal:string|null;sleep_wake_goal:string|null;sleep_duration_goal:number|null;frequency_mode:FrequencyMode;frequency_count:number;interval_days:number;sort_order:number};
 type Entry={id:string;habit_id:string;local_date:string;value:number|null;completed:boolean|null;confirmed:boolean;bed_at:string|null;asleep_at:string|null;awake_at:string|null;out_of_bed_at:string|null;target_snapshot:number|null;direction_snapshot:string|null;explicit_status?:string|null};
-type QuantityEvent={id:string;habit_id:string;user_id:string;local_date:string;action:"increment"|"decrement"|"set";delta:number|null;resulting_value:number;created_at:string};
+type QuantityEvent={id:string;habit_id:string;user_id:string;local_date:string;action:"increment"|"decrement"|"set"|"undo";delta:number|null;resulting_value:number;created_at:string};
 type Session={id:string;habit_id:string;started_at:string;ended_at:string|null;paused_at:string|null;paused_total_ms:number};
 const URL=process.env.NEXT_PUBLIC_SUPABASE_URL||"";
 const KEY=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||"";
@@ -241,8 +241,8 @@ return <div className="compact-app">
   <div className={"compact-layout "+(mobileDetail?"mobile-detail":"")}>
     {view==="week"?<div className="tracker-week-workspace">
       <div className="tracker-week-settings"><span>Week starts on</span><select aria-label="First day of week" value={weekFirst} onChange={e=>void updateWeekStart(Number(e.target.value)===0?0:1)}><option value={1}>Monday</option><option value={0}>Sunday</option></select></div>
-      <WeeklyGrid habits={live} entries={entries} today={ymd()} selectedDate={day} first={weekFirst} versions={versions} valueFor={(h,d)=>totals(h,d)}
-      onNavigate={chooseDate} onSelect={(h,d)=>{chooseDate(d);setCalendarDate(d);setFocusedId(h.id);setView("insights");setMobileDetail(true)}} onCheck={(h,d)=>{chooseDate(d);void statusChange(h,d,success(h,d)?null:"completed")}}/>
+      <WeeklyGrid habits={live} entries={entries} today={ymd()} selectedDate={day} first={weekFirst} versions={versions} valueFor={(h,d)=>totals(h as Habit,d)}
+      onNavigate={chooseDate} onSelect={(h,d)=>{chooseDate(d);setCalendarDate(d);setFocusedId(h.id);setView("insights");setMobileDetail(true)}} onCheck={(h,d)=>{chooseDate(d);void statusChange(h as Habit,d,success(h as Habit,d)?null:"completed")}}/>
     </div>:<>
     <section className="compact-list-pane" aria-label="Habit list">
       <div className="compact-list-head"><div><h1>{view==="archive"?"Archive":view==="today"?"Today":"All habits"}</h1><span className="compact-list-count">{listHabits.length} {listHabits.length===1?"habit":"habits"}</span></div><div className="tracker-list-top-actions"><button className="tracker-list-profile" onClick={()=>setSettingsOpen(true)} aria-label="Open account settings">{avatarNode}</button><button className="compact-add" onClick={newHabit} aria-label="Create habit"><Glyph name="plus" size={18}/></button>{view==="insights"&&<button type="button" className={"tracker-reorder-toggle "+(reorderMode?"active":"")} onClick={()=>setReorderMode(!reorderMode)}>{reorderMode?"Done":"Reorder"}</button>}</div></div>
