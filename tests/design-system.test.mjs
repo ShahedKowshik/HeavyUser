@@ -14,15 +14,16 @@ test("theme is imported last, after existing layout styles",()=>{
   assert.ok(app.indexOf('import "./dashboard.css"')<app.indexOf('import "./account.css"'));
   assert.ok(app.indexOf('import "./account.css"')<app.indexOf('import "./design-system.css"'));
 });
-test("dashboard momentum chart uses real habit-completion values",()=>{
+test("compact master-detail layout replaces promotional dashboard",()=>{
   const app=source();
-  assert.match(app,/conic-gradient\(var\(--chart-1\)/);
-  assert.match(app,/done\/scheduled.length\*100/);
-  assert.doesNotMatch(app,/className="orbit-star"/);
+  assert.match(app,/compact-list-pane/);assert.match(app,/compact-details/);
+  assert.match(app,/compact-history-table/);assert.match(app,/compact-chart/);
+  assert.doesNotMatch(app,/className="overview-art"/);
+  assert.doesNotMatch(app,/className="sidebar-tip"/);
 });
 test("habit and account flows preserved through styling change",()=>{
   const app=source();
-  for(const part of ['record(h)','timer(h,','<AccountSettings','getAvatar','recoverPassword','saveHabit','setSleepForm','setView("insights")'])assert.ok(app.includes(part),part);
+  for(const part of ['record(focused)','timer(focused,','<AccountSettings','getAvatar','recoverPassword','saveHabit','setSleepForm','setView("insights")'])assert.ok(app.includes(part),part);
 });
 test("focus, mobile layout, contrast and chart styling provided",()=>{
   const css=system();
