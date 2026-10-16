@@ -18,7 +18,7 @@
 
 ## Product decisions
 1. Current existing accounts retain midnight reset and Asia/Dhaka timezone until they change the setting. No surprise shifts.
-2. Account settings > Day & calendar: day starts at 00:00–12:00, using 15-minute inputs; user's IANA timezone is stored alongside the boundary.
+2. Account settings > Day & calendar: day starts at 00:00–23:59, using 15-minute inputs; user's IANA timezone is stored alongside the boundary.
 3. Date label is the logical day (the day on which its opening reset occurs). At Oct 16 01:30 AM with 03:00 cutoff, Today reads October 15.
 4. Every data action and analytics calculation accepts the same selected logical date. UTC timestamps remain real and never rewound.
 5. Changing preferences does not change existing entries' saved local_date or silently reassign old quantities.
