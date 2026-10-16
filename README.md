@@ -93,14 +93,18 @@ These checks run for pushes and pull requests against `main`. They do **not** ye
 | [Public launch checklist](docs/LAUNCH_CHECKLIST.md) | Remaining public-facing release preparations |
 
 
-## Project history
+<details>
+<summary>Explore the original HeavyUser (historical archive)</summary>
 
-HeavyUser's original application was developed between December 2025 and January 2026, before the current habit-tracker rebuild. To preserve that early work without maintaining another repository, its **complete original Git history (228 commits)** is available on the separate [`legacy/original-heavyuser` branch](https://github.com/ShahedKowshik/HeavyUser/tree/legacy/original-heavyuser).
+The original multi-purpose HeavyUser application was built between December 2025 and January 2026. Its **228 original commits** are preserved separately from the current habit-tracker application.
 
-- [First recorded commit (December 23, 2025)](https://github.com/ShahedKowshik/HeavyUser/tree/legacy-first-commit)
-- [Last version of the original app (January 20, 2026)](https://github.com/ShahedKowshik/HeavyUser/tree/legacy-original-v1)
+- [Read the original version's history, timeline and design decisions](https://github.com/ShahedKowshik/HeavyUser/blob/legacy/original-heavyuser/docs/ORIGINAL_VERSION_HISTORY.md).
+- [Browse the historical archive branch](https://github.com/ShahedKowshik/HeavyUser/tree/legacy/original-heavyuser).
+- [First commit (December 23, 2025)](https://github.com/ShahedKowshik/HeavyUser/tree/legacy-first-commit) · [Untouched original end state (January 20, 2026)](https://github.com/ShahedKowshik/HeavyUser/tree/legacy-original-v1).
 
-This historical code is preserved for reference, not maintained as part of the current product. The `main` branch remains the active application.
+This is historical source and public Git history, not a maintained application or backup of past account data.
+
+</details>
 
 ## Feedback, security, and contributions
 
