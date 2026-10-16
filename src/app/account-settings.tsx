@@ -148,7 +148,7 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
   }
   async function downloadData(){
     await run("export",async()=>{
-      const [habits,habit_entries,work_sessions,user_preferences]=await Promise.all([..."habits,habit_entries,work_sessions".split(","),].map(table=>exportRows(url,apiKey,token,table)).concat([api(url,apiKey,token,"/rest/v1/user_preferences?select=*")]));
+      const [habits,habit_entries,work_sessions,user_preferences]=await Promise.all([exportRows(url,apiKey,token,"habits"),exportRows(url,apiKey,token,"habit_entries"),exportRows(url,apiKey,token,"work_sessions"),api(url,apiKey,token,"/rest/v1/user_preferences?select=*")]);
       const payload={exported_at:new Date().toISOString(),account_email:displayEmail,profile:{first_name:first,last_name:last},habits,habit_entries,work_sessions,user_preferences};
       const data=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));
       const link=document.createElement("a");link.href=data;link.download="heavyuser-backup-"+new Date().toISOString().slice(0,10)+".json";document.body.append(link);link.click();link.remove();
