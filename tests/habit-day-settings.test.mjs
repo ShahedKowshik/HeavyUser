@@ -148,3 +148,12 @@ test("Day settings avoid changing the time boundary while updates are unsynced",
  assert.match(s,/disabled=\{!!pending\|\|!userId\|\|pendingCounters>0\}/);
  assert.match(s,/max="23:59" step="60"/);
 });
+
+test("Charts distinguish pre-start dates from unrecorded eligible dates",()=>{
+ const p=readFileSync("src/app/page.tsx","utf8");
+ const css=readFileSync("src/app/day-settings.css","utf8");
+ assert.match(p,/const due=isDue\(focused,d,versions\)&&d<=effectiveToday\(\)/);
+ assert.match(p,/!due\?"not-due"/);
+ assert.match(p,/Blank: not scheduled/);
+ assert.match(css,/\.compact-chart-bar\.not-due/);
+});
