@@ -121,11 +121,19 @@ async function statusChange(h:Habit,date:string,status:"completed"|"skipped"|"mi
  if(status===null&&old&&(old.value==null||h.kind==="check")){await clearEntry(h,date);return}
  await saveEntry(h,{explicit_status:status,...(h.kind==="check"?{completed:status==="completed",value:status==="completed"?1:null}:{})},date);
 }
+function canUndoEntry(h:Habit,date:string){
+ const revision=revisions.find(r=>r.habit_id===h.id&&r.local_date===date);
+ return !!revision&&!(revision.before_data?.completed===false&&revision.before_data?.explicit_status==="completed");
+}
 async function undoLastEntry(h:Habit,date:string){
  const key=h.id+":"+date;
  if(mutationLock.current.has(key)||saving)return;
  const item=revisions.find(r=>r.habit_id===h.id&&r.local_date===date);
  if(!item){setError("No recent edit is available to undo.");return}
+ if(item.before_data?.completed===false&&item.before_data?.explicit_status==="completed"){
+  setError("This old unchecked entry has already been corrected and cannot be restored.");
+  return;
+ }
  mutationLock.current.add(key);setSaving(true);setError("");
  try{await req("/rest/v1/rpc/undo_entry_revision",token,{method:"POST",
   body:JSON.stringify({p_revision_id:item.id,p_undo_id:crypto.randomUUID()})});await load()}
@@ -332,7 +340,7 @@ return <div className="compact-app">
               </div>
             </div>
             <div className="tracker-status-control"><label htmlFor="day-outcome">Day status</label><select id="day-outcome" disabled={saving||day>ymd()||!isDue(focused,day,versions)} value={focused.kind==="check"?dayState(focused)==="done"?"completed":focusedEntry?.explicit_status==="completed"?"":focusedEntry?.explicit_status||"":focusedEntry?.explicit_status||""} onChange={e=>void statusChange(focused,day,(e.target.value||null) as "completed"|"skipped"|"missed"|null)}><option value="">Automatic / clear</option>{focused.kind==="check"&&<option value="completed">Completed</option>}<option value="skipped">Skipped (planned break)</option><option value="missed">Missed</option></select>
-  {focused.kind==="quantity"?<button disabled={saving||counter.hasPending(focused.id,day)||!quantityEvents.some(e=>e.habit_id===focused.id&&e.local_date===day&&e.action!=="undo"&&e.id===quantityEvents.find(q=>q.habit_id===focused.id&&q.local_date===day)?.id)} onClick={()=>void undoQuantity(focused,day)}>Undo last count</button>:<button disabled={saving||!revisions.some(r=>r.habit_id===focused.id&&r.local_date===day)} onClick={()=>void undoLastEntry(focused,day)}>Undo last edit</button>}</div>
+  {focused.kind==="quantity"?<button disabled={saving||counter.hasPending(focused.id,day)||!quantityEvents.some(e=>e.habit_id===focused.id&&e.local_date===day&&e.action!=="undo"&&e.id===quantityEvents.find(q=>q.habit_id===focused.id&&q.local_date===day)?.id)} onClick={()=>void undoQuantity(focused,day)}>Undo last count</button>:<button disabled={saving||!canUndoEntry(focused,day)} onClick={()=>void undoLastEntry(focused,day)}>Undo last edit</button>}</div>
  {focused.kind==="sleep"&&focusedEntry?.awake_at&&<div className="compact-sleep-stats"><div><span>Bedtime</span><strong>{clock(focusedEntry.bed_at)}</strong></div><div><span>Asleep</span><strong>{clock(focusedEntry.asleep_at)}</strong></div><div><span>Wake</span><strong>{clock(focusedEntry.awake_at)}</strong></div><div><span>Out of bed</span><strong>{clock(focusedEntry.out_of_bed_at)}</strong></div></div>}
           </section>
           {(focused.frequency_mode==="weekly"||focused.frequency_mode==="monthly")&&<div className="tracker-goal-summary" role="status"><strong>{periodFor(focused).done} / {periodFor(focused).required}</strong><span>{focused.frequency_mode==="weekly"?"Completed days this week":"Completed days this month"} · {periodFor(focused).done>=periodFor(focused).required?"Goal reached":"In progress"}</span></div>}

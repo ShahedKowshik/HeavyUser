@@ -105,3 +105,11 @@ test("counter undo uses newest ordered event, and recent changes cannot be overw
  assert.match(page,/order=revision_order\.desc/);
  assert.match(page,/item\.action==="undo"/);
 });
+
+test("legacy Brush corrections cannot be undone into contradictory data",()=>{
+ const app=readFileSync("src/app/page.tsx","utf8");
+ assert.match(app,/function canUndoEntry\(h:Habit,date:string\)/);
+ assert.match(app,/revision\.before_data\?\.completed===false/);
+ assert.match(app,/!canUndoEntry\(focused,day\)/);
+ assert.match(app,/This old unchecked entry has already been corrected/);
+});
