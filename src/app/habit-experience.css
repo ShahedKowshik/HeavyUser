@@ -99,3 +99,8 @@
  .compact-bottom-nav button:nth-child(4){width:25%}
 }
 @media(max-width:390px){.tracker-extra-metrics strong{font-size:15px}.tracker-goal-summary{padding:12px}.tracker-month-grid{gap:2px}.tracker-month-day{padding:0}}
+
+.tracker-advanced{border-top:1px solid #e5e5e5;padding-top:10px}
+.tracker-advanced summary{cursor:pointer;color:#525252;font-weight:650;font-size:12px;list-style-position:outside}
+.tracker-advanced>.fields-two{margin-top:13px}
+.tracker-advanced:focus-within summary{color:#171717}
