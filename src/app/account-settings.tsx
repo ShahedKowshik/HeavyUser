@@ -84,7 +84,7 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
   async function saveDaySettings(e:React.FormEvent){e.preventDefault();
     await run("schedule",async()=>{
       if(!userId)throw Error("Account is still loading. Try again.");
-      if(!Number.isInteger(reset)||reset<0||reset>720)throw Error("Choose a day start between 12:00 AM and 12:00 PM.");
+      if(!Number.isInteger(reset)||reset<0||reset>1439)throw Error("Choose a valid time between 12:00 AM and 11:59 PM.");
       try{new Intl.DateTimeFormat("en-US",{timeZone:zone})}
       catch{throw Error("Choose a valid time zone.")}
       await api(url,apiKey,token,"/rest/v1/user_preferences?on_conflict=user_id",{
@@ -189,7 +189,7 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
           <p className="account-help">Choose when HeavyUser switches to the next habit day. A habit recorded after midnight but before this time stays on the previous day.</p>
           <form className="account-form" onSubmit={saveDaySettings}>
             <label>New day starts at
-              <input type="time" required min="00:00" max="12:00" step="900" value={resetValue}
+              <input type="time" required min="00:00" max="23:59" step="900" value={resetValue}
                 onChange={e=>{const [h,m]=e.target.value.split(":").map(Number);if(Number.isFinite(h)&&Number.isFinite(m))setReset(h*60+m)}}/>
             </label>
             <label>Time zone
