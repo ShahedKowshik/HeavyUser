@@ -29,7 +29,7 @@ Redesign the existing app around Things 3's calm, predictable list hierarchy and
 ## Acceptance / edge cases
 - No habits (progress 0/0 displayed as 0%, never NaN).
 - Check-off, quantity at-most and at-least, duration/timer, and sleep show the right action without a separate edit step.
-- Old dates remain editable via history, when user expands it.
+- Old dates remain editable via history, when user expands it. Archived habits retain their calendar for review.
 - Counter activity remains accessible to debug and undo.
 - Archive reachable on desktop nav and mobile More.
 - Reordering still enabled on All habits.
