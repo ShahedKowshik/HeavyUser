@@ -56,8 +56,18 @@ export function useQuantityQueue({url,apiKey,token,userId,onConfirmed,onSynced}:
       body:JSON.stringify({p_habit_id:op.habitId,p_action:op.action,p_event_id:op.id,p_date:op.date,p_value:op.action==="set"?op.value:null})
      });
      const result=await response.json().catch(()=>null);
-     if(!response.ok||!result||typeof result.value!=="number")
-      throw new Error(result?.message||result?.error||"Quantity record could not be saved.");
+     if(!response.ok||!result||typeof result.value!=="number"){
+      const message=result?.message||result?.error||"Quantity record could not be saved.";
+      if([400,404,422].includes(response.status)){
+       // The server has definitively rejected this operation. Revert the optimistic
+       // change instead of permanently blocking all subsequent queued events.
+       publish(queue.current.slice(1));
+       setSyncError("A change was rejected and reverted: "+message);
+       committed=true;
+       continue;
+      }
+      throw new Error(message);
+     }
      // Update the canonical value BEFORE removing the optimistic operation.
      callbacks.current.onConfirmed(result as QuantityConfirmation,op);
      publish(queue.current.slice(1));
@@ -114,5 +124,5 @@ export function useQuantityQueue({url,apiKey,token,userId,onConfirmed,onSynced}:
  const getProjected=useCallback((base:number,habitId:string,date:string)=>
   projectQuantity(base,operations,habitId,date),[operations]);
  const hasPending=useCallback((habitId:string,date?:string)=>operations.some(o=>o.habitId===habitId&&(!date||o.date===date)),[operations]);
- return {enqueue,flush,discard,getProjected,hasPending,operations,syncError,pendingCount:operations.length};
+ return {enqueue,flush,discard,getProjected,hasPending,operations,syncError,clearError:()=>setSyncError(""),pendingCount:operations.length};
 }
