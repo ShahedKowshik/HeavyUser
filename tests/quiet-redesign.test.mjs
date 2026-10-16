@@ -115,6 +115,6 @@ test("business logic remains untouched",()=>{
  assert.match(p,/async function undoQuantity/);
  assert.match(p,/function canUndoEntry/);
  assert.match(p,/async function saveReorder/);
- assert.match(metric,/export function stateFor/);
- assert.match(views,/export function WeeklyGrid/);
+ assert.match(metric(),/export function stateFor/);
+ assert.match(views(),/export function WeeklyGrid/);
 });
