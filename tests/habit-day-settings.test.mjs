@@ -20,10 +20,10 @@ test("Default is midnight, current user old behavior remains until chosen otherw
 test("Dates, month rollover, year rollover and leap day",()=>{
  assert.equal(habitToday(utc("2027-01-01T18:00:00Z"),zone,180),"2027-01-01");
  assert.equal(habitToday(utc("2028-02-29T19:00:00Z"),zone,180),"2028-02-29");
- assert.equal(habitToday(utc("2028-02-29T17:00:00Z"),zone,180),"2028-02-28");
+ assert.equal(habitToday(utc("2028-02-28T20:59:00Z"),zone,180),"2028-02-28");
 });
 test("Timezone support includes unusual 45-minute Nepal offset",()=>{
- assert.equal(habitToday(utc("2026-10-15T20:00:00Z"),"Asia/Kathmandu",180),"2026-10-16");
+ assert.equal(habitToday(utc("2026-10-15T21:15:00Z"),"Asia/Kathmandu",180),"2026-10-16");
  assert.equal(habitToday(utc("2026-10-15T19:30:00Z"),"Asia/Kathmandu",180),"2026-10-15");
  assert.equal(safeZone("This/Is-Not-A-Zone"),"Asia/Dhaka");
 });
