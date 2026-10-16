@@ -46,7 +46,7 @@ test("keyboard and touch modals are accessible and prevent unintentional dismiss
 test("all input forms provide cancel, and failures do not close data-entry modals",()=>{
  const s=page();
  assert.match(s,/async function saveEntry\(h:Habit,patch:Record<string,unknown>,date=day\):Promise<boolean>/);
- assert.match(s,/if\(await saveEntry\(selected,\{value:Number\(quantity\),confirmed:true\}\)\)setModal\(null\)/);
+ assert.match(s,/if\(await saveEntry\(selected,\{value:Number\(quantity\),confirmed:true\},modalDate\)\)setModal\(null\)/);
  assert.match(s,/if\(await saveEntry\(selected,\{\.\.\.data,value:minute/);
  assert.match(s,/compact-form-cancel/);
 });
