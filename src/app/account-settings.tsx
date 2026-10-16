@@ -190,7 +190,7 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
           <p className="account-help">Choose when HeavyUser switches to the next habit day. A habit recorded after midnight but before this time stays on the previous day.</p>
           <form className="account-form" onSubmit={saveDaySettings}>
             <label>New day starts at
-              <input type="time" required min="00:00" max="23:59" step="900" value={resetValue}
+              <input type="time" required min="00:00" max="23:59" step="60" value={resetValue}
                 onChange={e=>{const [h,m]=e.target.value.split(":").map(Number);if(Number.isFinite(h)&&Number.isFinite(m))setReset(h*60+m)}}/>
             </label>
             <label>Time zone
