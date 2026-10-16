@@ -84,6 +84,7 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
   async function saveDaySettings(e:React.FormEvent){e.preventDefault();
     await run("schedule",async()=>{
       if(!userId)throw Error("Account is still loading. Try again.");
+      if(pendingCounters>0)throw Error("Wait until all "+pendingCounters+" counter changes finish syncing before changing your day settings.");
       if(!Number.isInteger(reset)||reset<0||reset>1439)throw Error("Choose a valid time between 12:00 AM and 11:59 PM.");
       try{new Intl.DateTimeFormat("en-US",{timeZone:zone})}
       catch{throw Error("Choose a valid time zone.")}
@@ -198,7 +199,8 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
             <button type="button" className="account-link" onClick={()=>setZone(Intl.DateTimeFormat().resolvedOptions().timeZone||"Asia/Dhaka")}>Use device time zone</button>
             <p className="account-help">Example: with 3:00 AM selected, checking off meditation at 1:30 AM on October 16 counts toward October 15.</p>
             <p className="account-help"><strong>Existing records do not move.</strong> Changing this setting affects how new days and timer time are grouped. You can edit old entries manually.</p>
-            <div className="account-actions"><button type="submit" className="primary" disabled={!!pending||!userId}>{pending==="schedule"?"Saving…":"Save day settings"}</button></div>
+            {pendingCounters>0&&<p className="account-warning" role="status">Waiting for {pendingCounters} unsynced counter changes before these settings can be saved.</p>}
+            <div className="account-actions"><button type="submit" className="primary" disabled={!!pending||!userId||pendingCounters>0}>{pending==="schedule"?"Saving…":"Save day settings"}</button></div>
           </form>
         </div>}
           {tab==="security"&&<div className="account-section">
