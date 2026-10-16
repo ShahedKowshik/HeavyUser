@@ -10,7 +10,7 @@ function addDays(day:string,n:number):string{
 }
 export const DEFAULT_ZONE="Asia/Dhaka";
 export const DEFAULT_DAY_START=0;
-export const MAX_DAY_START=720;
+export const MAX_DAY_START=1439;
 export function safeZone(zone:string):string{
  try{new Intl.DateTimeFormat("en-US",{timeZone:zone}).format(0);return zone}
  catch{return DEFAULT_ZONE}
