@@ -141,3 +141,10 @@ test("App waits for preferences instead of briefly showing an incorrect new day"
  assert.match(s,/setPrefsReady\(true\)/);
  assert.match(s,/if\(!prefsReady\)return <main/);
 });
+
+test("Day settings avoid changing the time boundary while updates are unsynced",()=>{
+ const s=readFileSync("src/app/account-settings.tsx","utf8");
+ assert.match(s,/if\(pendingCounters>0\)throw Error\("Wait until all "/);
+ assert.match(s,/disabled=\{!!pending\|\|!userId\|\|pendingCounters>0\}/);
+ assert.match(s,/max="23:59" step="60"/);
+});
