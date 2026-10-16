@@ -115,3 +115,14 @@
  .tracker-record-quantity .compact-record-actions{gap:8px}
  .compact-sleep-stats{grid-template-columns:repeat(2,1fr)}
 }
+
+.tracker-list-top-actions{display:flex;align-items:center;gap:9px}
+.tracker-list-profile{display:none;width:32px;height:32px;border:1px solid var(--border);background:#fafafa;color:#171717;overflow:hidden;border-radius:50%;place-items:center;font-size:11px;font-weight:680;padding:0}
+.tracker-list-profile .profile-picture{width:100%;height:100%;object-fit:cover}
+.tracker-list-timer{display:flex;align-items:center;gap:7px}
+.tracker-list-timer>.tracker-list-value{font-size:11px}
+@media(max-width:650px){
+ .tracker-list-profile{display:grid;width:37px;height:37px}
+ .compact-list-head .compact-add{width:37px;height:37px}
+ .tracker-list-timer{gap:5px}
+}
