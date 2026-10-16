@@ -1,16 +1,101 @@
-# HeavyUser 2.0 — Habit Tracker MVP
-A focused daily habit tracker for check-off, quantity, duration, and detailed sleep habits.
-## Technology
-Next.js 16 / React 19 / Supabase Auth + Postgres (RLS) / Vercel.
-## Environment
-Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in Vercel; values are public client configuration (never use the secret/service role key).
-## Local development
-Node 24: `npm ci && npm run dev`.
-## Validate
-`npm run typecheck`, `npm test`, `npm run build`.
-## Design
-Design system preset: [shadcn/ui Lyra, Neutral, Inter, Lucide](https://ui.shadcn.com/create?preset=buFywKm). Its semantic token foundation and styling are maintained in `src/app/design-system.css`; reference documentation is in `DESIGN_SYSTEM.md`. The app retains its existing native React controls while the preset-aligned visual styling is applied; the full shadcn/Base UI component packages are not installed.
+# HeavyUser
 
-Responsive Today dashboard, insights, create/edit habits, historical log, detailed sleep entry, pause/resume duration tracking. Uses native fetch for Supabase Auth and PostgREST; no extra runtime dependency.
-## Limitations
-Recordings are personal estimates; sleep does not represent clinical measurement. Insights are introductory. Advanced reminders and integrations excluded.
+**Track habits clearly. Understand your progress. Keep showing up.**
+
+HeavyUser is a focused habit tracker for people who want a practical daily workspace, flexible goals, and a clearer picture of their consistency — without turning every unrecorded day into a failure.
+
+[**Open HeavyUser**](https://web.heavyuser.app) · [Report an issue](https://github.com/ShahedKowshik/HeavyUser/issues/new/choose) · [Read the product guide](docs/PRODUCT_GUIDE.md)
+
+[![Quality checks](https://github.com/ShahedKowshik/HeavyUser/actions/workflows/ci.yml/badge.svg)](https://github.com/ShahedKowshik/HeavyUser/actions/workflows/ci.yml)
+
+> **Project status:** Early-stage product (v0.1). The application is evolving; features and behavior may change. This repository is public for transparency, but it does not currently include an open-source license.
+
+## What you can do
+
+| Capability | How it helps |
+| --- | --- |
+| **Daily check-ins** | Mark simple habits done and review what is due today. |
+| **Flexible schedules** | Set specific days, intervals, or weekly/monthly targets instead of forcing everything into a daily streak. |
+| **Different ways to track** | Use check-offs, quantities, duration sessions, or detailed sleep records. |
+| **Week and calendar views** | See your habit activity across days and review individual records. |
+| **Progress and insights** | Explore streaks, recorded-day coverage, trends, and habit-specific statistics. |
+| **Correct mistakes** | Edit historical records and undo supported changes, with safeguards against conflicting updates. |
+| **Keep your history** | Archive habits without erasing their records; permanent deletion requires confirmation. |
+| **Account and data controls** | Manage account details and download an export of core habit data. |
+
+**The core principle:** *Not recorded* is different from *missed*. HeavyUser distinguishes completed, partial, skipped, explicitly missed, and unrecorded days so that the dashboard and statistics communicate what was actually logged.
+
+For examples and behavior definitions, see the [product guide](docs/PRODUCT_GUIDE.md).
+
+## Try it
+
+Visit **[web.heavyuser.app](https://web.heavyuser.app)** on desktop or mobile. Sign in or create an account to start recording habits.
+
+This is an actively developed product. If something behaves unexpectedly, please [report a reproducible bug](https://github.com/ShahedKowshik/HeavyUser/issues/new/choose). Do not include private habit data, authentication tokens, or other sensitive account information in public issues.
+
+## For developers
+
+HeavyUser currently uses:
+
+- **Application:** Next.js 16, React 19, TypeScript
+- **Backend:** Supabase Authentication, PostgreSQL/PostgREST, and Storage
+- **Hosting:** Vercel
+- **Design:** Custom React controls and semantic CSS tokens, aligned with a shadcn/ui Lyra visual preset; the shadcn component library itself is **not** installed
+- **Quality checks:** TypeScript type checking, Node's built-in test runner, and a production build in GitHub Actions
+
+### Repository map
+
+```text
+.github/               CI workflow and collaboration templates
+docs/                  Product, engineering, and QA documentation
+src/app/               Next.js interface, page logic, and styling
+src/lib/               Shared utilities
+tests/                 Automated tests
+DESIGN_SYSTEM.md       UI tokens and visual standards
+WORKSPACE.md           Workspace layout and data-deletion behavior
+```
+
+### Run the frontend locally
+
+Requires **Node.js 24** and npm.
+
+```bash
+npm ci
+cp .env.example .env.local
+# Fill in the two public Supabase configuration values
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+**Important setup limitation:** A new Supabase project will **not** work just by providing credentials. The database schema, policies, and database functions used in production are not yet distributed as reproducible migrations in this repository. See [development setup](docs/DEVELOPMENT.md) before attempting a self-hosted installation. Never place Supabase secret/service-role keys in `NEXT_PUBLIC_*` variables.
+
+### Quality checks
+
+```bash
+npm run typecheck
+npm test
+npm run build
+```
+
+These checks run for pushes and pull requests against `main`. They do **not** yet establish full browser, accessibility, database-policy, or end-to-end test coverage.
+
+### Documentation
+
+| Start here | Purpose |
+| --- | --- |
+| [Product guide](docs/PRODUCT_GUIDE.md) | Tracking types, statuses, schedules, and recorded-data behavior |
+| [Architecture](docs/ARCHITECTURE.md) | System boundaries, storage, authentication, and known technical constraints |
+| [Development](docs/DEVELOPMENT.md) | Local commands, configuration, tests, and setup limitations |
+| [Design system](DESIGN_SYSTEM.md) | Existing UI styling rules and tokens |
+| [Habit design decisions](docs/HABIT_MRP.md) | Research and decisions behind the extended tracker |
+| [Data consistency QA](docs/DATA_CONSISTENCY_QA.md) | Documented invariants and previously investigated undo issues |
+| [Public launch checklist](docs/LAUNCH_CHECKLIST.md) | Remaining public-facing release preparations |
+
+## Feedback, security, and contributions
+
+Feature requests and non-sensitive bug reports are welcome through [GitHub Issues](https://github.com/ShahedKowshik/HeavyUser/issues). Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing code changes. For security issues, follow [SECURITY.md](SECURITY.md) **instead of opening a public issue**.
+
+**Source availability is not an open-source license.** No permission to redistribute or reuse this project's code is implied by the repository being public. Licensing and broader contribution policy have not yet been finalized.
+
+Maintained by [Shahed Kowshik](https://github.com/ShahedKowshik).

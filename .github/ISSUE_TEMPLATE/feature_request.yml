@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest a product improvement and the user problem it solves.
+title: "Idea: "
+labels: []
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Focus on the real situation rather than a specific implementation.
+      placeholder: "I track a weekly habit but don't want to select a fixed weekday..."
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: How do you handle this today?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What would a useful solution look like?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or examples (optional)
+      description: Links to comparable tools or a small example are useful.
