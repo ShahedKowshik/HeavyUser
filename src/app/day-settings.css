@@ -1,0 +1,56 @@
+
+/* Custom day controls and deliberate sign-out confirmation — neutral Lyra. */
+.account-panel .account-form input[type="time"],
+.account-panel .account-form select{
+  display:block;width:100%;min-height:44px;
+  border:1px solid #d4d4d4;background:#fff;color:#171717;
+  border-radius:2px;font:inherit;font-size:14px;
+  padding:10px 12px;margin-top:7px;
+}
+.account-panel .account-form input[type="time"]:focus-visible,
+.account-panel .account-form select:focus-visible{
+  outline:2px solid #404040;outline-offset:2px;
+}
+.account-panel .account-form .account-help strong{font-weight:690;color:#262626}
+.account-panel .account-signout-overlay{
+  position:absolute;inset:0;z-index:20;
+  display:flex;align-items:center;justify-content:center;
+  padding:24px;background:#00000073;
+}
+.account-panel{position:relative}
+.account-panel .account-signout-dialog{
+  width:100%;max-width:420px;
+  border:1px solid #d4d4d4;border-radius:2px;
+  background:#fff;padding:22px 23px;
+  box-shadow:0 15px 42px #00000024;
+}
+.account-panel .account-signout-dialog h3{font-size:20px;margin:0 0 10px;letter-spacing:-.3px}
+.account-panel .account-signout-dialog p{
+  font-size:13px;line-height:1.55;color:#525252;margin:0 0 20px;
+}
+.account-panel .account-signout-dialog .account-warning{
+  padding:9px 11px;background:#fff7ed;border:1px solid #f4d3aa;color:#7c3814;
+}
+.account-panel .account-signout-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.account-panel .account-signout-actions button{
+  min-height:44px;padding:10px 15px;border-radius:2px;
+  font:inherit;font-size:13px;font-weight:650;
+}
+.account-panel .account-signout-final{background:#171717;border:1px solid #171717;color:white}
+.account-panel .account-signout-final:disabled{background:#a3a3a3;border-color:#a3a3a3;cursor:not-allowed}
+.account-panel .account-signout-final:not(:disabled):hover{background:#353535}
+.modal .modal-form input[type="date"]{
+  min-height:44px;width:100%;font-size:14px;border-radius:2px;
+}
+.modal .modal-form .form-hint{
+  display:block;margin-top:5px;font-size:12px;line-height:1.5;color:#626262;
+}
+.hu-day-boundary-note{font-size:11px;color:#626262;line-height:1.45}
+@media(max-width:650px){
+  .account-panel .account-signout-overlay{padding:14px}
+  .account-panel .account-signout-dialog{padding:21px 16px}
+  .account-panel .account-form input[type="time"],
+  .account-panel .account-form select,
+  .modal .modal-form input[type="date"]{font-size:16px}
+}
+@media(prefers-reduced-motion:reduce){.account-panel .account-signout-dialog{transition:none}}
