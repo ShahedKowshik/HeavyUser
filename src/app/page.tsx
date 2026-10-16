@@ -9,6 +9,7 @@ import "./design-system.css";
 import "./compact.css";
 import "./tracker-enhancements.css";
 import "./habit-experience.css";
+import "./ux-consistency.css";
 import AccountSettings,{getAccount,getAvatar,type AccountUser} from "./account-settings";
 type Habit={id:string;name:string;kind:"check"|"quantity"|"duration"|"sleep";icon:string;color:string;unit:string;target:number;direction:"at_least"|"at_most";schedule_days:number[];start_date:string;archived_at:string|null;sleep_bedtime_goal:string|null;sleep_wake_goal:string|null;sleep_duration_goal:number|null;frequency_mode:FrequencyMode;frequency_count:number;interval_days:number;sort_order:number};
 type Entry={id:string;habit_id:string;local_date:string;value:number|null;completed:boolean|null;confirmed:boolean;bed_at:string|null;asleep_at:string|null;awake_at:string|null;out_of_bed_at:string|null;target_snapshot:number|null;direction_snapshot:string|null;explicit_status?:string|null};
@@ -29,8 +30,35 @@ const baseHeaders=()=>({"apikey":KEY,"Content-Type":"application/json"});
 function Glyph({name,size=19}:{name:string;size?:number}){const paths:Record<string,React.ReactNode>={grid:<><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></>,chart:<><path d="M3 3v18h18"/><path d="m7 15 4-5 4 3 5-7"/></>,plus:<path d="M12 5v14M5 12h14"/>,minus:<path d="M5 12h14"/>,moon:<path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z"/>,sun:<><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></>,timer:<><circle cx="12" cy="13" r="9"/><path d="M12 8v5l3 2M9 2h6"/></>,check:<path d="m5 12 4 4L19 6"/>,chevron:<path d="m9 18 6-6-6-6"/>,left:<path d="m15 18-6-6 6-6"/>,close:<path d="M18 6 6 18M6 6l12 12"/>,edit:<><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></>,more:<><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></>,coffee:<><path d="M4 8h12v8a6 6 0 0 1-12 0Z"/><path d="M16 9h2a3 3 0 0 1 0 6h-2M3 21h15"/></>,leaf:<><path d="M20 4C11 4 4 8 4 16a4 4 0 0 0 4 4C16 20 20 13 20 4Z"/><path d="M4 20c4-5 8-8 13-11"/></>,activity:<path d="M3 12h4l3-7 4 14 3-7h4"/>,logout:<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></>,pause:<path d="M9 5v14M15 5v14"/>,play:<path d="m8 5 11 7-11 7Z"/>,square:<rect x="5" y="5" width="14" height="14" rx="2"/>,trash:<><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></>,archive:<><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v12h14V8m-10 4h6"/></>,calendar:<><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/></>};return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]||paths.activity}</svg>}
 async function req(path:string,token:string,init:RequestInit={}){const response=await fetch(URL+path,{...init,headers:{...baseHeaders(),Authorization:"Bearer "+token,...init.headers}});const raw=await response.text();let data;try{data=raw?JSON.parse(raw):null}catch{data=null}if(!response.ok)throw Error(data?.msg||data?.error_description||data?.message||data?.error||"Request failed");return data}
 const emptyForm={name:"",kind:"check" as Habit["kind"],target:1,unit:"",direction:"at_least" as Habit["direction"],schedule_days:[0,1,2,3,4,5,6],icon:"activity",color:"sage",sleep_bedtime_goal:"",sleep_wake_goal:"",sleep_duration_goal:480,frequency_mode:"selected_days" as FrequencyMode,frequency_count:3,interval_days:2};
-export default function Home(){const [token,setToken]=useState("");const [userId,setUserId]=useState("");const [account,setAccount]=useState<AccountUser|null>(null);const [accountAvatar,setAccountAvatar]=useState("");const [settingsOpen,setSettingsOpen]=useState(false);const [recoveryMode,setRecoveryMode]=useState(false);const [newPassword,setNewPassword]=useState("");const [newPasswordAgain,setNewPasswordAgain]=useState("");const [authNotice,setAuthNotice]=useState("");const [authLoading,setAuthLoading]=useState(true);const [authMode,setAuthMode]=useState<"signin"|"signup"|"forgot">("signin");const [email,setEmail]=useState("");const [password,setPassword]=useState("");const [view,setView]=useState<"today"|"week"|"insights"|"archive">("today");const [focusedId,setFocusedId]=useState<string|null>(null);const [mobileDetail,setMobileDetail]=useState(false);const [deleteText,setDeleteText]=useState("");const [day,setDay]=useState(ymd());const [habits,setHabits]=useState<Habit[]>([]);const [entries,setEntries]=useState<Entry[]>([]);const [sessions,setSessions]=useState<Session[]>([]);const [quantityEvents,setQuantityEvents]=useState<QuantityEvent[]>([]);const [versions,setVersions]=useState<ScheduleVersion[]>([]);const [revisions,setRevisions]=useState<Array<{id:string;habit_id:string;local_date:string;operation:string;before_data:Record<string,unknown>|null;after_data:Record<string,unknown>|null;changed_at:string;revision_order:number}>>([]);const [weekFirst,setWeekFirst]=useState<0|1>(1);const [reorderMode,setReorderMode]=useState(false);const [dragId,setDragId]=useState<string|null>(null);const [calendarDate,setCalendarDate]=useState(ymd());const [lastAction,setLastAction]=useState<{habitId:string;date:string;at:number}|null>(null);const [historySpan,setHistorySpan]=useState<7|14|30>(14);const [modal,setModal]=useState<"create"|"log"|"sleep"|"detail"|"delete"|null>(null);const [selected,setSelected]=useState<Habit|null>(null);const [form,setForm]=useState(emptyForm);const [quantity,setQuantity]=useState("");const [sleepForm,setSleepForm]=useState({bed_at:"",asleep_at:"",awake_at:"",out_of_bed_at:""});const [error,setError]=useState("");const [busy,setBusy]=useState(false);const [now,setNow]=useState(Date.now());const [editing,setEditing]=useState(false);const [saving,setSaving]=useState(false);const mutationLock=useRef(new Set<string>());const loadVersion=useRef(0);
+export default function Home(){const [token,setToken]=useState("");const [userId,setUserId]=useState("");const [account,setAccount]=useState<AccountUser|null>(null);const [accountAvatar,setAccountAvatar]=useState("");const [settingsOpen,setSettingsOpen]=useState(false);const [recoveryMode,setRecoveryMode]=useState(false);const [newPassword,setNewPassword]=useState("");const [newPasswordAgain,setNewPasswordAgain]=useState("");const [authNotice,setAuthNotice]=useState("");const [authLoading,setAuthLoading]=useState(true);const [authMode,setAuthMode]=useState<"signin"|"signup"|"forgot">("signin");const [email,setEmail]=useState("");const [password,setPassword]=useState("");const [view,setView]=useState<"today"|"week"|"insights"|"archive">("today");const [focusedId,setFocusedId]=useState<string|null>(null);const [mobileDetail,setMobileDetail]=useState(false);const [deleteText,setDeleteText]=useState("");const [day,setDay]=useState(ymd());const [habits,setHabits]=useState<Habit[]>([]);const [entries,setEntries]=useState<Entry[]>([]);const [sessions,setSessions]=useState<Session[]>([]);const [quantityEvents,setQuantityEvents]=useState<QuantityEvent[]>([]);const [versions,setVersions]=useState<ScheduleVersion[]>([]);const [revisions,setRevisions]=useState<Array<{id:string;habit_id:string;local_date:string;operation:string;before_data:Record<string,unknown>|null;after_data:Record<string,unknown>|null;changed_at:string;revision_order:number}>>([]);const [weekFirst,setWeekFirst]=useState<0|1>(1);const [reorderMode,setReorderMode]=useState(false);const [dragId,setDragId]=useState<string|null>(null);const [calendarDate,setCalendarDate]=useState(ymd());const [lastAction,setLastAction]=useState<{habitId:string;date:string;at:number}|null>(null);const [historySpan,setHistorySpan]=useState<7|14|30>(14);const [modal,setModal]=useState<"create"|"log"|"sleep"|"detail"|"delete"|"archive"|null>(null);const [selected,setSelected]=useState<Habit|null>(null);const [form,setForm]=useState(emptyForm);const [quantity,setQuantity]=useState("");const [sleepForm,setSleepForm]=useState({bed_at:"",asleep_at:"",awake_at:"",out_of_bed_at:""});const [error,setError]=useState("");const [busy,setBusy]=useState(false);const [now,setNow]=useState(Date.now());const [editing,setEditing]=useState(false);const [saving,setSaving]=useState(false);const [habitMenuOpenId,setHabitMenuOpenId]=useState<string|null>(null);const [notice,setNotice]=useState<{message:string;undoId?:string}|null>(null);const habitMenuRef=useRef<HTMLDivElement|null>(null);const dialogRef=useRef<HTMLDivElement|null>(null);const priorFocus=useRef<HTMLElement|null>(null);const mutationLock=useRef(new Set<string>());const loadVersion=useRef(0);
 useEffect(()=>{const t=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(t)},[]);
+useEffect(()=>{
+ if(!habitMenuOpenId)return;
+ const outside=(event:PointerEvent)=>{if(!habitMenuRef.current?.contains(event.target as Node))setHabitMenuOpenId(null)};
+ const escape=(event:KeyboardEvent)=>{if(event.key==="Escape"){setHabitMenuOpenId(null);}};
+ document.addEventListener("pointerdown",outside);document.addEventListener("keydown",escape);
+ return()=>{document.removeEventListener("pointerdown",outside);document.removeEventListener("keydown",escape)};
+},[habitMenuOpenId]);
+useEffect(()=>{setHabitMenuOpenId(null)},[focusedId,view]);
+useEffect(()=>{
+ if(!modal)return;
+ priorFocus.current=document.activeElement as HTMLElement|null;
+ const frame=requestAnimationFrame(()=>{const target=dialogRef.current?.querySelector<HTMLElement>("[autofocus],input,select,textarea,button");target?.focus()});
+ return()=>{cancelAnimationFrame(frame);priorFocus.current?.focus()};
+},[modal]);
+function closeModal(){if(saving)return;setModal(null)}
+function dialogKeyDown(e:React.KeyboardEvent<HTMLDivElement>){
+ if(e.key==="Escape"){e.stopPropagation();closeModal();return}
+ if(e.key!=="Tab")return;
+ const controls=Array.from(e.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex="0"]')).filter(x=>x.getClientRects().length>0);
+ const first=controls[0],last=controls.at(-1);
+ if(!first||!last)return;
+ if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}
+ else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
+}
+function requestArchive(h:Habit){setHabitMenuOpenId(null);setSelected(h);setModal("archive")}
+function requestHabitDelete(h:Habit){setHabitMenuOpenId(null);requestDelete(h)}
+
 useEffect(()=>{try{
   const params=new URLSearchParams(window.location.hash.slice(1));
   const access=params.get("access_token"),refreshToken=params.get("refresh_token"),kind=params.get("type");
@@ -110,7 +138,7 @@ const success=(h:Habit,date=day)=>dayState(h,date)==="done";
 const done=scheduled.filter(h=>success(h)).length;
 const previousWeek=weekStart(day,weekFirst);
 const periodFor=(h:Habit,date=day)=>periodProgress(h,date,entries,ymd(),versions,d=>totals(h,d),weekFirst);
-function chooseDate(date:string){setDay(date);setCalendarDate(date)}
+function chooseDate(date:string){setDay(date);setCalendarDate(date);setHabitMenuOpenId(null)}
 async function updateWeekStart(next:0|1){const previous=weekFirst;setWeekFirst(next);try{await req("/rest/v1/user_preferences?on_conflict=user_id",token,{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:userId,week_starts_on:next})})}catch(e){setWeekFirst(previous);setError((e as Error).message)}}
 async function statusChange(h:Habit,date:string,status:"completed"|"skipped"|"missed"|null){
  if(date>ymd()||!isDue(h,date,versions))return;
@@ -168,8 +196,8 @@ function shiftHabit(id:string,step:-1|1){const ids=live.map(h=>h.id),i=ids.index
 
 const active=sessions.find(s=>!s.ended_at);
 const periods=[...Array(7)].map((_,i)=>shift(day,i-6));
-async function saveEntry(h:Habit,patch:Record<string,unknown>,date=day){
- const key=h.id+":"+date;if(mutationLock.current.has(key))return;
+async function saveEntry(h:Habit,patch:Record<string,unknown>,date=day):Promise<boolean>{
+ const key=h.id+":"+date;if(mutationLock.current.has(key))return false;
  mutationLock.current.add(key);setSaving(true);setError("");
  try{
   if(date>ymd()||!isDue(h,date,versions))throw Error("That date isn't scheduled for this habit.");
@@ -181,8 +209,8 @@ async function saveEntry(h:Habit,patch:Record<string,unknown>,date=day){
   if(Object.prototype.hasOwnProperty.call(patch,"explicit_status"))body.explicit_status=patch.explicit_status as null;
   await req("/rest/v1/habit_entries?on_conflict=habit_id,local_date",token,{method:"POST",
    headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify(body)});
-  await load();
- }catch(e){setError((e as Error).message)}finally{mutationLock.current.delete(key);setSaving(false)}
+  await load();return true;
+ }catch(e){setError((e as Error).message);return false}finally{mutationLock.current.delete(key);setSaving(false)}
 }
 async function clearEntry(h:Habit,date:string){
  const key=h.id+":"+date;if(mutationLock.current.has(key))return;
@@ -199,20 +227,19 @@ async function toggleCheck(h:Habit,date:string){
  else await saveEntry(h,{completed:true,value:1,explicit_status:"completed"},date);
 }
 async function record(h:Habit){if(h.kind==="quantity"){if(day===ymd())adjustQuantity(h,1);else{setSelected(h);setQuantity(String(h.kind==="quantity"?displayedQuantity(h):entry(h)?.value??""));setModal("log")}return}if(h.kind==="check"){await toggleCheck(h,day)}else if(h.kind==="sleep"){setSelected(h);const e=entry(h);setSleepForm({bed_at:datetimeLocal(e?.bed_at||null),asleep_at:datetimeLocal(e?.asleep_at||null),awake_at:datetimeLocal(e?.awake_at||null),out_of_bed_at:datetimeLocal(e?.out_of_bed_at||null)});setModal("sleep")}else{setSelected(h);setQuantity(String(entry(h)?.value??""));setModal("log")}}
-function newHabit(){setEditing(false);setSelected(null);setForm({...emptyForm,schedule_days:[...emptyForm.schedule_days]});setModal("create")}
-function editHabit(h:Habit){setSelected(h);setEditing(true);setForm({name:h.name,kind:h.kind,target:h.target,unit:h.unit,direction:h.direction,schedule_days:[...h.schedule_days],icon:h.icon,color:h.color,sleep_bedtime_goal:h.sleep_bedtime_goal||"",sleep_wake_goal:h.sleep_wake_goal||"",sleep_duration_goal:h.sleep_duration_goal||480,frequency_mode:h.frequency_mode||"selected_days",frequency_count:h.frequency_count||3,interval_days:h.interval_days||2});setModal("create")}
-async function saveHabit(ev:React.FormEvent){ev.preventDefault();setSaving(true);setError("");try{if(form.frequency_mode==="weekly"&&(form.frequency_count<1||form.frequency_count>7))throw Error("Choose 1–7 days per week.");if(form.frequency_mode==="monthly"&&(form.frequency_count<1||form.frequency_count>31))throw Error("Choose 1–31 days per month.");const body={...form,name:form.name.trim(),user_id:userId,start_date:selected?.start_date||ymd(),sleep_bedtime_goal:form.sleep_bedtime_goal||null,sleep_wake_goal:form.sleep_wake_goal||null,sleep_duration_goal:form.kind==="sleep"?Number(form.sleep_duration_goal)||null:null,frequency_mode:form.direction==="at_most"?"selected_days":form.frequency_mode,frequency_count:form.frequency_count,interval_days:form.interval_days};if(editing&&selected)await req("/rest/v1/habits?id=eq."+selected.id,token,{method:"PATCH",body:JSON.stringify(body)});else await req("/rest/v1/habits",token,{method:"POST",body:JSON.stringify(body)});setModal(null);await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}}
+function newHabit(){setHabitMenuOpenId(null);setEditing(false);setSelected(null);setForm({...emptyForm,schedule_days:[...emptyForm.schedule_days]});setModal("create")}
+function editHabit(h:Habit){setHabitMenuOpenId(null);setSelected(h);setEditing(true);setForm({name:h.name,kind:h.kind,target:h.target,unit:h.unit,direction:h.direction,schedule_days:[...h.schedule_days],icon:h.icon,color:h.color,sleep_bedtime_goal:h.sleep_bedtime_goal||"",sleep_wake_goal:h.sleep_wake_goal||"",sleep_duration_goal:h.sleep_duration_goal||480,frequency_mode:h.frequency_mode||"selected_days",frequency_count:h.frequency_count||3,interval_days:h.interval_days||2});setModal("create")}
+async function saveHabit(ev:React.FormEvent){ev.preventDefault();setSaving(true);setError("");try{if(form.frequency_mode==="weekly"&&(form.frequency_count<1||form.frequency_count>7))throw Error("Choose 1–7 days per week.");if(form.frequency_mode==="monthly"&&(form.frequency_count<1||form.frequency_count>31))throw Error("Choose 1–31 days per month.");const body={...form,name:form.name.trim(),user_id:userId,start_date:selected?.start_date||ymd(),sleep_bedtime_goal:form.sleep_bedtime_goal||null,sleep_wake_goal:form.sleep_wake_goal||null,sleep_duration_goal:form.kind==="sleep"?Number(form.sleep_duration_goal)||null:null,frequency_mode:form.direction==="at_most"?"selected_days":form.frequency_mode,frequency_count:form.frequency_count,interval_days:form.interval_days};if(editing&&selected)await req("/rest/v1/habits?id=eq."+selected.id,token,{method:"PATCH",body:JSON.stringify(body)});else await req("/rest/v1/habits",token,{method:"POST",body:JSON.stringify(body)});setModal(null);await load();setNotice({message:editing?"Habit changes saved":"Habit created"})}catch(e){setError((e as Error).message)}finally{setSaving(false)}}
 async function archiveHabit(h:Habit){
   if(counter.hasPending(h.id)){setError("Wait for this habit’s unsaved counter updates to sync before archiving.");return}
   if(sessions.some(s=>s.habit_id===h.id&&!s.ended_at)){setError("Stop this habit's timer before archiving.");return}
-  if(!confirm("Archive "+h.name+"? You can restore it later."))return;
   setSaving(true);setError("");
-  try{await req("/rest/v1/habits?id=eq."+h.id+"&user_id=eq."+userId,token,{method:"PATCH",body:JSON.stringify({archived_at:new Date().toISOString()})});setModal(null);setMobileDetail(false);await load()}
+  try{await req("/rest/v1/habits?id=eq."+h.id+"&user_id=eq."+userId,token,{method:"PATCH",body:JSON.stringify({archived_at:new Date().toISOString()})});setModal(null);setMobileDetail(false);await load();setNotice({message:h.name+" archived",undoId:h.id})}
   catch(e){setError((e as Error).message)}finally{setSaving(false)}
 }
 async function restoreHabit(h:Habit){
   setSaving(true);setError("");
-  try{await req("/rest/v1/habits?id=eq."+h.id+"&user_id=eq."+userId,token,{method:"PATCH",body:JSON.stringify({archived_at:null})});setMobileDetail(false);await load()}
+  try{await req("/rest/v1/habits?id=eq."+h.id+"&user_id=eq."+userId,token,{method:"PATCH",body:JSON.stringify({archived_at:null})});setView("insights");setFocusedId(h.id);setMobileDetail(true);await load();setNotice({message:h.name+" restored"})}
   catch(e){setError((e as Error).message)}finally{setSaving(false)}
 }
 function requestDelete(h:Habit){if(!h.archived_at){setError("Archive this habit before deleting it permanently.");return}setSelected(h);setDeleteText("");setModal("delete")}
@@ -225,7 +252,7 @@ async function permanentlyDeleteHabit(h:Habit){
     const deleted=await req("/rest/v1/habits?id=eq."+h.id+"&user_id=eq."+userId+"&archived_at=not.is.null&select=id",token,{method:"DELETE",headers:{Prefer:"return=representation"}});
     if(!Array.isArray(deleted)||deleted.length!==1||deleted[0].id!==h.id)throw Error("Deletion could not be confirmed. Please retry.");
     setModal(null);setFocusedId(null);setMobileDetail(false);setDeleteText("");
-    await load();
+    await load();setNotice({message:h.name+" permanently deleted"});
   }catch(e){setError((e as Error).message)}finally{setSaving(false)}
 }
 
@@ -267,7 +294,7 @@ const statusFor=(h:Habit,date=day)=>({
  skipped:"Skipped",missed:"Missed",partial:"In progress",
  on_track:"Within limit",over_limit:"Over limit"
 }[dayState(h,date)]);
-const logout=()=>{loadVersion.current++;if(token)fetch(URL+"/auth/v1/logout",{method:"POST",headers:{...baseHeaders(),Authorization:"Bearer "+token}}).catch(()=>{});localStorage.removeItem("heavyuser-session");setToken("");setUserId("");setAccount(null);setAccountAvatar("");setSettingsOpen(false);setRecoveryMode(false);setEmail("");setPassword("");setHabits([]);setEntries([]);setSessions([]);setQuantityEvents([]);setVersions([]);setRevisions([])};
+const logout=()=>{setNotice(null);loadVersion.current++;if(token)fetch(URL+"/auth/v1/logout",{method:"POST",headers:{...baseHeaders(),Authorization:"Bearer "+token}}).catch(()=>{});localStorage.removeItem("heavyuser-session");setToken("");setUserId("");setAccount(null);setAccountAvatar("");setSettingsOpen(false);setRecoveryMode(false);setEmail("");setPassword("");setHabits([]);setEntries([]);setSessions([]);setQuantityEvents([]);setVersions([]);setRevisions([])};
 const profileName=[account?.user_metadata?.first_name,account?.user_metadata?.last_name].filter(Boolean).join(" ")||"My workspace";const profileInitial=String(account?.user_metadata?.first_name||account?.email||"H").slice(0,1).toUpperCase();const avatarNode=accountAvatar?<img src={accountAvatar} alt="" className="profile-picture" />:profileInitial;
 if(!URL||!KEY)return <main className="auth-screen"><div className="auth-card"><strong>HeavyUser</strong><h1>Configuration required</h1><p>Add the Supabase public URL and publishable key to Vercel environment settings.</p></div></main>;
 if(authLoading)return <main className="auth-screen"><p>Loading HeavyUser…</p></main>;
