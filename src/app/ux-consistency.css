@@ -78,3 +78,7 @@
  .modal-footer{flex-wrap:wrap}
 }
 @media(prefers-reduced-motion:reduce){.compact-feedback,.compact-habit-menu{animation:none!important;transition:none!important}}
+
+.account-tabs button{min-height:44px}
+.account-header .account-icon-btn{min-width:44px;min-height:44px}
+@media(max-width:650px){.account-tabs button{min-height:44px}}
