@@ -128,15 +128,15 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
       setNotice("Your private data export has been downloaded.");
     });
   }
-  return <div className="account-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
+  return <div className="account-backdrop">
     <section className="account-panel" role="dialog" aria-modal="true" aria-labelledby="account-title">
-      <header className="account-header"><div><div className="eyebrow accent">YOUR WORKSPACE</div><h2 id="account-title">Account settings</h2><p>Manage your personal information and account security.</p></div><button className="account-icon-btn" type="button" aria-label="Close settings" onClick={onClose}>×</button></header>
+      <header className="account-header"><div><h2 id="account-title">Account settings</h2><p>Profile, security and data</p></div><button className="account-icon-btn" type="button" aria-label="Close settings" onClick={onClose}>×</button></header>
       <div className="account-layout">
         <nav className="account-tabs" aria-label="Account sections">
-          <button type="button" className={tab==="profile"?"selected":""} onClick={()=>{setTab("profile");clear()}}>Profile</button>
-          <button type="button" className={tab==="security"?"selected":""} onClick={()=>{setTab("security");clear()}}>Email & password</button>
-          <button type="button" className={tab==="data"?"selected":""} onClick={()=>{setTab("data");clear()}}>Data & privacy</button>
-        <button type="button" className="account-tab-signout" onClick={onLogout}>Sign out</button>
+          <button type="button" aria-current={tab==="profile"?"page":undefined} className={tab==="profile"?"selected":""} onClick={()=>{setTab("profile");clear()}}>Profile</button>
+          <button type="button" aria-current={tab==="security"?"page":undefined} className={tab==="security"?"selected":""} onClick={()=>{setTab("security");clear()}}>Email & password</button>
+          <button type="button" aria-current={tab==="data"?"page":undefined} className={tab==="data"?"selected":""} onClick={()=>{setTab("data");clear()}}>Data & privacy</button>
+        <button type="button" className="account-tab-signout" onClick={onLogout} title="Sign out of this browser">Sign out</button>
         </nav>
         <div className="account-content">
           {loading?<p className="account-help">Loading your account…</p>:<>
@@ -156,11 +156,9 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
             <form className="account-form" onSubmit={changePassword}><label>New password<input required type="password" autoComplete="new-password" minLength={8} value={password} onChange={e=>setPassword(e.target.value)}/></label><label>Confirm new password<input required type="password" autoComplete="new-password" minLength={8} value={repeat} onChange={e=>setRepeat(e.target.value)}/></label><div className="account-actions"><button type="submit" className="primary" disabled={!!pending}>{pending==="password"?"Updating…":"Update password"}</button></div></form>
           </div>}
           {tab==="data"&&<div className="account-section">
-            <h3>Your information stays yours</h3><p className="account-help">Your habits and logs are private to your account. Photos are stored in a private bucket, not as publicly accessible images.</p>
+            <h3>Data and privacy</h3><p className="account-help">Your habits and records belong to your account. Your profile photo is stored privately.</p>
             <div className="account-export"><div><strong>Download your data</strong><p>Get a JSON backup of your habits, records and work sessions.</p></div><button type="button" className="account-secondary" disabled={!!pending} onClick={downloadData}>{pending==="export"?"Preparing…":"Export data"}</button></div>
-            <div className="account-rule"/>
-            <h3>Session</h3><p className="account-help">Sign out of this browser without deleting your habits or profile.</p>
-            <button type="button" className="account-signout" onClick={onLogout}>Sign out of HeavyUser</button>
+            
           </div>}
           </>}
           {notice&&<p className="account-notice" role="status">{notice}</p>}
