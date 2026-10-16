@@ -1,5 +1,5 @@
 "use client";
-import {useEffect,useMemo,useState} from "react";
+import {useEffect,useMemo,useRef,useState} from "react";
 import {WeeklyGrid,MonthHeatmap} from "./habit-views";
 import {isDue,stateFor,effectiveSchedule,periodProgress,streaks,badHabitInsights,weekStart,addDays,type ScheduleVersion,type FrequencyMode} from "./habit-metrics";
 import {useQuantityQueue,type QuantityConfirmation,type QuantityOperation} from "./use-quantity-counter";
@@ -12,7 +12,7 @@ import "./habit-experience.css";
 import AccountSettings,{getAccount,getAvatar,type AccountUser} from "./account-settings";
 type Habit={id:string;name:string;kind:"check"|"quantity"|"duration"|"sleep";icon:string;color:string;unit:string;target:number;direction:"at_least"|"at_most";schedule_days:number[];start_date:string;archived_at:string|null;sleep_bedtime_goal:string|null;sleep_wake_goal:string|null;sleep_duration_goal:number|null;frequency_mode:FrequencyMode;frequency_count:number;interval_days:number;sort_order:number};
 type Entry={id:string;habit_id:string;local_date:string;value:number|null;completed:boolean|null;confirmed:boolean;bed_at:string|null;asleep_at:string|null;awake_at:string|null;out_of_bed_at:string|null;target_snapshot:number|null;direction_snapshot:string|null;explicit_status?:string|null};
-type QuantityEvent={id:string;habit_id:string;user_id:string;local_date:string;action:"increment"|"decrement"|"set"|"undo";delta:number|null;resulting_value:number;created_at:string};
+type QuantityEvent={id:string;habit_id:string;user_id:string;local_date:string;action:"increment"|"decrement"|"set"|"undo";event_order?:number;delta:number|null;resulting_value:number;created_at:string};
 type Session={id:string;habit_id:string;started_at:string;ended_at:string|null;paused_at:string|null;paused_total_ms:number};
 const URL=process.env.NEXT_PUBLIC_SUPABASE_URL||"";
 const KEY=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||"";
@@ -29,7 +29,7 @@ const baseHeaders=()=>({"apikey":KEY,"Content-Type":"application/json"});
 function Glyph({name,size=19}:{name:string;size?:number}){const paths:Record<string,React.ReactNode>={grid:<><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></>,chart:<><path d="M3 3v18h18"/><path d="m7 15 4-5 4 3 5-7"/></>,plus:<path d="M12 5v14M5 12h14"/>,minus:<path d="M5 12h14"/>,moon:<path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z"/>,sun:<><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></>,timer:<><circle cx="12" cy="13" r="9"/><path d="M12 8v5l3 2M9 2h6"/></>,check:<path d="m5 12 4 4L19 6"/>,chevron:<path d="m9 18 6-6-6-6"/>,left:<path d="m15 18-6-6 6-6"/>,close:<path d="M18 6 6 18M6 6l12 12"/>,edit:<><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></>,more:<><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></>,coffee:<><path d="M4 8h12v8a6 6 0 0 1-12 0Z"/><path d="M16 9h2a3 3 0 0 1 0 6h-2M3 21h15"/></>,leaf:<><path d="M20 4C11 4 4 8 4 16a4 4 0 0 0 4 4C16 20 20 13 20 4Z"/><path d="M4 20c4-5 8-8 13-11"/></>,activity:<path d="M3 12h4l3-7 4 14 3-7h4"/>,logout:<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></>,pause:<path d="M9 5v14M15 5v14"/>,play:<path d="m8 5 11 7-11 7Z"/>,square:<rect x="5" y="5" width="14" height="14" rx="2"/>,trash:<><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></>,archive:<><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v12h14V8m-10 4h6"/></>,calendar:<><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/></>};return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]||paths.activity}</svg>}
 async function req(path:string,token:string,init:RequestInit={}){const response=await fetch(URL+path,{...init,headers:{...baseHeaders(),Authorization:"Bearer "+token,...init.headers}});const raw=await response.text();let data;try{data=raw?JSON.parse(raw):null}catch{data=null}if(!response.ok)throw Error(data?.msg||data?.error_description||data?.message||data?.error||"Request failed");return data}
 const emptyForm={name:"",kind:"check" as Habit["kind"],target:1,unit:"",direction:"at_least" as Habit["direction"],schedule_days:[0,1,2,3,4,5,6],icon:"activity",color:"sage",sleep_bedtime_goal:"",sleep_wake_goal:"",sleep_duration_goal:480,frequency_mode:"selected_days" as FrequencyMode,frequency_count:3,interval_days:2};
-export default function Home(){const [token,setToken]=useState("");const [userId,setUserId]=useState("");const [account,setAccount]=useState<AccountUser|null>(null);const [accountAvatar,setAccountAvatar]=useState("");const [settingsOpen,setSettingsOpen]=useState(false);const [recoveryMode,setRecoveryMode]=useState(false);const [newPassword,setNewPassword]=useState("");const [newPasswordAgain,setNewPasswordAgain]=useState("");const [authNotice,setAuthNotice]=useState("");const [authLoading,setAuthLoading]=useState(true);const [authMode,setAuthMode]=useState<"signin"|"signup"|"forgot">("signin");const [email,setEmail]=useState("");const [password,setPassword]=useState("");const [view,setView]=useState<"today"|"week"|"insights"|"archive">("today");const [focusedId,setFocusedId]=useState<string|null>(null);const [mobileDetail,setMobileDetail]=useState(false);const [deleteText,setDeleteText]=useState("");const [day,setDay]=useState(ymd());const [habits,setHabits]=useState<Habit[]>([]);const [entries,setEntries]=useState<Entry[]>([]);const [sessions,setSessions]=useState<Session[]>([]);const [quantityEvents,setQuantityEvents]=useState<QuantityEvent[]>([]);const [versions,setVersions]=useState<ScheduleVersion[]>([]);const [revisions,setRevisions]=useState<Array<{id:string;habit_id:string;local_date:string;operation:string;before_data:Record<string,unknown>|null;after_data:Record<string,unknown>|null;changed_at:string}>>([]);const [weekFirst,setWeekFirst]=useState<0|1>(1);const [reorderMode,setReorderMode]=useState(false);const [dragId,setDragId]=useState<string|null>(null);const [calendarDate,setCalendarDate]=useState(ymd());const [lastAction,setLastAction]=useState<{habitId:string;date:string;at:number}|null>(null);const [historySpan,setHistorySpan]=useState<7|14|30>(14);const [modal,setModal]=useState<"create"|"log"|"sleep"|"detail"|"delete"|null>(null);const [selected,setSelected]=useState<Habit|null>(null);const [form,setForm]=useState(emptyForm);const [quantity,setQuantity]=useState("");const [sleepForm,setSleepForm]=useState({bed_at:"",asleep_at:"",awake_at:"",out_of_bed_at:""});const [error,setError]=useState("");const [busy,setBusy]=useState(false);const [now,setNow]=useState(Date.now());const [editing,setEditing]=useState(false);const [saving,setSaving]=useState(false);
+export default function Home(){const [token,setToken]=useState("");const [userId,setUserId]=useState("");const [account,setAccount]=useState<AccountUser|null>(null);const [accountAvatar,setAccountAvatar]=useState("");const [settingsOpen,setSettingsOpen]=useState(false);const [recoveryMode,setRecoveryMode]=useState(false);const [newPassword,setNewPassword]=useState("");const [newPasswordAgain,setNewPasswordAgain]=useState("");const [authNotice,setAuthNotice]=useState("");const [authLoading,setAuthLoading]=useState(true);const [authMode,setAuthMode]=useState<"signin"|"signup"|"forgot">("signin");const [email,setEmail]=useState("");const [password,setPassword]=useState("");const [view,setView]=useState<"today"|"week"|"insights"|"archive">("today");const [focusedId,setFocusedId]=useState<string|null>(null);const [mobileDetail,setMobileDetail]=useState(false);const [deleteText,setDeleteText]=useState("");const [day,setDay]=useState(ymd());const [habits,setHabits]=useState<Habit[]>([]);const [entries,setEntries]=useState<Entry[]>([]);const [sessions,setSessions]=useState<Session[]>([]);const [quantityEvents,setQuantityEvents]=useState<QuantityEvent[]>([]);const [versions,setVersions]=useState<ScheduleVersion[]>([]);const [revisions,setRevisions]=useState<Array<{id:string;habit_id:string;local_date:string;operation:string;before_data:Record<string,unknown>|null;after_data:Record<string,unknown>|null;changed_at:string;revision_order:number}>>([]);const [weekFirst,setWeekFirst]=useState<0|1>(1);const [reorderMode,setReorderMode]=useState(false);const [dragId,setDragId]=useState<string|null>(null);const [calendarDate,setCalendarDate]=useState(ymd());const [lastAction,setLastAction]=useState<{habitId:string;date:string;at:number}|null>(null);const [historySpan,setHistorySpan]=useState<7|14|30>(14);const [modal,setModal]=useState<"create"|"log"|"sleep"|"detail"|"delete"|null>(null);const [selected,setSelected]=useState<Habit|null>(null);const [form,setForm]=useState(emptyForm);const [quantity,setQuantity]=useState("");const [sleepForm,setSleepForm]=useState({bed_at:"",asleep_at:"",awake_at:"",out_of_bed_at:""});const [error,setError]=useState("");const [busy,setBusy]=useState(false);const [now,setNow]=useState(Date.now());const [editing,setEditing]=useState(false);const [saving,setSaving]=useState(false);const mutationLock=useRef(new Set<string>());const loadVersion=useRef(0);
 useEffect(()=>{const t=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(t)},[]);
 useEffect(()=>{try{
   const params=new URLSearchParams(window.location.hash.slice(1));
@@ -48,7 +48,7 @@ useEffect(()=>{try{
 }catch{setError("Unable to restore your session. Please sign in again.")}setAuthLoading(false)},[]);
 async function refresh(rt:string){try{const r=await fetch(URL+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:baseHeaders(),body:JSON.stringify({refresh_token:rt})});const data=await r.json();if(!r.ok||!data.access_token)throw Error("Session expired.");localStorage.setItem("heavyuser-session",JSON.stringify({...data,expires_at:Math.floor(Date.now()/1000)+data.expires_in}));setToken(data.access_token);setUserId(data.user?.id||"")}catch{localStorage.removeItem("heavyuser-session");setToken("");setAccount(null);setUserId("");setError("Your session expired. Please sign in again.")}}
 useEffect(()=>{if(!token)return;const t=setInterval(()=>{try{const s=JSON.parse(localStorage.getItem("heavyuser-session")||"{}");if(s.expires_at&&s.expires_at*1000<Date.now()+180000&&s.refresh_token)refresh(s.refresh_token)}catch{}},60000);return()=>clearInterval(t)},[token]);
-async function load(){if(!token)return;try{const [h,e,s,q,v,a,p]=await Promise.all([req("/rest/v1/habits?select=*&order=sort_order.asc,created_at.asc",token),req("/rest/v1/habit_entries?select=*&order=local_date.desc&limit=5000",token),req("/rest/v1/work_sessions?select=*&order=started_at.desc&limit=1000",token),req("/rest/v1/quantity_events?select=*&order=created_at.desc&limit=4000",token),req("/rest/v1/habit_schedule_versions?select=*&order=effective_date.asc&limit=5000",token),req("/rest/v1/entry_revisions?select=*&order=changed_at.desc&limit=300",token),req("/rest/v1/user_preferences?select=week_starts_on",token)]);setHabits(h);setEntries(e);setSessions(s);setQuantityEvents(q);setVersions(v);setRevisions(a);if(p?.[0])setWeekFirst(p[0].week_starts_on===0?0:1);setError("")}catch(e){setError((e as Error).message)}}
+async function load(){if(!token)return;const version=++loadVersion.current;try{const [h,e,s,q,v,a,p]=await Promise.all([req("/rest/v1/habits?select=*&order=sort_order.asc,created_at.asc",token),req("/rest/v1/habit_entries?select=*&order=local_date.desc&limit=5000",token),req("/rest/v1/work_sessions?select=*&order=started_at.desc&limit=1000",token),req("/rest/v1/quantity_events?select=*&order=event_order.desc&limit=4000",token),req("/rest/v1/habit_schedule_versions?select=*&order=effective_date.asc&limit=5000",token),req("/rest/v1/entry_revisions?select=*&order=revision_order.desc&limit=300",token),req("/rest/v1/user_preferences?select=week_starts_on",token)]);if(version!==loadVersion.current)return;setHabits(h);setEntries(e);setSessions(s);setQuantityEvents(q);setVersions(v);setRevisions(a);if(p?.[0])setWeekFirst(p[0].week_starts_on===0?0:1);setError("")}catch(e){if(version===loadVersion.current)setError((e as Error).message)}}
 useEffect(()=>{load()},[token]);
 useEffect(()=>{const m=window.matchMedia("(max-width:650px)");setHistorySpan(m.matches?7:14)},[]);
 useEffect(()=>{if(!token)return;const refresh=()=>{if(document.visibilityState==="visible")void load()};window.addEventListener("focus",refresh);window.addEventListener("online",refresh);document.addEventListener("visibilitychange",refresh);const id=window.setInterval(refresh,30000);return()=>{window.removeEventListener("focus",refresh);window.removeEventListener("online",refresh);document.removeEventListener("visibilitychange",refresh);window.clearInterval(id)}},[token]);
@@ -75,10 +75,10 @@ const counter=useQuantityQueue({url:URL,apiKey:KEY,token,userId,
  onConfirmed:(result:QuantityConfirmation,op:QuantityOperation)=>{
   setEntries(previous=>{
    const old=previous.find(e=>e.habit_id===result.habit_id&&e.local_date===result.date);
-   const next:Entry=old?{...old,value:result.value,confirmed:true}:{
+   const next:Entry=old?{...old,value:result.value,confirmed:true,explicit_status:null}:{
     id:result.event_id,habit_id:result.habit_id,local_date:result.date,
     value:result.value,completed:null,confirmed:true,bed_at:null,asleep_at:null,awake_at:null,out_of_bed_at:null,
-    target_snapshot:habits.find(h=>h.id===result.habit_id)?.target??null,
+    explicit_status:null,target_snapshot:habits.find(h=>h.id===result.habit_id)?.target??null,
     direction_snapshot:habits.find(h=>h.id===result.habit_id)?.direction??null
    };
    return old?previous.map(e=>e===old?next:e):[next,...previous];
@@ -104,7 +104,9 @@ const weekday=new Date(day+"T12:00:00Z").getUTCDay();
 const scheduled=live.filter(h=>isDue(h,day,versions));
 const entry=(h:Habit,date=day)=>entries.find(e=>e.habit_id===h.id&&e.local_date===date);
 const totals=(h:Habit,date=day)=>{const e=entry(h,date);if(h.kind==="duration"){const manual=e?.value||0;const start=new Date(date+"T00:00:00+06:00").getTime(),end=start+86400000;return manual+sessions.filter(s=>s.habit_id===h.id).reduce((sum,s)=>{const a=Math.max(start,new Date(s.started_at).getTime()),b=Math.min(end,s.ended_at?new Date(s.ended_at).getTime():s.paused_at?new Date(s.paused_at).getTime():now);return sum+Math.max(0,b-a-s.paused_total_ms*(a===new Date(s.started_at).getTime()&&b===(s.ended_at?new Date(s.ended_at).getTime():s.paused_at?new Date(s.paused_at).getTime():now)?1:0))/60000},0)}if(h.kind==="sleep")return minute(e?.asleep_at||null,e?.awake_at||null)||0;return e?.value||0};
-const success=(h:Habit,date=day)=>{const currentEntry=entry(h,date);if(currentEntry?.explicit_status==="skipped"||currentEntry?.explicit_status==="missed")return false;if(currentEntry?.explicit_status==="completed")return true;const e=entry(h,date);if(h.kind==="check")return e?.completed===true;if(h.kind==="sleep")return !!(e?.asleep_at&&e?.awake_at&&totals(h,date)>=(h.sleep_duration_goal||0));if(h.kind==="duration")return totals(h,date)>=(e?.target_snapshot??h.target);if(!e?.confirmed)return false;return h.direction==="at_most"?(date<ymd()&&(e.value??Infinity)<=(e.target_snapshot??h.target)):(e.value??0)>=(e.target_snapshot??h.target)};
+// The list, grid, calendar and statistics share exactly one outcome calculation.
+const dayState=(h:Habit,date=day)=>stateFor(h,date,entry(h,date),h.kind==="quantity"?displayedQuantity(h,date):totals(h,date),ymd(),versions);
+const success=(h:Habit,date=day)=>dayState(h,date)==="done";
 const done=scheduled.filter(h=>success(h)).length;
 const previousWeek=weekStart(day,weekFirst);
 const periodFor=(h:Habit,date=day)=>periodProgress(h,date,entries,ymd(),versions,d=>totals(h,d),weekFirst);
@@ -116,22 +118,31 @@ async function statusChange(h:Habit,date:string,status:"completed"|"skipped"|"mi
  const old=entry(h,date);
  if(status==="skipped"&&h.kind==="quantity"&&old?.value!=null){setError("A count is recorded for this day. Clear or correct it before skipping.");return}
  if(status===null&&!old)return;
- if(status===null&&old&&(old.value==null||h.kind==="check")){
-  setSaving(true);try{await req("/rest/v1/habit_entries?habit_id=eq."+h.id+"&local_date=eq."+date,token,{method:"DELETE"});await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}
-  return;
- }
- await saveEntry(h,{explicit_status:status,...(h.kind==="check"?{completed:status==="completed"?true:status===null?null:false,value:status==="completed"?1:null}:{})},date);
+ if(status===null&&old&&(old.value==null||h.kind==="check")){await clearEntry(h,date);return}
+ await saveEntry(h,{explicit_status:status,...(h.kind==="check"?{completed:status==="completed",value:status==="completed"?1:null}:{})},date);
 }
 async function undoLastEntry(h:Habit,date:string){
+ const key=h.id+":"+date;
+ if(mutationLock.current.has(key)||saving)return;
  const item=revisions.find(r=>r.habit_id===h.id&&r.local_date===date);
  if(!item){setError("No recent edit is available to undo.");return}
- setSaving(true);try{await req("/rest/v1/rpc/undo_entry_revision",token,{method:"POST",body:JSON.stringify({p_revision_id:item.id,p_undo_id:crypto.randomUUID()})});await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}
+ mutationLock.current.add(key);setSaving(true);setError("");
+ try{await req("/rest/v1/rpc/undo_entry_revision",token,{method:"POST",
+  body:JSON.stringify({p_revision_id:item.id,p_undo_id:crypto.randomUUID()})});await load()}
+ catch(e){setError((e as Error).message)}
+ finally{mutationLock.current.delete(key);setSaving(false)}
 }
 async function undoQuantity(h:Habit,date:string){
+ const key=h.id+":"+date;
+ if(saving||mutationLock.current.has(key))return;
  if(counter.hasPending(h.id,date)){setError("Wait for pending counter changes to sync before undoing.");return}
- const item=quantityEvents.find(e=>e.habit_id===h.id&&e.local_date===date&&e.action!=="undo");
- if(!item){setError("No eligible counter update to undo.");return}
- setSaving(true);try{await req("/rest/v1/rpc/undo_quantity_event",token,{method:"POST",body:JSON.stringify({p_event_id:item.id,p_undo_id:crypto.randomUUID()})});await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}
+ const item=quantityEvents.find(e=>e.habit_id===h.id&&e.local_date===date);
+ if(!item||item.action==="undo"){setError("There is no newer count to undo.");return}
+ mutationLock.current.add(key);setSaving(true);setError("");
+ try{await req("/rest/v1/rpc/undo_quantity_event",token,{method:"POST",
+  body:JSON.stringify({p_event_id:item.id,p_undo_id:crypto.randomUUID()})});await load()}
+ catch(e){setError((e as Error).message)}
+ finally{mutationLock.current.delete(key);setSaving(false)}
 }
 async function saveReorder(ordered:string[]){
  setSaving(true);setError("");
@@ -149,8 +160,37 @@ function shiftHabit(id:string,step:-1|1){const ids=live.map(h=>h.id),i=ids.index
 
 const active=sessions.find(s=>!s.ended_at);
 const periods=[...Array(7)].map((_,i)=>shift(day,i-6));
-async function saveEntry(h:Habit,patch:Record<string,unknown>,date=day){setSaving(true);setError("");try{const old=entry(h,date);const body={...patch,habit_id:h.id,user_id:userId,local_date:date,target_snapshot:old?.target_snapshot??effectiveSchedule(h,date,versions).target,direction_snapshot:old?.direction_snapshot??effectiveSchedule(h,date,versions).direction};await req("/rest/v1/habit_entries?on_conflict=habit_id,local_date",token,{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify(body)});await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}}
-async function record(h:Habit){if(h.kind==="quantity"){if(day===ymd())adjustQuantity(h,1);else{setSelected(h);setQuantity(String(h.kind==="quantity"?displayedQuantity(h):entry(h)?.value??""));setModal("log")}return}if(h.kind==="check"){const current=entry(h);await saveEntry(h,{completed:current?.completed===true?false:true,value:current?.completed===true?0:1})}else if(h.kind==="sleep"){setSelected(h);const e=entry(h);setSleepForm({bed_at:datetimeLocal(e?.bed_at||null),asleep_at:datetimeLocal(e?.asleep_at||null),awake_at:datetimeLocal(e?.awake_at||null),out_of_bed_at:datetimeLocal(e?.out_of_bed_at||null)});setModal("sleep")}else{setSelected(h);setQuantity(String(entry(h)?.value??""));setModal("log")}}
+async function saveEntry(h:Habit,patch:Record<string,unknown>,date=day){
+ const key=h.id+":"+date;if(mutationLock.current.has(key))return;
+ mutationLock.current.add(key);setSaving(true);setError("");
+ try{
+  if(date>ymd()||!isDue(h,date,versions))throw Error("That date isn't scheduled for this habit.");
+  const old=entry(h,date);
+  const body={...patch,explicit_status:null,habit_id:h.id,user_id:userId,local_date:date,
+   target_snapshot:old?.target_snapshot??effectiveSchedule(h,date,versions).target,
+   direction_snapshot:old?.direction_snapshot??effectiveSchedule(h,date,versions).direction};
+  // Explicit status selections can override the default null. Actual logs clear an old skip/failure.
+  if(Object.prototype.hasOwnProperty.call(patch,"explicit_status"))body.explicit_status=patch.explicit_status as null;
+  await req("/rest/v1/habit_entries?on_conflict=habit_id,local_date",token,{method:"POST",
+   headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify(body)});
+  await load();
+ }catch(e){setError((e as Error).message)}finally{mutationLock.current.delete(key);setSaving(false)}
+}
+async function clearEntry(h:Habit,date:string){
+ const key=h.id+":"+date;if(mutationLock.current.has(key))return;
+ mutationLock.current.add(key);setSaving(true);setError("");
+ try{
+  if(date>ymd()||!isDue(h,date,versions))throw Error("That date isn't scheduled for this habit.");
+  await req("/rest/v1/habit_entries?habit_id=eq."+h.id+"&user_id=eq."+userId+"&local_date=eq."+date,token,{method:"DELETE"});
+  await load();
+ }catch(e){setError((e as Error).message)}finally{mutationLock.current.delete(key);setSaving(false)}
+}
+async function toggleCheck(h:Habit,date:string){
+ if(h.kind!=="check"||saving||mutationLock.current.has(h.id+":"+date))return;
+ if(dayState(h,date)==="done")await clearEntry(h,date);
+ else await saveEntry(h,{completed:true,value:1,explicit_status:"completed"},date);
+}
+async function record(h:Habit){if(h.kind==="quantity"){if(day===ymd())adjustQuantity(h,1);else{setSelected(h);setQuantity(String(h.kind==="quantity"?displayedQuantity(h):entry(h)?.value??""));setModal("log")}return}if(h.kind==="check"){await toggleCheck(h,day)}else if(h.kind==="sleep"){setSelected(h);const e=entry(h);setSleepForm({bed_at:datetimeLocal(e?.bed_at||null),asleep_at:datetimeLocal(e?.asleep_at||null),awake_at:datetimeLocal(e?.awake_at||null),out_of_bed_at:datetimeLocal(e?.out_of_bed_at||null)});setModal("sleep")}else{setSelected(h);setQuantity(String(entry(h)?.value??""));setModal("log")}}
 function newHabit(){setEditing(false);setSelected(null);setForm({...emptyForm,schedule_days:[...emptyForm.schedule_days]});setModal("create")}
 function editHabit(h:Habit){setSelected(h);setEditing(true);setForm({name:h.name,kind:h.kind,target:h.target,unit:h.unit,direction:h.direction,schedule_days:[...h.schedule_days],icon:h.icon,color:h.color,sleep_bedtime_goal:h.sleep_bedtime_goal||"",sleep_wake_goal:h.sleep_wake_goal||"",sleep_duration_goal:h.sleep_duration_goal||480,frequency_mode:h.frequency_mode||"selected_days",frequency_count:h.frequency_count||3,interval_days:h.interval_days||2});setModal("create")}
 async function saveHabit(ev:React.FormEvent){ev.preventDefault();setSaving(true);setError("");try{if(form.frequency_mode==="weekly"&&(form.frequency_count<1||form.frequency_count>7))throw Error("Choose 1–7 days per week.");if(form.frequency_mode==="monthly"&&(form.frequency_count<1||form.frequency_count>31))throw Error("Choose 1–31 days per month.");const body={...form,name:form.name.trim(),user_id:userId,start_date:selected?.start_date||ymd(),sleep_bedtime_goal:form.sleep_bedtime_goal||null,sleep_wake_goal:form.sleep_wake_goal||null,sleep_duration_goal:form.kind==="sleep"?Number(form.sleep_duration_goal)||null:null,frequency_mode:form.direction==="at_most"?"selected_days":form.frequency_mode,frequency_count:form.frequency_count,interval_days:form.interval_days};if(editing&&selected)await req("/rest/v1/habits?id=eq."+selected.id,token,{method:"PATCH",body:JSON.stringify(body)});else await req("/rest/v1/habits",token,{method:"POST",body:JSON.stringify(body)});setModal(null);await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}}
@@ -191,13 +231,11 @@ const focusedSession=focused?sessions.find(s=>s.habit_id===focused.id&&!s.ended_
 const visibleHistory=[...Array(historySpan)].map((_,i)=>shift(day,i-(historySpan-1)));
 const monthDates=focused?[...Array(30)].map((_,i)=>shift(day,i-29)).filter(d=>d<=ymd()&&isDue(focused,d,versions)):[];
 function recordedFor(h:Habit,date:string){
-  if(entry(h,date))return true;
-  if(h.kind!=="duration")return false;
-  const a=new Date(date+"T00:00:00+06:00").getTime(),b=a+86400000;
-  return sessions.some(s=>s.habit_id===h.id && new Date(s.started_at).getTime()<b && (s.ended_at?new Date(s.ended_at).getTime():now)>=a);
+ const state=dayState(h,date);
+ return state!=="not_due"&&state!=="unrecorded";
 }
 const monthRecorded=focused?monthDates.filter(d=>recordedFor(focused,d)).length:0;
-const lastSeven=focused?[...Array(7)].map((_,i)=>shift(day,i-(focused.kind==="quantity"&&focused.direction==="at_most"&&day===ymd()?7:6))).filter(d=>d>=focused.start_date&&d<=ymd()&&focused.schedule_days.includes(new Date(d+"T12:00:00Z").getUTCDay())):[];
+const lastSeven=focused?[...Array(7)].map((_,i)=>shift(day,i-(focused.kind==="quantity"&&focused.direction==="at_most"&&day===ymd()?7:6))).filter(d=>d<=ymd()&&isDue(focused,d,versions)):[];
 const sevenRecorded=focused?lastSeven.filter(d=>recordedFor(focused,d)):[];
 const sevenAverage=focused&&sevenRecorded.length?sevenRecorded.reduce((sum,d)=>sum+totals(focused,d),0)/sevenRecorded.length:0;
 const sevenTotal=focused&&sevenRecorded.length?sevenRecorded.reduce((sum,d)=>sum+totals(focused,d),0):0;
@@ -216,13 +254,12 @@ const legacyFocusedStreak=focused?(()=>{
 const streak=focused?streaks(focused,ymd(),entries,versions,(d)=>totals(focused,d),weekFirst):null;
 const badStats=focused?badHabitInsights(focused,entries,ymd(),versions):null;
 const chartMax=focused?Math.max(1,focused.kind==="sleep"?(focused.sleep_duration_goal||480):focused.target,...visibleHistory.map(d=>totals(focused,d))):1;
-const statusFor=(h:Habit,date=day)=>{const state=stateFor(h,date,entry(h,date),(h.kind==="quantity"?displayedQuantity(h,date):totals(h,date)),ymd(),versions);if(state==="skipped")return "Skipped";if(state==="missed")return "Missed";if(state==="done")return "On target";if(state==="not_due")return "Not scheduled";
-  if(success(h,date))return "On target";
-  if(!recordedFor(h,date))return "Not recorded";
-  if(h.kind==="quantity"&&h.direction==="at_most")return (date===ymd()?displayedQuantity(h,date):(entry(h,date)?.value??Infinity))<=h.target?"Within limit":"Over limit";
-  return "Below target";
-};
-const logout=()=>{if(token)fetch(URL+"/auth/v1/logout",{method:"POST",headers:{...baseHeaders(),Authorization:"Bearer "+token}}).catch(()=>{});localStorage.removeItem("heavyuser-session");setToken("");setUserId("");setAccount(null);setAccountAvatar("");setSettingsOpen(false);setRecoveryMode(false);setEmail("");setPassword("");setHabits([]);setEntries([]);setSessions([]);setQuantityEvents([]);setVersions([]);setRevisions([])};
+const statusFor=(h:Habit,date=day)=>({
+ done:"Completed",unrecorded:"Not recorded",not_due:"Not scheduled",
+ skipped:"Skipped",missed:"Missed",partial:"In progress",
+ on_track:"Within limit",over_limit:"Over limit"
+}[dayState(h,date)]);
+const logout=()=>{loadVersion.current++;if(token)fetch(URL+"/auth/v1/logout",{method:"POST",headers:{...baseHeaders(),Authorization:"Bearer "+token}}).catch(()=>{});localStorage.removeItem("heavyuser-session");setToken("");setUserId("");setAccount(null);setAccountAvatar("");setSettingsOpen(false);setRecoveryMode(false);setEmail("");setPassword("");setHabits([]);setEntries([]);setSessions([]);setQuantityEvents([]);setVersions([]);setRevisions([])};
 const profileName=[account?.user_metadata?.first_name,account?.user_metadata?.last_name].filter(Boolean).join(" ")||"My workspace";const profileInitial=String(account?.user_metadata?.first_name||account?.email||"H").slice(0,1).toUpperCase();const avatarNode=accountAvatar?<img src={accountAvatar} alt="" className="profile-picture" />:profileInitial;
 if(!URL||!KEY)return <main className="auth-screen"><div className="auth-card"><strong>HeavyUser</strong><h1>Configuration required</h1><p>Add the Supabase public URL and publishable key to Vercel environment settings.</p></div></main>;
 if(authLoading)return <main className="auth-screen"><p>Loading HeavyUser…</p></main>;
@@ -242,7 +279,7 @@ return <div className="compact-app">
     {view==="week"?<div className="tracker-week-workspace">
       <div className="tracker-week-settings"><span>Week starts on</span><select aria-label="First day of week" value={weekFirst} onChange={e=>void updateWeekStart(Number(e.target.value)===0?0:1)}><option value={1}>Monday</option><option value={0}>Sunday</option></select></div>
       <WeeklyGrid habits={live} entries={entries} today={ymd()} selectedDate={day} first={weekFirst} versions={versions} valueFor={(h,d)=>totals(h as Habit,d)}
-      onNavigate={chooseDate} onSelect={(h,d)=>{chooseDate(d);setCalendarDate(d);setFocusedId(h.id);setView("insights");setMobileDetail(true)}} onCheck={(h,d)=>{chooseDate(d);void statusChange(h as Habit,d,success(h as Habit,d)?null:"completed")}}/>
+      onNavigate={chooseDate} onSelect={(h,d)=>{chooseDate(d);setCalendarDate(d);setFocusedId(h.id);setView("insights");setMobileDetail(true)}} onCheck={(h,d)=>{chooseDate(d);void toggleCheck(h as Habit,d)}}/>
     </div>:<>
     <section className="compact-list-pane" aria-label="Habit list">
       <div className="compact-list-head"><div><h1>{view==="archive"?"Archive":view==="today"?"Today":"All habits"}</h1><span className="compact-list-count">{listHabits.length} {listHabits.length===1?"habit":"habits"}</span></div><div className="tracker-list-top-actions"><button className="tracker-list-profile" onClick={()=>setSettingsOpen(true)} aria-label="Open account settings">{avatarNode}</button><button className="compact-add" onClick={newHabit} aria-label="Create habit"><Glyph name="plus" size={18}/></button>{view==="insights"&&<button type="button" className={"tracker-reorder-toggle "+(reorderMode?"active":"")} onClick={()=>setReorderMode(!reorderMode)}>{reorderMode?"Done":"Reorder"}</button>}</div></div>
@@ -259,7 +296,7 @@ return <div className="compact-app">
               <span aria-live="polite">{displayedQuantity(h)}</span>
               <button aria-label={"Add one to "+h.name} title="Record one" disabled={displayedQuantity(h)>=100000} onClick={()=>adjustQuantity(h,1)}><Glyph name="plus" size={16}/></button>
             </div>:h.kind==="quantity"?<span className="tracker-list-value">{entry(h)?.confirmed?entry(h)?.value:"—"}</span>
-            :h.kind==="check"?<button className={"tracker-check-inline "+(success(h)?"is-done":"")} onClick={()=>record(h)} aria-label={(success(h)?"Undo ":"Complete ")+h.name}><Glyph name="check" size={17}/></button>
+            :h.kind==="check"?<button className={"tracker-check-inline "+(success(h)?"is-done":"")} disabled={saving||day>ymd()} onClick={()=>record(h)} aria-label={(success(h)?"Undo ":"Complete ")+h.name}><Glyph name="check" size={17}/></button>
             :h.kind==="duration"&&day===ymd()?<div className="tracker-list-timer"><span className="tracker-list-value">{fmt(totals(h))}</span>{sessions.some(q=>q.habit_id===h.id&&!q.ended_at)?<button className="tracker-timer-inline" disabled={saving} onClick={()=>timer(h,sessions.find(q=>q.habit_id===h.id&&!q.ended_at)?.paused_at?"resume":"pause")} aria-label={(sessions.find(q=>q.habit_id===h.id&&!q.ended_at)?.paused_at?"Resume ":"Pause ")+h.name}><Glyph name={sessions.find(q=>q.habit_id===h.id&&!q.ended_at)?.paused_at?"play":"pause"} size={17}/></button>:<button className="tracker-timer-inline" disabled={!!active||saving} onClick={()=>timer(h,"start")} aria-label={"Start "+h.name+" timer"}><Glyph name="play" size={17}/></button>}</div>
             :<span className="tracker-list-value">{h.kind==="duration"?fmt(totals(h)):entry(h)?.awake_at?fmt(totals(h)):"—"}</span>}
           </div>}
@@ -279,7 +316,7 @@ return <div className="compact-app">
           <section className="compact-record-section">
             <div className="compact-section-head"><span className="compact-section-label">{niceDate(day)}</span><span className="compact-state">{statusFor(focused)}</span></div>
             <div className={"compact-record-content "+(focused.kind==="quantity"?"tracker-record-quantity":"")}>
-              <div className="compact-record-value"><strong>{focused.kind==="check"?(focusedEntry?.completed?"Completed":focusedEntry?.completed===false?"Not completed":"Not recorded"):focused.kind==="sleep"?(focusedEntry?.awake_at?fmt(focusedVal):"Not recorded"):focused.kind==="duration"?fmt(focusedVal):focused.kind==="quantity"&&(focusedEntry?.confirmed||counter.hasPending(focused.id,day))?String(focusedVal)+" "+(focused.unit||""):"Not recorded"}</strong>
+              <div className="compact-record-value"><strong>{focused.kind==="check"?statusFor(focused):focused.kind==="sleep"?(focusedEntry?.awake_at?fmt(focusedVal):"Not recorded"):focused.kind==="duration"?fmt(focusedVal):focused.kind==="quantity"&&(focusedEntry?.confirmed||counter.hasPending(focused.id,day))?String(focusedVal)+" "+(focused.unit||""):"Not recorded"}</strong>
                 <small>{focused.kind==="check"?"Daily check-in":focused.kind==="sleep"?"Estimated sleep":focused.kind==="duration"?"Target "+fmt(focused.target): (focused.direction==="at_most"?"Limit ":"Target ")+focused.target+" "+focused.unit}</small>
               </div>
               <div className="compact-record-actions">
@@ -291,11 +328,11 @@ return <div className="compact-app">
                     <button disabled={displayedQuantity(focused)>=100000} onClick={()=>adjustQuantity(focused,1)} aria-label="Record one"><Glyph name="plus" size={20}/></button>
                   </div>}
                   <button className="outline-btn" onClick={()=>{setSelected(focused);setQuantity(String(displayedQuantity(focused)));setModal("log")}}><Glyph name="edit" size={15}/> Edit total</button>
-                </>:<button className="primary" disabled={saving} onClick={()=>record(focused)}><Glyph name={focused.kind==="check"?"check":"edit"} size={15}/>{focused.kind==="check"?(focusedEntry?.completed?"Undo":"Complete"):focused.kind==="sleep"?"Record sleep":"Log value"}</button>}
+                </>:<button className="primary" disabled={saving||day>ymd()||!isDue(focused,day,versions)} onClick={()=>record(focused)}><Glyph name={focused.kind==="check"?"check":"edit"} size={15}/>{focused.kind==="check"?(success(focused)?"Undo":"Complete"):focused.kind==="sleep"?"Record sleep":"Log value"}</button>}
               </div>
             </div>
-            <div className="tracker-status-control"><label htmlFor="day-outcome">Day status</label><select id="day-outcome" disabled={saving||day>ymd()} value={focusedEntry?.explicit_status||""} onChange={e=>void statusChange(focused,day,(e.target.value||null) as "completed"|"skipped"|"missed"|null)}><option value="">Automatic / clear</option>{focused.kind==="check"&&<option value="completed">Completed</option>}<option value="skipped">Skipped (planned break)</option><option value="missed">Missed</option></select>
-  {focused.kind==="quantity"?<button disabled={saving||counter.hasPending(focused.id,day)} onClick={()=>void undoQuantity(focused,day)}>Undo last count</button>:<button disabled={saving||!revisions.some(r=>r.habit_id===focused.id&&r.local_date===day)} onClick={()=>void undoLastEntry(focused,day)}>Undo last edit</button>}</div>
+            <div className="tracker-status-control"><label htmlFor="day-outcome">Day status</label><select id="day-outcome" disabled={saving||day>ymd()||!isDue(focused,day,versions)} value={focused.kind==="check"?dayState(focused)==="done"?"completed":focusedEntry?.explicit_status==="completed"?"":focusedEntry?.explicit_status||"":focusedEntry?.explicit_status||""} onChange={e=>void statusChange(focused,day,(e.target.value||null) as "completed"|"skipped"|"missed"|null)}><option value="">Automatic / clear</option>{focused.kind==="check"&&<option value="completed">Completed</option>}<option value="skipped">Skipped (planned break)</option><option value="missed">Missed</option></select>
+  {focused.kind==="quantity"?<button disabled={saving||counter.hasPending(focused.id,day)||!quantityEvents.some(e=>e.habit_id===focused.id&&e.local_date===day&&e.action!=="undo"&&e.id===quantityEvents.find(q=>q.habit_id===focused.id&&q.local_date===day)?.id)} onClick={()=>void undoQuantity(focused,day)}>Undo last count</button>:<button disabled={saving||!revisions.some(r=>r.habit_id===focused.id&&r.local_date===day)} onClick={()=>void undoLastEntry(focused,day)}>Undo last edit</button>}</div>
  {focused.kind==="sleep"&&focusedEntry?.awake_at&&<div className="compact-sleep-stats"><div><span>Bedtime</span><strong>{clock(focusedEntry.bed_at)}</strong></div><div><span>Asleep</span><strong>{clock(focusedEntry.asleep_at)}</strong></div><div><span>Wake</span><strong>{clock(focusedEntry.awake_at)}</strong></div><div><span>Out of bed</span><strong>{clock(focusedEntry.out_of_bed_at)}</strong></div></div>}
           </section>
           {(focused.frequency_mode==="weekly"||focused.frequency_mode==="monthly")&&<div className="tracker-goal-summary" role="status"><strong>{periodFor(focused).done} / {periodFor(focused).required}</strong><span>{focused.frequency_mode==="weekly"?"Completed days this week":"Completed days this month"} · {periodFor(focused).done>=periodFor(focused).required?"Goal reached":"In progress"}</span></div>}
@@ -311,16 +348,16 @@ return <div className="compact-app">
           <div className="tracker-analysis-grid"><section className="compact-chart-section">
             <div className="compact-section-head"><span className="compact-section-label">Trend</span><div className="tracker-range-control" role="group" aria-label="Chart range">{([7,14,30] as const).map(n=><button key={n} className={historySpan===n?"selected":""} onClick={()=>setHistorySpan(n)} aria-pressed={historySpan===n}>{n}d</button>)}</div></div>
             <div className="tracker-chart-scroll"><div className="compact-chart" style={{gridTemplateColumns:"repeat("+visibleHistory.length+",minmax(16px,1fr))",minWidth:historySpan===30?"590px":historySpan===14?"360px":"210px"}} role="img" aria-label={"Last "+historySpan+" days of "+focused.name+" progress"}>
-              {visibleHistory.map(d=>{const val=focused.kind==="check"?(entry(focused,d)?.completed?1:0):totals(focused,d);const rec=recordedFor(focused,d);const max=focused.kind==="check"?1:chartMax;return <div className="compact-chart-column" key={d} title={niceDate(d)+": "+(rec?(focused.kind==="duration"||focused.kind==="sleep"?fmt(val):String(val)):"not recorded")}><div className="compact-chart-area"><div className={"compact-chart-bar "+(success(focused,d)?"hit":rec?"partial":"missing")} style={{height:(rec?Math.max(8,Math.min(100,val/max*100)):4)+"%"}}/></div><small>{new Date(d+"T12:00:00Z").toLocaleDateString("en-US",{weekday:"narrow",timeZone:"UTC"})}</small></div>})}
+              {visibleHistory.map(d=>{const val=focused.kind==="check"?(entry(focused,d)?.completed?1:0):totals(focused,d);const rec=recordedFor(focused,d);const max=focused.kind==="check"?1:chartMax;return <div className="compact-chart-column" key={d} title={niceDate(d)+": "+statusFor(focused,d)+(rec?" · "+(focused.kind==="duration"||focused.kind==="sleep"?fmt(val):String(val)):"")}><div className="compact-chart-area"><div className={"compact-chart-bar "+(success(focused,d)?"hit":rec?"partial":"missing")} style={{height:(rec?Math.max(8,Math.min(100,val/max*100)):4)+"%"}}/></div><small>{new Date(d+"T12:00:00Z").toLocaleDateString("en-US",{weekday:"narrow",timeZone:"UTC"})}</small></div>})}
             </div></div>
             <div className="compact-chart-legend"><span>Dark: target reached</span><span>Gray: recorded</span><span>Light: no record</span></div>
           </section>
         <section className="compact-history-section"><div className="compact-section-head"><span className="compact-section-label">Recent history</span><span className="compact-chart-caption">Last {historySpan} days · tap to edit</span></div>
-          <div className="compact-history-table">{visibleHistory.slice().reverse().map(d=>{const has=recordedFor(focused,d);const val=totals(focused,d);return <button type="button" className="compact-history-row tracker-history-button" key={d} onClick={()=>chooseDate(d)} title={"View or edit "+niceDate(d)}><span>{niceDate(d)}</span><strong>{has?(focused.kind==="check"?(entry(focused,d)?.completed?"Completed":"Not completed"):focused.kind==="duration"||focused.kind==="sleep"?fmt(val):String(entry(focused,d)?.value??0)+" "+focused.unit):"—"}</strong><span className="compact-history-state">{success(focused,d)?"On target":has?"Recorded":"—"}</span></button>})}</div>
+          <div className="compact-history-table">{visibleHistory.slice().reverse().map(d=>{const has=recordedFor(focused,d);const val=totals(focused,d);return <button type="button" className="compact-history-row tracker-history-button" key={d} onClick={()=>chooseDate(d)} title={"View or edit "+niceDate(d)}><span>{niceDate(d)}</span><strong>{has?(focused.kind==="check"?statusFor(focused,d):focused.kind==="duration"||focused.kind==="sleep"?fmt(val):String(entry(focused,d)?.value??0)+" "+focused.unit):"—"}</strong><span className="compact-history-state">{statusFor(focused,d)}</span></button>})}</div>
         </section>
         </div>
         </>}
-        {view==="archive"&&<section className="compact-history-section"><div className="compact-section-label">Recent history</div><div className="compact-history-table">{visibleHistory.slice().reverse().map(d=><div className="compact-history-row" key={d}><span>{niceDate(d)}</span><strong>{recordedFor(focused,d)?focused.kind==="check"?(entry(focused,d)?.completed?"Completed":"Not completed"):focused.kind==="quantity"?entry(focused,d)?.value:fmt(totals(focused,d)):"—"}</strong><span className="compact-history-state">{recordedFor(focused,d)?"Recorded":"—"}</span></div>)}</div></section>}
+        {view==="archive"&&<section className="compact-history-section"><div className="compact-section-label">Recent history</div><div className="compact-history-table">{visibleHistory.slice().reverse().map(d=><div className="compact-history-row" key={d}><span>{niceDate(d)}</span><strong>{recordedFor(focused,d)?focused.kind==="check"?statusFor(focused,d):focused.kind==="quantity"?entry(focused,d)?.value:fmt(totals(focused,d)):"—"}</strong><span className="compact-history-state">{statusFor(focused,d)}</span></div>)}</div></section>}
         {focused.kind==="quantity"&&!focused.archived_at&&<section className="tracker-event-panel"><div className="compact-section-head"><span className="compact-section-label">Recent counter activity</span><span className="compact-chart-caption">Individual updates</span></div>{quantityEvents.filter(e=>e.habit_id===focused.id).slice(0,8).length?quantityEvents.filter(e=>e.habit_id===focused.id).slice(0,8).map(ev=><div className="tracker-event-row" key={ev.id}><span>{niceDate(ev.local_date)} · {clock(ev.created_at)}</span><strong>{ev.action==="increment"?"+1":ev.action==="decrement"?"−1":ev.action==="undo"?"Undo":"Set"} · {ev.resulting_value}</strong></div>):<p className="compact-supporting">New one-tap records will appear here.</p>}</section>}
         <MonthHeatmap habit={focused} entries={entries} today={ymd()} selectedDate={calendarDate} first={weekFirst} versions={versions} valueFor={d=>totals(focused,d)} onSelect={d=>{chooseDate(d);setCalendarDate(d)}}/>
         {!focused.archived_at&&<div className="compact-secondary-actions"><button className="compact-text-btn" onClick={()=>archiveHabit(focused)} disabled={saving}><Glyph name="archive" size={15}/> Archive habit</button></div>}

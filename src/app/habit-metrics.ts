@@ -1,7 +1,7 @@
 export type FrequencyMode="selected_days"|"weekly"|"monthly"|"interval";
 export type Schedule={frequency_mode:FrequencyMode;frequency_count:number;interval_days:number;schedule_days:number[];target:number;direction:"at_least"|"at_most"};
 export type MetricHabit=Schedule&{id:string;kind:"check"|"quantity"|"duration"|"sleep";start_date:string;sleep_duration_goal?:number|null};
-export type MetricEntry={habit_id:string;local_date:string;completed:boolean|null;confirmed:boolean;value:number|null;explicit_status?:string|null};
+export type MetricEntry={habit_id:string;local_date:string;completed:boolean|null;confirmed:boolean;value:number|null;explicit_status?:string|null;asleep_at?:string|null;awake_at?:string|null};
 export type ScheduleVersion=Schedule&{habit_id:string;effective_date:string};
 export type DayState="not_due"|"unrecorded"|"done"|"partial"|"on_track"|"missed"|"skipped"|"over_limit";
 export const DAY_MS=86400000;
@@ -32,10 +32,15 @@ export function stateFor(h:MetricHabit,date:string,entry:MetricEntry|undefined,v
  if(!isDue(h,date,versions)||date>today)return "not_due";
  if(entry?.explicit_status==="skipped")return "skipped";
  if(entry?.explicit_status==="missed")return "missed";
+ // A check-off's actual boolean is authoritative. Legacy toggles sometimes left
+ // explicit_status='completed' on an unchecked row; never count those as done.
+ if(h.kind==="check")return entry?.completed===true?"done":"unrecorded";
  if(entry?.explicit_status==="completed")return "done";
- if(h.kind==="check")return entry?.completed===true?"done":entry?.completed===false?"missed":"unrecorded";
+ if(h.kind==="sleep"&&!(entry?.asleep_at&&entry?.awake_at))return "unrecorded";
  const current=value??entry?.value;
- if((!entry&&(current==null||current===0))||(entry&&!entry.confirmed&&current==null))return "unrecorded";
+ if(!entry&&(current==null||current===0))return "unrecorded";
+ if(entry&&!entry.confirmed&&current==null)return "unrecorded";
+ if(entry&&entry.value==null&&(current==null||current===0))return "unrecorded";
  const plan=effectiveSchedule(h,date,versions);
  if(h.kind==="quantity"&&plan.direction==="at_most"){
   if(current==null)return "unrecorded";
