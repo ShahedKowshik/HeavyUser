@@ -1,0 +1,28 @@
+/* Original HeavyUser brand assets restored from the August 2026 repository.
+ * Keep the original artwork; responsive rules only change its display size. */
+.compact-brand{min-width:0}
+.compact-brand-wordmark{
+ display:block;
+ width:136px;
+ max-width:100%;
+ height:auto;
+ object-fit:contain;
+ object-position:left center;
+}
+.compact-brand-icon{display:none}
+.auth-card .auth-brand-image{
+ display:block;
+ width:155px;
+ max-width:100%;
+ height:auto;
+ object-fit:contain;
+ margin:0 0 30px;
+}
+@media (min-width:651px) and (max-width:850px){
+ .compact-brand{justify-content:center;padding-inline:12px}
+ .compact-brand-wordmark{display:none}
+ .compact-brand-icon{display:block;width:32px;height:32px;object-fit:contain}
+}
+@media (max-width:650px){
+ .auth-card .auth-brand-image{margin-bottom:24px}
+}
