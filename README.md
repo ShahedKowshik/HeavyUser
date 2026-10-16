@@ -92,6 +92,16 @@ These checks run for pushes and pull requests against `main`. They do **not** ye
 | [Data consistency QA](docs/DATA_CONSISTENCY_QA.md) | Documented invariants and previously investigated undo issues |
 | [Public launch checklist](docs/LAUNCH_CHECKLIST.md) | Remaining public-facing release preparations |
 
+
+## Project history
+
+HeavyUser's original application was developed between December 2025 and January 2026, before the current habit-tracker rebuild. To preserve that early work without maintaining another repository, its **complete original Git history (228 commits)** is available on the separate [`legacy/original-heavyuser` branch](https://github.com/ShahedKowshik/HeavyUser/tree/legacy/original-heavyuser).
+
+- [First recorded commit (December 23, 2025)](https://github.com/ShahedKowshik/HeavyUser/tree/legacy-first-commit)
+- [Last version of the original app (January 20, 2026)](https://github.com/ShahedKowshik/HeavyUser/tree/legacy-original-v1)
+
+This historical code is preserved for reference, not maintained as part of the current product. The `main` branch remains the active application.
+
 ## Feedback, security, and contributions
 
 Feature requests and non-sensitive bug reports are welcome through [GitHub Issues](https://github.com/ShahedKowshik/HeavyUser/issues). Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing code changes. For security issues, follow [SECURITY.md](SECURITY.md) **instead of opening a public issue**.
