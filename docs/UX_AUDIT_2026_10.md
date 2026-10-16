@@ -42,6 +42,7 @@ Method: inspected actual React components, styles, action handlers and test suit
 | 26 | Medium | Unclear completion summary on Today for under-limit habits | Label explicitly as completed versus scheduled |
 | 27 | Low | Details heading redundant 'Quantity' and terse schedule text | Use Counter, Timer, Every day, times per week/month |
 | 28 | Medium | Modal layout too cramped on small-screen browsers | Full-width bottom sheet, scrollable content, safe-area padding |
+| 29 | High | Account dialog can close during an in-progress change, and keyboard Tab may leave it | Guard against Escape/Close while saving and contain keyboard focus |
 
 ## UX evidence
 - Nielsen Norman Group, *Designing Effective Contextual Menus: 10 Guidelines*: https://www.nngroup.com/articles/contextual-menus-guidelines/ — secondary actions near the relevant item, do not hide essential actions.
