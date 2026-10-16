@@ -1,37 +1,14 @@
-# HeavyUser — clean rebuild baseline
-
-HeavyUser has been reset to a minimal Next.js application. The old task manager, Google Calendar sync, scheduler, timer, and previous design system are **not** part of the active `main` branch.
-
-The product's next features and visual design are deliberately undecided.
-
-## Develop
-
-Use Node.js 24.
-
-```bash
-npm ci
-npm run dev
-```
-
-## Verify changes
-
-```bash
-npm run typecheck
-npm test
-npm run build
-```
-
-GitHub Actions runs the same checks on every push to `main` and every pull request. The app currently has no backend credentials or Supabase connection.
-
-## Infrastructure
-
-- GitHub: `ShahedKowshik/HeavyUser`
-- Hosting: existing Vercel `heavyuser` project
-- Site: `https://web.heavyuser.app`
-- Database: existing Supabase project (cleaned and reserved for later)
-
-The pre-reset source and history can be recovered from `archive/pre-rebuild-2026-10-13` at `79dc2848627a397bebb7ea7c0bccb9a343da3231`.
-
-The existing Supabase avatar bucket/object and obsolete Vercel environment variables are not used by the clean app and require dashboard/API cleanup. Avoid deleting Supabase storage metadata directly with SQL; remove files through the Storage API.
-
-The committed `package-lock.json` pins the dependency tree. Use `npm ci` for consistent installs.
+# HeavyUser 2.0 — Habit Tracker MVP
+A focused daily habit tracker for check-off, quantity, duration, and detailed sleep habits.
+## Technology
+Next.js 16 / React 19 / Supabase Auth + Postgres (RLS) / Vercel.
+## Environment
+Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in Vercel; values are public client configuration (never use the secret/service role key).
+## Local development
+Node 24: `npm ci && npm run dev`.
+## Validate
+`npm run typecheck`, `npm test`, `npm run build`.
+## Design
+Responsive Today dashboard, insights, create/edit habits, historical log, detailed sleep entry, pause/resume duration tracking. Uses native fetch for Supabase Auth and PostgREST; no extra runtime dependency.
+## Limitations
+Recordings are personal estimates; sleep does not represent clinical measurement. Insights are introductory. Advanced reminders and integrations excluded.
