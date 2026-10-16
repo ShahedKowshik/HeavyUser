@@ -41,13 +41,13 @@ export function WeeklyGrid({habits,entries,today,selectedDate,first,versions,val
  </section>;
  function onSelectDate(offset:number){const proposed=addDays(selectedDate,offset);onNavigate(proposed)}
 }
-export function MonthHeatmap({habit,entries,today,selectedDate,first,versions,valueFor,onSelect}:{
- habit:MetricHabit;entries:MetricEntry[];today:string;selectedDate:string;first:0|1;versions:ScheduleVersion[];valueFor:(date:string)=>number;onSelect:(date:string)=>void
+export function MonthHeatmap({habit,entries,today,selectedDate,visibleMonth,first,versions,valueFor,onSelect,onNavigate}:{
+ habit:MetricHabit;entries:MetricEntry[];today:string;selectedDate:string;visibleMonth:string;first:0|1;versions:ScheduleVersion[];valueFor:(date:string)=>number;onSelect:(date:string)=>void;onNavigate:(date:string)=>void
 }){
- const start=monthStart(selectedDate),monthDays=monthLength(start),weekdayOffset=(dateUTC(start).getUTCDay()-first+7)%7;
+ const start=monthStart(visibleMonth),monthDays=monthLength(start),weekdayOffset=(dateUTC(start).getUTCDay()-first+7)%7;
  const monthLabel=dateUTC(start).toLocaleDateString("en-US",{month:"long",year:"numeric",timeZone:"UTC"});
  const cells=Array.from({length:Math.ceil((monthDays+weekdayOffset)/7)*7},(_,i)=>i-weekdayOffset+1);
- const changeMonth=(step:number)=>{const y=Number(start.slice(0,4)),m=Number(start.slice(5,7));const shifted=new Date(Date.UTC(y,m-1+step,1));onSelect(shifted.toISOString().slice(0,10))};
+ const changeMonth=(step:number)=>{const y=Number(start.slice(0,4)),m=Number(start.slice(5,7));const shifted=new Date(Date.UTC(y,m-1+step,1));onNavigate(shifted.toISOString().slice(0,10))};
  return <section className="tracker-month-section">
   <div className="tracker-month-heading"><div><strong>Monthly calendar</strong><small>{monthLabel}</small></div><div className="tracker-month-controls"><button aria-label="Previous month" onClick={()=>changeMonth(-1)}>‹</button><button aria-label="Next month" disabled={start>=monthStart(today)} onClick={()=>changeMonth(1)}>›</button></div></div>
   <div className="tracker-month-grid">{(first===1?["M","T","W","T","F","S","S"]:["S","M","T","W","T","F","S"]).map((c,i)=><span key={"w"+i} className="tracker-month-weekday">{c}</span>)}

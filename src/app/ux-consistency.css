@@ -1,0 +1,84 @@
+/* HeavyUser interaction hierarchy and UX consistency pass. */
+.compact-detail-heading{align-items:flex-start}
+.compact-detail-title{flex:1;min-width:0;padding-top:3px}
+.compact-detail-title h2{line-height:1.3}
+.compact-habit-actions{position:relative;display:flex;align-items:center;gap:6px;flex:none;z-index:3}
+.compact-habit-edit,.compact-habit-restore,.compact-habit-more,.compact-form-cancel{font:inherit;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;border:1px solid #d4d4d4;background:#fff;color:#292929;padding:8px 12px;font-weight:620;font-size:12px;white-space:nowrap}
+.compact-habit-edit:hover:not(:disabled),.compact-habit-more:hover:not(:disabled),.compact-form-cancel:hover:not(:disabled){background:#f5f5f5}
+.compact-habit-restore{background:#171717;color:#fff;border-color:#171717}
+.compact-habit-restore:hover:not(:disabled){background:#383838}
+.compact-habit-more{width:40px;padding:7px}
+.compact-habit-more[aria-expanded="true"]{background:#eee;border-color:#bbb}
+.compact-habit-menu{position:absolute;right:0;top:calc(100% + 6px);min-width:205px;max-width:calc(100vw - 28px);padding:5px;background:#fff;border:1px solid #ddd;box-shadow:0 11px 24px #00000020;z-index:60}
+.compact-habit-menu button{border:0;background:#fff;color:#242424;display:flex;align-items:center;gap:11px;width:100%;padding:12px;min-height:44px;font:inherit;font-size:12px;font-weight:590;text-align:left}
+.compact-habit-menu button:hover,.compact-habit-menu button:focus-visible{background:#f5f5f5}
+.compact-habit-menu button.destructive{color:#a12d2d}
+.compact-habit-menu button.destructive:hover{background:#fff2f2}
+.compact-archived-summary{padding:15px 17px}
+.compact-archived-summary .compact-supporting{max-width:650px;line-height:1.6;margin:6px 0 0}
+.compact-form-cancel{background:#fff;min-width:74px}
+.modal-top{align-items:center;gap:15px}
+.modal-top h2{margin:0;font-size:20px;line-height:1.3;letter-spacing:-.5px}
+.modal-form{padding-top:18px;gap:15px}
+.modal-form label{line-height:1.35}
+.modal-form label input,.modal-form label select{min-height:44px}
+.modal-footer{display:flex;gap:10px;align-items:center;justify-content:flex-end}
+.modal-footer .primary{min-height:44px}
+.modal-footer button:disabled{cursor:not-allowed}
+.modal .close-modal{flex-shrink:0;width:40px;height:40px;background:#f5f5f5;color:#444}
+.week-select button{min-height:44px;height:44px}
+.tracker-history-button[aria-current="date"]{background:#f4f4f4;box-shadow:inset 3px 0 #383838}
+.tracker-item-select[aria-current="true"] .compact-list-item-copy strong{color:#171717}
+.compact-list-items .tracker-item-select:disabled{opacity:1;cursor:default}
+.compact-feedback{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);display:flex;gap:11px;align-items:center;max-width:min(460px,calc(100vw - 24px));min-width:210px;padding:10px 12px;background:#242424;color:#fff;border:1px solid #3f3f3f;box-shadow:0 10px 25px #0003;z-index:75;font-size:12px;line-height:1.45}
+.compact-feedback span{flex:1;min-width:0}
+.compact-feedback button{flex-shrink:0;min-height:35px;padding:6px 10px;background:#fff;border:0;color:#171717;font:inherit;font-size:12px;font-weight:680}
+.compact-feedback .compact-feedback-dismiss{width:35px;padding:7px;background:#404040;color:#f7f7f7}
+.compact-feedback button:hover{filter:brightness(.93)}
+.compact-details-bar .tracker-detail-date button{min-height:40px;min-width:40px}
+.compact-date-row button{min-height:40px;min-width:40px}
+.tracker-reorder-toggle{min-height:40px}
+.compact-top-avatar{min-width:40px;min-height:40px;width:40px;flex-basis:40px}
+.tracker-list-top-actions{gap:6px}
+.tracker-list-profile{min-width:40px;min-height:40px}
+@media(max-width:850px){
+ .compact-detail-heading{gap:12px}
+ .compact-habit-actions{gap:5px}
+ .compact-habit-edit,.compact-habit-restore{padding:8px 10px}
+}
+@media(max-width:650px){
+ .compact-detail-heading{align-items:center;gap:8px}
+ .compact-detail-title{gap:9px}
+ .compact-detail-title h2{font-size:18px}
+ .compact-habit-actions{align-self:center}
+ .compact-habit-edit,.compact-habit-restore,.compact-habit-more{min-height:44px}
+ .compact-habit-more{width:44px}
+ .compact-habit-menu{min-width:215px}
+ .modal-backdrop{align-items:flex-end;padding:0}
+ .modal{width:100%;max-height:calc(100dvh - 24px);border-radius:16px 16px 0 0;padding:19px 16px calc(20px + env(safe-area-inset-bottom));overscroll-behavior:contain}
+ .modal-top h2{font-size:18px}
+ .modal .close-modal{min-width:44px;min-height:44px}
+ .modal-footer{gap:8px}
+ .modal-footer button{min-height:44px}
+ .compact-form-cancel{min-height:44px}
+ .compact-feedback{bottom:calc(72px + env(safe-area-inset-bottom));left:12px;right:12px;max-width:none;transform:none}
+ .compact-details-bar .tracker-detail-date button{min-height:44px;min-width:44px}
+ .compact-details-bar .tracker-detail-date-label{max-width:95px}
+ .compact-mobile-back{min-height:44px}
+ .compact-list-head .compact-add{height:44px;width:44px}
+ .tracker-list-profile{height:44px;width:44px}
+}
+@media(max-width:370px){
+ .compact-habit-edit,.compact-habit-restore{font-size:11px;padding:7px 8px}
+ .compact-habit-more{width:42px;min-height:42px}
+ .compact-title-icon{width:32px;height:32px;min-width:32px}
+ .compact-detail-title h2{font-size:16px}
+ .compact-detail-title p{font-size:10px}
+ .fields-two{grid-template-columns:1fr}
+ .modal-footer{flex-wrap:wrap}
+}
+@media(prefers-reduced-motion:reduce){.compact-feedback,.compact-habit-menu{animation:none!important;transition:none!important}}
+
+.account-tabs button{min-height:44px}
+.account-header .account-icon-btn{min-width:44px;min-height:44px}
+@media(max-width:650px){.account-tabs button{min-height:44px}}
