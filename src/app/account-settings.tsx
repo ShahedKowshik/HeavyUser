@@ -49,6 +49,11 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
   useEffect(()=>{const onKey=(e:KeyboardEvent)=>{if(e.key==="Escape"&&!pending)onClose()};window.addEventListener("keydown",onKey);return()=>window.removeEventListener("keydown",onKey)},[onClose,pending]);
   const fileRef=useRef<HTMLInputElement>(null);
   const panelRef=useRef<HTMLElement>(null);
+  useEffect(()=>{
+    const previous=document.activeElement instanceof HTMLElement?document.activeElement:null;
+    const frame=requestAnimationFrame(()=>panelRef.current?.querySelector<HTMLElement>(".account-icon-btn")?.focus());
+    return()=>{cancelAnimationFrame(frame);previous?.focus()};
+  },[]);
   const currentPath=String(user?.user_metadata?.avatar_path||"");
   const displayEmail=user?.email||"";
   useEffect(()=>{
