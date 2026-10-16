@@ -139,6 +139,7 @@ const done=scheduled.filter(h=>success(h)).length;
 const previousWeek=weekStart(day,weekFirst);
 const periodFor=(h:Habit,date=day)=>periodProgress(h,date,entries,ymd(),versions,d=>totals(h,d),weekFirst);
 function chooseDate(date:string){setDay(date);setCalendarDate(date);setHabitMenuOpenId(null)}
+function jumpToHistoryDate(date:string){chooseDate(date);requestAnimationFrame(()=>{window.scrollTo({top:0,behavior:"smooth"});document.querySelector(".compact-details")?.scrollTo({top:0,behavior:"smooth"})})}
 async function updateWeekStart(next:0|1){const previous=weekFirst;setWeekFirst(next);try{await req("/rest/v1/user_preferences?on_conflict=user_id",token,{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify({user_id:userId,week_starts_on:next})})}catch(e){setWeekFirst(previous);setError((e as Error).message)}}
 async function statusChange(h:Habit,date:string,status:"completed"|"skipped"|"missed"|null){
  if(date>ymd()||!isDue(h,date,versions))return;
@@ -321,7 +322,7 @@ return <div className="compact-app">
       {view==="today"&&<div className="compact-date-row"><button onClick={()=>chooseDate(shift(day,-1))} aria-label="Previous day"><Glyph name="left" size={17}/></button><span>{niceDate(day)}</span><button disabled={day>=ymd()} onClick={()=>chooseDate(shift(day,1))} aria-label="Next day"><Glyph name="chevron" size={17}/></button></div>}
       <div className="compact-list-items" aria-label="Choose or record a habit">
         {listHabits.length?listHabits.map(h=><div key={h.id} draggable={reorderMode&&view==="insights"} onDragStart={()=>setDragId(h.id)} onDragEnd={()=>setDragId(null)} onDragOver={e=>{if(reorderMode)e.preventDefault()}} onDrop={e=>{e.preventDefault();if(dragId)moveHabit(dragId,h.id);setDragId(null)}} className={"compact-list-item tracker-list-item "+(focused?.id===h.id?"selected":"")+(reorderMode?" is-reordering":"")}>
-          <button type="button" className="tracker-item-select" aria-current={focused?.id===h.id?"true":undefined} onClick={()=>{setFocusedId(h.id);setMobileDetail(true)}} aria-label={"View "+h.name+" details"}>
+          <button type="button" className="tracker-item-select" aria-current={focused?.id===h.id?"true":undefined} disabled={reorderMode&&view==="insights"} onClick={()=>{setFocusedId(h.id);setMobileDetail(true)}} aria-label={"View "+h.name+" details"}>
             <span className="compact-list-icon"><Glyph name={h.kind==="sleep"?"moon":h.kind==="duration"?"timer":h.kind==="quantity"?"leaf":h.icon} size={17}/></span>
             <span className="compact-list-item-copy"><strong>{h.name}</strong><small>{h.kind==="sleep"?"Sleep":h.kind==="duration"?"Duration":h.kind==="quantity"?"Quantity":"Check-off"}</small></span>
           </button>
@@ -338,7 +339,7 @@ return <div className="compact-app">
           {view==="archive"&&<Glyph name="chevron" size={14}/>}
         </div>):<div className="compact-no-habits"><p>{view==="archive"?"No archived habits.":view==="today"?"No habits scheduled for this day.":"You haven’t added a habit yet."}</p>{view!=="archive"&&<button className="outline-btn" onClick={newHabit}><Glyph name="plus" size={15}/> Add habit</button>}</div>}
       </div>
-      {view!=="archive"&&<div className="compact-list-footer">{view==="today"?done+" of "+scheduled.length+" on target":live.length+" active habits"}</div>}
+      {view!=="archive"&&<div className="compact-list-footer">{view==="today"?done+" completed · "+scheduled.length+" scheduled":live.length+" active habits"}</div>}
     </section>
     <main className="compact-details" aria-label="Habit details">
       <header className="compact-details-bar"><button className="compact-mobile-back" onClick={()=>setMobileDetail(false)}><Glyph name="left" size={17}/> Habits</button><span>{view==="archive"?"Archive":"Habit details"}</span><div className="tracker-detail-date">{view!=="archive"&&<><button aria-label="Previous date" onClick={()=>setDay(shift(day,-1))}><Glyph name="left" size={16}/></button><button className="tracker-detail-date-label" onClick={()=>chooseDate(ymd())}>{day===ymd()?"Today":niceDate(day)}</button><button aria-label="Next date" disabled={day>=ymd()} onClick={()=>setDay(shift(day,1))}><Glyph name="chevron" size={16}/></button></>}</div><button className="compact-top-avatar" onClick={()=>setSettingsOpen(true)} title="Account settings" aria-label="Open account settings">{avatarNode}</button></header>
@@ -397,13 +398,13 @@ return <div className="compact-app">
             <div className="compact-chart-legend"><span>Dark: target reached</span><span>Gray: recorded</span><span>Light: no record</span></div>
           </section>
         <section className="compact-history-section"><div className="compact-section-head"><span className="compact-section-label">Recent history</span><span className="compact-chart-caption">Last {historySpan} days · tap to edit</span></div>
-          <div className="compact-history-table">{visibleHistory.slice().reverse().map(d=>{const has=recordedFor(focused,d);const val=totals(focused,d);return <button type="button" className="compact-history-row tracker-history-button" key={d} onClick={()=>chooseDate(d)} title={"View or edit "+niceDate(d)}><span>{niceDate(d)}</span><strong>{has?(focused.kind==="check"?statusFor(focused,d):focused.kind==="duration"||focused.kind==="sleep"?fmt(val):String(entry(focused,d)?.value??0)+" "+focused.unit):"—"}</strong><span className="compact-history-state">{statusFor(focused,d)}</span></button>})}</div>
+          <div className="compact-history-table">{visibleHistory.slice().reverse().map(d=>{const has=recordedFor(focused,d);const val=totals(focused,d);return <button type="button" className="compact-history-row tracker-history-button" key={d} onClick={()=>jumpToHistoryDate(d)} aria-current={day===d?"date":undefined} title={"View or edit "+niceDate(d)}><span>{niceDate(d)}</span><strong>{has?(focused.kind==="check"?statusFor(focused,d):focused.kind==="duration"||focused.kind==="sleep"?fmt(val):String(entry(focused,d)?.value??0)+" "+focused.unit):"—"}</strong><span className="compact-history-state">{statusFor(focused,d)}</span></button>})}</div>
         </section>
         </div>
         </>}
         {view==="archive"&&<section className="compact-history-section"><div className="compact-section-label">Recent history</div><div className="compact-history-table">{visibleHistory.slice().reverse().map(d=><div className="compact-history-row" key={d}><span>{niceDate(d)}</span><strong>{recordedFor(focused,d)?focused.kind==="check"?statusFor(focused,d):focused.kind==="quantity"?entry(focused,d)?.value:fmt(totals(focused,d)):"—"}</strong><span className="compact-history-state">{statusFor(focused,d)}</span></div>)}</div></section>}
         {focused.kind==="quantity"&&!focused.archived_at&&<section className="tracker-event-panel"><div className="compact-section-head"><span className="compact-section-label">Recent counter activity</span><span className="compact-chart-caption">Individual updates</span></div>{quantityEvents.filter(e=>e.habit_id===focused.id).slice(0,8).length?quantityEvents.filter(e=>e.habit_id===focused.id).slice(0,8).map(ev=><div className="tracker-event-row" key={ev.id}><span>{niceDate(ev.local_date)} · {clock(ev.created_at)}</span><strong>{ev.action==="increment"?"+1":ev.action==="decrement"?"−1":ev.action==="undo"?"Undo":"Set"} · {ev.resulting_value}</strong></div>):<p className="compact-supporting">New one-tap records will appear here.</p>}</section>}
-        <MonthHeatmap habit={focused} entries={entries} today={ymd()} selectedDate={calendarDate} first={weekFirst} versions={versions} valueFor={d=>totals(focused,d)} onSelect={d=>{chooseDate(d);setCalendarDate(d)}}/>
+        <MonthHeatmap habit={focused} entries={entries} today={ymd()} selectedDate={day} visibleMonth={calendarDate} first={weekFirst} versions={versions} valueFor={d=>totals(focused,d)} onSelect={jumpToHistoryDate} onNavigate={setCalendarDate}/>
         
       </div>:<div className="compact-detail-empty"><p>{view==="archive"?"Select an archived habit to review or restore it.":"Select a habit to view its progress."}</p>{view!=="archive"&&live.length===0&&<button onClick={newHabit} className="primary">Create habit</button>}</div>}
     </main>
