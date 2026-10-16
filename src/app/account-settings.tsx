@@ -46,8 +46,9 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
   const [email,setEmail]=useState("");const [password,setPassword]=useState("");const [repeat,setRepeat]=useState("");
   const [error,setError]=useState("");
   const [loading,setLoading]=useState(true);
-  useEffect(()=>{const onKey=(e:KeyboardEvent)=>{if(e.key==="Escape")onClose()};window.addEventListener("keydown",onKey);return()=>window.removeEventListener("keydown",onKey)},[onClose]);
+  useEffect(()=>{const onKey=(e:KeyboardEvent)=>{if(e.key==="Escape"&&!pending)onClose()};window.addEventListener("keydown",onKey);return()=>window.removeEventListener("keydown",onKey)},[onClose,pending]);
   const fileRef=useRef<HTMLInputElement>(null);
+  const panelRef=useRef<HTMLElement>(null);
   const currentPath=String(user?.user_metadata?.avatar_path||"");
   const displayEmail=user?.email||"";
   useEffect(()=>{
@@ -129,8 +130,15 @@ export default function AccountSettings({url,apiKey,token,userId,onClose,onLogou
     });
   }
   return <div className="account-backdrop">
-    <section className="account-panel" role="dialog" aria-modal="true" aria-labelledby="account-title">
-      <header className="account-header"><div><h2 id="account-title">Account settings</h2><p>Profile, security and data</p></div><button className="account-icon-btn" type="button" aria-label="Close settings" onClick={onClose}>×</button></header>
+    <section ref={panelRef} className="account-panel" role="dialog" aria-modal="true" aria-labelledby="account-title" onKeyDown={e=>{
+      if(e.key!=="Tab")return;
+      const items=Array.from(e.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled])')).filter(item=>item.getClientRects().length>0);
+      const first=items[0],last=items.at(-1);
+      if(!first||!last)return;
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
+    }}>
+      <header className="account-header"><div><h2 id="account-title">Account settings</h2><p>Profile, security and data</p></div><button className="account-icon-btn" type="button" aria-label="Close settings" disabled={!!pending} onClick={onClose}>×</button></header>
       <div className="account-layout">
         <nav className="account-tabs" aria-label="Account sections">
           <button type="button" aria-current={tab==="profile"?"page":undefined} className={tab==="profile"?"selected":""} onClick={()=>{setTab("profile");clear()}}>Profile</button>
