@@ -688,3 +688,8 @@
 @media(prefers-reduced-motion:reduce){
   .compact-app .hu-day-progress-track>span{transition:none}
 }
+
+/* An archived habit keeps its readable calendar as well as its history. */
+.compact-app .hu-archived-calendar{margin:22px 0 0;padding-top:20px;border-top:1px solid #e5e5e5}
+.compact-app .hu-archived-calendar>.tracker-month-section{background:transparent;border:0;margin:0;padding:0}
+.compact-app .hu-archived-calendar .tracker-month-grid{max-width:600px}
