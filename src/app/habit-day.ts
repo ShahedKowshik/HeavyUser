@@ -37,7 +37,7 @@ export function habitToday(instant:Date,zone:string,resetMinutes:number):string{
 export function dayBoundaryInstant(day:string,zone:string,resetMinutes:number):number{
  if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||new Date(day+"T12:00:00Z").toISOString().slice(0,10)!==day)throw Error("Invalid date");
  const [y,m,d]=day.split("-").map(Number);
- const mins=safeDayStart(resetMinutes);
+ const mins=Number.isInteger(resetMinutes)&&resetMinutes>=0&&resetMinutes<1440?resetMinutes:0;
  const target=Date.UTC(y,m-1,d,Math.floor(mins/60),mins%60);
  const tz=safeZone(zone);
  const localClock=(timestamp:number)=>{
