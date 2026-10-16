@@ -26,6 +26,8 @@ Selected features: weekly grid, monthly calendar, flexible goals, day statuses, 
 1. `habit_frequencies_statuses_audit_order_preferences`
 2. `undo_rpcs_and_historical_schedule_versions`
 3. `idempotent_undo_operations`
+4. `clear_ignored_status_on_new_quantity_log`
+5. `allow_cascading_habit_deletion_with_entry_audit`
 
 All tables have row-level security; privileged routines authenticate and scope to the current user. No existing records were intentionally changed by the migrations.
 
