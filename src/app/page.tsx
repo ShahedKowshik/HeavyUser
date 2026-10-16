@@ -151,7 +151,7 @@ function recordedFor(h:Habit,date:string){
   return sessions.some(s=>s.habit_id===h.id && new Date(s.started_at).getTime()<b && (s.ended_at?new Date(s.ended_at).getTime():now)>=a);
 }
 const monthRecorded=focused?monthDates.filter(d=>recordedFor(focused,d)).length:0;
-const lastSeven=focused?[...Array(7)].map((_,i)=>shift(day,i-6)).filter(d=>d>=focused.start_date&&d<=ymd()&&focused.schedule_days.includes(new Date(d+"T12:00:00Z").getUTCDay())):[];
+const lastSeven=focused?[...Array(7)].map((_,i)=>shift(day,i-(focused.kind==="quantity"&&focused.direction==="at_most"&&day===ymd()?7:6))).filter(d=>d>=focused.start_date&&d<=ymd()&&focused.schedule_days.includes(new Date(d+"T12:00:00Z").getUTCDay())):[];
 const sevenRecorded=focused?lastSeven.filter(d=>recordedFor(focused,d)):[];
 const sevenAverage=focused&&sevenRecorded.length?sevenRecorded.reduce((sum,d)=>sum+totals(focused,d),0)/sevenRecorded.length:0;
 const sevenTotal=focused&&sevenRecorded.length?sevenRecorded.reduce((sum,d)=>sum+totals(focused,d),0):0;
@@ -192,7 +192,7 @@ return <div className="compact-app">
   </aside>
   <div className={"compact-layout "+(mobileDetail?"mobile-detail":"")}>
     <section className="compact-list-pane" aria-label="Habit list">
-      <div className="compact-list-head"><div><h1>{view==="archive"?"Archive":view==="today"?"Today":"All habits"}</h1><span className="compact-list-count">{listHabits.length} {listHabits.length===1?"habit":"habits"}</span></div><button className="compact-add" onClick={newHabit} aria-label="Create habit"><Glyph name="plus" size={18}/></button></div>
+      <div className="compact-list-head"><div><h1>{view==="archive"?"Archive":view==="today"?"Today":"All habits"}</h1><span className="compact-list-count">{listHabits.length} {listHabits.length===1?"habit":"habits"}</span></div><div className="tracker-list-top-actions"><button className="tracker-list-profile" onClick={()=>setSettingsOpen(true)} aria-label="Open account settings">{avatarNode}</button><button className="compact-add" onClick={newHabit} aria-label="Create habit"><Glyph name="plus" size={18}/></button></div></div>
       {view==="today"&&<div className="compact-date-row"><button onClick={()=>setDay(shift(day,-1))} aria-label="Previous day"><Glyph name="left" size={17}/></button><span>{niceDate(day)}</span><button disabled={day>=ymd()} onClick={()=>setDay(shift(day,1))} aria-label="Next day"><Glyph name="chevron" size={17}/></button></div>}
       <div className="compact-list-items">
         {listHabits.length?listHabits.map(h=><div key={h.id} className={"compact-list-item tracker-list-item "+(focused?.id===h.id?"selected":"")}>
@@ -207,7 +207,7 @@ return <div className="compact-app">
               <button aria-label={"Add one to "+h.name} title="Record one" disabled={displayedQuantity(h)>=100000} onClick={()=>adjustQuantity(h,1)}><Glyph name="plus" size={16}/></button>
             </div>:h.kind==="quantity"?<span className="tracker-list-value">{entry(h)?.confirmed?entry(h)?.value:"—"}</span>
             :h.kind==="check"?<button className={"tracker-check-inline "+(success(h)?"is-done":"")} onClick={()=>record(h)} aria-label={(success(h)?"Undo ":"Complete ")+h.name}><Glyph name="check" size={17}/></button>
-            :h.kind==="duration"&&day===ymd()?<button className="tracker-timer-inline" disabled={!!active||saving} onClick={()=>timer(h,"start")} aria-label={"Start "+h.name+" timer"}>{sessions.some(q=>q.habit_id===h.id&&!q.ended_at)?fmt(totals(h)):<Glyph name="play" size={17}/>}</button>
+            :h.kind==="duration"&&day===ymd()?<div className="tracker-list-timer"><span className="tracker-list-value">{fmt(totals(h))}</span>{sessions.some(q=>q.habit_id===h.id&&!q.ended_at)?<button className="tracker-timer-inline" disabled={saving} onClick={()=>timer(h,sessions.find(q=>q.habit_id===h.id&&!q.ended_at)?.paused_at?"resume":"pause")} aria-label={(sessions.find(q=>q.habit_id===h.id&&!q.ended_at)?.paused_at?"Resume ":"Pause ")+h.name}><Glyph name={sessions.find(q=>q.habit_id===h.id&&!q.ended_at)?.paused_at?"play":"pause"} size={17}/></button>:<button className="tracker-timer-inline" disabled={!!active||saving} onClick={()=>timer(h,"start")} aria-label={"Start "+h.name+" timer"}><Glyph name="play" size={17}/></button>}</div>
             :<span className="tracker-list-value">{h.kind==="duration"?fmt(totals(h)):entry(h)?.awake_at?fmt(totals(h)):"—"}</span>}
           </div>}
           {view==="archive"&&<Glyph name="chevron" size={14}/>}
@@ -269,7 +269,7 @@ return <div className="compact-app">
       </div>:<div className="compact-detail-empty"><p>{view==="archive"?"Select an archived habit.":"Select a habit to see progress and records."}</p>{view!=="archive"&&live.length===0&&<button onClick={newHabit} className="primary">Create habit</button>}</div>}
     </main>
   </div>
-  <nav className="compact-bottom-nav" aria-label="Mobile navigation"><button className={view==="today"?"active":""} onClick={()=>{setView("today");setMobileDetail(false)}}><Glyph name="grid" size={18}/> Today</button><button className={view==="insights"?"active":""} onClick={()=>{setView("insights");setMobileDetail(false)}}><Glyph name="chart" size={18}/> All</button><button className={view==="archive"?"active":""} onClick={()=>{setView("archive");setMobileDetail(false)}}><Glyph name="archive" size={18}/> Archive</button></nav>
+  <nav className="compact-bottom-nav" aria-label="Mobile navigation"><button className={view==="today"?"active":""} onClick={()=>{setView("today");setDay(ymd());setMobileDetail(false)}}><Glyph name="grid" size={18}/> Today</button><button className={view==="insights"?"active":""} onClick={()=>{setView("insights");setDay(ymd());setMobileDetail(false)}}><Glyph name="chart" size={18}/> All</button><button className={view==="archive"?"active":""} onClick={()=>{setView("archive");setMobileDetail(false)}}><Glyph name="archive" size={18}/> Archive</button></nav>
   {counter.pendingCount>0&&<div className="tracker-sync" role="status"><span>{counter.pendingCount} {counter.pendingCount===1?"change":"changes"} waiting to sync</span><button type="button" onClick={()=>void counter.flush()}>Retry sync</button>{counter.syncError&&<small>{counter.syncError}</small>}</div>}
   {error&&<div className="toast" role="alert">{error}<button onClick={()=>setError("")} aria-label="Dismiss"><Glyph name="close" size={14}/></button></div>}
   {settingsOpen&&<AccountSettings url={URL} apiKey={KEY} token={token} userId={userId} onClose={()=>setSettingsOpen(false)} onLogout={logout} onUpdated={accountUpdated}/>}
