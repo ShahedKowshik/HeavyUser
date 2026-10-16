@@ -73,7 +73,7 @@ const counter=useQuantityQueue({url:URL,apiKey:KEY,token,userId,
   setEntries(previous=>{
    const old=previous.find(e=>e.habit_id===result.habit_id&&e.local_date===result.date);
    const next:Entry=old?{...old,value:result.value,confirmed:true}:{
-    id:result.event_id,habit_id:result.habit_id,local_date:result.date,user_id:userId,
+    id:result.event_id,habit_id:result.habit_id,local_date:result.date,
     value:result.value,completed:null,confirmed:true,bed_at:null,asleep_at:null,awake_at:null,out_of_bed_at:null,
     target_snapshot:habits.find(h=>h.id===result.habit_id)?.target??null,
     direction_snapshot:habits.find(h=>h.id===result.habit_id)?.direction??null
