@@ -111,6 +111,7 @@ function newHabit(){setEditing(false);setSelected(null);setForm({...emptyForm,sc
 function editHabit(h:Habit){setSelected(h);setEditing(true);setForm({name:h.name,kind:h.kind,target:h.target,unit:h.unit,direction:h.direction,schedule_days:[...h.schedule_days],icon:h.icon,color:h.color,sleep_bedtime_goal:h.sleep_bedtime_goal||"",sleep_wake_goal:h.sleep_wake_goal||"",sleep_duration_goal:h.sleep_duration_goal||480});setModal("create")}
 async function saveHabit(ev:React.FormEvent){ev.preventDefault();setSaving(true);setError("");try{const body={...form,name:form.name.trim(),user_id:userId,start_date:selected?.start_date||ymd(),sleep_bedtime_goal:form.sleep_bedtime_goal||null,sleep_wake_goal:form.sleep_wake_goal||null,sleep_duration_goal:form.kind==="sleep"?Number(form.sleep_duration_goal)||null:null};if(editing&&selected)await req("/rest/v1/habits?id=eq."+selected.id,token,{method:"PATCH",body:JSON.stringify(body)});else await req("/rest/v1/habits",token,{method:"POST",body:JSON.stringify(body)});setModal(null);await load()}catch(e){setError((e as Error).message)}finally{setSaving(false)}}
 async function archiveHabit(h:Habit){
+  if(counter.hasPending(h.id)){setError("Wait for this habit’s unsaved counter updates to sync before archiving.");return}
   if(sessions.some(s=>s.habit_id===h.id&&!s.ended_at)){setError("Stop this habit's timer before archiving.");return}
   if(!confirm("Archive "+h.name+"? You can restore it later."))return;
   setSaving(true);setError("");
@@ -124,6 +125,7 @@ async function restoreHabit(h:Habit){
 }
 function requestDelete(h:Habit){if(!h.archived_at){setError("Archive this habit before deleting it permanently.");return}setSelected(h);setDeleteText("");setModal("delete")}
 async function permanentlyDeleteHabit(h:Habit){
+  if(counter.hasPending(h.id)){setError("Wait for pending counter updates to sync before deleting.");return}
   if(!h.archived_at||deleteText!==h.name){setError("Enter the exact habit name to confirm deletion.");return}
   if(sessions.some(s=>s.habit_id===h.id&&!s.ended_at)){setError("Stop the timer before deleting this habit.");return}
   setSaving(true);setError("");
@@ -270,7 +272,7 @@ return <div className="compact-app">
     </main>
   </div>
   <nav className="compact-bottom-nav" aria-label="Mobile navigation"><button className={view==="today"?"active":""} onClick={()=>{setView("today");setDay(ymd());setMobileDetail(false)}}><Glyph name="grid" size={18}/> Today</button><button className={view==="insights"?"active":""} onClick={()=>{setView("insights");setDay(ymd());setMobileDetail(false)}}><Glyph name="chart" size={18}/> All</button><button className={view==="archive"?"active":""} onClick={()=>{setView("archive");setMobileDetail(false)}}><Glyph name="archive" size={18}/> Archive</button></nav>
-  {counter.pendingCount>0&&<div className="tracker-sync" role="status"><span>{counter.pendingCount} {counter.pendingCount===1?"change":"changes"} waiting to sync</span><button type="button" onClick={()=>void counter.flush()}>Retry sync</button>{counter.syncError&&<small>{counter.syncError}</small>}</div>}
+  {(counter.pendingCount>0||counter.syncError)&&<div className="tracker-sync" role="status"><span>{counter.pendingCount>0?counter.pendingCount+" "+(counter.pendingCount===1?"change":"changes")+" waiting to sync":"Counter update status"}</span><button type="button" onClick={()=>counter.pendingCount>0?void counter.flush():counter.clearError()}>{counter.pendingCount>0?"Retry sync":"Dismiss"}</button>{counter.syncError&&<small>{counter.syncError}</small>}</div>}
   {error&&<div className="toast" role="alert">{error}<button onClick={()=>setError("")} aria-label="Dismiss"><Glyph name="close" size={14}/></button></div>}
   {settingsOpen&&<AccountSettings url={URL} apiKey={KEY} token={token} userId={userId} onClose={()=>setSettingsOpen(false)} onLogout={logout} onUpdated={accountUpdated}/>}
   {modal&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setModal(null)}}><div role="dialog" aria-modal="true" aria-label={modal==="delete"?"Delete habit permanently":modal==="create"?"Habit settings":"Log habit"} className="modal"><div className="modal-top"><div><span className="eyebrow accent">{modal==="create"?"YOUR PRACTICE":modal==="detail"?"HABIT DETAILS":"TRACK PROGRESS"}</span><h2>{modal==="delete"?"Delete permanently":modal==="create"?(editing?"Edit habit":"Create a habit"):selected?.name||"Progress"}</h2></div><button className="close-modal" onClick={()=>setModal(null)} aria-label="Close"><Glyph name="close"/></button></div>
