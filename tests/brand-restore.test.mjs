@@ -23,7 +23,7 @@ test("full wordmark replaces temporary H branding without duplicating text",()=>
  const app=page();
  assert.match(app,/className="compact-brand-wordmark" src="\/heavyuser-logo\.png" alt="HeavyUser"/);
  assert.match(app,/className="compact-brand-icon" src="\/heavyuser-favicon\.png" alt=""/);
- assert.equal((app.match(/className="auth-brand-image"/g)||[]).length,2);
+ assert.equal((app.match(/className="auth-brand-image"/g)||[]).length,3);
  assert.doesNotMatch(app,/className="compact-logo">H/);
  assert.doesNotMatch(app,/className="brand-mark">H/);
 });
