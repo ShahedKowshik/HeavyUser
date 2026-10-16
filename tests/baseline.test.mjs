@@ -1,4 +1,10 @@
-import assert from "node:assert/strict";import {existsSync,readFileSync} from "node:fs";import {test} from "node:test";
-test("MVP dashboard and responsive styling exist",()=>{const page=readFileSync("src/app/page.tsx","utf8");const css=readFileSync("src/app/dashboard.css","utf8");assert.match(page,/Daily rhythm/);assert.match(page,/sleep/);assert.match(page,/insights/);assert.match(css,/@media\(max-width:750px\)/);});
-test("the legacy calendar scheduler was not restored",()=>{assert.equal(existsSync("src/app/api/google"),false);assert.equal(existsSync("src/lib/scheduler"),false);});
-test("no privileged backend credentials in browser source",()=>{const page=readFileSync("src/app/page.tsx","utf8");assert.doesNotMatch(page,/SUPABASE_SERVICE_ROLE_KEY|GOOGLE_CLIENT_SECRET|CRON_SECRET/);});
+import assert from "node:assert/strict";
+import {readFileSync,existsSync} from "node:fs";
+import {test} from "node:test";
+const source=()=>readFileSync("src/app/page.tsx","utf8");
+test("dashboard still supports habits and insights",()=>{const app=source();assert.match(app,/Daily rhythm/);assert.match(app,/setView\("insights"\)/);assert.match(app,/kind==="sleep"/);});
+test("account button opens settings rather than signing out",()=>{const app=source();assert.match(app,/<button className="profile" onClick=\{\(\)=>setSettingsOpen\(true\)\}/);assert.match(app,/aria-label="Open account settings"/);assert.doesNotMatch(app,/<button className="profile" onClick=\{logout\}/);});
+test("account management and recovery flows exist",()=>{const app=source();const account=readFileSync("src/app/account-settings.tsx","utf8");assert.match(app,/recoverPassword/);assert.match(app,/setRecoveredPassword/);assert.match(account,/Change password/);assert.match(account,/Change email address/);assert.match(account,/Profile picture/);assert.match(account,/Sign out/);assert.match(account,/Download your data/);});
+test("photo storage stays user-scoped and limited to safe image types",()=>{const account=readFileSync("src/app/account-settings.tsx","utf8");assert.match(account,/heavyuser-avatars/);assert.match(account,/2097152/);assert.match(account,/image\/jpeg/);assert.match(account,/userId\+"\/"\+crypto\.randomUUID/);});
+test("layout remains responsive",()=>{const css=readFileSync("src/app/dashboard.css","utf8");const accountCss=readFileSync("src/app/account.css","utf8");assert.match(css,/@media\(max-width:750px\)/);assert.match(accountCss,/@media\(max-width:700px\)/);});
+test("legacy scheduler absent, and service credentials never exposed",()=>{assert.equal(existsSync("src/app/api/google"),false);assert.equal(existsSync("src/lib/scheduler"),false);assert.doesNotMatch(source(),/SUPABASE_SERVICE_ROLE_KEY|GOOGLE_CLIENT_SECRET|CRON_SECRET/);});
