@@ -1,0 +1,690 @@
+/*
+ * HeavyUser — Quiet habits redesign.
+ * Direction: shadcn Lyra / neutral, compact Things 3 + TickTick principles.
+ * Deliberately sharp (0/2/4px only), task-first, content-led and legible.
+ * This is the single final visual layer over existing legacy selectors.
+ * Record/timer/data behavior is intentionally untouched.
+ */
+:root{
+  --hu-ink: #171717;
+  --hu-strong: #262626;
+  --hu-muted: #525252;
+  --hu-quiet: #626262;
+  --hu-line: #e5e5e5;
+  --hu-hairline: #ededed;
+  --hu-soft: #f5f5f5;
+  --hu-canvas: #fafafa;
+  --hu-paper: #ffffff;
+  --hu-radius: 2px;
+}
+.compact-app{
+  background:var(--hu-paper);
+  color:var(--hu-ink);
+  font-size:13px;
+  line-height:1.5;
+  letter-spacing:-.005em;
+}
+.compact-app button{cursor:pointer}
+.compact-app button:disabled{cursor:not-allowed}
+.compact-app button:focus-visible,
+.compact-app select:focus-visible,
+.compact-app input:focus-visible,
+.compact-app summary:focus-visible{
+  outline:2px solid #404040!important;
+  outline-offset:2px;
+}
+/* Deliberate corners only: the old theme mixed square and pill-shaped controls. */
+.compact-app :is(button,select,input,textarea,.compact-brand,.compact-list-icon,
+ .compact-record-section,.compact-stats,.compact-chart-section,.compact-history-section,
+ .tracker-event-panel,.tracker-month-section,.tracker-extra-metrics,.tracker-goal-summary,
+ .compact-state,.compact-habit-menu,.compact-feedback,.tracker-week-screen,
+ .tracker-quantity-inline,.tracker-counter-control,.compact-account-photo,
+ .compact-top-avatar,.tracker-list-profile,.profile-picture,.hu-mobile-more-popover){
+  border-radius:var(--hu-radius)!important;
+}
+.compact-app :is(.hu-day-progress-track,.hu-day-progress-track>span){border-radius:0}
+.compact-app .compact-sidebar{
+  width:174px;
+  flex-basis:174px;
+  background:var(--hu-canvas);
+  border-right:1px solid #dedede;
+}
+.compact-app .compact-brand{
+  height:74px;
+  padding:0 20px;
+  border-bottom:1px solid var(--hu-line);
+}
+.compact-app .compact-brand-wordmark{width:129px;max-width:100%;height:auto}
+.compact-app .compact-nav{padding:18px 9px;gap:3px}
+.compact-app .compact-nav button{
+  border:0;
+  font-size:13px;
+  min-height:42px;
+  font-weight:550;
+  color:var(--hu-muted);
+  gap:11px;
+  padding:9px 13px;
+  border-radius:2px!important;
+}
+.compact-app .compact-nav button svg{flex:none}
+.compact-app .compact-nav button.active{
+  background:#eaeaea;
+  color:var(--hu-ink);
+  box-shadow:inset 2px 0 0 #262626;
+  font-weight:680;
+}
+.compact-app .compact-nav button:not(.active):hover{background:#eeeeee;color:var(--hu-ink)}
+.compact-app .hu-nav-divider{height:1px;background:#e2e2e2;margin:16px 9px 0}
+.compact-app .hu-nav-group{padding:10px 13px 2px;font-size:10px;letter-spacing:.07em;font-weight:760;color:var(--hu-quiet)}
+.compact-app .compact-nav-count{font-size:11px;color:var(--hu-quiet)}
+.compact-app .compact-account{
+  min-height:68px;
+  padding:10px 14px;
+  border-top:1px solid var(--hu-line);
+  gap:11px;
+}
+.compact-app .compact-account-photo{width:36px;height:36px;flex-basis:36px;font-size:12px}
+.compact-app .compact-account-name{font-size:12px}
+.compact-app .compact-account-name small{color:var(--hu-quiet);font-size:11px}
+.compact-app .compact-layout{background:#fff;min-width:0}
+.compact-app .compact-list-pane{
+  width:328px;
+  flex-basis:328px;
+  background:#fff;
+  border-right:1px solid #dedede;
+}
+.compact-app .compact-list-head{
+  height:auto;
+  min-height:94px;
+  padding:22px 18px 17px;
+  border-bottom:0;
+  align-items:center;
+  gap:12px;
+}
+.compact-app .compact-list-head h1{
+  font-size:24px;
+  line-height:1.2;
+  letter-spacing:-.9px;
+  font-weight:760;
+}
+.compact-app .compact-list-count{
+  margin-top:5px;
+  line-height:1.4;
+  color:var(--hu-quiet);
+  font-size:12px;
+  font-weight:500;
+}
+.compact-app .tracker-list-top-actions{gap:7px}
+.compact-app .compact-add,
+.compact-app .tracker-list-profile{
+  width:42px;height:42px;min-width:42px;min-height:42px;
+  border:1px solid #cecece;
+  background:#fff;
+  color:var(--hu-ink);
+}
+.compact-app .tracker-list-profile{display:none}
+.compact-app .compact-add:hover:not(:disabled){background:#f5f5f5;border-color:#a3a3a3}
+.compact-app .hu-day-progress{padding:0 18px 20px;border-bottom:1px solid var(--hu-line)}
+.compact-app .hu-day-progress-copy{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:9px;font-size:12px;line-height:1.4;
+  font-weight:580;color:var(--hu-muted);
+}
+.compact-app .hu-day-progress-copy>span:last-child{font-variant-numeric:tabular-nums}
+.compact-app .hu-day-progress-track{height:4px;background:#e5e5e5;margin-top:11px;overflow:hidden}
+.compact-app .hu-day-progress-track>span{height:100%;display:block;background:#171717;transition:width .17s ease}
+.compact-app .compact-date-row{
+  min-height:49px;height:49px;
+  padding:0 12px;
+  border-bottom:1px solid var(--hu-line);
+  background:#fcfcfc;
+  font-size:12px;
+  font-weight:600;
+  color:#404040;
+}
+.compact-app .compact-date-row button{
+  width:42px;height:42px;min-width:42px;min-height:42px;
+  color:#404040;
+  display:grid;place-items:center;
+}
+.compact-app .compact-list-items{background:#fff}
+.compact-app .tracker-list-item{
+  min-height:74px;
+  padding:11px 13px;
+  border-bottom:1px solid #eeeeee;
+  gap:7px;
+  background:#fff;
+  box-shadow:none;
+}
+.compact-app .tracker-list-item.selected{
+  background:#f5f5f5;
+  box-shadow:inset 3px 0 #171717;
+}
+.compact-app .tracker-list-item:hover:not(.selected){background:#fafafa}
+.compact-app .tracker-item-select{
+  gap:11px;
+  min-height:50px;
+  padding:2px 0;
+}
+.compact-app .tracker-item-select:hover .compact-list-item-copy strong{text-decoration:none}
+.compact-app .compact-list-icon{
+  height:36px;
+  width:36px;
+  flex:0 0 36px;
+  border:1px solid #dadada;
+  background:#fff;
+  color:#404040;
+}
+.compact-app .tracker-list-item.selected .compact-list-icon{border-color:#bcbcbc}
+.compact-app .compact-list-item-copy strong{
+  font-size:13px;
+  font-weight:700;
+  letter-spacing:-.15px;
+  line-height:1.4;
+}
+.compact-app .compact-list-item-copy small{
+  font-size:11.5px;
+  color:var(--hu-quiet);
+  margin-top:4px;
+  line-height:1.4;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.compact-app .hu-row-status{color:var(--hu-muted)}
+.compact-app .tracker-item-actions{gap:5px}
+.compact-app .tracker-list-value{font-size:12px;color:#404040}
+.compact-app .tracker-check-inline,
+.compact-app .tracker-timer-inline{
+  height:42px;width:42px;min-height:42px;min-width:42px;
+  border:1px solid #bfbfbf;
+  background:#fff;
+}
+.compact-app .tracker-check-inline.is-done{border-color:#171717;background:#171717;color:#fff}
+.compact-app .tracker-quantity-inline{
+  background:#fff;border:1px solid #cecece;
+  min-height:42px;
+}
+.compact-app .tracker-quantity-inline button{
+  width:40px;height:42px;min-height:42px;min-width:40px;flex:0 0 40px;
+  background:#fff;
+}
+.compact-app .tracker-quantity-inline span{
+  min-width:28px;
+  font-size:14px;
+  font-weight:730;
+  color:#171717;
+}
+.compact-app .compact-list-footer{
+  height:43px;
+  min-height:43px;
+  color:var(--hu-quiet);
+  background:#fafafa;
+  padding:0 18px;
+  font-size:11px;
+}
+.compact-app .compact-no-habits{
+  padding:27px 19px;
+  line-height:1.6;
+  color:var(--hu-muted);
+  font-size:13px;
+}
+/* Details act as the page, not a dashboard of identical bordered cards. */
+.compact-app .compact-details{
+  min-width:0;min-height:100dvh;background:#fff;
+}
+.compact-app .compact-details-bar{
+  height:63px;
+  padding:0 clamp(18px,2.1vw,36px);
+  border-bottom:1px solid var(--hu-line);
+  background:#fff;
+  gap:13px;
+}
+.compact-app .hu-breadcrumb{font-size:12px;font-weight:560;color:var(--hu-quiet)}
+.compact-app .tracker-detail-date{gap:4px}
+.compact-app .tracker-detail-date button{
+  width:auto;min-width:42px;min-height:42px;border:1px solid transparent;
+}
+.compact-app .tracker-detail-date .tracker-detail-date-label{
+  border:0;
+  background:#f5f5f5;
+  font-size:12px;font-weight:620;color:#171717;
+  padding:0 12px;
+  max-width:none;
+}
+.compact-app .compact-top-avatar{width:36px;height:36px;min-width:36px;min-height:36px;flex-basis:36px}
+.compact-app .compact-detail-body{
+  width:100%;
+  max-width:1600px;
+  padding:25px clamp(18px,2.2vw,36px) 65px;
+}
+.compact-app .compact-detail-heading{
+  gap:16px;
+  margin:0 0 24px;
+  align-items:center;
+}
+.compact-app .compact-detail-title{gap:13px}
+.compact-app .compact-title-icon{height:43px;width:43px;flex-basis:43px;border-color:#d4d4d4;background:#fafafa}
+.compact-app .compact-detail-title h2{
+  font-size:23px;line-height:1.22;font-weight:760;letter-spacing:-.7px;
+}
+.compact-app .compact-detail-title p{font-size:12px;color:var(--hu-quiet);margin-top:5px}
+.compact-app .compact-habit-actions{gap:7px;flex:none}
+.compact-app .compact-habit-edit,
+.compact-app .compact-habit-restore,
+.compact-app .compact-habit-more{
+  min-height:42px;
+  border-color:#cecece;
+  font-size:12px;
+}
+.compact-app .compact-habit-more{width:42px;min-width:42px}
+.compact-app .compact-habit-menu{border:1px solid #d4d4d4;box-shadow:0 10px 22px #00000014}
+.compact-app .compact-record-section{
+  background:#fafafa;
+  border:1px solid #dedede;
+  padding:19px 21px;
+  margin:0 0 21px;
+}
+.compact-app .compact-record-section.hu-main-record{background:#fafafa}
+.compact-app .compact-section-head{
+  margin-bottom:13px;
+  gap:12px;
+}
+.compact-app .compact-section-label{
+  font-size:12px;
+  font-weight:700;
+  line-height:1.4;
+  letter-spacing:0;
+  color:#262626;
+}
+.compact-app .compact-state{
+  font-size:11px;
+  padding:6px 9px;
+  background:#fff;
+  border:1px solid #d4d4d4;
+  font-weight:650;
+  color:#404040;
+}
+.compact-app .compact-record-content{
+  min-height:70px;
+  gap:18px;
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  justify-content:space-between;
+}
+.compact-app .compact-record-value{min-width:0}
+.compact-app .compact-record-value strong{
+  font-size:30px;
+  line-height:1.14;
+  letter-spacing:-.9px;
+  font-weight:740;
+  overflow-wrap:anywhere;
+}
+.compact-app .compact-record-value small{
+  display:block;margin-top:6px;font-size:12px;color:var(--hu-muted);
+}
+.compact-app .compact-record-actions{gap:9px;justify-content:flex-end;flex-wrap:wrap}
+.compact-app .compact-record-actions button,
+.compact-app .tracker-counter-control button{
+  min-height:44px;
+  height:44px;
+  font-size:12px;
+}
+.compact-app .compact-record-actions>.primary{padding-inline:15px}
+.compact-app .tracker-counter-control{background:#fff;border:1px solid #bfbfbf}
+.compact-app .tracker-counter-control button{
+  width:44px;min-width:44px;
+  background:#fff;
+}
+.compact-app .tracker-counter-control span{
+  min-width:53px;font-size:21px;font-weight:740;
+}
+.compact-app .tracker-status-control{
+  border-top:1px solid #e0e0e0;
+  padding-top:14px;
+  margin-top:16px;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+}
+.compact-app .tracker-status-control label{font-size:12px;color:var(--hu-muted)}
+.compact-app .tracker-status-control select{
+  min-height:40px;
+  background:#fff;
+  border-color:#d4d4d4;
+  color:#262626;
+}
+.compact-app .tracker-status-control>button{
+  min-height:40px;
+  font-size:12px;
+  background:#fff;
+}
+.compact-app .compact-sleep-stats{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px;border-color:#e5e5e5;
+}
+.compact-app .compact-sleep-stats>div strong{font-size:13px}
+.compact-app .tracker-goal-summary{
+  padding:11px 0 15px;
+  margin:0 0 17px;
+  background:transparent;
+  border:0;
+  border-bottom:1px solid var(--hu-line);
+}
+.compact-app .tracker-goal-summary strong{font-size:21px}
+.compact-app .tracker-goal-summary span{font-size:12px;color:var(--hu-muted)}
+.compact-app .compact-stats{
+  border:0;
+  background:transparent;
+  padding:0 0 16px;
+  margin:0;
+}
+.compact-app .compact-stat-grid{
+  margin:13px 0 0;
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:0;
+}
+.compact-app .compact-stat-grid>div{
+  min-width:0;
+  padding:3px 22px;
+  border-right:1px solid #e0e0e0;
+}
+.compact-app .compact-stat-grid>div:first-child{padding-left:0}
+.compact-app .compact-stat-grid>div:last-child{border:0}
+.compact-app .compact-stat-grid strong{
+  font-size:24px;
+  line-height:1.25;
+  font-weight:740;
+  letter-spacing:-.7px;
+}
+.compact-app .compact-stat-grid span{
+  display:block;margin-top:4px;
+  font-size:12px;
+  color:var(--hu-muted);
+}
+.compact-app .tracker-extra-metrics{
+  background:transparent;
+  border:0;
+  border-bottom:1px solid var(--hu-line);
+  padding:0 0 15px;
+  margin:0 0 23px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px 26px;
+}
+.compact-app .tracker-extra-metrics>div{
+  border:0;
+  padding:0;
+  flex:0 1 auto;
+  min-width:115px;
+  gap:3px;
+}
+.compact-app .tracker-extra-metrics strong{font-size:14px;line-height:1.3;font-weight:700;letter-spacing:-.2px}
+.compact-app .tracker-extra-metrics span{font-size:11px;line-height:1.45;color:var(--hu-quiet)}
+/* Chart and calendar in one consistent two-column content surface */
+.compact-app .hu-progress-panels{
+  display:grid;
+  grid-template-columns:minmax(0,1.12fr) minmax(280px,.88fr);
+  column-gap:clamp(20px,2.8vw,46px);
+  row-gap:22px;
+  align-items:start;
+  min-width:0;
+  padding-bottom:23px;
+  border-bottom:1px solid var(--hu-line);
+}
+.compact-app .hu-progress-panels>.compact-chart-section,
+.compact-app .hu-progress-panels>.tracker-month-section{
+  border:0;
+  background:transparent;
+  margin:0;
+  padding:0;
+  min-width:0;
+  height:auto;
+  align-self:stretch;
+}
+.compact-app .hu-progress-panels>.tracker-month-section{
+  border-left:1px solid #e5e5e5;
+  padding-left:clamp(20px,2.8vw,46px);
+}
+.compact-app .compact-chart-section .compact-section-head,
+.compact-app .tracker-month-heading{
+  min-height:43px;
+  margin:0 0 17px;
+  gap:8px;
+}
+.compact-app .tracker-month-heading{display:flex}
+.compact-app .tracker-month-heading strong{font-size:12px}
+.compact-app .tracker-month-heading small{font-size:12px;color:var(--hu-muted)}
+.compact-app .tracker-range-control{border:1px solid #d4d4d4}
+.compact-app .tracker-range-control button{
+  min-width:40px;
+  min-height:36px;
+  font-size:11px;
+}
+.compact-app .tracker-chart-scroll{
+  overflow-x:auto;
+  width:100%;
+  scrollbar-width:thin;
+}
+.compact-app .compact-chart{
+  height:175px;
+  gap:6px;
+  align-items:stretch;
+}
+.compact-app .compact-chart-area{height:145px}
+.compact-app .compact-chart-column small{font-size:11px;color:var(--hu-muted)}
+.compact-app .compact-chart-bar{
+  max-width:39px;
+  border:0;
+}
+.compact-app .compact-chart-bar.hit{background:#262626}
+.compact-app .compact-chart-bar.partial{background:#767676}
+.compact-app .compact-chart-bar.missing{background:#e4e4e4;border:1px solid #9c9c9c}
+.compact-app .compact-chart-legend{margin-top:12px;gap:13px;line-height:1.5;color:var(--hu-muted);font-size:11px}
+.compact-app .tracker-month-grid{max-width:none;gap:5px}
+.compact-app .tracker-month-day{min-height:40px;font-size:12px;border-color:#d4d4d4}
+.compact-app .tracker-month-day.state-done{background:#262626;color:#fff;border-color:#262626}
+.compact-app .tracker-month-day.state-partial,
+.compact-app .tracker-month-day.state-on_track{background:#ededed}
+.compact-app .tracker-month-day.state-over_limit{color:#7f1d1d}
+.compact-app .tracker-month-weekday{font-size:11px;color:#525252;font-weight:700}
+.compact-app .tracker-month-caption{font-size:11px;margin-top:12px;color:var(--hu-quiet)}
+.compact-app .tracker-month-controls button{min-height:38px;min-width:38px;font-size:19px}
+.compact-app .hu-detail-disclosure{border-bottom:1px solid var(--hu-line)}
+.compact-app .hu-detail-disclosure>summary{
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;
+  position:relative;
+  cursor:pointer;
+  min-height:54px;
+  padding:11px 24px 11px 0;
+  list-style:none;
+  font-size:13px;
+  font-weight:720;
+  color:var(--hu-ink);
+}
+.compact-app .hu-detail-disclosure>summary::-webkit-details-marker{display:none}
+.compact-app .hu-detail-disclosure>summary::after{
+  content:"⌄";position:absolute;right:3px;top:50%;transform:translateY(-55%);
+  color:#525252;font-size:18px;font-weight:450;
+}
+.compact-app .hu-detail-disclosure[open]>summary::after{content:"⌃"}
+.compact-app .hu-disclosure-hint{margin-left:auto;font-size:11px;color:var(--hu-muted);font-weight:450}
+.compact-app .hu-detail-disclosure>.compact-history-section,
+.compact-app .hu-detail-disclosure>.tracker-event-panel{
+  padding:0 0 15px;
+  margin:0;
+  border:0;
+  background:transparent;
+  height:auto;
+}
+.compact-app .hu-detail-disclosure .compact-history-section>.compact-section-head,
+.compact-app .hu-detail-disclosure .tracker-event-panel>.compact-section-head{margin-bottom:9px}
+.compact-app .compact-history-table{max-height:360px}
+.compact-app .compact-history-row{min-height:43px;font-size:12px;gap:12px}
+.compact-app .tracker-history-button:hover{background:#f5f5f5}
+.compact-app .tracker-history-button[aria-current="date"]{background:#ededed}
+.compact-app .compact-history-state{color:var(--hu-quiet)}
+.compact-app .tracker-event-row{min-height:42px;font-size:12px}
+.compact-app .compact-detail-empty{padding:38px 24px;font-size:13px;color:var(--hu-muted)}
+.compact-app .compact-archived-summary{background:#fafafa}
+/* The week view follows the same quiet layout and typography. */
+.compact-app .tracker-week-workspace{
+  width:100%;padding:25px clamp(20px,2.2vw,36px);
+  background:#fff;min-width:0;
+}
+.compact-app .tracker-week-screen{border:0;background:#fff}
+.compact-app .tracker-week-settings{font-size:12px;color:var(--hu-muted);margin-bottom:11px}
+.compact-app .tracker-week-heading{padding:0 0 15px}
+.compact-app .tracker-week-heading h2{font-size:23px;font-weight:750;letter-spacing:-.7px}
+.compact-app .tracker-week-heading p{font-size:12px;color:var(--hu-muted)}
+.compact-app .tracker-week-hint{font-size:12px;color:var(--hu-muted);padding:0 0 18px}
+.compact-app .tracker-week-head{background:#fafafa;border-color:#e5e5e5}
+.compact-app .tracker-week-head>span{font-size:12px}
+.compact-app .tracker-week-head>span:first-child{background:#fafafa}
+.compact-app .tracker-week-row{min-height:57px}
+.compact-app .tracker-week-row-name>.tracker-week-name{min-height:57px;font-size:13px;font-weight:650}
+.compact-app .tracker-week-cell-wrap>.tracker-week-cell{min-height:57px}
+.compact-app .tracker-grid-legend{font-size:11px;color:var(--hu-muted);padding:14px 0;gap:14px}
+/* Dialogs: flat shadcn look with deliberate hierarchy. */
+.modal{border-radius:4px!important}
+.modal .modal-top h2{font-size:22px}
+.modal .modal-form label{font-size:13px}
+.modal .modal-form :is(input,select,textarea){border-radius:2px!important;min-height:44px}
+.modal .modal-footer :is(button){border-radius:2px!important}
+/* Account settings also remain within the chosen radius language. */
+.account-panel,.account-panel :is(button,input,select,textarea,.account-photo,.account-notice,.account-error){border-radius:2px!important}
+.account-panel .profile-picture{border-radius:2px!important}
+/* Do not hide features on tablet: give the list its own stable width. */
+@media(max-width:1180px){
+  .compact-app .compact-sidebar{width:156px;flex-basis:156px}
+  .compact-app .compact-list-pane{width:300px;flex-basis:300px}
+  .compact-app .hu-progress-panels{grid-template-columns:1fr;row-gap:23px}
+  .compact-app .hu-progress-panels>.tracker-month-section{border-left:0;border-top:1px solid var(--hu-line);padding:22px 0 0}
+  .compact-app .tracker-month-grid{max-width:570px}
+}
+@media(max-width:850px){
+  .compact-app .compact-sidebar{width:63px;flex-basis:63px}
+  .compact-app .compact-brand{padding:0;justify-content:center}
+  .compact-app .compact-brand-wordmark{display:none}
+  .compact-app .compact-brand-icon{display:block;width:30px;height:30px}
+  .compact-app .compact-nav{padding:14px 7px}
+  .compact-app .compact-nav button{font-size:0;justify-content:center;padding:11px 8px;min-height:46px}
+  .compact-app .compact-nav button svg{width:19px;height:19px}
+  .compact-app .compact-nav-count,.compact-app .hu-nav-group{display:none}
+  .compact-app .hu-nav-divider{margin:12px 8px 4px}
+  .compact-app .compact-list-pane{width:274px;flex-basis:274px}
+  .compact-app .compact-list-head{padding:18px 13px 15px}
+  .compact-app .hu-day-progress{padding:0 13px 17px}
+  .compact-app .tracker-list-item{padding:10px}
+  .compact-app .tracker-item-select{gap:8px}
+  .compact-app .compact-list-icon{width:32px;height:32px;flex-basis:32px}
+  .compact-app .compact-list-item-copy small{font-size:11px}
+  .compact-app .compact-detail-body{padding:20px 16px 50px}
+  .compact-app .compact-details-bar{padding-inline:16px}
+  .compact-app .compact-record-content{align-items:flex-start;flex-wrap:wrap}
+  .compact-app .compact-record-actions{justify-content:flex-start}
+  .compact-app .tracker-quantity-inline button{width:35px;min-width:35px;flex-basis:35px}
+}
+@media(max-width:650px){
+  .compact-app .compact-sidebar{display:none}
+  .compact-app .compact-layout{background:#fff;padding-bottom:calc(67px + env(safe-area-inset-bottom));min-height:100dvh}
+  .compact-app .compact-list-pane{
+    width:100%;height:calc(100dvh - 65px - env(safe-area-inset-bottom));
+    position:relative;border:0;
+  }
+  .compact-app .compact-list-head{min-height:89px;padding:18px 16px 14px}
+  .compact-app .compact-list-head h1{font-size:25px}
+  .compact-app .tracker-list-profile{display:grid;width:42px;min-width:42px;height:42px}
+  .compact-app .hu-day-progress{padding:0 16px 18px}
+  .compact-app .compact-date-row{height:50px;min-height:50px;padding:0 13px}
+  .compact-app .tracker-list-item{padding:11px 16px;min-height:77px}
+  .compact-app .compact-list-icon{width:39px;height:39px;flex-basis:39px}
+  .compact-app .compact-list-item-copy strong{font-size:14px}
+  .compact-app .compact-list-item-copy small{font-size:12px}
+  .compact-app .tracker-item-select{min-height:50px;gap:11px}
+  .compact-app .tracker-check-inline,.compact-app .tracker-timer-inline{height:44px;min-height:44px;width:44px;min-width:44px}
+  .compact-app .tracker-quantity-inline button{height:44px;width:44px;min-width:44px;flex-basis:44px}
+  .compact-app .compact-list-footer{height:40px;min-height:40px}
+  .compact-app .compact-details{background:#fff}
+  .compact-app .compact-details-bar{height:54px;padding:0 13px}
+  .compact-app .compact-detail-body{padding:18px 15px calc(100px + env(safe-area-inset-bottom));max-width:none}
+  .compact-app .compact-detail-heading{margin-bottom:17px}
+  .compact-app .compact-detail-title{gap:9px}
+  .compact-app .compact-title-icon{width:39px;height:39px;flex-basis:39px}
+  .compact-app .compact-detail-title h2{font-size:20px}
+  .compact-app .compact-detail-title p{font-size:11px}
+  .compact-app .compact-habit-edit,.compact-app .compact-habit-more{min-height:42px}
+  .compact-app .compact-habit-more{width:42px}
+  .compact-app .compact-record-section{padding:16px 14px;margin-bottom:20px}
+  .compact-app .compact-record-content{gap:13px}
+  .compact-app .compact-record-value strong{font-size:28px}
+  .compact-app .tracker-status-control{gap:8px}
+  .compact-app .tracker-status-control select{min-height:44px;flex:1;min-width:180px;max-width:none}
+  .compact-app .tracker-status-control>button{min-height:44px}
+  .compact-app .compact-sleep-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .compact-app .compact-stats{padding:0 0 15px}
+  .compact-app .compact-stat-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .compact-app .compact-stat-grid>div{padding:3px 11px}
+  .compact-app .compact-stat-grid>div:first-child{padding-left:0}
+  .compact-app .compact-stat-grid strong{font-size:19px}
+  .compact-app .compact-stat-grid span{font-size:11px}
+  .compact-app .tracker-extra-metrics{margin-bottom:20px;gap:12px}
+  .compact-app .tracker-extra-metrics>div{min-width:115px}
+  .compact-app .hu-progress-panels{grid-template-columns:1fr;row-gap:22px;padding-bottom:20px}
+  .compact-app .hu-progress-panels>.tracker-month-section{padding:19px 0 0}
+  .compact-app .tracker-month-grid{max-width:none}
+  .compact-app .tracker-month-day{min-height:44px}
+  .compact-app .compact-chart{height:166px}
+  .compact-app .compact-chart-area{height:138px}
+  .compact-app .compact-chart-section .compact-section-head,.compact-app .tracker-month-heading{min-height:40px}
+  .compact-app .hu-detail-disclosure>summary{min-height:54px}
+  .compact-app .compact-history-row{min-height:48px}
+  .compact-app .compact-bottom-nav{
+    display:flex;height:calc(65px + env(safe-area-inset-bottom));
+    padding:2px 7px env(safe-area-inset-bottom);
+    position:fixed;bottom:0;left:0;right:0;
+    background:#fff;border-top:1px solid #dedede;z-index:40;
+  }
+  .compact-app .compact-bottom-nav button{
+    width:25%;min-height:60px;flex:1;
+    padding:6px 4px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:3px;color:#525252;font-size:11px;line-height:1.2;font-weight:580;
+  }
+  .compact-app .compact-bottom-nav button.active{
+    color:#171717;font-weight:730;box-shadow:inset 0 2px 0 #171717;
+  }
+  .compact-app .hu-mobile-more-popover{
+    display:grid;gap:2px;position:fixed;right:9px;bottom:calc(74px + env(safe-area-inset-bottom));
+    min-width:225px;max-width:calc(100vw - 18px);
+    background:#fff;border:1px solid #d4d4d4;
+    box-shadow:0 8px 25px #0000001a;
+    padding:5px;z-index:65;
+  }
+  .compact-app .hu-mobile-more-popover button{
+    display:flex;align-items:center;gap:11px;
+    background:#fff;border:0;min-height:46px;width:100%;
+    font-size:13px;font-weight:570;text-align:left;padding:10px 12px;color:#262626;
+  }
+  .compact-app .hu-mobile-more-popover button:hover{background:#f5f5f5}
+  .compact-app .hu-mobile-more-popover small{margin-left:auto;color:#525252}
+  .compact-app .tracker-week-workspace{padding:18px 13px calc(90px + env(safe-area-inset-bottom))}
+  .compact-app .tracker-week-heading h2{font-size:22px}
+}
+@media(max-width:380px){
+  .compact-app .tracker-list-item{gap:6px;padding:10px 10px}
+  .compact-app .tracker-item-select{gap:7px}
+  .compact-app .compact-list-icon{width:32px;height:32px;flex-basis:32px}
+  .compact-app .tracker-quantity-inline button{width:39px;min-width:39px;flex-basis:39px}
+  .compact-app .tracker-quantity-inline span{min-width:24px}
+  .compact-app .compact-detail-body{padding-inline:11px}
+  .compact-app .compact-detail-title h2{font-size:18px}
+  .compact-app .compact-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .compact-app .compact-stat-grid>div:nth-child(2){border:0;padding-right:0}
+  .compact-app .compact-stat-grid>div:nth-child(3){grid-column:1/-1;border:0;border-top:1px solid #e5e5e5;padding:11px 0 0;margin-top:10px}
+  .compact-app .tracker-status-control select{min-width:150px}
+}
+@media(prefers-reduced-motion:reduce){
+  .compact-app .hu-day-progress-track>span{transition:none}
+}
