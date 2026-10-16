@@ -56,7 +56,8 @@ test("daily recording is ahead of visual progress and analytics",()=>{
 });
 test("calendar and trend are side-by-side without duplicate month calendars",()=>{
  const p=page(),c=css();
- assert.equal((p.match(/<MonthHeatmap/g)||[]).length,1);
+ assert.equal((p.match(/<MonthHeatmap/g)||[]).length,2);
+ assert.match(p,/view==="archive"&&<section className="hu-archived-calendar"/);
  assert.match(p,/className="hu-progress-panels"><section className="compact-chart-section"/);
  assert.match(c,/\.hu-progress-panels\{\s*display:grid/);
  assert.match(c,/grid-template-columns:minmax\(0,1\.12fr\) minmax\(280px,\.88fr\)/);
