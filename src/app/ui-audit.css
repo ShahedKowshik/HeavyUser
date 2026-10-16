@@ -1,0 +1,185 @@
+/**
+ * HeavyUser UI quality audit — compact Lyra/neutral.
+ * Visual refinements only: readable density, spacing, visible focus, hit areas,
+ * accessible data grids and responsive layout.
+ * Imported after legacy styles to avoid a wholesale design-system rewrite.
+ */
+:root{
+ --ui-gap-1:4px;
+ --ui-gap-2:8px;
+ --ui-gap-3:12px;
+ --ui-gap-4:16px;
+ --ui-gap-5:20px;
+ --ui-text-muted:#626262;
+}
+html{scroll-padding-bottom:calc(80px + env(safe-area-inset-bottom))}
+.compact-app,.modal,.account-panel{font-variant-numeric:normal}
+.compact-app button,.modal button,.account-panel button{touch-action:manipulation}
+.compact-app button:focus-visible,
+.modal button:focus-visible,
+.account-panel button:focus-visible,
+.compact-app select:focus-visible,
+.modal input:focus-visible,
+.modal select:focus-visible,
+.account-panel input:focus-visible{
+ outline:2px solid #525252!important;
+ outline-offset:2px;
+}
+.compact-app [role="region"]:focus-visible{
+ outline:2px solid #525252;
+ outline-offset:-2px;
+}
+.compact-app :is(.compact-list-count,.compact-account-name small,.compact-list-item-copy small,
+ .compact-list-footer,.compact-date-row,.compact-detail-title p,.compact-state,
+ .compact-section-label,.compact-record-value small,.compact-stat-grid span,
+ .compact-chart-caption,.compact-chart-column small,.compact-chart-legend,
+ .compact-history-state,.tracker-list-value,.tracker-event-row,.tracker-month-caption,
+ .tracker-month-heading small,.tracker-week-settings,.tracker-week-hint,.tracker-week-goal,
+ .tracker-extra-metrics span,.tracker-goal-summary span){
+ font-size:12px;
+ line-height:1.45;
+}
+.compact-app :is(.compact-list-count,.compact-account-name small,.compact-list-item-copy small,
+ .compact-list-footer,.compact-date-row,.compact-detail-title p,.compact-record-value small,
+ .compact-stat-grid span,.compact-chart-caption,.compact-chart-column small,
+ .compact-chart-legend,.compact-history-state,.tracker-event-row,.tracker-month-caption,
+ .tracker-week-settings,.tracker-week-hint,.tracker-extra-metrics span,.tracker-goal-summary span){
+ color:var(--ui-text-muted);
+}
+.compact-app :is(.tracker-list-value,.compact-stat-grid strong,.tracker-extra-metrics strong){font-variant-numeric:tabular-nums}
+.compact-app :is(.compact-record-section,.compact-stats,.compact-chart-section,
+ .compact-history-section,.tracker-event-panel,.tracker-month-section){
+ padding:var(--ui-gap-4);
+}
+.compact-app .compact-section-head{gap:var(--ui-gap-3);flex-wrap:wrap}
+.compact-app .compact-detail-heading{gap:var(--ui-gap-4);margin-bottom:var(--ui-gap-4)}
+.compact-app .compact-detail-body{padding:var(--ui-gap-5) clamp(16px,2vw,34px) 38px}
+.compact-app .compact-list-head{padding-inline:var(--ui-gap-4)}
+.compact-app .compact-list-item{padding-inline:var(--ui-gap-3);gap:var(--ui-gap-2)}
+.compact-app .compact-stat-grid>div{padding-right:var(--ui-gap-3)}
+.compact-app .compact-stat-grid>div + div{padding-left:var(--ui-gap-4)}
+.compact-app .compact-history-row{min-height:44px;font-size:12px;gap:var(--ui-gap-2)}
+.compact-app .compact-history-state{min-width:0;white-space:normal;overflow-wrap:break-word}
+.compact-app .compact-chart-legend{gap:var(--ui-gap-3);margin-top:var(--ui-gap-2)}
+.compact-app .compact-chart-bar.partial{background:#858585}
+.compact-app .compact-chart-bar.missing{background:#d5d5d5;border:1px solid #8a8a8a}
+.compact-app :is(.tracker-range-control button,.tracker-reorder-toggle,
+ .tracker-week-nav button,.tracker-month-controls button){min-height:40px;min-width:40px}
+.compact-app .compact-date-row button{min-height:40px;min-width:40px}
+.compact-app .tracker-quantity-inline button{min-height:40px;width:40px;flex-basis:40px}
+.compact-app .tracker-list-timer button{min-height:40px;min-width:40px}
+.compact-app .tracker-check-inline{min-width:40px;min-height:40px}
+.compact-app .tracker-status-control>button{min-height:40px;font-size:12px}
+.compact-app .tracker-status-control select{font-size:12px;min-height:40px}
+.compact-app .tracker-month-day{min-height:40px;font-size:12px}
+.compact-app .tracker-month-weekday{font-size:12px;font-weight:610;color:#525252;min-height:24px}
+.compact-app .tracker-month-empty{min-height:40px}
+.compact-app .tracker-month-day.state-not_due{color:#626262}
+.compact-app .tracker-month-day:disabled{opacity:.68}
+.compact-app .tracker-week-goal{color:#525252}
+.compact-app .tracker-week-head>span small{font-size:11px;color:#626262}
+.compact-app .tracker-grid-legend{font-size:11px;line-height:1.5;gap:var(--ui-gap-3)}
+.compact-app .tracker-week-row-name{
+ min-width:0;
+ position:sticky;
+ left:0;
+ z-index:2;
+ background:#fff;
+ border-right:1px solid var(--border);
+}
+.compact-app .tracker-week-row-name>.tracker-week-name{
+ position:static;
+ width:100%;
+ height:100%;
+ min-height:52px;
+ border-right:0;
+}
+.compact-app .tracker-week-row-name:focus-within{z-index:4}
+.compact-app .tracker-week-scroll{scrollbar-width:thin}
+.compact-app .tracker-week-cell-wrap>.tracker-week-cell{min-height:52px}
+.compact-app .tracker-week-empty{padding:14px 20px;margin:0;font-size:13px;color:#525252;line-height:1.5}
+.tracker-week-swipe-hint{display:none}
+.compact-app .tracker-week-head>span.current{box-shadow:inset 0 -2px #525252}
+.compact-app .compact-history-table{scrollbar-width:thin}
+.compact-app .compact-history-row.tracker-history-button:focus-visible{outline-offset:-2px}
+.compact-app .tracker-history-button[aria-current="date"]{box-shadow:inset 3px 0 #171717}
+.compact-app .tracker-week-cell:focus-visible{outline-offset:-3px!important}
+.modal .modal-form{gap:var(--ui-gap-4)}
+.modal .modal-form :is(input,select){min-height:44px;font-size:14px;color:#171717}
+.modal .modal-form label{font-size:13px;line-height:1.45;color:#404040}
+.modal .modal-form .form-hint{font-size:12px;line-height:1.55}
+.modal .modal-footer{gap:var(--ui-gap-2);padding-top:var(--ui-gap-4)}
+.modal .modal-footer button{min-height:44px;font-size:13px}
+.modal .week-select{gap:var(--ui-gap-1)}
+.modal .week-select button{min-height:44px;font-size:12px}
+.modal .tracker-advanced summary{font-size:13px;min-height:40px;display:list-item;align-content:center}
+.account-panel :is(.account-help,.account-header p,.photo-controls p,.account-export p){font-size:12px;line-height:1.55;color:var(--ui-text-muted)}
+.account-panel :is(.account-form label,.photo-controls strong,.account-export strong){font-size:13px;color:#404040}
+.account-panel :is(.account-form input,.account-secondary,.account-tabs button){font-size:13px}
+.account-panel :is(.account-form input,.account-secondary,.account-tabs button,.account-link){min-height:44px}
+.account-panel .account-form{gap:var(--ui-gap-4)}
+.account-panel .account-two{gap:var(--ui-gap-3)}
+.account-panel .account-content{padding:24px 28px 30px}
+.account-panel .account-header{padding:22px 28px 20px}
+.account-panel .account-header h2{margin:0 0 6px;line-height:1.2}
+.account-panel .account-rule{margin:22px 0}
+.account-panel .account-photo{border:1px solid var(--border)}
+.account-panel .account-notice,.account-panel .account-error{font-size:13px}
+.account-panel :is(.account-secondary,.account-icon-btn){border-color:var(--border)}
+@media(max-width:1090px){
+ .compact-app .compact-detail-body{padding-inline:18px}
+}
+@media(max-width:850px){
+ .compact-app .compact-detail-body{padding-inline:16px}
+ .compact-app .compact-stat-grid>div + div{padding-left:12px}
+ .compact-app .compact-list-item{padding-inline:9px}
+}
+@media(max-width:650px){
+ html{scroll-padding-bottom:calc(92px + env(safe-area-inset-bottom))}
+ .compact-app .compact-detail-body{padding:16px 12px calc(100px + env(safe-area-inset-bottom))}
+ .compact-app :is(.compact-record-section,.compact-stats,.compact-chart-section,
+  .compact-history-section,.tracker-event-panel,.tracker-month-section){padding:14px 12px}
+ .compact-app .compact-list-head{padding-inline:12px}
+ .compact-app .compact-list-item{padding-inline:10px}
+ .compact-app .compact-stat-grid span{font-size:12px;line-height:1.5}
+ .compact-app .compact-history-row{font-size:12px;min-height:46px}
+ .compact-app :is(.tracker-quantity-inline button,.tracker-check-inline,
+  .tracker-list-timer button,.tracker-reorder-toggle,.tracker-range-control button,
+  .compact-date-row button,.tracker-week-nav button,.tracker-month-controls button){min-height:44px;min-width:44px}
+ .compact-app .tracker-quantity-inline button{height:44px;width:44px;flex-basis:44px}
+ .compact-app .tracker-month-day{min-height:44px;font-size:12px}
+ .compact-app .tracker-month-empty{min-height:44px}
+ .compact-app .tracker-week-hint{padding-inline:12px}
+ .tracker-week-swipe-hint{display:inline}
+ .compact-app .tracker-week-heading{padding:14px 12px 12px}
+ .compact-app .tracker-week-cell-wrap>.tracker-week-cell{min-height:52px}
+ .compact-app .tracker-week-row-name>.tracker-week-name{min-height:52px}
+ .compact-app .tracker-week-empty{padding-inline:12px}
+ .compact-app .compact-bottom-nav button{min-height:60px;font-size:12px}
+ .compact-app .compact-bottom-nav button[aria-current="page"]{box-shadow:inset 0 2px #171717}
+ .compact-app .tracker-week-screen{overflow:hidden}
+ .account-panel .account-header{padding:18px 16px}
+ .account-panel .account-content{padding:18px 16px 26px}
+ .account-panel .account-tabs{padding:8px 12px;gap:4px}
+ .account-panel .account-tabs button{font-size:12px;padding-inline:10px}
+ .account-panel .account-form input{font-size:16px}
+ .modal .modal-form :is(input,select){font-size:16px}
+}
+@media(max-width:420px){
+ .compact-app .compact-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:0}
+ .compact-app .compact-stat-grid>div{min-width:0;padding:6px 10px 12px 0;border-right:1px solid var(--border)}
+ .compact-app .compact-stat-grid>div:nth-child(2){padding-left:12px;border-right:0}
+ .compact-app .compact-stat-grid>div:nth-child(3){grid-column:1/-1;padding:12px 0 0;border-top:1px solid var(--border)}
+ .compact-app .compact-stat-grid strong{font-size:19px}
+ .compact-app .compact-detail-heading{gap:8px}
+ .compact-app .compact-detail-title p{font-size:12px}
+ .compact-app .compact-chart-legend{font-size:11px}
+ .compact-app .tracker-month-grid{gap:2px}
+ .compact-app .tracker-month-day{padding:0;gap:1px}
+ .compact-app .tracker-grid-legend{gap:8px}
+ .account-panel .account-two{grid-template-columns:1fr}
+ .account-panel .photo-row{align-items:flex-start;gap:10px}
+}
+@media(prefers-reduced-motion:reduce){
+ .compact-app,.compact-app *{scroll-behavior:auto!important}
+}
