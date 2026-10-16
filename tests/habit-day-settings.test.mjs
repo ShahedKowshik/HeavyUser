@@ -157,3 +157,7 @@ test("Charts distinguish pre-start dates from unrecorded eligible dates",()=>{
  assert.match(p,/Blank: not scheduled/);
  assert.match(css,/\.compact-chart-bar\.not-due/);
 });
+
+test("Nonexistent DST wall time cannot silently become a different sleep timestamp",()=>{
+ assert.throws(()=>fromZonedInput("2026-03-08T02:30","America/New_York"),/does not exist/);
+});
