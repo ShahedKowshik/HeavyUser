@@ -15,27 +15,10 @@
 
 ---
 
-## Original README text (January 2026)
+## Reviewing the original source
 
-*The following is the original README retained for historical context. Its setup steps are outdated and are not maintained or validated.*
+This branch is a preserved historical reference. It is not maintained as a deployable version of the current application.
 
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+To inspect the original implementation, start with [App.tsx](App.tsx), the [components](components), and [package.json](package.json). The current product and its setup documentation are on the [main branch](https://github.com/ShahedKowshik/HeavyUser/tree/main).
 
-# Run and deploy your AI Studio app
-
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/drive/1pvGLSZ4n5k2CZTa2DxjNoW6grXacdMG3
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+For historical comparison, the original source snapshots remain linked above.
