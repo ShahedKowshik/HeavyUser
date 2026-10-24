@@ -59,7 +59,7 @@ The entries below link to specific original commits. They record the **introduct
 | **Jan 13** | Habit folders and organization were expanded; a start-of-week setting was also added. | [Habit folders](https://github.com/ShahedKowshik/HeavyUser/commit/3f784e3a745935874821a90d73910fc0b22b8bf3) |
 | **Jan 14** | Task folders and calendar-based task scheduling were introduced or enhanced. | [Task folders](https://github.com/ShahedKowshik/HeavyUser/commit/b1ce2b124bdf881175c1bf7f100e36f2990b2dcb) · [Calendar view](https://github.com/ShahedKowshik/HeavyUser/commit/43edf80e5dcf2443186b96c9b775c7d714c71b54) |
 | **Jan 15** | Google Calendar API integration and OAuth-related account flows were developed. | [Calendar API](https://github.com/ShahedKowshik/HeavyUser/commit/a74a4ad082c2f5ec662327a907788f9107f4a14b) |
-| **Jan 16** | Support for multiple connected calendars and additional Google Calendar interactions was developed. An earlier Gemini integration was removed. | [Multiple calendars](https://github.com/ShahedKowshik/HeavyUser/commit/f45c24c73fa347a7938bde0607721f4c58ed6bc1) · [Remove Gemini](https://github.com/ShahedKowshik/HeavyUser/commit/4fd35ae961837ddc87787a2dfaab8bc5fa2eba5a) |
+| **Jan 16** | Support for multiple connected calendars and additional Google Calendar interactions was developed. An earlier experimental integration was removed. | [Multiple calendars](https://github.com/ShahedKowshik/HeavyUser/commit/f45c24c73fa347a7938bde0607721f4c58ed6bc1) · [Integration removal](https://github.com/ShahedKowshik/HeavyUser/commit/4fd35ae961837ddc87787a2dfaab8bc5fa2eba5a) |
 | **Jan 17** | Tasks and reminders were distinguished explicitly, alongside improvements in task display and calendar requests. | [Task vs reminder](https://github.com/ShahedKowshik/HeavyUser/commit/e1db42cf987655506166348d2bdb088b474ebdc4) |
 | **Jan 20** | The final recorded changes improved Google Calendar event filtering and corrected local session state after calendar-account synchronization. | [Final original commit](https://github.com/ShahedKowshik/HeavyUser/commit/338928ab8ab915eafd72cfb680f8881fb391de4a) |
 
@@ -95,7 +95,7 @@ This is a **historical preservation**, not a code merge. Original code was **not
 
 **Not proven or included by this Git import:** Historical Supabase table contents, private user records, database backups, deployment environment variables, OAuth tokens, operational uptime, every previously deployed build, externally hosted images, or working third-party accounts. Those require separate backups or records.
 
-The source's original \`README.md\` was a brief AI Studio-generated setup note. That setup note is **historical**, contains references to integrations later changed, and is not an authoritative procedure for running the old application in 2026. See the [unaltered README at the final original tag](https://github.com/ShahedKowshik/HeavyUser/blob/legacy-original-v1/README.md).
+The historical README has been updated to focus on product history and source navigation rather than outdated setup instructions. The preserved original snapshot remains available through the historical tag linked above.
 
 ### How to inspect the past
 
