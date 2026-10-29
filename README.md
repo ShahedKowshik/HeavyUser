@@ -17,7 +17,7 @@ HeavyUser is a focused habit tracker for people who want a practical daily works
 | **Daily check-ins** | Mark simple habits done and review what is due today. |
 | **Flexible schedules** | Set specific days, intervals, or weekly/monthly targets instead of forcing everything into a daily streak. |
 | **Different ways to track** | Use check-offs, quantities, duration sessions, or detailed sleep records. |
-| **Week and calendar views** | See your habit activity across days and review individual records. |
+| **Calendar history** | Review your habit activity across days and open individual records. |
 | **Progress and insights** | Explore streaks, recorded-day coverage, trends, and habit-specific statistics. |
 | **Correct mistakes** | Edit historical records and undo supported changes, with safeguards against conflicting updates. |
 | **Keep your history** | Archive habits without erasing their records; permanent deletion requires confirmation. |

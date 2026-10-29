@@ -16,12 +16,12 @@ test("Lyra neutral theme remains intact and new overrides load after original st
  assert.match(c,/--hu-quiet: #626262/);
  assert.doesNotMatch(c,/#(?:5369df|5a6bf7|d56e49|d67a53)\b/i);
 });
-test("the app preserves the original branding and all primary habit views",()=>{
+test("the app preserves the original branding and primary views without Week navigation",()=>{
  const p=page();
  assert.match(p,/src="\/heavyuser-logo\.png"/);
  assert.match(p,/src="\/heavyuser-favicon\.png"/);
- for(const v of ['"today"','"week"','"insights"','"archive"'])assert.ok(p.includes(v));
- assert.match(p,/<WeeklyGrid/);
+ for(const v of ['"today"','"insights"','"archive"'])assert.ok(p.includes(v));
+ assert.doesNotMatch(p,/view==="week"|setView\("week"\)|<WeeklyGrid|tracker-week-workspace/);
  assert.match(p,/<MonthHeatmap/);
 });
 test("Today has meaningful progress hierarchy with zero-habit-safe percentage",()=>{
