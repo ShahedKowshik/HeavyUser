@@ -34,6 +34,10 @@ The intended staging URL is the Netlify **development branch-deploy URL**, not t
 - A skipped build and a branch build are different from a production deployment; verify quota behavior using the provider's billing dashboard. Manual Netlify build hooks may bypass ignore commands.
 - GitHub Actions only performs type checks, Node tests, and an application build. It does not substitute for actual browser and database testing.
 
+## First Netlify development-preview smoke test
+
+When Netlify branch deploys are enabled for `development`, a new commit to that branch triggers the first preview; enabling the setting does not retroactively deploy older commits. Confirm that the Netlify deploy is labeled `Branch deploy: development`, not `Production: main`. Check its build status, live URL, and that Vercel did not create a new deployment. Keep `main` unchanged until the production-build skip is separately protected and reviewed.
+
 References:
 - https://docs.netlify.com/build/configure-builds/ignore-builds/
 - https://docs.netlify.com/deploy/deploy-types/branch-deploys/
