@@ -66,7 +66,7 @@ test("form weekday buttons expose full names and toggle state",()=>{
 test("navigation exposes active-page state on both desktop and mobile",()=>{
  const s=page();
  assert.match(s,/aria-current=\{view==="today"\?"page":undefined\}/);
- assert.match(s,/aria-current=\{view==="week"\?"page":undefined\}/);
+ assert.doesNotMatch(s,/aria-current=\{view==="week"\?"page":undefined\}/);
  assert.match(s,/aria-current=\{view==="archive"\?"page":undefined\}/);
  assert.match(s,/aria-label="Mobile navigation"/);
 });

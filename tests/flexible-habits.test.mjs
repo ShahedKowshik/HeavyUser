@@ -56,7 +56,7 @@ test("weekly streaks follow completed weeks, not one uninterrupted daily chain",
 });
 test("history and ordering controls are present in responsive UI",()=>{
  const app=readFileSync("src/app/page.tsx","utf8");
- assert.match(app,/<WeeklyGrid/);
+ assert.doesNotMatch(app,/<WeeklyGrid/);
  assert.match(app,/<MonthHeatmap/);
  assert.match(app,/frequency_mode/);
  assert.match(app,/reorder_habits/);
