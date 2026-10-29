@@ -1,0 +1,15 @@
+# This Netlify site is ONLY HeavyUser's staging environment.
+# Vercel (web.heavyuser.app), not Netlify, is the actual production host.
+# Set Netlify's "production branch" to development, so the stable
+# https://heavyuser.netlify.app URL tracks development automatically.
+# Netlify calling it "production" is only a Netlify deployment-context label.
+[build]
+  command = "npm run build"
+  publish = ".next"
+  # Netlify: 0 = skip build, 1 = proceed.
+  # Build development when it is the site's selected production branch,
+  # or as a branch deploy during migration. Ignore main and PR previews.
+  ignore = "if [ \"$BRANCH\" = \"development\" ] && [ \"$CONTEXT\" != \"deploy-preview\" ]; then exit 1; else exit 0; fi"
+
+[build.environment]
+  NODE_VERSION = "24"

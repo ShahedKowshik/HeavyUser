@@ -28,7 +28,7 @@ test("quantity corrections are sent through atomic RPC rather than daily-entry u
  assert.match(hook,/\/rest\/v1\/rpc\/record_quantity/);
  assert.match(hook,/crypto\.randomUUID\(\)/);assert.match(hook,/localStorage\.setItem/);
  assert.match(hook,/window\.addEventListener\("online"/);
- assert.match(app,/counter\.enqueue\(selected\.id,day,"set",value\)/);
+ assert.match(app,/counter\.enqueue\(selected\.id,modalDate,"set",value\)/);
 });
 test("desktop details use available width; charts adapt to mobile",()=>{
  const styles=readFileSync("src/app/tracker-enhancements.css","utf8");

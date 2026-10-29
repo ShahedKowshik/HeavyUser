@@ -102,7 +102,7 @@ export function badHabitInsights(h:MetricHabit,entries:MetricEntry[],today:strin
  const currentAvg=average(current),previousAvg=average(previous);
  const reduction=currentAvg!==null&&previousAvg!==null&&current.length>=4&&previous.length>=4&&previousAvg>0
   ?(previousAvg-currentAvg)/previousAvg*100:null;
- let zero=0;for(let i=1;i<=30;i++){const d=addDays(today,-i);const e=entries.find(x=>x.habit_id===h.id&&x.local_date===d);if(e?.confirmed&&e.value===0&&e.explicit_status!=="skipped")zero++;}
+ let zero=0;for(let i=1;i<=30;i++){const d=addDays(today,-i);if(d<h.start_date)continue;const e=entries.find(x=>x.habit_id===h.id&&x.local_date===d);if(e?.confirmed&&e.value===0&&e.explicit_status!=="skipped")zero++;}
  const within=current.filter(e=>(e.value??Infinity)<=effectiveSchedule(h,e.local_date,versions).target).length;
  return {average:currentAvg,previousAverage:previousAvg,reduction,recorded:current.length,zeroDays:zero,withinLimit:within};
 }

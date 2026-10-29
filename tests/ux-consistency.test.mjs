@@ -46,7 +46,7 @@ test("keyboard and touch modals are accessible and prevent unintentional dismiss
 test("all input forms provide cancel, and failures do not close data-entry modals",()=>{
  const s=page();
  assert.match(s,/async function saveEntry\(h:Habit,patch:Record<string,unknown>,date=day\):Promise<boolean>/);
- assert.match(s,/if\(await saveEntry\(selected,\{value:Number\(quantity\),confirmed:true\}\)\)setModal\(null\)/);
+ assert.match(s,/if\(await saveEntry\(selected,\{value:Number\(quantity\),confirmed:true\},modalDate\)\)setModal\(null\)/);
  assert.match(s,/if\(await saveEntry\(selected,\{\.\.\.data,value:minute/);
  assert.match(s,/compact-form-cancel/);
 });
@@ -78,7 +78,8 @@ test("the archive list doesn't show an irrelevant add control",()=>{
 });
 test("account settings are concise and contain only one sign-out action",()=>{
  const s=account();
- assert.equal((s.match(/>Sign out(?: of HeavyUser)?<\/button>/g)||[]).length,1);
+ assert.equal((s.match(/className="account-tab-signout"/g)||[]).length,1);
+ assert.match(s,/role="alertdialog" aria-modal="true"/);
  assert.match(s,/Profile, security and data/);
  assert.doesNotMatch(s,/YOUR WORKSPACE/);
  assert.doesNotMatch(s,/className="account-backdrop" onMouseDown/);
@@ -93,7 +94,7 @@ test("every management control works on phone-sized screens",()=>{
 
 test("account settings Escape and close do not interrupt pending operations",()=>{
  const s=account();
- assert.match(s,/if\(e.key==="Escape"&&!pending\)onClose\(\)/);
+ assert.match(s,/if\(e.key==="Escape"&&!pending\)\{if\(confirmSignOut\)setConfirmSignOut\(false\);else onClose\(\)\}/);
  assert.match(s,/aria-label="Close settings" disabled=\{!!pending\}/);
  assert.match(s,/if\(e\.key!=="Tab"\)return/);
 });

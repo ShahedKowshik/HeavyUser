@@ -86,7 +86,7 @@ test("all UI surfaces use the same state function, with no independent success o
  assert.match(page,/const success=\(h:Habit,date=day\)=>dayState\(h,date\)==="done"/);
  assert.match(page,/function recordedFor\(h:Habit,date:string\)\{\s*const state=dayState/);
  assert.match(page,/await toggleCheck\(h,day\)/);
- assert.match(page,/onCheck=\{\(h,d\)=>\{chooseDate\(d\);void toggleCheck/);
+ assert.match(page,/onClick=\{\(\)=>record\(h\)\}/);
  assert.match(page,/explicit_status:null/);
  assert.match(page,/function clearEntry/);
  assert.match(views,/stateFor\(h,d/);

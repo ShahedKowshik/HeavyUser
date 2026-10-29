@@ -30,7 +30,7 @@ npm test
 npm run build
 ```
 
-GitHub Actions performs those three checks on changes to `main` and its pull requests. The present codebase does not define an ESLint script or a complete browser/E2E test command; do not claim they were executed.
+The workflow on `development` runs these checks on pushes and pull requests for `main` and `development`; the existing workflow on `main` currently covers only `main`. Always verify the checks for the exact commit being released. The present codebase does not define an ESLint script or a complete browser/E2E test command; do not claim they were executed.
 
 ## Working agreements
 
@@ -39,11 +39,11 @@ GitHub Actions performs those three checks on changes to `main` and its pull req
 - Preserve existing semantics for absent, skipped, missed, and recorded data.
 - Add regression tests to accompany data or undo fixes.
 - Consider mobile, empty states, slow connections, double clicks, concurrent edits, and session expiry.
-- Verify all views agree after an action: Today, Week, calendar, and insights.
+- Verify all current views agree after an action: Today, calendar history, and insights. Weekly frequency goals still exist; the separate Week dashboard navigation was removed.
 - Explain database migrations and rollback considerations when a change needs backend modifications.
 - Run CI before merging; review changes to authentication, deletion, or data integrity especially carefully.
 
-Read [architecture](ARCHITECTURE.md), [data consistency QA](DATA_CONSISTENCY_QA.md), and [CONTRIBUTING.md](../CONTRIBUTING.md) first.
+Read [architecture](ARCHITECTURE.md), [data consistency QA](DATA_CONSISTENCY_QA.md), [release workflow](RELEASE_WORKFLOW.md), and [CONTRIBUTING.md](../CONTRIBUTING.md) first.
 
 ## Troubleshooting
 
@@ -53,7 +53,7 @@ Read [architecture](ARCHITECTURE.md), [data consistency QA](DATA_CONSISTENCY_QA.
 | Sign-in fails | Confirm authentication settings and the project's valid redirect URLs |
 | Backend returns missing-table/function errors | Compatible schema/migrations are not currently supplied by the repo |
 | Statistics disagree with an entry | Reproduce the exact date and steps, including any undo or historical edits |
-| Dates differ while traveling | The frontend currently uses the `Asia/Dhaka` timezone |
+| Dates differ while traveling | Check the user's stored IANA timezone and custom logical-day start in Account Settings. Existing accounts default to `Asia/Dhaka` and a midnight boundary. |
 | Build fails | Confirm Node 24, run `npm ci`, then `npm run typecheck` |
 
 For a security problem, follow [SECURITY.md](../SECURITY.md) instead of filing a public issue.
