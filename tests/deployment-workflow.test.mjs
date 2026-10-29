@@ -37,5 +37,5 @@ test("Release instructions keep Netlify staging separate from Vercel production"
  assert.match(instructions,/development/);
  assert.match(instructions,/Netlify/);
  assert.match(instructions,/web\.heavyuser\.app/);
- assert.match(instructions,/shared Supabase/);
+ assert.match(instructions,/same Supabase project/);
 });
