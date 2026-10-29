@@ -1,44 +1,40 @@
-# HeavyUser — development, staging and production
+# HeavyUser — how development, staging and production work
 
-Updated 2026-10-29. This document describes source-code control and the intended deployment flow; it does not establish the current Netlify dashboard settings.
+Updated 2026-10-29 from live GitHub, Netlify, Vercel and Supabase inspections.
 
-## The simple workflow
+## Two branches, two hosting services, one database
 
-1. **development** is where routine changes are made and tested. GitHub Actions runs checks on pushes to development. A Netlify *branch deploy* of development is the intended browser preview.
-2. **main** is the production source. Vercel publishes main at https://web.heavyuser.app. Only deliberately reviewed releases should reach main.
-3. **staging** is an additional existing branch. On 2026-10-29 it received an independent Week-dashboard removal and tests. Do **not** delete, reset or merge it until Netlify's actual build branch and published URL have been verified. Its branch name alone does not prove which website it serves.
-4. **feature/**, **fix/** and **redesign/** branches are short-lived work branches. After their PRs are merged and any deployment references are verified, delete the disposable branches; retain the historical archive and its tags.
+| GitHub branch | Host | Role | URL |
+| --- | --- | --- | --- |
+| `development` | Netlify | **Staging**: preview all ordinary changes | https://heavyuser.netlify.app |
+| `main` | Vercel | **Production**: deliberate, reviewed releases only | https://web.heavyuser.app |
 
-**A GitHub branch is source code, not a hosted site.** Renaming or deleting it does not automatically unpublish a Vercel or Netlify deployment.
+The GitHub branch `staging` is **redundant**, but preserve it until its separate test commits are reconciled and its old Vercel domain references have been checked.
 
-## Verified on GitHub / Vercel on October 29, 2026
+**The site is not yet switched**: on October 29 the connected Netlify site's *published deploy* is `main` at commit `0a50d2c`, and Netlify's primary URL is therefore currently **not** a live development preview. Its project settings must be changed: **Netlify > heavyuser > Project configuration > Developer settings > Continuous deployment > Branches and deploy contexts > Configure > production branch = development**. The word *production* in this Netlify setting is just Netlify's term for the branch serving the primary `.netlify.app` URL; it does **not** deploy to Vercel production. Turn off additional branch deploys and PR previews if offered. The installed Netlify connector cannot edit this project build-branch setting, so this specific step needs an authorized UI change.
 
-- main: `0a50d2c`, currently the last READY Vercel production deployment.
-- development: `3e5fe6e`, passes GitHub Actions; its Week view is removed.
-- staging: `9503859`, passes GitHub Actions; its Week view is removed independently.
-- Development and staging are not the same commit. They also have historical divergence from main; neither should be blindly merged or force-reset.
-- The repository's main branch is not protected. GitHub branch protection / ruleset settings require a separate administrator action.
-- **Netlify configuration not verified:** this document is not evidence of which branch the live Netlify staging URL currently builds.
+The `netlify.toml` on `development` is preconfigured to **build only development** when Netlify treats it as its production-branch deployment or as a branch deploy during transition. It skips `main`, old `staging` and PR previews. Node 24 and `npm run build` are configured.
 
-## Release procedure
+### Database
 
-1. Make a small change on development and let `Baseline checks` pass. The checks cover TypeScript, Node tests and a build; they do **not** prove browser, Supabase or deployment behavior.
-2. Confirm the exact Netlify site, build branch, URL and successful preview before describing the feature as live on staging. If the active preview builds `staging`, do not silently switch it to development.
-3. Review changes since main, including the two main-only archival documentation commits, and check authentication, data integrity, UI on mobile and rollback risks. Merge only the agreed, tested release into main.
-4. Confirm Vercel has deployed the intended **main commit** with status READY, and inspect the real production URL. A GitHub CI success is not a deployment.
-5. After verifying hosting references and that no work exists only on another branch, remove obsolete branches. Never delete `legacy/original-heavyuser`, `archive/pre-rebuild-2026-10-13` or the `legacy-*` tags as part of routine cleanup.
+Both URLs use the **same Supabase project** (no second database or login required). Changes made while signed into staging can modify the same account data visible in production. Use non-destructive test actions and verify relevant RLS policies; never apply a destructive migration for a staging-only test.
 
-## Deployment safeguards
+### A normal change
 
-- `vercel.json` on development disables automatic non-main Vercel Git deployments. This configuration is **not yet on main** and is not a substitute for checking Vercel's actual project settings.
-- `netlify.toml` on development intends to build only Netlify branch deploys of `development`. Netlify's main-branch build reads files from **main**, where this file is not yet present. Before publishing another main release, configure the Netlify production-build ignore rule in the Netlify dashboard, or approve the matching configuration as part of that release.
-- Do not create automatic production releases from pull requests, previews, scheduled jobs or staging changes.
-- Do not commit Supabase secrets or use service-role keys in browser variables.
-- Staging and production currently share one Supabase project. The same personal login **can** be used in staging, as requested, but changes made there can affect real account records. A separate test account is a safer optional choice, not a requirement. Do not apply destructive database migrations merely to test staging.
-- A deployment can remain accessible even after its GitHub branch disappears; remove unwanted public URLs in the hosting provider after verifying current production.
+1. Commit to `development`; let GitHub `Baseline checks` pass.
+2. Confirm Netlify published that exact SHA and open `https://heavyuser.netlify.app`. Check login, habit creation, counter/undo, timer, mobile layout, dates and sign-out.
+3. When ready to release, review the **draft** pull request from `development` into `main`. Verify both the code diff and database migration compatibility; main has separate archive documentation commits that must survive.
+4. Turn the draft PR into a reviewed PR and merge it **only after explicit approval**. GitHub `main` then triggers Vercel production deployment.
+5. Check the Vercel READY deployment's SHA and verify `https://web.heavyuser.app` before considering production updated.
 
-## Before retiring the extra staging branch
+Passing CI is **not** proof of a deployed app. No automatic merge, DB reset or branch-force-reset is authorized as part of normal staging work.
 
-In Netlify, record the project's production branch, configured branch deploys, and the deploy details for the user-facing staging URL. Then choose **one** long-term preview branch (prefer development) and verify that one normal change actually reaches that URL. Only then retire the duplicate branch. Until this is confirmed, preserve both branches.
+### Safeguards and backlog
 
-Historical source: [legacy/original-heavyuser](https://github.com/ShahedKowshik/HeavyUser/tree/legacy/original-heavyuser). These 228 original commits have separate history and should never be merged into the modern application.
+- Vercel preview deployments were disabled at the project level to avoid old branch deployment noise; its Git configuration in `vercel.json` on development allows automatic Git builds only for `main`. The Vercel project still has an older `staging.heavyuser.app` custom-domain binding that should be retired if not in use, using the project's domain settings.
+- Netlify's configured site access currently requires team SSO. Do not make it public as a shortcut without checking the user experience.
+- `main` is currently **unprotected** in GitHub. Add branch protection or rulesets requiring a pull request, passing `Baseline checks` and blocking force-push/deletion; a solo owner does not need mandatory second-person approval.
+- Old merged feature/fix branches can be deleted when their reachable commits and deployment references are confirmed. This GitHub connector cannot delete refs or update protection/rulesets.
+- Preserve `legacy/original-heavyuser`, `archive/pre-rebuild-2026-10-13` and the historical tags. These represent the product's original history. The archive is **public** because the entire repo is public.
+- An occasional Supabase advisor warning for an authenticated SECURITY DEFINER RPC is not by itself evidence of insecure access. The four present RPCs check `auth.uid()` and owner-filter their data operations. Revoking their EXECUTE permission would break current core functions.
+- Supabase password-breach checks are a paid-plan feature; if the project is on a supported plan, enable them in Auth settings. Do not upgrade plans without explicit approval.
