@@ -78,7 +78,7 @@ npm test
 npm run build
 ```
 
-These checks run for pushes and pull requests against `main`. They do **not** yet establish full browser, accessibility, database-policy, or end-to-end test coverage.
+The development workflow checks pushes and pull requests for `main` and `development`. GitHub CI does **not** establish full browser, accessibility, database-policy, deployment, or end-to-end test coverage.
 
 ### Documentation
 
@@ -91,6 +91,21 @@ These checks run for pushes and pull requests against `main`. They do **not** ye
 | [Habit design decisions](docs/HABIT_MRP.md) | Research and decisions behind the extended tracker |
 | [Data consistency QA](docs/DATA_CONSISTENCY_QA.md) | Documented invariants and previously investigated undo issues |
 | [Public launch checklist](docs/LAUNCH_CHECKLIST.md) | Remaining public-facing release preparations |
+| [Release workflow](docs/RELEASE_WORKFLOW.md) | Development/staging branches, production safety and release checklist |
+
+
+<details>
+<summary>Explore the original HeavyUser (historical archive)</summary>
+
+The original multi-purpose HeavyUser application was built between December 2025 and January 2026. Its **228 original commits** are preserved separately from the current habit-tracker application.
+
+- [Read the original version's history, timeline and design decisions](https://github.com/ShahedKowshik/HeavyUser/blob/legacy/original-heavyuser/docs/ORIGINAL_VERSION_HISTORY.md).
+- [Browse the historical archive branch](https://github.com/ShahedKowshik/HeavyUser/tree/legacy/original-heavyuser).
+- [First commit (December 23, 2025)](https://github.com/ShahedKowshik/HeavyUser/tree/legacy-first-commit) · [Untouched original end state (January 20, 2026)](https://github.com/ShahedKowshik/HeavyUser/tree/legacy-original-v1).
+
+This is historical source and public Git history, not a maintained application or backup of past account data.
+
+</details>
 
 ## Feedback, security, and contributions
 
